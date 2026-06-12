@@ -300,6 +300,24 @@
     animation: voicePulse 1s ease-in-out infinite;
   }
   @keyframes voicePulse{ 0%,100%{box-shadow:0 0 0 0 rgba(227,145,143,.4);} 50%{box-shadow:0 0 0 8px rgba(227,145,143,0);} }
+
+  /* distribution editor */
+  .dist-edit-row{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 0; border-bottom:1px solid var(--line-soft);
+  }
+  .dist-edit-row .name{flex:1; font-size:13px;}
+  .dist-edit-row input{
+    width:70px; flex:0 0 auto; margin-bottom:0; text-align:center;
+    background:var(--bg); border:1px solid var(--line); color:var(--text);
+    padding:8px; border-radius:8px; font-size:13px; font-variant-numeric: tabular-nums;
+  }
+  .dist-edit-row .pct-sign{color:var(--muted); font-size:12px;}
+  .dist-total{
+    display:flex; justify-content:space-between; padding:10px 0 0; font-size:13px; font-weight:700;
+  }
+  .dist-total.warn{color:var(--red);}
+  .dist-total.ok{color:var(--green);}
   .wallet.track .bar i{background:linear-gradient(to left, var(--blue), #5d7e9c);}
   .wallet.neg-val .bar i{background:var(--red);}
 
@@ -447,6 +465,9 @@
   .pie-legend .sw{width:10px; height:10px; border-radius:3px; flex-shrink:0;}
   .pie-legend .name{flex:1; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .pie-legend .pct{color:var(--muted); font-variant-numeric: tabular-nums; direction:ltr;}
+  .cat-cmp{font-size:10px; font-weight:700; padding:1px 5px; border-radius:5px; flex-shrink:0;}
+  .cat-cmp.up{color:var(--red); background:rgba(227,145,143,.12);}
+  .cat-cmp.down{color:var(--green); background:rgba(134,195,154,.12);}
 
   /* category tag in tx list */
   .tx .info .meta .ctag{font-size:13px; line-height:1;}
@@ -824,12 +845,20 @@
 <div class="section-title">📊 تحليلات الشهر</div>
 <div class="analytics-grid" id="analyticsGrid"></div>
 <div id="recurringBox"></div>
+<div class="btn-row" style="margin-bottom:14px;">
+  <button class="btn-secondary" onclick="exportMonthlyReport()">📄 تصدير/مشاركة تقرير الشهر</button>
+</div>
 
 <div class="section-title">التقارير</div>
 
 <div class="wallet-filter-chip" id="walletFilterChip" onclick="clearWalletFilter()">
   <span id="walletFilterLabel"></span>
   <span>✕</span>
+</div>
+
+<div class="wallet-filter-chip" id="categoryFilterChip" onclick="toggleCategoryFilter(null)" style="background:var(--blue-soft); border-color:var(--blue);">
+  <span id="categoryFilterLabel" style="color:var(--blue);"></span>
+  <span style="color:var(--blue);">✕</span>
 </div>
 
 <div class="filters">
@@ -949,6 +978,14 @@
       </div>
     </div>
 
+    <div class="section-title" style="margin-top:18px;">📐 نسب التوزيع التلقائي</div>
+    <div class="hint" style="margin-top:0;">عدّل نسبة كل محفظة من الدخل (المجموع يجب أن يساوي 100%).</div>
+    <div id="distributionEditor"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="saveDistribution()">حفظ النسب</button>
+      <button class="btn-secondary" onclick="resetDistribution()">استعادة الافتراضي</button>
+    </div>
+
     <div class="section-title" style="margin-top:18px;">☁️ الحفظ التلقائي بجوجل درايف</div>
     <div class="hint" style="margin-top:0;" id="driveStatusText">غير مفعّل. أدخل Client ID الخاص بك للبدء.</div>
 
@@ -1034,6 +1071,7 @@
       </div>
       <div class="hint" style="margin-top:0;">عند الوصول إليها سيتلون شريط التقدم بالأحمر وتظهر علامة تحذير ⚠ على بطاقة المحفظة.</div>
     </div>
+    <div id="detailUpdateBalance" style="display:none; margin-bottom:14px;">
       <label>تحديث الرصيد الفعلي</label>
       <div class="row2">
         <input type="number" id="detailNewBalance" step="any" inputmode="decimal" placeholder="الرصيد الجديد">
@@ -1088,6 +1126,18 @@
   </div>
 </div>
 
+<!-- ===== DAILY REVIEW MODAL ===== -->
+<div class="modal-overlay" id="dailyReviewModal">
+  <div class="modal">
+    <div class="grabber"></div>
+    <h3>☀️ مراجعة سريعة</h3>
+    <div id="dailyReviewContent" style="font-size:13px; line-height:1.9;"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="closeModal('dailyReviewModal')">تمام، يلا نبدأ</button>
+    </div>
+  </div>
+</div>
+
 <div id="saveStatus" role="status" aria-live="polite"></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1125,7 +1175,7 @@ const QUICK_AMOUNTS = [250, 500, 1000, 2000, 5000, 10000];
 const SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track);
 
 // Wallets that participate in automatic income distribution, with their share %
-const DISTRIBUTION = [
+const DEFAULT_DISTRIBUTION = [
   {id:'core',        pct:50},
   {id:'wishlist',    pct:10},
   {id:'growth',      pct:10},
@@ -1134,10 +1184,12 @@ const DISTRIBUTION = [
   {id:'giving',      pct:5},
   {id:'reserve',     pct:5},
 ];
+let DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
 
 let state = { wallets:{}, transactions:[], crisisMode:false };
 let currentFilter = 'all';
 let walletFilter = null;
+let categoryFilter = null;
 let selectedWallet = WALLET_DEFS[0].id;
 let editingTxId = null;
 let editType = 'expense';
@@ -1194,6 +1246,9 @@ async function loadState(){
       state.crisisMode = !!c.crisisMode;
       autoDistribute = !!c.autoDistribute;
       budgets = c.budgets || {};
+      if(c.distribution && Array.isArray(c.distribution) && c.distribution.length){
+        DISTRIBUTION = c.distribution;
+      }
       dismissedRecurring = new Set(c.dismissedRecurring || []);
     }
   }catch(e){}
@@ -1207,7 +1262,7 @@ async function loadState(){
 
 async function saveBalances(){ try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){ toast('⚠ فشل الحفظ', true); } }
 async function saveTx(){ try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){ toast('⚠ فشل الحفظ', true); } }
-async function saveConfig(){ try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring)})); scheduleDriveSync(); idbBackup(); }catch(e){} }
+async function saveConfig(){ try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); scheduleDriveSync(); idbBackup(); }catch(e){} }
 
 /* ============================================================
    INDEXEDDB BACKUP (extra resilience alongside localStorage)
@@ -1263,6 +1318,12 @@ function toggleCrisis(){
 /* ============================================================
    RENDER: WALLETS
 ============================================================ */
+function getWalletPctLabel(w){
+  const d = DISTRIBUTION.find(x=>x.id===w.id);
+  if(d) return d.pct + '%';
+  return w.pct;
+}
+
 function monthlyExpenseForWallet(walletId){
   const now = new Date();
   let total = 0;
@@ -1311,7 +1372,7 @@ function renderWallets(){
     div.innerHTML = `
       <div class="top">
         <div class="name">${w.name}</div>
-        <div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" title="التفاصيل">ⓘ ${w.pct}</div>
+        <div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" title="التفاصيل">ⓘ ${getWalletPctLabel(w)}</div>
       </div>
       <div class="val">${fmt(val)}</div>
       <div class="bar"><i style="width:${pctWidth}%"></i></div>
@@ -1373,6 +1434,21 @@ function clearWalletFilter(){
   renderTxList();
   renderChart();
 }
+
+function toggleCategoryFilter(catId){
+  categoryFilter = (categoryFilter === catId) ? null : catId;
+  const chip = document.getElementById('categoryFilterChip');
+  if(categoryFilter){
+    const cat = getCategory(categoryFilter);
+    document.getElementById('categoryFilterLabel').textContent = 'الفئة: ' + cat.icon + ' ' + cat.name;
+    chip.classList.add('show');
+  } else {
+    chip.classList.remove('show');
+  }
+  renderTxList();
+  renderChart();
+}
+
 
 /* ============================================================
    WALLET SELECT (add form)
@@ -1626,7 +1702,10 @@ function getCategory(id){
 ============================================================ */
 function renderPieChart(){
   const wrap = document.getElementById('pieContent');
-  const filtered = getFilteredTx().filter(tx => tx.type==='expense' && tx.category !== 'transfer');
+  const filtered = state.transactions
+    .filter(tx => inRange(tx.ts))
+    .filter(tx => !walletFilter || tx.wallet === walletFilter)
+    .filter(tx => tx.type==='expense' && tx.category !== 'transfer');
 
   if(filtered.length === 0){
     wrap.innerHTML = '<div class="chart-empty" style="flex:1;">لا توجد مصروفات في هذه الفترة</div>';
@@ -1641,16 +1720,47 @@ function renderPieChart(){
   const total = Object.values(totals).reduce((a,b)=>a+b,0);
   const entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
 
+  // per-category comparison vs last month (only meaningful when viewing "month")
+  let prevTotals = null;
+  if(currentFilter === 'month'){
+    prevTotals = {};
+    const [prevStart, prevEnd] = monthRange(1);
+    state.transactions.forEach(tx=>{
+      if(tx.type!=='expense' || tx.category==='transfer') return;
+      if(tx.ts < prevStart || tx.ts >= prevEnd) return;
+      if(walletFilter && tx.wallet !== walletFilter) return;
+      const cat = tx.category || 'other';
+      prevTotals[cat] = (prevTotals[cat]||0) + tx.amount;
+    });
+  }
+
   const size = 110, r = 50, cx = size/2, cy = size/2;
   let html = `<canvas id="pieCanvas" width="${size}" height="${size}" style="width:${size}px;height:${size}px;"></canvas>`;
   html += '<div class="pie-legend">';
   entries.forEach(([catId, amt]) => {
     const cat = getCategory(catId);
     const pct = (amt/total*100);
-    html += `<div class="row"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span><span class="pct">${fmt(amt)} (${pct.toFixed(0)}%)</span></div>`;
+    let cmpHtml = '';
+    if(prevTotals){
+      const prevAmt = prevTotals[catId] || 0;
+      if(prevAmt > 0){
+        const diff = ((amt-prevAmt)/prevAmt*100);
+        const up = diff > 0;
+        if(Math.abs(diff) >= 1){
+          cmpHtml = `<span class="cat-cmp ${up?'up':'down'}">${up?'▲':'▼'}${Math.abs(diff).toFixed(0)}%</span>`;
+        }
+      } else if(amt > 0){
+        cmpHtml = `<span class="cat-cmp up">جديد</span>`;
+      }
+    }
+    html += `<div class="row cat-row" data-cat="${catId}"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct.toFixed(0)}%)</span></div>`;
   });
   html += '</div>';
   wrap.innerHTML = html;
+  wrap.querySelectorAll('.cat-row').forEach(row=>{
+    row.style.cursor = 'pointer';
+    row.onclick = () => toggleCategoryFilter(row.dataset.cat);
+  });
 
   // draw pie
   const canvas = document.getElementById('pieCanvas');
@@ -1792,6 +1902,58 @@ async function saveWalletBudget(){
   await saveConfig();
   renderWallets();
   toast('✓ تم حفظ الميزانية');
+}
+
+function renderDistributionEditor(){
+  const wrap = document.getElementById('distributionEditor');
+  wrap.innerHTML = '';
+  DISTRIBUTION.forEach((d,i)=>{
+    const w = WALLET_DEFS.find(x=>x.id===d.id);
+    const row = document.createElement('div');
+    row.className = 'dist-edit-row';
+    row.innerHTML = `
+      <span class="name">${w ? w.name : d.id}</span>
+      <input type="number" step="any" inputmode="decimal" value="${d.pct}" data-idx="${i}">
+      <span class="pct-sign">%</span>
+    `;
+    row.querySelector('input').oninput = (e)=>{
+      DISTRIBUTION[i].pct = parseFloat(e.target.value) || 0;
+      updateDistTotal();
+    };
+    wrap.appendChild(row);
+  });
+  const totalRow = document.createElement('div');
+  totalRow.className = 'dist-total';
+  totalRow.id = 'distTotalRow';
+  wrap.appendChild(totalRow);
+  updateDistTotal();
+}
+
+function updateDistTotal(){
+  const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
+  const el = document.getElementById('distTotalRow');
+  if(!el) return;
+  el.textContent = 'الإجمالي: ' + total.toFixed(1) + '%';
+  el.className = 'dist-total ' + (Math.abs(total-100)<0.01 ? 'ok' : 'warn');
+}
+
+async function saveDistribution(){
+  const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
+  if(Math.abs(total-100) > 0.01){
+    if(!confirm(`الإجمالي الحالي ${total.toFixed(1)}% وليس 100%. حفظ مع ذلك؟`)) return;
+  }
+  await saveConfig();
+  renderWallets();
+  toast('✓ تم حفظ النسب');
+}
+
+function resetDistribution(){
+  if(!confirm('استعادة النسب الافتراضية (50/10/10/10/10/5/5)؟')) return;
+  DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  renderDistributionEditor();
+  saveConfig();
+  renderWallets();
+  toast('✓ تمت الاستعادة');
 }
 
 function openWalletDetail(walletId){
@@ -2024,6 +2186,7 @@ function getFilteredTx(){
   return state.transactions
     .filter(tx => inRange(tx.ts))
     .filter(tx => !walletFilter || tx.wallet === walletFilter)
+    .filter(tx => !categoryFilter || (tx.category||'other') === categoryFilter)
     .filter(tx => {
       if(!searchQuery) return true;
       const wallet = WALLET_DEFS.find(w=>w.id===tx.wallet);
@@ -2063,7 +2226,13 @@ function renderTxList(){
   document.getElementById('heroExpense').textContent = fmt(mExpense);
 
   if(filtered.length === 0){
-    list.innerHTML = `<div class="empty"><span class="ic">🗂</span>لا توجد معاملات${searchQuery ? ' مطابقة لبحثك' : ' في هذه الفترة'}</div>`;
+    if(state.transactions.length === 0 && !searchQuery && currentFilter==='all'){
+      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>لا توجد معاملات بعد.<br><br>
+        <button class="btn-secondary" onclick="openModal('dataModal')" style="width:auto; padding:10px 20px; display:inline-block;">⬆ استيراد بيانات من ملف JSON</button>
+      </div>`;
+    } else {
+      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>لا توجد معاملات${searchQuery ? ' مطابقة لبحثك' : ' في هذه الفترة'}</div>`;
+    }
     return;
   }
 
@@ -2461,197 +2630,4 @@ async function deleteTx(id){
 function openModal(id){
   document.getElementById(id).classList.add('open');
   if(id==='dataModal') document.getElementById('jsonArea').value = '';
-  if(id==='settingsModal'){
-    updateSettingsStats();
-    document.getElementById('driveClientId').value = driveClientId;
-    refreshDriveSettingsUI();
-  }
-}
-function closeModal(id){
-  document.getElementById(id).classList.remove('open');
-}
-document.querySelectorAll('.modal-overlay').forEach(ov=>{
-  ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('open'); });
-});
-
-function updateSettingsStats(){
-  document.getElementById('statTxCount').textContent = state.transactions.length + ' معاملة';
-  if(state.transactions.length){
-    const first = state.transactions.reduce((min,t)=> t.ts<min.ts ? t : min, state.transactions[0]);
-    document.getElementById('statFirstTx').textContent = new Date(first.ts).toLocaleDateString('ar-EG', {day:'numeric', month:'long', year:'numeric'});
-  } else {
-    document.getElementById('statFirstTx').textContent = '—';
-  }
-  try{
-    const last = localStorage.getItem(LS_PREFIX + 'lastEdit');
-    document.getElementById('statLastEdit').textContent = last
-      ? new Date(parseInt(last)).toLocaleString('ar-EG', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})
-      : '—';
-  }catch(e){
-    document.getElementById('statLastEdit').textContent = '—';
-  }
-}
-
-/* ============================================================
-   EXPORT / IMPORT / RESET
-============================================================ */
-function exportData(){
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    wallets: state.wallets,
-    transactions: state.transactions,
-    crisisMode: state.crisisMode
-  };
-  const json = JSON.stringify(payload, null, 2);
-  document.getElementById('jsonArea').value = json;
-
-  const blob = new Blob([json], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'wallet-backup-' + todayISO() + '.json';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-  toast('✓ تم تجهيز ملف التصدير');
-}
-
-function importFromFile(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('jsonArea').value = e.target.result;
-    applyImport(e.target.result);
-  };
-  reader.readAsText(file);
-}
-
-function importFromTextarea(){
-  const txt = document.getElementById('jsonArea').value.trim();
-  if(!txt){ toast('⚠ الصق بيانات JSON أولاً', true); return; }
-  applyImport(txt);
-}
-
-async function applyImport(text){
-  let data;
-  try{ data = JSON.parse(text); }
-  catch(e){ toast('⚠ تنسيق JSON غير صالح', true); return; }
-
-  if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
-
-  if(data.wallets) state.wallets = data.wallets;
-  if(data.transactions) state.transactions = data.transactions;
-  if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
-
-  await saveBalances();
-  await saveTx();
-  await saveConfig();
-  closeModal('dataModal');
-  render();
-  toast('✓ تم الاستيراد بنجاح');
-}
-
-async function resetBalancesOnly(){
-  if(!confirm('سيتم تصفير جميع الأرصدة إلى ٠ (لن تُحذف المعاملات). متابعة؟')) return;
-  WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
-  await saveBalances();
-  closeModal('settingsModal');
-  render();
-  toast('✓ تمت تصفير الأرصدة');
-}
-
-async function wipeAll(){
-  if(!confirm('سيتم حذف جميع الأرصدة والمعاملات نهائياً. هذا الإجراء لا يمكن التراجع عنه. متابعة؟')) return;
-  if(!confirm('تأكيد أخير: هل أنت متأكد تماماً؟')) return;
-  WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
-  state.transactions = [];
-  state.crisisMode = false;
-  await saveBalances();
-  await saveTx();
-  await saveConfig();
-  closeModal('settingsModal');
-  render();
-  toast('🗑 تم حذف كل البيانات');
-}
-
-/* ============================================================
-   TOAST
-============================================================ */
-function toast(msg, isError){
-  const el = document.getElementById('saveStatus');
-  el.textContent = msg;
-  el.style.borderColor = isError ? 'var(--red)' : 'var(--line)';
-  el.style.color = isError ? 'var(--red)' : 'var(--text)';
-  el.classList.add('show');
-  clearTimeout(window._saveTimeout);
-  window._saveTimeout = setTimeout(()=> el.classList.remove('show'), 2200);
-}
-
-/* ============================================================
-   GOOGLE DRIVE AUTO-SYNC
-   Stores a single JSON file (wallet-data.json) in the user's
-   Drive appDataFolder (a hidden app-specific space, not visible
-   in the user's normal Drive UI, but fully owned by the user's account).
-============================================================ */
-const DRIVE_FILE_NAME = 'محفظتيييي-data.json';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
-
-let gisTokenClient = null;
-let driveAccessToken = null;
-let driveFileId = null;
-let driveSyncTimer = null;
-let driveClientId = '';
-
-function loadDriveConfig(){
-  try{
-    driveClientId = localStorage.getItem(LS_PREFIX + 'driveClientId') || '';
-  }catch(e){}
-}
-
-function setDriveIndicator(state_){
-  // state_: 'idle' | 'syncing' | 'ok' | 'error' | 'off'
-  const el = document.getElementById('driveIndicator');
-  const map = { idle:'☁️', syncing:'🔄', ok:'✅', error:'⚠️', off:'' };
-  if(state_ === 'off' || !driveClientId){
-    el.style.display = 'none';
-    return;
-  }
-  el.style.display = 'flex';
-  el.textContent = map[state_] || '☁️';
-  el.title = {
-    idle: 'جاهز للمزامنة',
-    syncing: 'جاري المزامنة مع Drive...',
-    ok: 'تمت المزامنة مع Drive',
-    error: 'خطأ بالمزامنة — راجع الإعدادات'
-  }[state_] || '';
-}
-
-function refreshDriveSettingsUI(){
-  const setupEl = document.getElementById('driveSetup');
-  const actionsEl = document.getElementById('driveActions');
-  const statusEl = document.getElementById('driveStatusText');
-  const signInBtn = document.getElementById('driveSignInBtn');
-  const signedInActions = document.getElementById('driveSignedInActions');
-
-  if(!driveClientId){
-    setupEl.style.display = 'block';
-    actionsEl.style.display = 'none';
-    statusEl.textContent = 'غير مفعّل. أدخل Client ID الخاص بك للبدء.';
-    setDriveIndicator('off');
-    return;
-  }
-  setupEl.style.display = 'none';
-  actionsEl.style.display = 'block';
-
-  if(driveAccessToken){
-    statusEl.textContent = 'متصل ✓ — البيانات تُحفظ تلقائيًا على Google Drive (مجلد بيانات التطبيق الخاص).';
-    signInBtn.style.display = 'none';
-    signedInActions.style.display = 'flex';
-    setDriveIndicator('ok');
-  } else {
-    statusEl.textContent = 'Client ID محفوظ. سجّل الدخول لتفعيل المزامنة التلقائية.';
-    signInBtn.style.display = 'block';
-    signedInActions.style.display = 'none';
-    setDriveI
+  if(id
