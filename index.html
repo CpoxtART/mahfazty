@@ -1598,6 +1598,7 @@ function setWalletFilter(id){
   renderWallets();
   renderTxList();
   renderChart();
+  renderPieChart();
 }
 function clearWalletFilter(){
   walletFilter = null;
@@ -1606,6 +1607,7 @@ function clearWalletFilter(){
   renderWallets();
   renderTxList();
   renderChart();
+  renderPieChart();
 }
 
 function toggleCategoryFilter(catId){
@@ -2367,6 +2369,7 @@ function setFilter(f){
   });
   renderTxList();
   renderChart();
+  renderPieChart(); // pie depends on the active time range (inRange)
 }
 
 function inRange(ts){
@@ -2724,6 +2727,7 @@ function openDistributionModal(amount){
   wrap.innerHTML = '';
   DISTRIBUTION.forEach(d=>{
     const w = WALLET_DEFS.find(x=>x.id===d.id);
+    if(!w) return; // guard against a stale wallet id in saved distribution
     const share = round2(amount * d.pct / 100);
     const row = document.createElement('div');
     row.className = 'dist-row';
@@ -2805,6 +2809,14 @@ function round2(n){
   return Math.round(n * 100) / 100;
 }
 
+// Drop any distribution entries whose wallet id no longer exists (e.g. from an
+// imported/cloud backup). Falls back to defaults if nothing valid remains.
+function sanitizeDistribution(arr){
+  if(!Array.isArray(arr)) return DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  const cleaned = arr.filter(d => d && WALLET_DEFS.find(w=>w.id===d.id));
+  return cleaned.length ? cleaned : DEFAULT_DISTRIBUTION.map(d=>({...d}));
+}
+
 function applyTxToBalance(tx, sign){
   if(!tx || isNaN(tx.amount)) return;
   const delta = (tx.type === 'expense' ? -tx.amount : tx.amount) * sign;
@@ -2856,7 +2868,7 @@ async function saveEdit(){
   await saveBalances();
   await saveTx();
   closeModal('editModal');
-  render();
+  render(true); // force: desc/date-only edits don't change the render signature
   toast('✓ تم التحديث');
 }
 
@@ -3037,7 +3049,7 @@ async function applyImport(text){
   if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
   if(data.budgets && typeof data.budgets === 'object') budgets = data.budgets;
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
-  if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = data.distribution;
+  if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
   if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring);
 
   await saveBalances();
@@ -3130,6 +3142,7 @@ let _pendingDriveCloud = null;
 let driveFileId = null;
 let driveSyncTimer = null;
 let driveClientId = '';
+let _driveSilentRefresh = false; // true while re-acquiring a token after expiry
 
 function loadDriveConfig(){
   try{
@@ -3233,8 +3246,15 @@ function initGisClient(){
         driveAccessToken = resp.access_token;
         try{ sessionStorage.setItem(LS_PREFIX + 'driveToken', driveAccessToken); }catch(e){}
         refreshDriveSettingsUI();
-        toast('✓ تم تسجيل الدخول بجوجل');
-        await driveSyncFromCloud(true);
+        if(_driveSilentRefresh){
+          // token was renewed mid-session after a 401 — just resume the upload,
+          // don't re-run the initial pull (which would pop a conflict dialog)
+          _driveSilentRefresh = false;
+          await driveSyncToCloud();
+        } else {
+          toast('✓ تم تسجيل الدخول بجوجل');
+          await driveSyncFromCloud(true);
+        }
       }
     });
   }catch(e){
@@ -3328,7 +3348,8 @@ async function driveSyncToCloud(){
       refreshDriveSettingsUI();
       // attempt silent token refresh before asking user
       if(gisTokenClient){
-        try{ gisTokenClient.requestAccessToken({prompt:''}); }catch(_){}
+        _driveSilentRefresh = true;
+        try{ gisTokenClient.requestAccessToken({prompt:''}); }catch(_){ _driveSilentRefresh = false; }
         toast('⚠ انتهت جلسة Drive — جارٍ تجديد التسجيل تلقائيًا...', true);
       } else {
         toast('⚠ انتهت الجلسة، افتح الإعدادات وسجّل الدخول بجوجل من جديد', true);
@@ -3371,7 +3392,7 @@ async function driveSyncFromCloud(isInitial){
       if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
       if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
       if(cloud.budgets && typeof cloud.budgets === 'object') budgets = cloud.budgets;
-      if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = cloud.distribution;
+      if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
       await saveBalances(); await saveTx(); await saveConfig();
       render();
       toast('☁️ تم تحميل بياناتك من Drive');
@@ -3399,7 +3420,7 @@ async function resolveConflict(useCloud){
     if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
     if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
     if(cloud.budgets && typeof cloud.budgets === 'object') budgets = cloud.budgets;
-    if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = cloud.distribution;
+    if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
     await saveBalances(); await saveTx(); await saveConfig();
     render();
     toast('☁️ تم استخدام نسخة Drive');
@@ -3672,6 +3693,12 @@ function render(force){
   _renderSig = sig;
   _monthlyExpenseCache = null; // invalidate budget bars per-render
   _recurringCache = null; // invalidate so edited tx amounts are re-evaluated
+  // invalidate content caches keyed only on length/last-id — edits (amount,
+  // desc, date, wallet, category) don't change those, so they must be reset
+  // here to reflect in-place edits in the list, chart, analytics and hero.
+  _filteredTxSig = '';
+  _analyticsSig = '';
+  _heroStatsSig = '';
   renderWallets();
   renderWalletSelect();
   renderTxList();
