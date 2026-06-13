@@ -2018,6 +2018,7 @@ function toggleTransferMenu(dir){
 async function doTransfer(){
   const amt = parseFloat(document.getElementById('transferAmount').value);
   if(!amt || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
+  if(!transferFrom || !transferTo){ toast('⚠ اختر المحفظتين أولاً', true); return; }
   if(transferFrom === transferTo){ toast('⚠ اختر محفظتين مختلفتين', true); return; }
 
   const dateVal = document.getElementById('transferDate').value || todayISO();
@@ -2652,13 +2653,17 @@ function renderChart(){
 /* ============================================================
    ADD / EDIT / DELETE TRANSACTIONS
 ============================================================ */
+let _addTxBusy = false;
 async function addTx(type){
+  if(_addTxBusy) return;
+  _addTxBusy = true;
   const walletId = selectedWallet;
   const desc = document.getElementById('descInput').value.trim();
   const amountVal = parseFloat(document.getElementById('amountInput').value);
   const dateVal = document.getElementById('dateInput').value || todayISO();
 
   if(isNaN(amountVal) || amountVal <= 0){
+    _addTxBusy = false;
     toast('⚠ أدخل مبلغ صحيح', true);
     document.getElementById('amountInput').focus();
     return;
@@ -2701,6 +2706,7 @@ async function addTx(type){
       openDistributionModal(amountVal);
     }
   }
+  _addTxBusy = false;
 }
 
 /* ============================================================
@@ -2919,8 +2925,9 @@ function openModal(id){
 }
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
-  if(id === 'editModal') editingTxId = null;
+  if(id === 'editModal'){ editingTxId = null; editCategory = 'other'; }
   if(id === 'distributeModal') pendingIncomeTx = null;
+  if(id === 'walletDetailModal') detailWalletId = null;
 }
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
   ov.addEventListener('click', e=>{ if(e.target===ov) closeModal(ov.id); });
@@ -3501,9 +3508,9 @@ function buildDailyReviewContent(){
     const spent = monthlyExpenseForWallet(w.id);
     const budget = budgets[w.id];
     if(spent >= budget){
-      lines.push(`🔴 محفظة <b style="color:var(--text)">${w.name}</b> تجاوزت ميزانيتها الشهرية (${fmt(spent)} / ${fmt(budget)}).`);
+      lines.push(`🔴 محفظة <b style="color:var(--text)">${escHtml(w.name)}</b> تجاوزت ميزانيتها الشهرية (${fmt(spent)} / ${fmt(budget)}).`);
     } else if(spent >= budget*0.8){
-      lines.push(`🟡 محفظة <b style="color:var(--text)">${w.name}</b> قاربت حد ميزانيتها (${fmt(spent)} / ${fmt(budget)}).`);
+      lines.push(`🟡 محفظة <b style="color:var(--text)">${escHtml(w.name)}</b> قاربت حد ميزانيتها (${fmt(spent)} / ${fmt(budget)}).`);
     }
   });
 
@@ -3655,6 +3662,7 @@ function render(force){
   if(!force && sig === _renderSig) return; // nothing visual changed
   _renderSig = sig;
   _monthlyExpenseCache = null; // invalidate budget bars per-render
+  _recurringCache = null; // invalidate so edited tx amounts are re-evaluated
   renderWallets();
   renderWalletSelect();
   renderTxList();
