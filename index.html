@@ -7,7 +7,8 @@
 <link rel="manifest" id="manifestLink">
 <title>محفظتيييي 🙂‍↔️</title>
 <style>
-  /* ---------- SPLASH ---------- */
+
+/* ---------- SPLASH ---------- */
   #splash{
     position:fixed; inset:0; z-index:9999;
     background:#121419;
@@ -34,9 +35,8 @@
   #splash .dots span:nth-child(3){animation-delay:.3s;}
   @keyframes splashPulse{ 0%,100%{transform:scale(1);} 50%{transform:scale(1.08);} }
   @keyframes dotBlink{ 0%,100%{opacity:.25;} 50%{opacity:1;} }
-</style>
-<style>
-  :root{
+
+:root{
     --bg:#121419;
     --bg-elev:#181b21;
     --card:#1e222a;
@@ -62,6 +62,27 @@
     --sans:'Tajawal','Segoe UI',Tahoma,sans-serif;
     --shadow: 0 8px 28px rgba(0,0,0,.35);
     --ease: cubic-bezier(.22,.61,.36,1);
+  }
+  body.light{
+    --bg:#f4f2ed;
+    --bg-elev:#fbfaf7;
+    --card:#ffffff;
+    --card2:#f0ede6;
+    --line:#ddd8cd;
+    --line-soft:#e8e4da;
+    --text:#26211a;
+    --muted:#6f6a5f;
+    --muted2:#948f84;
+    --gold:#a87f3a;
+    --gold-dim:#c4a061;
+    --gold-soft:#f3ead8;
+    --green:#3e8d59;
+    --green-soft:#e3f0e7;
+    --red:#c05a57;
+    --red-soft:#f6e4e3;
+    --blue:#3f6e96;
+    --blue-soft:#e3edf5;
+    --shadow: 0 8px 24px rgba(80,70,50,.12);
   }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
   html{scroll-behavior:smooth;}
@@ -765,6 +786,8 @@
 </div>
 
 
+
+
 <header>
   <div class="brand">
     <div class="mark">💰</div>
@@ -775,6 +798,7 @@
   </div>
   <div class="actions">
     <span id="driveIndicator" style="display:none; align-items:center; font-size:14px; margin-left:2px;" title="حالة المزامنة"></span>
+    <button class="icon-btn" id="themeToggle" onclick="toggleTheme()" title="الوضع الفاتح/الداكن" aria-label="تبديل المظهر">☀️</button>
     <button class="icon-btn" onclick="openModal('dataModal')" title="البيانات" aria-label="البيانات">⇅</button>
     <button class="icon-btn" onclick="openModal('settingsModal')" title="الإعدادات" aria-label="الإعدادات">⚙</button>
   </div>
@@ -839,6 +863,9 @@
   </div>
   <div class="btn-row" style="margin-top:8px;">
     <button class="btn-transfer" onclick="openTransferModal()">🔁 تحويل بين المحافظ</button>
+  </div>
+  <div class="btn-row" style="margin-top:8px;">
+    <button class="btn-secondary" onclick="repeatLastTx()" style="padding:11px; font-size:13px;">⏪ تكرار آخر معاملة</button>
   </div>
 </div>
 
@@ -1142,6 +1169,38 @@
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
+
+/* FAILSAFE — independent script block: parses even if the main script below
+   has a syntax error (e.g. corrupted/truncated upload). Guarantees the splash
+   never stays forever and surfaces the real error on screen. */
+(function(){
+  function showFatal(msg){
+    try{
+      var s = document.getElementById('splash');
+      if(s) s.classList.add('hide');
+      if(document.getElementById('fatalErrorBox')) return;
+      var box = document.createElement('div');
+      box.id = 'fatalErrorBox';
+      box.style.cssText = 'position:fixed;top:12px;left:12px;right:12px;z-index:99999;background:#2f1f20;border:1px solid #e3918f;color:#e3918f;padding:14px;border-radius:12px;font-family:Tahoma,sans-serif;font-size:13px;line-height:1.7;direction:rtl;';
+      box.innerHTML = '<b>⚠ حدث خطأ منع التطبيق من الاكتمال</b><br>' +
+        (msg ? ('التفاصيل: <span style="direction:ltr;display:inline-block;font-family:monospace;font-size:11px;">'+String(msg).slice(0,200)+'</span><br>') : '') +
+        'غالبًا الملف المرفوع ناقص أو تالف. أعد رفع index.html كاملًا (يفضَّل عبر Upload files بدل النسخ واللصق) وتأكد أن آخر سطر فيه هو &lt;/html&gt;.';
+      document.body.appendChild(box);
+    }catch(e){}
+  }
+  window.addEventListener('error', function(ev){
+    showFatal(ev && (ev.message || (ev.error && ev.error.message)));
+  });
+  setTimeout(function(){
+    var s = document.getElementById('splash');
+    if(s && !s.classList.contains('hide')){
+      showFatal('انتهت مهلة التحميل (6 ثوانٍ) دون اكتمال التشغيل.');
+    }
+  }, 6000);
+})();
+</script>
+<script>
+
 /* ============================================================
    CONFIG
 ============================================================ */
@@ -1212,6 +1271,43 @@ let dismissedRecurring = new Set();
 function fmt(n){
   return Number(n).toLocaleString('en-US', {maximumFractionDigits:2});
 }
+
+function animateNumber(el, from, to, duration){
+  if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    el.textContent = fmt(to);
+    return;
+  }
+  const start = performance.now();
+  function frame(now){
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    el.textContent = fmt(from + (to - from) * eased);
+    if(t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+/* ============================================================
+   THEME (dark / light)
+============================================================ */
+function applyTheme(theme){
+  document.body.classList.toggle('light', theme === 'light');
+  const btn = document.getElementById('themeToggle');
+  if(btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', theme === 'light' ? '#f4f2ed' : '#15171c');
+}
+function toggleTheme(){
+  const isLight = document.body.classList.contains('light');
+  const next = isLight ? 'dark' : 'light';
+  applyTheme(next);
+  try{ localStorage.setItem(LS_PREFIX + 'theme', next); }catch(e){}
+}
+function initTheme(){
+  let theme = 'dark';
+  try{ theme = localStorage.getItem(LS_PREFIX + 'theme') || 'dark'; }catch(e){}
+  applyTheme(theme);
+}
+
 function todayISO(){
   const d = new Date();
   const tz = d.getTimezoneOffset()*60000;
@@ -1402,11 +1498,10 @@ function renderWallets(){
   document.getElementById('walletCount').textContent = defs.length + (state.crisisMode?1:0);
 
   const totalEl = document.getElementById('totalSpendable');
-  totalEl.textContent = fmt(spendable);
   if(prevSpendable !== null && prevSpendable !== spendable){
-    totalEl.classList.remove('flash');
-    void totalEl.offsetWidth;
-    totalEl.classList.add('flash');
+    animateNumber(totalEl, prevSpendable, spendable, 450);
+  } else {
+    totalEl.textContent = fmt(spendable);
   }
   prevSpendable = spendable;
 
@@ -2170,10 +2265,12 @@ function inRange(ts){
   return true;
 }
 
+let _searchDebounce = null;
 function onSearchInput(){
   searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
   document.getElementById('searchBox').classList.toggle('has-text', searchQuery.length>0);
-  renderTxList();
+  clearTimeout(_searchDebounce);
+  _searchDebounce = setTimeout(()=> renderTxList(), 150);
 }
 function clearSearch(){
   searchQuery = '';
@@ -2613,15 +2710,53 @@ async function deleteFromEdit(){
   closeModal('editModal');
 }
 
+function repeatLastTx(){
+  // last non-transfer transaction
+  const last = [...state.transactions].sort((a,b)=>b.ts-a.ts).find(t=>t.category!=='transfer');
+  if(!last){ toast('لا توجد معاملة سابقة لتكرارها'); return; }
+  document.getElementById('descInput').value = last.desc || '';
+  document.getElementById('amountInput').value = last.amount;
+  if(!WALLET_DEFS.find(w=>w.id===last.wallet)?.track){
+    selectedWallet = last.wallet;
+    renderWalletSelect();
+  }
+  selectedCategory = last.category || 'other';
+  renderCategoryGrid();
+  toast('✓ تم تعبية النموذج — راجع واضغط ' + (last.type==='expense'?'"مصروف"':'"دخل"'));
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+let _lastDeleted = null;
+let _undoTimer = null;
+
 async function deleteTx(id){
-  const tx = state.transactions.find(t => t.id === id);
-  if(!tx) return;
+  const idx = state.transactions.findIndex(t => t.id === id);
+  if(idx === -1) return;
+  const tx = state.transactions[idx];
   applyTxToBalance(tx, -1);
-  state.transactions = state.transactions.filter(t => t.id !== id);
+  state.transactions.splice(idx, 1);
   await saveBalances();
   await saveTx();
   render();
-  toast('🗑 تم الحذف');
+
+  _lastDeleted = { tx, idx };
+  clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
+  toastWithUndo('🗑 تم الحذف', undoDelete);
+}
+
+async function undoDelete(){
+  if(!_lastDeleted) return;
+  const { tx, idx } = _lastDeleted;
+  _lastDeleted = null;
+  clearTimeout(_undoTimer);
+  const insertAt = Math.min(idx, state.transactions.length);
+  state.transactions.splice(insertAt, 0, tx);
+  applyTxToBalance(tx, +1);
+  await saveBalances();
+  await saveTx();
+  render();
+  toast('↩️ تم استرجاع المعاملة');
 }
 
 /* ============================================================
@@ -2630,4 +2765,715 @@ async function deleteTx(id){
 function openModal(id){
   document.getElementById(id).classList.add('open');
   if(id==='dataModal') document.getElementById('jsonArea').value = '';
-  if(id
+  if(id==='settingsModal'){
+    updateSettingsStats();
+    document.getElementById('driveClientId').value = driveClientId;
+    refreshDriveSettingsUI();
+    renderDistributionEditor();
+  }
+}
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+}
+document.querySelectorAll('.modal-overlay').forEach(ov=>{
+  ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('open'); });
+});
+
+function updateSettingsStats(){
+  document.getElementById('statTxCount').textContent = state.transactions.length + ' معاملة';
+  if(state.transactions.length){
+    const first = state.transactions.reduce((min,t)=> t.ts<min.ts ? t : min, state.transactions[0]);
+    document.getElementById('statFirstTx').textContent = new Date(first.ts).toLocaleDateString('ar-EG', {day:'numeric', month:'long', year:'numeric'});
+  } else {
+    document.getElementById('statFirstTx').textContent = '—';
+  }
+  try{
+    const last = localStorage.getItem(LS_PREFIX + 'lastEdit');
+    document.getElementById('statLastEdit').textContent = last
+      ? new Date(parseInt(last)).toLocaleString('ar-EG', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})
+      : '—';
+  }catch(e){
+    document.getElementById('statLastEdit').textContent = '—';
+  }
+}
+
+/* ============================================================
+   EXPORT / IMPORT / RESET
+============================================================ */
+function exportData(){
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    wallets: state.wallets,
+    transactions: state.transactions,
+    crisisMode: state.crisisMode
+  };
+  const json = JSON.stringify(payload, null, 2);
+  document.getElementById('jsonArea').value = json;
+
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'wallet-backup-' + todayISO() + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('✓ تم تجهيز ملف التصدير');
+}
+
+function importFromFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('jsonArea').value = e.target.result;
+    applyImport(e.target.result);
+  };
+  reader.readAsText(file);
+}
+
+function importFromTextarea(){
+  const txt = document.getElementById('jsonArea').value.trim();
+  if(!txt){ toast('⚠ الصق بيانات JSON أولاً', true); return; }
+  applyImport(txt);
+}
+
+async function applyImport(text){
+  let data;
+  try{ data = JSON.parse(text); }
+  catch(e){ toast('⚠ تنسيق JSON غير صالح', true); return; }
+
+  if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
+
+  if(data.wallets) state.wallets = data.wallets;
+  if(data.transactions) state.transactions = data.transactions;
+  if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
+
+  await saveBalances();
+  await saveTx();
+  await saveConfig();
+  closeModal('dataModal');
+  render();
+  toast('✓ تم الاستيراد بنجاح');
+}
+
+async function resetBalancesOnly(){
+  if(!confirm('سيتم تصفير جميع الأرصدة إلى ٠ (لن تُحذف المعاملات). متابعة؟')) return;
+  WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+  await saveBalances();
+  closeModal('settingsModal');
+  render();
+  toast('✓ تمت تصفير الأرصدة');
+}
+
+async function wipeAll(){
+  if(!confirm('سيتم حذف جميع الأرصدة والمعاملات نهائياً. هذا الإجراء لا يمكن التراجع عنه. متابعة؟')) return;
+  if(!confirm('تأكيد أخير: هل أنت متأكد تماماً؟')) return;
+  WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+  state.transactions = [];
+  state.crisisMode = false;
+  await saveBalances();
+  await saveTx();
+  await saveConfig();
+  closeModal('settingsModal');
+  render();
+  toast('🗑 تم حذف كل البيانات');
+}
+
+/* ============================================================
+   TOAST
+============================================================ */
+function toast(msg, isError){
+  const el = document.getElementById('saveStatus');
+  el.textContent = msg;
+  el.style.borderColor = isError ? 'var(--red)' : 'var(--line)';
+  el.style.color = isError ? 'var(--red)' : 'var(--text)';
+  el.classList.add('show');
+  clearTimeout(window._saveTimeout);
+  window._saveTimeout = setTimeout(()=> el.classList.remove('show'), 2200);
+}
+
+function toastWithUndo(msg, undoFn){
+  const el = document.getElementById('saveStatus');
+  el.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  const btn = document.createElement('button');
+  btn.textContent = 'تراجع ↩️';
+  btn.style.cssText = 'background:var(--gold); color:#241d0d; border:none; border-radius:99px; padding:4px 12px; font-size:11.5px; font-weight:700; margin-right:8px; cursor:pointer;';
+  btn.onclick = () => {
+    el.classList.remove('show');
+    undoFn();
+  };
+  el.appendChild(span);
+  el.appendChild(btn);
+  el.style.borderColor = 'var(--line)';
+  el.style.color = 'var(--text)';
+  el.classList.add('show');
+  clearTimeout(window._saveTimeout);
+  window._saveTimeout = setTimeout(()=> el.classList.remove('show'), 5000);
+}
+
+/* ============================================================
+   GOOGLE DRIVE AUTO-SYNC
+   Stores a single JSON file (wallet-data.json) in the user's
+   Drive appDataFolder (a hidden app-specific space, not visible
+   in the user's normal Drive UI, but fully owned by the user's account).
+============================================================ */
+const DRIVE_FILE_NAME = 'محفظتيييي-data.json';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+
+let gisTokenClient = null;
+let driveAccessToken = null;
+let driveFileId = null;
+let driveSyncTimer = null;
+let driveClientId = '';
+
+function loadDriveConfig(){
+  try{
+    driveClientId = localStorage.getItem(LS_PREFIX + 'driveClientId') || '';
+  }catch(e){}
+}
+
+function setDriveIndicator(state_){
+  // state_: 'idle' | 'syncing' | 'ok' | 'error' | 'off'
+  const el = document.getElementById('driveIndicator');
+  if(state_ === 'off' || !driveClientId){
+    el.style.display = 'none';
+    return;
+  }
+  const map = {
+    idle:    {icon:'☁️', label:'جاهز',   color:'var(--muted)'},
+    syncing: {icon:'🔄', label:'يزامن',  color:'var(--blue)'},
+    ok:      {icon:'✅', label:'متزامن', color:'var(--green)'},
+    error:   {icon:'⚠️', label:'خطأ',    color:'var(--red)'}
+  };
+  const cfg = map[state_] || map.idle;
+  el.style.display = 'flex';
+  el.style.cssText += ';gap:4px; align-items:center; font-size:11px; font-weight:600; background:var(--card); border:1px solid var(--line); border-radius:99px; padding:4px 10px;';
+  el.style.color = cfg.color;
+  el.innerHTML = `<span style="font-size:12px;">${cfg.icon}</span><span>${cfg.label}</span>`;
+  el.title = {
+    idle: 'جاهز للمزامنة',
+    syncing: 'جاري المزامنة مع Drive...',
+    ok: 'تمت المزامنة مع Drive',
+    error: 'خطأ بالمزامنة — راجع الإعدادات'
+  }[state_] || '';
+}
+
+function refreshDriveSettingsUI(){
+  const setupEl = document.getElementById('driveSetup');
+  const actionsEl = document.getElementById('driveActions');
+  const statusEl = document.getElementById('driveStatusText');
+  const signInBtn = document.getElementById('driveSignInBtn');
+  const signedInActions = document.getElementById('driveSignedInActions');
+
+  if(!driveClientId){
+    setupEl.style.display = 'block';
+    actionsEl.style.display = 'none';
+    statusEl.textContent = 'غير مفعّل. أدخل Client ID الخاص بك للبدء.';
+    setDriveIndicator('off');
+    return;
+  }
+  setupEl.style.display = 'none';
+  actionsEl.style.display = 'block';
+
+  if(driveAccessToken){
+    statusEl.textContent = 'متصل ✓ — البيانات تُحفظ تلقائيًا على Google Drive (مجلد بيانات التطبيق الخاص).';
+    signInBtn.style.display = 'none';
+    signedInActions.style.display = 'flex';
+    setDriveIndicator('ok');
+  } else {
+    statusEl.textContent = 'Client ID محفوظ. سجّل الدخول لتفعيل المزامنة التلقائية.';
+    signInBtn.style.display = 'block';
+    signedInActions.style.display = 'none';
+    setDriveIndicator('idle');
+  }
+}
+
+function saveDriveClientId(){
+  const val = document.getElementById('driveClientId').value.trim();
+  if(!val || !val.endsWith('.apps.googleusercontent.com')){
+    toast('⚠ تأكد من نسخ Client ID كاملاً (ينتهي بـ .apps.googleusercontent.com)', true);
+    return;
+  }
+  driveClientId = val;
+  try{ localStorage.setItem(LS_PREFIX + 'driveClientId', val); }catch(e){}
+  refreshDriveSettingsUI();
+  initGisClient();
+  toast('✓ تم الحفظ. الآن سجّل الدخول بجوجل');
+}
+
+function changeDriveClientId(){
+  if(!confirm('سيتم تسجيل الخروج وحذف إعداد Drive الحالي. متابعة؟')) return;
+  driveSignOut();
+  driveClientId = '';
+  driveFileId = null;
+  try{ localStorage.removeItem(LS_PREFIX + 'driveClientId'); }catch(e){}
+  document.getElementById('driveClientId').value = '';
+  refreshDriveSettingsUI();
+}
+
+function initGisClient(){
+  if(!driveClientId || typeof google === 'undefined' || !google.accounts){
+    return;
+  }
+  try{
+    gisTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: driveClientId,
+      scope: DRIVE_SCOPE,
+      callback: async (resp) => {
+        if(resp.error){
+          setDriveIndicator('error');
+          toast('⚠ فشل تسجيل الدخول بجوجل', true);
+          return;
+        }
+        driveAccessToken = resp.access_token;
+        try{ sessionStorage.setItem(LS_PREFIX + 'driveToken', driveAccessToken); }catch(e){}
+        refreshDriveSettingsUI();
+        toast('✓ تم تسجيل الدخول بجوجل');
+        await driveSyncFromCloud(true);
+      }
+    });
+  }catch(e){
+    console.error(e);
+  }
+}
+
+function driveSignIn(){
+  if(!gisTokenClient){ initGisClient(); }
+  if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
+  gisTokenClient.requestAccessToken({prompt: driveAccessToken ? '' : 'consent'});
+}
+
+function driveSignOut(){
+  if(driveAccessToken && typeof google !== 'undefined' && google.accounts){
+    try{ google.accounts.oauth2.revoke(driveAccessToken, ()=>{}); }catch(e){}
+  }
+  driveAccessToken = null;
+  try{ sessionStorage.removeItem(LS_PREFIX + 'driveToken'); }catch(e){}
+  refreshDriveSettingsUI();
+  toast('تم تسجيل الخروج من Drive');
+}
+
+// Find (or remember) the app data file on Drive
+async function driveFindFile(){
+  if(driveFileId) return driveFileId;
+  const res = await fetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q=' + encodeURIComponent(`name='${DRIVE_FILE_NAME}'`), {
+    headers: { 'Authorization': 'Bearer ' + driveAccessToken }
+  });
+  if(!res.ok) throw new Error('drive list failed: ' + res.status);
+  const data = await res.json();
+  if(data.files && data.files.length > 0){
+    driveFileId = data.files[0].id;
+  }
+  return driveFileId;
+}
+
+// Push current local state to Drive (create file if needed)
+async function driveSyncToCloud(){
+  if(!driveAccessToken) return;
+  setDriveIndicator('syncing');
+  try{
+    const payload = JSON.stringify({
+      exportedAt: new Date().toISOString(),
+      wallets: state.wallets,
+      transactions: state.transactions,
+      crisisMode: state.crisisMode,
+      autoDistribute: autoDistribute
+    });
+
+    await driveFindFile();
+
+    if(driveFileId){
+      const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': 'Bearer ' + driveAccessToken,
+          'Content-Type': 'application/json'
+        },
+        body: payload
+      });
+      if(!res.ok) throw new Error('drive update failed: ' + res.status);
+    } else {
+      const boundary = 'wallet_boundary_' + Date.now();
+      const metadata = { name: DRIVE_FILE_NAME, parents: ['appDataFolder'] };
+      const body =
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+        `--${boundary}\r\nContent-Type: application/json\r\n\r\n${payload}\r\n` +
+        `--${boundary}--`;
+      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + driveAccessToken,
+          'Content-Type': `multipart/related; boundary=${boundary}`
+        },
+        body
+      });
+      if(!res.ok) throw new Error('drive create failed: ' + res.status);
+      const data = await res.json();
+      driveFileId = data.id;
+    }
+    setDriveIndicator('ok');
+  }catch(e){
+    console.error(e);
+    setDriveIndicator('error');
+    if(e.message && e.message.includes('401')){
+      driveAccessToken = null;
+      refreshDriveSettingsUI();
+      toast('⚠ انتهت الجلسة، سجّل الدخول بجوجل من جديد', true);
+    } else if(e.message && e.message.includes('403')){
+      toast('⚠ تم رفض الإذن من Drive — تأكد من صلاحيات appdata بالـ Client ID', true);
+    } else if(!navigator.onLine){
+      toast('⚠ لا يوجد اتصال بالإنترنت — سيتم الحفظ محليًا فقط', true);
+    } else {
+      toast('⚠ تعذر الاتصال بـ Drive، سيُعاد المحاولة لاحقًا', true);
+    }
+  }
+}
+
+// Pull from Drive on sign-in / startup. If cloud has data and local is empty
+// (or cloud is newer), merge by replacing local with cloud.
+async function driveSyncFromCloud(isInitial){
+  if(!driveAccessToken) return;
+  setDriveIndicator('syncing');
+  try{
+    await driveFindFile();
+    if(!driveFileId){
+      // nothing on Drive yet — push current local state up
+      await driveSyncToCloud();
+      return;
+    }
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {
+      headers: { 'Authorization': 'Bearer ' + driveAccessToken }
+    });
+    if(!res.ok) throw new Error('drive download failed: ' + res.status);
+    const cloud = await res.json();
+
+    const localHasData = state.transactions.length > 0;
+    const cloudHasData = (cloud.transactions || []).length > 0;
+
+    if(isInitial && cloudHasData && !localHasData){
+      // adopt cloud data
+      if(cloud.wallets) state.wallets = cloud.wallets;
+      if(cloud.transactions) state.transactions = cloud.transactions;
+      if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
+      if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
+      await saveBalances(); await saveTx(); await saveConfig();
+      render();
+      toast('☁️ تم تحميل بياناتك من Drive');
+    } else if(isInitial && cloudHasData && localHasData){
+      // both have data — ask which to keep
+      const useCloud = confirm('وجدنا بيانات محفوظة على Drive وأيضًا بيانات محلية على هذا الجهاز.\n\nاضغط "موافق" لاستخدام نسخة Drive (سيتم استبدال البيانات المحلية).\nاضغط "إلغاء" للاحتفاظ بالبيانات المحلية ورفعها إلى Drive.');
+      if(useCloud){
+        if(cloud.wallets) state.wallets = cloud.wallets;
+        if(cloud.transactions) state.transactions = cloud.transactions;
+        if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
+        if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
+        await saveBalances(); await saveTx(); await saveConfig();
+        render();
+        toast('☁️ تم استخدام نسخة Drive');
+      } else {
+        await driveSyncToCloud();
+        toast('☁️ تم رفع نسختك المحلية إلى Drive');
+      }
+    } else {
+      setDriveIndicator('ok');
+    }
+  }catch(e){
+    console.error(e);
+    setDriveIndicator('error');
+  }
+}
+
+function driveManualSync(){
+  driveSyncToCloud().then(()=> toast('✓ تمت المزامنة مع Drive'));
+}
+
+// Debounced auto-sync: called after every local save
+function scheduleDriveSync(){
+  if(!driveAccessToken) return;
+  clearTimeout(driveSyncTimer);
+  driveSyncTimer = setTimeout(()=> driveSyncToCloud(), 1500);
+}
+
+function initDrive(){
+  loadDriveConfig();
+  try{
+    const tok = sessionStorage.getItem(LS_PREFIX + 'driveToken');
+    if(tok) driveAccessToken = tok;
+  }catch(e){}
+  refreshDriveSettingsUI();
+  if(driveClientId){
+    // GIS script may still be loading
+    const tryInit = () => {
+      if(typeof google !== 'undefined' && google.accounts){
+        initGisClient();
+        if(driveAccessToken) driveSyncFromCloud(true);
+      } else {
+        setTimeout(tryInit, 300);
+      }
+    };
+    tryInit();
+  }
+}
+
+
+/* ============================================================
+   SPLASH SCREEN
+============================================================ */
+function hideSplash(){
+  const el = document.getElementById('splash');
+  if(el) el.classList.add('hide');
+}
+
+/* ============================================================
+   FIRST-RUN WELCOME MODAL
+============================================================ */
+function checkFirstRun(){
+  try{
+    const seen = localStorage.getItem(LS_PREFIX + 'welcomeSeen');
+    if(!seen){
+      openModal('welcomeModal');
+    }
+  }catch(e){}
+}
+function closeWelcome(){
+  closeModal('welcomeModal');
+  try{ localStorage.setItem(LS_PREFIX + 'welcomeSeen', '1'); }catch(e){}
+}
+
+/* ============================================================
+   DAILY QUICK REVIEW
+============================================================ */
+function checkDailyReview(){
+  try{
+    const today = todayISO();
+    const lastSeen = localStorage.getItem(LS_PREFIX + 'lastReviewDate');
+    if(lastSeen === today) return;
+    localStorage.setItem(LS_PREFIX + 'lastReviewDate', today);
+
+    // only show if there's at least some history (avoid showing on very first run, welcome covers that)
+    if(state.transactions.length === 0) return;
+
+    const content = buildDailyReviewContent();
+    if(!content) return;
+    document.getElementById('dailyReviewContent').innerHTML = content;
+    openModal('dailyReviewModal');
+  }catch(e){}
+}
+
+function buildDailyReviewContent(){
+  const now = new Date();
+  const yesterday = new Date(now); yesterday.setDate(now.getDate()-1);
+  const yStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()).getTime();
+  const yEnd = yStart + 86400000;
+
+  let yExpense = 0, yIncome = 0, yCount = 0;
+  state.transactions.forEach(tx=>{
+    if(tx.ts >= yStart && tx.ts < yEnd && tx.category!=='transfer'){
+      if(tx.type==='expense'){ yExpense += tx.amount; yCount++; }
+      else { yIncome += tx.amount; }
+    }
+  });
+
+  let lines = [];
+  if(yCount > 0 || yIncome > 0){
+    lines.push(`📅 <b style="color:var(--text)">أمس:</b> صرفت <b style="color:var(--red)">${fmt(yExpense)}</b> على ${yCount} معاملة${yIncome>0?` · دخل <b style="color:var(--green)">${fmt(yIncome)}</b>`:''}`);
+  } else {
+    lines.push(`📅 لم تُسجَّل معاملات أمس.`);
+  }
+
+  // budget warnings
+  WALLET_DEFS.forEach(w=>{
+    if(w.track || !budgets[w.id]) return;
+    const spent = monthlyExpenseForWallet(w.id);
+    const budget = budgets[w.id];
+    if(spent >= budget){
+      lines.push(`🔴 محفظة <b style="color:var(--text)">${w.name}</b> تجاوزت ميزانيتها الشهرية (${fmt(spent)} / ${fmt(budget)}).`);
+    } else if(spent >= budget*0.8){
+      lines.push(`🟡 محفظة <b style="color:var(--text)">${w.name}</b> قاربت حد ميزانيتها (${fmt(spent)} / ${fmt(budget)}).`);
+    }
+  });
+
+  // pending recurring suggestions
+  const recurring = detectRecurring();
+  if(recurring.length > 0){
+    lines.push(`🔁 لديك ${recurring.length} معاملة متكررة محتملة بانتظار مراجعتك (بأسفل صفحة التقارير).`);
+  }
+
+  if(lines.length === 1 && yCount===0 && yIncome===0) return null;
+  return lines.map(l=>`<div>${l}</div>`).join('');
+}
+
+/* ============================================================
+   MONTHLY REPORT EXPORT (text-based, share or download)
+============================================================ */
+function exportMonthlyReport(){
+  const now = new Date();
+  const monthName = now.toLocaleDateString('ar-EG', {month:'long', year:'numeric'});
+  const [start, end] = monthRange(0);
+
+  let totalIncome=0, totalExpense=0;
+  const catTotals = {};
+  state.transactions.forEach(tx=>{
+    if(tx.ts < start || tx.ts >= end || tx.category==='transfer') return;
+    if(tx.type==='income') totalIncome += tx.amount;
+    else {
+      totalExpense += tx.amount;
+      const c = tx.category || 'other';
+      catTotals[c] = (catTotals[c]||0) + tx.amount;
+    }
+  });
+
+  let report = `📊 تقرير محفظتيييي — ${monthName}\n`;
+  report += `${'─'.repeat(28)}\n`;
+  report += `الدخل: ${fmt(totalIncome)}\n`;
+  report += `المصروف: ${fmt(totalExpense)}\n`;
+  report += `الصافي: ${fmt(totalIncome-totalExpense)}\n\n`;
+
+  report += `حسب الفئة:\n`;
+  Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).forEach(([catId,amt])=>{
+    const cat = getCategory(catId);
+    report += `  ${cat.icon} ${cat.name}: ${fmt(amt)}\n`;
+  });
+
+  report += `\nأرصدة المحافظ:\n`;
+  WALLET_DEFS.forEach(w=>{
+    report += `  ${w.track?'🏦':'💳'} ${w.name}: ${fmt(state.wallets[w.id] ?? 0)}\n`;
+  });
+
+  report += `\n📱 محفظتيييي 🙂‍↔️`;
+
+  if(navigator.share){
+    navigator.share({ title: `تقرير محفظتيييي — ${monthName}`, text: report }).catch(()=>{
+      copyReportToClipboard(report);
+    });
+  } else {
+    copyReportToClipboard(report);
+  }
+}
+
+function copyReportToClipboard(report){
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(report).then(()=>{
+      toast('✓ تم نسخ التقرير للحافظة');
+    }).catch(()=> downloadReport(report));
+  } else {
+    downloadReport(report);
+  }
+}
+
+function downloadReport(report){
+  const blob = new Blob([report], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'تقرير-محفظتيييي-' + todayISO() + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('✓ تم تنزيل التقرير');
+}
+
+/* ============================================================
+   PWA: MANIFEST + SERVICE WORKER (inline, no extra files needed)
+============================================================ */
+function setupPWA(){
+  const manifest = {
+    name: 'محفظتيييي',
+    short_name: 'محفظتيييي',
+    start_url: '.',
+    display: 'standalone',
+    background_color: '#121419',
+    theme_color: '#121419',
+    orientation: 'portrait',
+    dir: 'rtl',
+    lang: 'ar',
+    icons: [
+      {
+        src: 'data:image/svg+xml,' + encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%23dcb674"/><text x="50" y="65" font-size="50" text-anchor="middle">💰</text></svg>'
+        ),
+        sizes: '192x192',
+        type: 'image/svg+xml'
+      }
+    ]
+  };
+  try{
+    const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.getElementById('manifestLink');
+    if(link) link.setAttribute('href', url);
+  }catch(e){}
+
+  if('serviceWorker' in navigator){
+    try{
+      const swCode = `
+        self.addEventListener('install', e => self.skipWaiting());
+        self.addEventListener('activate', e => self.clients.claim());
+        self.addEventListener('fetch', e => {
+          e.respondWith(
+            fetch(e.request).catch(() => caches.match(e.request))
+          );
+        });
+      `;
+      const swBlob = new Blob([swCode], {type:'application/javascript'});
+      const swUrl = URL.createObjectURL(swBlob);
+      navigator.serviceWorker.register(swUrl).catch(()=>{});
+    }catch(e){}
+  }
+}
+
+/* Cheap signature of everything that affects visual output.
+   Used to skip expensive re-renders when nothing changed. */
+let _renderSig = '';
+function computeRenderSig(){
+  return [
+    state.transactions.length,
+    state.transactions.length ? state.transactions[state.transactions.length-1].id : '',
+    JSON.stringify(state.wallets),
+    currentFilter, walletFilter, categoryFilter, searchQuery,
+    state.crisisMode, JSON.stringify(budgets)
+  ].join('|');
+}
+
+function render(force){
+  const sig = computeRenderSig();
+  if(!force && sig === _renderSig) return; // nothing visual changed
+  _renderSig = sig;
+  renderWallets();
+  renderWalletSelect();
+  renderTxList();
+  renderChart();
+  renderPieChart();
+  renderAnalytics();
+  renderRecurring();
+}
+
+window.addEventListener('resize', ()=> { renderChart(); renderPieChart(); });
+
+renderWalletSelect();
+renderEditWalletSelect();
+renderQuickAmounts();
+renderCategoryGrid();
+renderEditCategoryGrid();
+initTheme();
+setupPWA();
+loadState().then(()=>{
+  hideSplash();
+  const wasFirstRun = !localStorage.getItem(LS_PREFIX + 'welcomeSeen');
+  checkFirstRun();
+  if(wasFirstRun){
+    // mark today as reviewed so the daily modal doesn't stack on first run
+    try{ localStorage.setItem(LS_PREFIX + 'lastReviewDate', todayISO()); }catch(e){}
+  } else {
+    setTimeout(checkDailyReview, 400);
+  }
+});
+initDrive();
+</script>
+</body>
+</html>
