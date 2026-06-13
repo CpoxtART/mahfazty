@@ -1420,15 +1420,22 @@ function getWalletPctLabel(w){
   return w.pct;
 }
 
-function monthlyExpenseForWallet(walletId){
+let _monthlyExpenseCache = null;
+function _buildMonthlyExpenseCache(){
   const now = new Date();
-  let total = 0;
+  const cache = {};
   state.transactions.forEach(tx=>{
-    if(tx.wallet!==walletId || tx.type!=='expense' || tx.category==='transfer') return;
+    if(tx.type!=='expense' || tx.category==='transfer') return;
     const d = new Date(tx.ts);
-    if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()) total += tx.amount;
+    if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
+      cache[tx.wallet] = (cache[tx.wallet]||0) + tx.amount;
+    }
   });
-  return total;
+  return cache;
+}
+function monthlyExpenseForWallet(walletId){
+  if(!_monthlyExpenseCache) _monthlyExpenseCache = _buildMonthlyExpenseCache();
+  return _monthlyExpenseCache[walletId] || 0;
 }
 
 function renderWallets(){
@@ -1756,9 +1763,12 @@ function renderQuickAmounts(){
     };
     wrap.appendChild(btn);
   });
+}
+function _initQuickAmountSync(){
   document.getElementById('amountInput').addEventListener('input', ()=>{
+    const v = parseFloat(document.getElementById('amountInput').value);
     document.querySelectorAll('#quickAmounts button').forEach(b=>{
-      b.classList.toggle('active', parseFloat(b.textContent.replace(/,/g,'')) === parseFloat(document.getElementById('amountInput').value));
+      b.classList.toggle('active', parseFloat(b.textContent.replace(/,/g,'')) === v);
     });
   });
 }
@@ -2173,7 +2183,13 @@ function renderAnalytics(){
   grid.innerHTML += projHtml;
 }
 
+let _recurringCache = null;
+let _recurringCacheSig = '';
 function detectRecurring(){
+  const sig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size;
+  if(sig === _recurringCacheSig && _recurringCache) return _recurringCache;
+  _recurringCacheSig = sig;
+
   const groups = {};
   state.transactions.forEach(tx=>{
     if(tx.type!=='expense' || tx.category==='transfer') return;
@@ -2200,7 +2216,8 @@ function detectRecurring(){
 
     suggestions.push({ key, desc: txs[0].desc, avg, count: txs.length, wallet: txs[0].wallet, category: txs[0].category });
   });
-  return suggestions.slice(0,3);
+  _recurringCache = suggestions.slice(0,3);
+  return _recurringCache;
 }
 
 function renderRecurring(){
@@ -2279,8 +2296,13 @@ function clearSearch(){
   renderTxList();
 }
 
+let _filteredTxCache = null;
+let _filteredTxSig = '';
 function getFilteredTx(){
-  return state.transactions
+  const sig = state.transactions.length + '|' + currentFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery;
+  if(sig === _filteredTxSig && _filteredTxCache) return _filteredTxCache;
+  _filteredTxSig = sig;
+  _filteredTxCache = state.transactions
     .filter(tx => inRange(tx.ts))
     .filter(tx => !walletFilter || tx.wallet === walletFilter)
     .filter(tx => !categoryFilter || (tx.category||'other') === categoryFilter)
@@ -2290,6 +2312,7 @@ function getFilteredTx(){
       const hay = ((tx.desc||'') + ' ' + (wallet?wallet.name:'')).toLowerCase();
       return hay.includes(searchQuery);
     });
+  return _filteredTxCache;
 }
 
 /* ============================================================
@@ -3444,6 +3467,7 @@ function render(force){
   const sig = computeRenderSig();
   if(!force && sig === _renderSig) return; // nothing visual changed
   _renderSig = sig;
+  _monthlyExpenseCache = null; // invalidate per-render
   renderWallets();
   renderWalletSelect();
   renderTxList();
@@ -3453,11 +3477,13 @@ function render(force){
   renderRecurring();
 }
 
-window.addEventListener('resize', ()=> { renderChart(); renderPieChart(); });
+let _resizeTimer;
+window.addEventListener('resize', ()=> { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(()=>{ renderChart(); renderPieChart(); }, 150); });
 
 renderWalletSelect();
 renderEditWalletSelect();
 renderQuickAmounts();
+_initQuickAmountSync();
 renderCategoryGrid();
 renderEditCategoryGrid();
 initTheme();
