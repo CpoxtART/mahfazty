@@ -1295,11 +1295,9 @@ let selectedCategory = 'other';
 let editCategory = 'other';
 let addFormType = 'expense';
 let detailWalletId = null; // when set, shows wallet detail view
-let txTypeForCategory = 'expense'; // tracks which categories to show in add form
 let pendingIncomeTx = null;
 let autoDistribute = false;
 let budgets = {}; // walletId -> monthly budget limit (expenses)
-let recurringSuggestions = []; // detected recurring transactions not yet acknowledged
 let dismissedRecurring = new Set();
 
 /* ============================================================
@@ -1391,7 +1389,13 @@ async function loadState(){
       const c = JSON.parse(cfg);
       state.crisisMode = !!c.crisisMode;
       autoDistribute = !!c.autoDistribute;
-      budgets = c.budgets || {};
+      if(c.budgets && typeof c.budgets === 'object'){
+        budgets = {};
+        WALLET_DEFS.forEach(w => {
+          const v = parseFloat(c.budgets[w.id]);
+          if(isFinite(v) && v > 0) budgets[w.id] = v;
+        });
+      }
       if(c.distribution && Array.isArray(c.distribution) && c.distribution.length){
         DISTRIBUTION = c.distribution.filter(d => WALLET_DEFS.find(w=>w.id===d.id));
         if(!DISTRIBUTION.length) DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
@@ -1414,7 +1418,7 @@ async function loadState(){
       );
       if(typeof _idb.crisisMode === 'boolean') state.crisisMode = _idb.crisisMode;
       if(typeof _idb.autoDistribute === 'boolean') autoDistribute = _idb.autoDistribute;
-      if(_idb.budgets && typeof _idb.budgets === 'object') budgets = _idb.budgets;
+      if(_idb.budgets && typeof _idb.budgets === 'object') budgets = sanitizeBudgets(_idb.budgets);
       if(Array.isArray(_idb.dismissedRecurring)) dismissedRecurring = new Set(_idb.dismissedRecurring);
       if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = sanitizeDistribution(_idb.distribution);
       toast('✓ تمت استعادة البيانات من النسخ الاحتياطي');
@@ -1497,6 +1501,7 @@ function getWalletPctLabel(w){
 }
 
 let _monthlyExpenseCache = null;
+let _monthlyExpenseCacheKey = '';
 let _heroStatsCache = null;
 let _heroStatsSig = '';
 function _buildMonthlyExpenseCache(){
@@ -1512,7 +1517,12 @@ function _buildMonthlyExpenseCache(){
   return cache;
 }
 function monthlyExpenseForWallet(walletId){
-  if(!_monthlyExpenseCache) _monthlyExpenseCache = _buildMonthlyExpenseCache();
+  const now = new Date();
+  const key = now.getFullYear() + '-' + now.getMonth();
+  if(!_monthlyExpenseCache || _monthlyExpenseCacheKey !== key){
+    _monthlyExpenseCache = _buildMonthlyExpenseCache();
+    _monthlyExpenseCacheKey = key;
+  }
   return _monthlyExpenseCache[walletId] || 0;
 }
 
@@ -1632,6 +1642,7 @@ function toggleCategoryFilter(catId){
   }
   renderTxList();
   renderChart();
+  renderPieChart();
 }
 
 
@@ -1826,7 +1837,6 @@ function applyVoiceTranscript(text){
     selectedCategory = category;
     setAddFormType(type); // sync form type so category grid shows correct options
   }
-  txTypeForCategory = type;
 
   if(amount !== null){
     toast(`🎤 "${text}" → ${fmt(amount)} ${desc?'· '+desc:''}`);
@@ -1972,6 +1982,7 @@ function renderPieChart(){
   const dpr = window.devicePixelRatio || 1;
   canvas.width = size*dpr; canvas.height = size*dpr;
   const ctx = canvas.getContext('2d');
+  if(!ctx) return;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   let start = -Math.PI/2;
   entries.forEach(([catId, amt]) => {
@@ -2189,7 +2200,7 @@ function openWalletDetail(walletId){
 
   const txs = state.transactions.filter(t=>t.wallet===walletId).sort((a,b)=>b.ts-a.ts);
   let inc=0, exp=0;
-  txs.forEach(t => t.type==='income' ? inc+=t.amount : exp+=t.amount);
+  txs.forEach(t => { if(t.category==='transfer') return; t.type==='income' ? inc+=t.amount : exp+=t.amount; });
   document.getElementById('detailCount').textContent = txs.length;
   document.getElementById('detailIncome').textContent = fmt(inc);
   document.getElementById('detailExpense').textContent = fmt(exp);
@@ -2252,7 +2263,7 @@ function renderAnalytics(){
   const [prevStart, prevEnd] = monthRange(1);
 
   // cache analytics totals — expensive full-scan, only recompute when txs change
-  const aSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'');
+  const aSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + curStart;
   if(aSig !== _analyticsSig || !_analyticsCache){
     _analyticsCache = { cur: sumExpenses(curStart, curEnd), prev: sumExpenses(prevStart, prevEnd) };
     _analyticsSig = aSig;
@@ -2449,6 +2460,7 @@ function renderTxList(){
 
   let income = 0, expense = 0;
   filtered.forEach(tx => {
+    if(tx.category === 'transfer') return;
     if(tx.type === 'income') income += tx.amount;
     else expense += tx.amount;
   });
@@ -2695,6 +2707,10 @@ async function addTx(type){
       document.getElementById('amountInput').focus();
       return;
     }
+    if(!WALLET_DEFS.find(w => w.id === walletId)){
+      toast('⚠ اختر محفظة صحيحة', true);
+      return;
+    }
 
     const ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
 
@@ -2852,6 +2868,16 @@ function sanitizeDistribution(arr){
     .map(d => ({...d, pct: Math.max(0, isFinite(d.pct) ? d.pct : 0)}));
   return cleaned.length ? cleaned : DEFAULT_DISTRIBUTION.map(d=>({...d}));
 }
+function sanitizeBudgets(obj){
+  const out = {};
+  if(obj && typeof obj === 'object'){
+    WALLET_DEFS.forEach(w => {
+      const v = parseFloat(obj[w.id]);
+      if(isFinite(v) && v > 0) out[w.id] = v;
+    });
+  }
+  return out;
+}
 
 function applyTxToBalance(tx, sign){
   if(!tx || !isFinite(tx.amount) || tx.amount <= 0) return;
@@ -2885,6 +2911,10 @@ async function saveEdit(){
   const newAmount = parseFloat(document.getElementById('editAmount').value.replace(/,/g,''));
   if(!newAmount || newAmount <= 0){
     toast('⚠ أدخل مبلغ صحيح', true);
+    return;
+  }
+  if(!WALLET_DEFS.find(w => w.id === editWallet)){
+    toast('⚠ محفظة غير صالحة', true);
     return;
   }
 
@@ -3009,7 +3039,7 @@ function openModal(id){
 }
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
-  if(id === 'editModal'){ editingTxId = null; editCategory = 'other'; }
+  if(id === 'editModal'){ editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id; }
   if(id === 'distributeModal') pendingIncomeTx = null;
   if(id === 'walletDetailModal') detailWalletId = null;
 }
@@ -3119,7 +3149,7 @@ async function applyImport(text){
     WALLET_DEFS.find(w => w.id === tx.wallet)
   );
   if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
-  if(data.budgets && typeof data.budgets === 'object') budgets = data.budgets;
+  if(data.budgets && typeof data.budgets === 'object') budgets = sanitizeBudgets(data.budgets);
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
   if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
   if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring);
@@ -3469,7 +3499,7 @@ async function driveSyncFromCloud(isInitial){
         WALLET_DEFS.find(w => w.id === tx.wallet));
       if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
       if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
-      if(cloud.budgets && typeof cloud.budgets === 'object') budgets = cloud.budgets;
+      if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
       if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
       if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
       prevSpendable = null; // force fresh hero animation after loading new data set
