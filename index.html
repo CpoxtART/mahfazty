@@ -1390,6 +1390,7 @@ async function loadState(){
       budgets = c.budgets || {};
       if(c.distribution && Array.isArray(c.distribution) && c.distribution.length){
         DISTRIBUTION = c.distribution.filter(d => WALLET_DEFS.find(w=>w.id===d.id));
+        if(!DISTRIBUTION.length) DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
       }
       dismissedRecurring = new Set(c.dismissedRecurring || []);
     }
@@ -2307,7 +2308,7 @@ function detectRecurring(){
 
     const amounts = txs.map(t=>t.amount);
     const avg = amounts.reduce((a,b)=>a+b,0)/amounts.length;
-    const variance = amounts.every(a => Math.abs(a-avg)/avg < 0.15);
+    const variance = avg > 0 && amounts.every(a => Math.abs(a-avg)/avg < 0.15);
     if(!variance) return;
 
     suggestions.push({ key, desc: txs[0].desc, avg, count: txs.length, wallet: txs[0].wallet, category: txs[0].category });
@@ -2779,6 +2780,7 @@ async function runDistribution(sourceTx, amount){
     if(!d.pct || d.pct <= 0) return; // skip zero-percent allocations
     const share = round2(amount * d.pct / 100);
     const w = WALLET_DEFS.find(x=>x.id===d.id);
+    if(!w) return; // guard against stale wallet ID in saved DISTRIBUTION
     const txIn = {
       id: 'tx_'+Date.now()+'_d'+(i+1)+Math.random().toString(36).slice(2,4),
       wallet: d.id,
