@@ -2640,7 +2640,7 @@ async function addTx(type){
   const amountVal = parseFloat(document.getElementById('amountInput').value);
   const dateVal = document.getElementById('dateInput').value || todayISO();
 
-  if(!amountVal || amountVal <= 0){
+  if(isNaN(amountVal) || amountVal <= 0){
     toast('⚠ أدخل مبلغ صحيح', true);
     document.getElementById('amountInput').focus();
     return;
@@ -2694,7 +2694,7 @@ function openDistributionModal(amount){
   wrap.innerHTML = '';
   DISTRIBUTION.forEach(d=>{
     const w = WALLET_DEFS.find(x=>x.id===d.id);
-    const share = amount * d.pct / 100;
+    const share = round2(amount * d.pct / 100);
     const row = document.createElement('div');
     row.className = 'dist-row';
     row.innerHTML = `<span class="name">${w.name} <span class="pct">${d.pct}%</span></span><span class="amt">${fmt(share)}</span>`;
@@ -2845,8 +2845,10 @@ function repeatLastTx(){
     selectedWallet = last.wallet;
     renderWalletSelect();
   }
-  selectedCategory = last.category || 'other';
   setAddFormType(last.type);
+  const lastCat = CATEGORIES.find(c=>c.id===(last.category||'other'));
+  if(lastCat && lastCat.types.includes(last.type)) selectedCategory = last.category || 'other';
+  renderCategoryGrid();
   toast('✓ تم تعبية النموذج — راجع واضغط ' + (last.type==='expense'?'"مصروف"':'"دخل"'));
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -3240,7 +3242,9 @@ async function driveSyncToCloud(){
       wallets: state.wallets,
       transactions: state.transactions,
       crisisMode: state.crisisMode,
-      autoDistribute: autoDistribute
+      autoDistribute: autoDistribute,
+      budgets: budgets,
+      distribution: DISTRIBUTION
     });
 
     await driveFindFile();
@@ -3326,6 +3330,8 @@ async function driveSyncFromCloud(isInitial){
       if(cloud.transactions) state.transactions = cloud.transactions;
       if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
       if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
+      if(cloud.budgets && typeof cloud.budgets === 'object') budgets = cloud.budgets;
+      if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = cloud.distribution;
       await saveBalances(); await saveTx(); await saveConfig();
       render();
       toast('☁️ تم تحميل بياناتك من Drive');
@@ -3352,6 +3358,8 @@ async function resolveConflict(useCloud){
     if(cloud.transactions) state.transactions = cloud.transactions;
     if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
     if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
+    if(cloud.budgets && typeof cloud.budgets === 'object') budgets = cloud.budgets;
+    if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = cloud.distribution;
     await saveBalances(); await saveTx(); await saveConfig();
     render();
     toast('☁️ تم استخدام نسخة Drive');
