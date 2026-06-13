@@ -2842,7 +2842,7 @@ function repeatLastTx(){
     renderWalletSelect();
   }
   selectedCategory = last.category || 'other';
-  renderCategoryGrid();
+  setAddFormType(last.type);
   toast('✓ تم تعبية النموذج — راجع واضغط ' + (last.type==='expense'?'"مصروف"':'"دخل"'));
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -2996,7 +2996,7 @@ async function applyImport(text){
   await saveTx();
   await saveConfig();
   closeModal('dataModal');
-  render();
+  render(true);
   toast('✓ تم الاستيراد بنجاح');
 }
 
