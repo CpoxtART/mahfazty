@@ -1306,6 +1306,7 @@ let dismissedRecurring = new Set();
    FORMAT HELPERS
 ============================================================ */
 function fmt(n){
+  if(isNaN(n)) return '0';
   return Number(n).toLocaleString('en-US', {maximumFractionDigits:2});
 }
 
@@ -1356,8 +1357,7 @@ function initTheme(){
 
 function todayISO(){
   const d = new Date();
-  const tz = d.getTimezoneOffset()*60000;
-  return new Date(d - tz).toISOString().slice(0,10);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
 /* ============================================================
@@ -2004,8 +2004,11 @@ async function doTransfer(){
 
   const dateVal = document.getElementById('transferDate').value || todayISO();
   const ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
-  const fromName = WALLET_DEFS.find(w=>w.id===transferFrom).name;
-  const toName = WALLET_DEFS.find(w=>w.id===transferTo).name;
+  const fromWallet = WALLET_DEFS.find(w=>w.id===transferFrom);
+  const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
+  if(!fromWallet || !toWallet){ toast('⚠ محفظة غير صحيحة', true); return; }
+  const fromName = fromWallet.name;
+  const toName = toWallet.name;
 
   const txOut = {
     id: 'tx_'+Date.now()+'_a'+Math.random().toString(36).slice(2,5),
@@ -2526,7 +2529,7 @@ function attachSwipe(el, wrap, txId){
     if(Math.abs(currentX) > threshold){
       el.style.transform = 'translateX(-100%)';
       el.style.opacity = '0';
-      setTimeout(()=> deleteTx(txId, true), 220);
+      setTimeout(()=> deleteTx(txId), 220);
     } else {
       el.style.transform = 'translateX(0)';
     }
@@ -2771,6 +2774,7 @@ function round2(n){
 }
 
 function applyTxToBalance(tx, sign){
+  if(!tx || isNaN(tx.amount)) return;
   const delta = (tx.type === 'expense' ? -tx.amount : tx.amount) * sign;
   state.wallets[tx.wallet] = (state.wallets[tx.wallet] ?? 0) + delta;
 }
@@ -2827,7 +2831,7 @@ async function saveEdit(){
 
 async function deleteFromEdit(){
   if(!editingTxId) return;
-  await deleteTx(editingTxId, true);
+  await deleteTx(editingTxId);
   closeModal('editModal');
 }
 
@@ -3015,6 +3019,12 @@ async function wipeAll(){
   WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
   state.transactions = [];
   state.crisisMode = false;
+  budgets = {};
+  autoDistribute = false;
+  dismissedRecurring.clear();
+  selectedWallet = WALLET_DEFS[0].id;
+  selectedCategory = 'other';
+  editingTxId = null;
   await saveBalances();
   await saveTx();
   await saveConfig();
