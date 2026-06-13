@@ -1469,6 +1469,9 @@ async function idbRestore(){
 
 function toggleCrisis(){
   state.crisisMode = !state.crisisMode;
+  if(state.crisisMode && walletFilter && CRISIS_WALLET_IDS.includes(walletFilter)){
+    walletFilter = null;
+  }
   document.getElementById('crisisToggle').setAttribute('aria-checked', state.crisisMode);
   saveConfig();
   render();
@@ -2869,6 +2872,7 @@ function repeatLastTx(){
   if(!last){ toast('لا توجد معاملة سابقة لتكرارها'); return; }
   document.getElementById('descInput').value = last.desc || '';
   document.getElementById('amountInput').value = last.amount;
+  document.getElementById('amountInput').dispatchEvent(new Event('input'));
   if(!WALLET_DEFS.find(w=>w.id===last.wallet)?.track){
     selectedWallet = last.wallet;
     renderWalletSelect();
@@ -3029,7 +3033,7 @@ async function applyImport(text){
   if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
 
   if(data.wallets) state.wallets = data.wallets;
-  if(data.transactions) state.transactions = data.transactions;
+  if(data.transactions) state.transactions = data.transactions.filter(tx => tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0);
   if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
   if(data.budgets && typeof data.budgets === 'object') budgets = data.budgets;
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
