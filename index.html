@@ -2045,47 +2045,54 @@ function toggleTransferMenu(dir){
   document.getElementById('transfer'+key+'Btn').classList.toggle('open');
 }
 
+let _doTransferBusy = false;
 async function doTransfer(){
+  if(_doTransferBusy) return;
   const amt = parseFloat(document.getElementById('transferAmount').value.replace(/,/g,''));
   if(!amt || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
   if(!transferFrom || !transferTo){ toast('⚠ اختر المحفظتين أولاً', true); return; }
   if(transferFrom === transferTo){ toast('⚠ اختر محفظتين مختلفتين', true); return; }
+  _doTransferBusy = true;
+  try{
+    const dateVal = document.getElementById('transferDate').value || todayISO();
+    const ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
+    const fromWallet = WALLET_DEFS.find(w=>w.id===transferFrom);
+    const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
+    if(!fromWallet || !toWallet){ toast('⚠ محفظة غير صحيحة', true); return; }
+    const fromName = fromWallet.name;
+    const toName = toWallet.name;
 
-  const dateVal = document.getElementById('transferDate').value || todayISO();
-  const ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
-  const fromWallet = WALLET_DEFS.find(w=>w.id===transferFrom);
-  const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
-  if(!fromWallet || !toWallet){ toast('⚠ محفظة غير صحيحة', true); return; }
-  const fromName = fromWallet.name;
-  const toName = toWallet.name;
+    // shared link so the two legs are deleted/undone together as one operation
+    const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    const txOut = {
+      id: 'tx_'+Date.now()+'_a'+Math.random().toString(36).slice(2,5),
+      wallet: transferFrom, desc: 'تحويل إلى ' + toName, amount: amt, type:'expense', category:'transfer', ts, link: linkId
+    };
+    const txIn = {
+      id: 'tx_'+Date.now()+'_b'+Math.random().toString(36).slice(2,5),
+      wallet: transferTo, desc: 'تحويل من ' + fromName, amount: amt, type:'income', category:'transfer', ts: ts+1, link: linkId
+    };
 
-  // shared link so the two legs are deleted/undone together as one operation
-  const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-  const txOut = {
-    id: 'tx_'+Date.now()+'_a'+Math.random().toString(36).slice(2,5),
-    wallet: transferFrom, desc: 'تحويل إلى ' + toName, amount: amt, type:'expense', category:'transfer', ts, link: linkId
-  };
-  const txIn = {
-    id: 'tx_'+Date.now()+'_b'+Math.random().toString(36).slice(2,5),
-    wallet: transferTo, desc: 'تحويل من ' + fromName, amount: amt, type:'income', category:'transfer', ts: ts+1, link: linkId
-  };
+    state.transactions.push(txOut, txIn);
+    applyTxToBalance(txOut, +1);
+    applyTxToBalance(txIn, +1);
 
-  state.transactions.push(txOut, txIn);
-  applyTxToBalance(txOut, +1);
-  applyTxToBalance(txIn, +1);
-
-  await saveBalances();
-  await saveTx();
-  closeModal('transferModal');
-  render();
-  toast('✓ تم التحويل بنجاح');
+    await saveBalances();
+    await saveTx();
+    closeModal('transferModal');
+    render();
+    toast('✓ تم التحويل بنجاح');
+  } finally {
+    _doTransferBusy = false;
+  }
 }
 
 /* ============================================================
    WALLET DETAIL VIEW
 ============================================================ */
+let _updateBalanceBusy = false;
 async function updateTrackedBalance(){
-  if(!detailWalletId) return;
+  if(_updateBalanceBusy || !detailWalletId) return;
   const w = WALLET_DEFS.find(x=>x.id===detailWalletId);
   const newVal = parseFloat(document.getElementById('detailNewBalance').value.replace(/,/g,''));
   if(isNaN(newVal)){ toast('⚠ أدخل رصيد صحيح', true); return; }
@@ -2094,23 +2101,28 @@ async function updateTrackedBalance(){
   const diff = round2(newVal - current);
   if(diff === 0){ toast('لا يوجد تغيير بالرصيد'); return; }
 
-  const tx = {
-    id: 'tx_'+Date.now()+'_adj'+Math.random().toString(36).slice(2,4),
-    wallet: detailWalletId,
-    desc: 'تحديث رصيد ' + w.name,
-    amount: Math.abs(diff),
-    type: diff > 0 ? 'income' : 'expense',
-    category: 'other',
-    ts: Date.now()
-  };
-  state.transactions.push(tx);
-  applyTxToBalance(tx, +1);
+  _updateBalanceBusy = true;
+  try{
+    const tx = {
+      id: 'tx_'+Date.now()+'_adj'+Math.random().toString(36).slice(2,4),
+      wallet: detailWalletId,
+      desc: 'تحديث رصيد ' + w.name,
+      amount: Math.abs(diff),
+      type: diff > 0 ? 'income' : 'expense',
+      category: 'other',
+      ts: Date.now()
+    };
+    state.transactions.push(tx);
+    applyTxToBalance(tx, +1);
 
-  await saveBalances();
-  await saveTx();
-  render();
-  openWalletDetail(detailWalletId); // refresh modal in place
-  toast('✓ تم تحديث الرصيد');
+    await saveBalances();
+    await saveTx();
+    render();
+    openWalletDetail(detailWalletId); // refresh modal in place
+    toast('✓ تم تحديث الرصيد');
+  } finally {
+    _updateBalanceBusy = false;
+  }
 }
 
 async function saveWalletBudget(){
@@ -2784,8 +2796,9 @@ function skipDistribution(){
 async function confirmDistribution(){
   saveAutoDistributePref();
   if(!pendingIncomeTx) { closeModal('distributeModal'); return; }
-  await runDistribution(pendingIncomeTx, pendingIncomeTx.amount);
-  pendingIncomeTx = null;
+  const txToDistribute = pendingIncomeTx;
+  pendingIncomeTx = null; // clear early so double-tap cannot trigger a second distribution
+  await runDistribution(txToDistribute, txToDistribute.amount);
   closeModal('distributeModal');
   render();
   toast('✓ تم توزيع الدخل على المحافظ');
@@ -2827,7 +2840,7 @@ async function runDistribution(sourceTx, amount){
   // Only wallets with a positive share and a valid id participate
   const active = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id));
   const totalPct = active.reduce((s,d)=> s + d.pct, 0);
-  const intendedTotal = round2(amount * totalPct / 100);
+  const intendedTotal = round2(Math.min(amount, amount * totalPct / 100));
   let allocated = 0;
 
   // Deposit each share into its target wallet
@@ -2964,6 +2977,7 @@ function repeatLastTx(){
   document.getElementById('descInput').value = last.desc || '';
   document.getElementById('amountInput').value = last.amount;
   document.getElementById('amountInput').dispatchEvent(new Event('input'));
+  document.getElementById('dateInput').value = todayISO();
   if(!WALLET_DEFS.find(w=>w.id===last.wallet)?.track){
     selectedWallet = last.wallet;
     renderWalletSelect();
@@ -3188,7 +3202,16 @@ async function wipeAll(){
   transferTo = null;
   detailWalletId = null;
   pendingIncomeTx = null;
-  prevSpendable = null; // reset so hero balance starts clean (no stale animation baseline)
+  prevSpendable = null;
+  walletFilter = null;
+  categoryFilter = null;
+  searchQuery = '';
+  _txVisibleCount = 50;
+  DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  document.getElementById('walletFilterChip').classList.remove('show');
+  document.getElementById('categoryFilterChip').classList.remove('show');
+  const si = document.getElementById('searchInput');
+  if(si){ si.value = ''; document.getElementById('searchBox').classList.remove('has-text'); }
   await saveBalances();
   await saveTx();
   await saveConfig();
@@ -3397,8 +3420,10 @@ async function driveFindFile(){
 }
 
 // Push current local state to Drive (create file if needed)
+let _driveSyncBusy = false;
 async function driveSyncToCloud(){
-  if(!driveAccessToken) return;
+  if(!driveAccessToken || _driveSyncBusy) return;
+  _driveSyncBusy = true;
   setDriveIndicator('syncing');
   try{
     const payload = JSON.stringify({
@@ -3466,6 +3491,8 @@ async function driveSyncToCloud(){
     } else {
       toast('⚠ تعذر الاتصال بـ Drive، سيُعاد المحاولة لاحقًا', true);
     }
+  } finally {
+    _driveSyncBusy = false;
   }
 }
 
