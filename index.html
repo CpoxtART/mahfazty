@@ -1113,7 +1113,7 @@
     <div id="detailBudgetSetting" style="display:none; margin-bottom:14px;">
       <label>الميزانية الشهرية (مصروفات)</label>
       <div class="row2">
-        <input type="number" id="detailBudgetInput" step="any" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)">
+        <input type="number" id="detailBudgetInput" min="0" step="any" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)">
         <button class="btn-secondary" style="flex:0 0 auto; padding:0 18px;" onclick="saveWalletBudget()">حفظ</button>
       </div>
       <div class="hint" style="margin-top:0;">عند الوصول إليها سيتلون شريط التقدم بالأحمر وتظهر علامة تحذير ⚠ على بطاقة المحفظة.</div>
@@ -1373,7 +1373,11 @@ async function loadState(){
 
   try{
     const bal = localStorage.getItem(LS_PREFIX + 'balances');
-    if(bal) state.wallets = Object.assign(state.wallets, JSON.parse(bal));
+    if(bal){
+      const saved = JSON.parse(bal);
+      // only restore known wallet ids — prevents orphaned keys from corrupted imports
+      WALLET_DEFS.forEach(w => { if(saved[w.id] !== undefined) state.wallets[w.id] = saved[w.id]; });
+    }
   }catch(e){}
 
   try{
@@ -1401,13 +1405,18 @@ async function loadState(){
   if(!_lsHadData){
     const _idb = await idbRestore();
     if(_idb && Array.isArray(_idb.transactions) && _idb.transactions.length){
-      state.wallets = Object.assign(state.wallets, _idb.wallets || {});
-      state.transactions = _idb.transactions;
+      // apply same guards as the main load path — known wallets only, valid transactions
+      if(_idb.wallets) WALLET_DEFS.forEach(w => { if(_idb.wallets[w.id] !== undefined) state.wallets[w.id] = _idb.wallets[w.id]; });
+      state.transactions = _idb.transactions.filter(tx =>
+        tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+        typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+        WALLET_DEFS.find(w => w.id === tx.wallet)
+      );
       if(typeof _idb.crisisMode === 'boolean') state.crisisMode = _idb.crisisMode;
       if(typeof _idb.autoDistribute === 'boolean') autoDistribute = _idb.autoDistribute;
       if(_idb.budgets && typeof _idb.budgets === 'object') budgets = _idb.budgets;
       if(Array.isArray(_idb.dismissedRecurring)) dismissedRecurring = new Set(_idb.dismissedRecurring);
-      if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = _idb.distribution;
+      if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = sanitizeDistribution(_idb.distribution);
       toast('✓ تمت استعادة البيانات من النسخ الاحتياطي');
     }
   }
@@ -2115,11 +2124,11 @@ function renderDistributionEditor(){
     row.className = 'dist-edit-row';
     row.innerHTML = `
       <span class="name">${w ? w.name : d.id}</span>
-      <input type="number" step="any" inputmode="decimal" value="${d.pct}" data-idx="${i}">
+      <input type="number" min="0" max="100" step="any" inputmode="decimal" value="${d.pct}" data-idx="${i}">
       <span class="pct-sign">%</span>
     `;
     row.querySelector('input').oninput = (e)=>{
-      DISTRIBUTION[i].pct = parseFloat(e.target.value) || 0;
+      DISTRIBUTION[i].pct = Math.max(0, parseFloat(e.target.value) || 0);
       updateDistTotal();
     };
     wrap.appendChild(row);
@@ -2513,8 +2522,8 @@ function renderTxList(){
         <button class="edit-btn" aria-label="تعديل">✎</button>
       </div>
     `;
-    div.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); openEdit(tx.id); };
-    div.onclick = () => openEdit(tx.id);
+    div.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); if(!div._swipeDeleting) openEdit(tx.id); };
+    div.onclick = () => { if(!div._swipeDeleting) openEdit(tx.id); };
 
     attachSwipe(div, wrap, tx.id);
 
@@ -2561,6 +2570,7 @@ function attachSwipe(el, wrap, txId){
     if(Math.abs(currentX) > threshold){
       el.style.transform = 'translateX(-100%)';
       el.style.opacity = '0';
+      el._swipeDeleting = true;
       setTimeout(()=> deleteTx(txId), 220);
     } else {
       el.style.transform = 'translateX(0)';
@@ -2576,6 +2586,7 @@ function renderChart(){
   const canvas = document.getElementById('chartCanvas');
   const emptyEl = document.getElementById('chartEmpty');
   const ctx = canvas.getContext('2d');
+  if(!ctx){ emptyEl.style.display='block'; canvas.style.display='none'; return; }
   const dpr = window.devicePixelRatio || 1;
   const cssW = (canvas.parentElement?.clientWidth || 400) - 28;
   if(cssW < 50){ emptyEl.style.display='block'; canvas.style.display='none'; return; }
@@ -2833,14 +2844,17 @@ function round2(n){
 // imported/cloud backup). Falls back to defaults if nothing valid remains.
 function sanitizeDistribution(arr){
   if(!Array.isArray(arr)) return DEFAULT_DISTRIBUTION.map(d=>({...d}));
-  const cleaned = arr.filter(d => d && WALLET_DEFS.find(w=>w.id===d.id));
+  const cleaned = arr
+    .filter(d => d && WALLET_DEFS.find(w=>w.id===d.id))
+    .map(d => ({...d, pct: Math.max(0, isFinite(d.pct) ? d.pct : 0)}));
   return cleaned.length ? cleaned : DEFAULT_DISTRIBUTION.map(d=>({...d}));
 }
 
 function applyTxToBalance(tx, sign){
-  if(!tx || isNaN(tx.amount)) return;
+  if(!tx || !isFinite(tx.amount) || tx.amount <= 0) return;
+  if(!WALLET_DEFS.find(w => w.id === tx.wallet)) return; // reject orphaned wallet refs
   const delta = (tx.type === 'expense' ? -tx.amount : tx.amount) * sign;
-  state.wallets[tx.wallet] = (state.wallets[tx.wallet] ?? 0) + delta;
+  state.wallets[tx.wallet] = round2((state.wallets[tx.wallet] ?? 0) + delta);
 }
 
 function openEdit(id){
@@ -3079,8 +3093,16 @@ async function applyImport(text){
   }
   if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
 
-  if(data.wallets) state.wallets = data.wallets;
-  if(data.transactions) state.transactions = data.transactions.filter(tx => tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0);
+  if(data.wallets){
+    // only restore known wallet ids from the imported file
+    WALLET_DEFS.forEach(w => { if(data.wallets[w.id] !== undefined) state.wallets[w.id] = data.wallets[w.id]; });
+  }
+  if(data.transactions) state.transactions = data.transactions.filter(tx =>
+    tx &&
+    typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+    typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+    WALLET_DEFS.find(w => w.id === tx.wallet)
+  );
   if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
   if(data.budgets && typeof data.budgets === 'object') budgets = data.budgets;
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
