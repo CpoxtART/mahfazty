@@ -2581,12 +2581,13 @@ function renderChart(){
   emptyEl.style.display = 'none';
   canvas.style.display = 'block';
 
-  let running = 0;
+  const netChange = filtered.reduce((s,tx)=> s + (tx.type==='income' ? tx.amount : -tx.amount), 0);
+  let running = walletFilter ? ((state.wallets[walletFilter] ?? 0) - netChange) : 0;
   const points = filtered.map(tx => {
     running += (tx.type==='income' ? tx.amount : -tx.amount);
     return running;
   });
-  points.unshift(0);
+  points.unshift(walletFilter ? ((state.wallets[walletFilter] ?? 0) - netChange) : 0);
 
   const min = Math.min(...points);
   const max = Math.max(...points);
@@ -2919,9 +2920,10 @@ function openModal(id){
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
   if(id === 'editModal') editingTxId = null;
+  if(id === 'distributeModal') pendingIncomeTx = null;
 }
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
-  ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('open'); });
+  ov.addEventListener('click', e=>{ if(e.target===ov) closeModal(ov.id); });
 });
 
 // Close custom dropdowns when clicking outside
@@ -2970,7 +2972,8 @@ function exportData(){
     crisisMode: state.crisisMode,
     budgets: budgets,
     autoDistribute: autoDistribute,
-    distribution: DISTRIBUTION
+    distribution: DISTRIBUTION,
+    dismissedRecurring: Array.from(dismissedRecurring)
   };
   const json = JSON.stringify(payload, null, 2);
   document.getElementById('jsonArea').value = json;
@@ -3020,6 +3023,7 @@ async function applyImport(text){
   if(data.budgets && typeof data.budgets === 'object') budgets = data.budgets;
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
   if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = data.distribution;
+  if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring);
 
   await saveBalances();
   await saveTx();
