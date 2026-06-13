@@ -1395,6 +1395,22 @@ async function loadState(){
     }
   }catch(e){}
 
+  // IDB fallback: only if localStorage was never written (e.g. browser cleared storage)
+  const _lsHadData = !!localStorage.getItem(LS_PREFIX + 'lastEdit');
+  if(!_lsHadData){
+    const _idb = await idbRestore();
+    if(_idb && Array.isArray(_idb.transactions) && _idb.transactions.length){
+      state.wallets = Object.assign(state.wallets, _idb.wallets || {});
+      state.transactions = _idb.transactions;
+      if(typeof _idb.crisisMode === 'boolean') state.crisisMode = _idb.crisisMode;
+      if(typeof _idb.autoDistribute === 'boolean') autoDistribute = _idb.autoDistribute;
+      if(_idb.budgets && typeof _idb.budgets === 'object') budgets = _idb.budgets;
+      if(Array.isArray(_idb.dismissedRecurring)) dismissedRecurring = new Set(_idb.dismissedRecurring);
+      if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = _idb.distribution;
+      toast('✓ تمت استعادة البيانات من النسخ الاحتياطي');
+    }
+  }
+
   // IndexedDB backup (best-effort, non-blocking)
   idbBackup();
 
@@ -1431,6 +1447,7 @@ async function idbBackup(){
       transactions: state.transactions,
       crisisMode: state.crisisMode,
       autoDistribute, budgets,
+      distribution: DISTRIBUTION,
       dismissedRecurring: Array.from(dismissedRecurring),
       savedAt: Date.now()
     }, 'snapshot');
@@ -3033,6 +3050,10 @@ async function wipeAll(){
   selectedWallet = WALLET_DEFS[0].id;
   selectedCategory = 'other';
   editingTxId = null;
+  transferFrom = null;
+  transferTo = null;
+  detailWalletId = null;
+  pendingIncomeTx = null;
   await saveBalances();
   await saveTx();
   await saveConfig();
