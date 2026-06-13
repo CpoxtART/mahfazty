@@ -1685,6 +1685,10 @@ function setEditType(type){
   editType = type;
   document.getElementById('editTypeExp').classList.toggle('active', type==='expense');
   document.getElementById('editTypeInc').classList.toggle('active', type==='income');
+  // keep category compatible with the chosen type (mirrors the add form)
+  const cat = CATEGORIES.find(c=>c.id===editCategory);
+  if(cat && !cat.types.includes(type)) editCategory = 'other';
+  renderEditCategoryGrid();
 }
 
 /* ============================================================
@@ -1877,7 +1881,7 @@ function renderCategoryGrid(){
 function renderEditCategoryGrid(){
   const grid = document.getElementById('editCategoryGrid');
   grid.innerHTML = '';
-  CATEGORIES.forEach(c => {
+  CATEGORIES.filter(c => c.types.includes(editType)).forEach(c => {
     const chip = document.createElement('div');
     chip.className = 'cat-chip' + (editCategory===c.id ? ' active' : '');
     chip.innerHTML = `<span class="ic">${c.icon}</span><span>${c.name}</span>`;
@@ -2035,13 +2039,15 @@ async function doTransfer(){
   const fromName = fromWallet.name;
   const toName = toWallet.name;
 
+  // shared link so the two legs are deleted/undone together as one operation
+  const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
   const txOut = {
     id: 'tx_'+Date.now()+'_a'+Math.random().toString(36).slice(2,5),
-    wallet: transferFrom, desc: 'تحويل إلى ' + toName, amount: amt, type:'expense', category:'transfer', ts
+    wallet: transferFrom, desc: 'تحويل إلى ' + toName, amount: amt, type:'expense', category:'transfer', ts, link: linkId
   };
   const txIn = {
     id: 'tx_'+Date.now()+'_b'+Math.random().toString(36).slice(2,5),
-    wallet: transferTo, desc: 'تحويل من ' + fromName, amount: amt, type:'income', category:'transfer', ts: ts+1
+    wallet: transferTo, desc: 'تحويل من ' + fromName, amount: amt, type:'income', category:'transfer', ts: ts+1, link: linkId
   };
 
   state.transactions.push(txOut, txIn);
@@ -2707,6 +2713,7 @@ async function addTx(type){
     if(type === 'income' && tx.category !== 'transfer'){
       if(autoDistribute){
         await runDistribution(tx, amountVal);
+        render(); // reflect the distributed shares (render above ran before distribution)
         toast('🔄 تم توزيع الدخل تلقائيًا');
       } else {
         pendingIncomeTx = tx;
@@ -2767,7 +2774,11 @@ function saveAutoDistributePref(){
 async function runDistribution(sourceTx, amount){
   const sourceWalletId = sourceTx.wallet;
   const ts = sourceTx.ts;
-  const sourceName = (WALLET_DEFS.find(w=>w.id===sourceWalletId)||{}).name || '';
+  const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+
+  // Link the originating income too, so deleting any leg removes the whole
+  // income+distribution group and balances stay consistent.
+  sourceTx.link = linkId;
 
   // Withdraw the full amount from the source wallet (it already received it as income)
   const txOut = {
@@ -2777,17 +2788,25 @@ async function runDistribution(sourceTx, amount){
     amount: amount,
     type: 'expense',
     category: 'transfer',
-    ts: ts+1
+    ts: ts+1,
+    link: linkId
   };
   state.transactions.push(txOut);
   applyTxToBalance(txOut, +1);
 
+  // Only wallets with a positive share and a valid id participate
+  const active = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id));
+  const totalPct = active.reduce((s,d)=> s + d.pct, 0);
+  const intendedTotal = round2(amount * totalPct / 100);
+  let allocated = 0;
+
   // Deposit each share into its target wallet
-  DISTRIBUTION.forEach((d, i) => {
-    if(!d.pct || d.pct <= 0) return; // skip zero-percent allocations
-    const share = round2(amount * d.pct / 100);
+  active.forEach((d, i) => {
     const w = WALLET_DEFS.find(x=>x.id===d.id);
-    if(!w) return; // guard against stale wallet ID in saved DISTRIBUTION
+    let share = round2(amount * d.pct / 100);
+    // last leg absorbs the rounding residual so the shares sum exactly
+    if(i === active.length - 1) share = round2(intendedTotal - allocated);
+    allocated = round2(allocated + share);
     const txIn = {
       id: 'tx_'+Date.now()+'_d'+(i+1)+Math.random().toString(36).slice(2,4),
       wallet: d.id,
@@ -2795,7 +2814,8 @@ async function runDistribution(sourceTx, amount){
       amount: share,
       type: 'income',
       category: 'transfer',
-      ts: ts+2+i
+      ts: ts+2+i,
+      link: linkId
     };
     state.transactions.push(txIn);
     applyTxToBalance(txIn, +1);
@@ -2901,33 +2921,48 @@ let _lastDeleted = null;
 let _undoTimer = null;
 
 async function deleteTx(id){
-  const idx = state.transactions.findIndex(t => t.id === id);
-  if(idx === -1) return;
-  const tx = state.transactions[idx];
-  applyTxToBalance(tx, -1);
-  state.transactions.splice(idx, 1);
+  const target = state.transactions.find(t => t.id === id);
+  if(!target) return;
+  // a transfer / income-distribution is one logical operation spread across
+  // several linked legs — remove them all together to keep balances consistent
+  const group = target.link
+    ? state.transactions.filter(t => t.link === target.link)
+    : [target];
+
+  const removed = [];
+  group.forEach(tx => {
+    const idx = state.transactions.indexOf(tx);
+    if(idx === -1) return;
+    applyTxToBalance(tx, -1);
+    state.transactions.splice(idx, 1);
+    removed.push(tx);
+  });
+  if(!removed.length) return;
+
   await saveBalances();
   await saveTx();
   render();
 
-  _lastDeleted = { tx, idx };
+  _lastDeleted = removed;
   clearTimeout(_undoTimer);
   _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
-  toastWithUndo('🗑 تم الحذف', undoDelete);
+  toastWithUndo(removed.length > 1 ? `🗑 تم حذف ${removed.length} حركات مرتبطة` : '🗑 تم الحذف', undoDelete);
 }
 
 async function undoDelete(){
   if(!_lastDeleted) return;
-  const { tx, idx } = _lastDeleted;
+  const removed = _lastDeleted;
   _lastDeleted = null;
   clearTimeout(_undoTimer);
-  const insertAt = Math.min(idx, state.transactions.length);
-  state.transactions.splice(insertAt, 0, tx);
-  applyTxToBalance(tx, +1);
+  // position in the array is irrelevant (the list is always sorted by ts)
+  removed.forEach(tx => {
+    state.transactions.push(tx);
+    applyTxToBalance(tx, +1);
+  });
   await saveBalances();
   await saveTx();
   render();
-  toast('↩️ تم استرجاع المعاملة');
+  toast(removed.length > 1 ? '↩️ تم استرجاع الحركات' : '↩️ تم استرجاع المعاملة');
 }
 
 /* ============================================================
