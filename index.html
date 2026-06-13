@@ -3655,7 +3655,8 @@ function computeRenderSig(){
     state.transactions.length ? state.transactions[state.transactions.length-1].id : '',
     JSON.stringify(state.wallets),
     currentFilter, walletFilter, categoryFilter, searchQuery,
-    state.crisisMode, JSON.stringify(budgets)
+    state.crisisMode, JSON.stringify(budgets),
+    JSON.stringify(DISTRIBUTION), autoDistribute
   ].join('|');
 }
 
@@ -3703,6 +3704,12 @@ window.addEventListener('storage', (e) => {
   if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit'){
     loadState();
   }
+});
+
+// Global handler for unhandled promise rejections — prevents silent failures
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('Unhandled rejection:', e.reason);
+  toast('⚠ حدث خطأ غير متوقع', true);
 });
 </script>
 </body>
