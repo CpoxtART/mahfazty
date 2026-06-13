@@ -2421,7 +2421,9 @@ function clearSearch(){
 let _filteredTxCache = null;
 let _filteredTxSig = '';
 function getFilteredTx(){
-  const sig = state.transactions.length + '|' + currentFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery;
+  // include today's date for time-sensitive filters so cache invalidates at midnight
+  const dateKey = (currentFilter === 'day' || currentFilter === 'week') ? todayISO() : '';
+  const sig = state.transactions.length + '|' + currentFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery + '|' + dateKey;
   if(sig === _filteredTxSig && _filteredTxCache) return _filteredTxCache;
   _filteredTxSig = sig;
   _filteredTxCache = state.transactions
@@ -2461,6 +2463,7 @@ function renderTxList(){
   if(_hSig !== _heroStatsSig || !_heroStatsCache){
     let mIncome=0, mExpense=0;
     state.transactions.forEach(tx=>{
+      if(tx.category === 'transfer') return; // exclude inter-wallet moves from hero totals
       const d = new Date(tx.ts);
       if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
         if(tx.type==='income') mIncome+=tx.amount; else mExpense+=tx.amount;
@@ -2888,6 +2891,18 @@ async function saveEdit(){
   // reverse old effect
   applyTxToBalance(tx, -1);
 
+  // for a simple 2-leg transfer (link shared by exactly one other transfer leg),
+  // keep both amounts in sync so balances stay consistent after editing one side
+  if(tx.link && tx.category === 'transfer'){
+    const transferPartners = state.transactions.filter(t => t.link === tx.link && t.id !== tx.id && t.category === 'transfer');
+    if(transferPartners.length === 1){
+      const partner = transferPartners[0];
+      applyTxToBalance(partner, -1);
+      partner.amount = newAmount;
+      applyTxToBalance(partner, +1);
+    }
+  }
+
   tx.desc = document.getElementById('editDesc').value.trim();
   tx.amount = newAmount;
   tx.type = editType;
@@ -3108,6 +3123,7 @@ async function applyImport(text){
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
   if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
   if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring);
+  prevSpendable = null; // reset animation baseline after full data replacement
 
   await saveBalances();
   await saveTx();
@@ -3142,6 +3158,7 @@ async function wipeAll(){
   transferTo = null;
   detailWalletId = null;
   pendingIncomeTx = null;
+  prevSpendable = null; // reset so hero balance starts clean (no stale animation baseline)
   await saveBalances();
   await saveTx();
   await saveConfig();
@@ -3361,7 +3378,8 @@ async function driveSyncToCloud(){
       crisisMode: state.crisisMode,
       autoDistribute: autoDistribute,
       budgets: budgets,
-      distribution: DISTRIBUTION
+      distribution: DISTRIBUTION,
+      dismissedRecurring: Array.from(dismissedRecurring)
     });
 
     await driveFindFile();
@@ -3444,12 +3462,17 @@ async function driveSyncFromCloud(isInitial){
 
     if(isInitial && cloudHasData && !localHasData){
       // adopt cloud data
-      if(cloud.wallets) state.wallets = cloud.wallets;
-      if(cloud.transactions) state.transactions = cloud.transactions;
+      if(cloud.wallets) WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
+      if(cloud.transactions) state.transactions = cloud.transactions.filter(tx =>
+        tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+        typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+        WALLET_DEFS.find(w => w.id === tx.wallet));
       if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
       if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
       if(cloud.budgets && typeof cloud.budgets === 'object') budgets = cloud.budgets;
       if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
+      if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
+      prevSpendable = null; // force fresh hero animation after loading new data set
       await saveBalances(); await saveTx(); await saveConfig();
       render();
       toast('☁️ تم تحميل بياناتك من Drive');
@@ -3472,12 +3495,17 @@ async function resolveConflict(useCloud){
   const cloud = _pendingDriveCloud;
   _pendingDriveCloud = null;
   if(useCloud){
-    if(cloud.wallets) state.wallets = cloud.wallets;
-    if(cloud.transactions) state.transactions = cloud.transactions;
+    if(cloud.wallets) WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
+    if(cloud.transactions) state.transactions = cloud.transactions.filter(tx =>
+      tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+      WALLET_DEFS.find(w => w.id === tx.wallet));
     if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
     if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
     if(cloud.budgets && typeof cloud.budgets === 'object') budgets = cloud.budgets;
     if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
+    if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
+    prevSpendable = null;
     await saveBalances(); await saveTx(); await saveConfig();
     render();
     toast('☁️ تم استخدام نسخة Drive');
