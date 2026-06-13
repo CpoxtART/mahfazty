@@ -1569,7 +1569,7 @@ function setWalletFilter(id){
   const chip = document.getElementById('walletFilterChip');
   if(walletFilter){
     const w = WALLET_DEFS.find(x=>x.id===walletFilter);
-    document.getElementById('walletFilterLabel').textContent = 'فلترة حسب: ' + w.name;
+    if(w) document.getElementById('walletFilterLabel').textContent = 'فلترة حسب: ' + w.name;
     chip.classList.add('show');
   } else {
     chip.classList.remove('show');
@@ -2125,8 +2125,9 @@ function resetDistribution(){
 }
 
 function openWalletDetail(walletId){
-  detailWalletId = walletId;
   const w = WALLET_DEFS.find(x=>x.id===walletId);
+  if(!w){ toast('⚠ المحفظة غير موجودة', true); return; }
+  detailWalletId = walletId;
   const currentVal = state.wallets[walletId] ?? 0;
   document.getElementById('detailTitle').textContent = (w.track?'🏦 ':'💳 ') + w.name;
   document.getElementById('detailBalance').textContent = fmt(currentVal);
@@ -2541,7 +2542,8 @@ function renderChart(){
   const emptyEl = document.getElementById('chartEmpty');
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
-  const cssW = canvas.parentElement.clientWidth - 28;
+  const cssW = (canvas.parentElement?.clientWidth || 400) - 28;
+  if(cssW < 50){ emptyEl.style.display='block'; canvas.style.display='none'; return; }
   const cssH = 130;
   canvas.width = cssW*dpr; canvas.height = cssH*dpr;
   canvas.style.width = cssW+'px'; canvas.style.height = cssH+'px';
@@ -2659,6 +2661,8 @@ async function addTx(type){
   document.getElementById('amountInput').value = '';
   document.getElementById('dateInput').value = todayISO();
   document.querySelectorAll('#quickAmounts button').forEach(b=>b.classList.remove('active'));
+  selectedCategory = 'other';
+  renderCategoryGrid();
 
   await saveBalances();
   await saveTx();
@@ -2742,6 +2746,7 @@ async function runDistribution(sourceTx, amount){
 
   // Deposit each share into its target wallet
   DISTRIBUTION.forEach((d, i) => {
+    if(!d.pct || d.pct <= 0) return; // skip zero-percent allocations
     const share = round2(amount * d.pct / 100);
     const w = WALLET_DEFS.find(x=>x.id===d.id);
     const txIn = {
@@ -2890,6 +2895,7 @@ function openModal(id){
 }
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
+  if(id === 'editModal') editingTxId = null;
 }
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
   ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('open'); });
@@ -2977,6 +2983,9 @@ async function applyImport(text){
   try{ data = JSON.parse(text); }
   catch(e){ toast('⚠ تنسيق JSON غير صالح', true); return; }
 
+  if(!data.wallets || !Array.isArray(data.transactions)){
+    toast('⚠ ملف غير صحيح — لا يحتوي على wallets أو transactions', true); return;
+  }
   if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
 
   if(data.wallets) state.wallets = data.wallets;
@@ -3629,6 +3638,13 @@ loadState().then(()=>{
   }
 });
 initDrive();
+
+// Multi-tab sync: reload state if another tab saves data
+window.addEventListener('storage', (e) => {
+  if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit'){
+    loadState();
+  }
+});
 </script>
 </body>
 </html>
