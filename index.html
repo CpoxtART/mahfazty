@@ -772,6 +772,22 @@
   .settings-row:last-of-type{border-bottom:none;}
   .settings-row .meta{color:var(--muted); font-size:11px; margin-top:2px;}
 
+  /* type mini toggle above category grid in add form */
+  .type-mini-toggle{
+    display:flex; gap:6px; margin-bottom:10px;
+  }
+  .type-mini-toggle button{
+    flex:1; padding:8px; font-size:12.5px; font-weight:600;
+    background:var(--bg); border:1px solid var(--line); color:var(--muted);
+    border-radius:var(--radius-sm); cursor:pointer; transition:all .18s;
+  }
+  .type-mini-toggle button.active.exp{
+    background:var(--red-soft); color:var(--red); border-color:rgba(227,145,143,.35);
+  }
+  .type-mini-toggle button.active.inc{
+    background:var(--green-soft); color:var(--green); border-color:rgba(134,195,154,.35);
+  }
+
   @media (prefers-reduced-motion: reduce){
     *{animation:none !important; transition:none !important;}
   }
@@ -855,11 +871,15 @@
   </div>
 
   <label>الفئة</label>
+  <div class="type-mini-toggle">
+    <button class="exp active" id="addTypeExp" onclick="setAddFormType('expense')">➖ مصروف</button>
+    <button class="inc" id="addTypeInc" onclick="setAddFormType('income')">➕ دخل</button>
+  </div>
   <div class="category-grid" id="categoryGrid"></div>
 
   <div class="btn-row">
-    <button class="btn-expense" onclick="addTx('expense')">➖ مصروف</button>
-    <button class="btn-income" onclick="addTx('income')">➕ دخل</button>
+    <button class="btn-expense" onclick="setAddFormType('expense'); addTx('expense')">➖ مصروف</button>
+    <button class="btn-income" onclick="setAddFormType('income'); addTx('income')">➕ دخل</button>
   </div>
   <div class="btn-row" style="margin-top:8px;">
     <button class="btn-transfer" onclick="openTransferModal()">🔁 تحويل بين المحافظ</button>
@@ -1165,6 +1185,22 @@
   </div>
 </div>
 
+<!-- ===== DRIVE CONFLICT MODAL ===== -->
+<div class="modal-overlay" id="driveConflictModal">
+  <div class="modal">
+    <div class="grabber"></div>
+    <h3>☁️ تعارض في البيانات</h3>
+    <div class="hint" style="margin-top:0; font-size:13px; line-height:1.8;">
+      وجدنا بيانات محفوظة على Drive <b style="color:var(--text)">وأيضًا</b> بيانات محلية على هذا الجهاز.<br>
+      أيٌّ منهما تريد الاحتفاظ به؟
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; margin:16px 0;">
+      <button class="btn-primary" onclick="resolveConflict(true)">☁️ استخدم نسخة Drive (تستبدل المحلية)</button>
+      <button class="btn-secondary" onclick="resolveConflict(false)">📱 احتفظ بالمحلية (ارفعها إلى Drive)</button>
+    </div>
+  </div>
+</div>
+
 <div id="saveStatus" role="status" aria-live="polite"></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1220,15 +1256,15 @@ const MAX_WALLET_VAL = WALLET_DEFS.filter(w=>!w.track).reduce((m,w)=>Math.max(m,
 const CRISIS_WALLET_IDS = ['growth','investments','joy','giving','reserve'];
 
 const CATEGORIES = [
-  {id:'food',      name:'طعام وشراب',   icon:'🍽️', color:'#e3a07a'},
-  {id:'transport', name:'مواصلات',      icon:'🚗', color:'#86adcf'},
-  {id:'shopping',  name:'تسوق',         icon:'🛍️', color:'#dcb674'},
-  {id:'bills',     name:'فواتير',       icon:'🧾', color:'#a78bd6'},
-  {id:'health',    name:'صحة',          icon:'💊', color:'#86c39a'},
-  {id:'entertainment', name:'ترفيه',    icon:'🎮', color:'#e3918f'},
-  {id:'salary',    name:'راتب/دخل',     icon:'💼', color:'#7fcf9f'},
-  {id:'transfer',  name:'تحويل',        icon:'🔁', color:'#9aa0ad'},
-  {id:'other',     name:'أخرى',         icon:'✨', color:'#8d94a3'},
+  {id:'food',          types:['expense'],          name:'طعام وشراب',   icon:'🍽️', color:'#e3a07a'},
+  {id:'transport',     types:['expense'],          name:'مواصلات',      icon:'🚗', color:'#86adcf'},
+  {id:'shopping',      types:['expense'],          name:'تسوق',         icon:'🛍️', color:'#dcb674'},
+  {id:'bills',         types:['expense'],          name:'فواتير',       icon:'🧾', color:'#a78bd6'},
+  {id:'health',        types:['expense'],          name:'صحة',          icon:'💊', color:'#86c39a'},
+  {id:'entertainment', types:['expense'],          name:'ترفيه',        icon:'🎮', color:'#e3918f'},
+  {id:'salary',        types:['income'],           name:'راتب/دخل',     icon:'💼', color:'#7fcf9f'},
+  {id:'transfer',      types:['expense','income'], name:'تحويل',        icon:'🔁', color:'#9aa0ad'},
+  {id:'other',         types:['expense','income'], name:'أخرى',         icon:'✨', color:'#8d94a3'},
 ];
 const QUICK_AMOUNTS = [250, 500, 1000, 2000, 5000, 10000];
 const SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track);
@@ -1257,6 +1293,7 @@ let searchQuery = '';
 let prevSpendable = null;
 let selectedCategory = 'other';
 let editCategory = 'other';
+let addFormType = 'expense';
 let detailWalletId = null; // when set, shows wallet detail view
 let txTypeForCategory = 'expense'; // tracks which categories to show in add form
 let pendingIncomeTx = null;
@@ -1776,10 +1813,22 @@ function _initQuickAmountSync(){
 /* ============================================================
    CATEGORY PICKERS
 ============================================================ */
+function setAddFormType(type){
+  addFormType = type;
+  const expBtn = document.getElementById('addTypeExp');
+  const incBtn = document.getElementById('addTypeInc');
+  if(expBtn){ expBtn.classList.toggle('active', type==='expense'); }
+  if(incBtn){ incBtn.classList.toggle('active', type==='income'); }
+  // if current category is incompatible with new type, reset to 'other'
+  const cat = CATEGORIES.find(c=>c.id===selectedCategory);
+  if(cat && !cat.types.includes(type)) selectedCategory = 'other';
+  renderCategoryGrid();
+}
+
 function renderCategoryGrid(){
   const grid = document.getElementById('categoryGrid');
   grid.innerHTML = '';
-  CATEGORIES.forEach(c => {
+  CATEGORIES.filter(c => c.types.includes(addFormType)).forEach(c => {
     const chip = document.createElement('div');
     chip.className = 'cat-chip' + (selectedCategory===c.id ? ' active' : '');
     chip.innerHTML = `<span class="ic">${c.icon}</span><span>${c.name}</span>`;
@@ -2261,6 +2310,7 @@ function renderRecurring(){
 
 function setFilter(f){
   currentFilter = f;
+  _txVisibleCount = 50;
   document.querySelectorAll('.filters button').forEach(b=>{
     b.classList.toggle('active', b.dataset.f === f);
   });
@@ -2283,9 +2333,11 @@ function inRange(ts){
 }
 
 let _searchDebounce = null;
+let _txVisibleCount = 50;
 function onSearchInput(){
   searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
   document.getElementById('searchBox').classList.toggle('has-text', searchQuery.length>0);
+  _txVisibleCount = 50;
   clearTimeout(_searchDebounce);
   _searchDebounce = setTimeout(()=> renderTxList(), 150);
 }
@@ -2293,6 +2345,7 @@ function clearSearch(){
   searchQuery = '';
   document.getElementById('searchInput').value = '';
   document.getElementById('searchBox').classList.remove('has-text');
+  _txVisibleCount = 50;
   renderTxList();
 }
 
@@ -2357,7 +2410,8 @@ function renderTxList(){
   }
 
   let lastDay = null;
-  filtered.forEach(tx => {
+  const visible = filtered.slice(0, _txVisibleCount);
+  visible.forEach(tx => {
     const wallet = WALLET_DEFS.find(w => w.id === tx.wallet);
     const date = new Date(tx.ts);
     const dayKey = date.toDateString();
@@ -2403,6 +2457,16 @@ function renderTxList(){
     wrap.appendChild(div);
     list.appendChild(wrap);
   });
+
+  if(filtered.length > _txVisibleCount){
+    const remaining = filtered.length - _txVisibleCount;
+    const more = document.createElement('button');
+    more.className = 'btn-secondary';
+    more.style.cssText = 'margin:10px auto; display:block; width:auto; padding:10px 24px; font-size:13px;';
+    more.textContent = `⬇ عرض ${Math.min(remaining, 50)} معاملة أخرى (${remaining} متبقية)`;
+    more.onclick = () => { _txVisibleCount += 50; renderTxList(); };
+    list.appendChild(more);
+  }
 }
 
 /* ============================================================
@@ -2802,6 +2866,23 @@ document.querySelectorAll('.modal-overlay').forEach(ov=>{
   ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('open'); });
 });
 
+// Close custom dropdowns when clicking outside
+document.addEventListener('click', function(e){
+  [
+    ['walletSelectBtn',  'walletMenuWrap'],
+    ['editWalletBtn',    'editWalletMenuWrap'],
+    ['transferFromBtn',  'transferFromMenuWrap'],
+    ['transferToBtn',    'transferToMenuWrap'],
+  ].forEach(([btnId, wrapId])=>{
+    const btn  = document.getElementById(btnId);
+    const wrap = document.getElementById(wrapId);
+    if(btn && wrap && !btn.contains(e.target) && !wrap.contains(e.target)){
+      wrap.classList.remove('open');
+      btn.classList.remove('open');
+    }
+  });
+});
+
 function updateSettingsStats(){
   document.getElementById('statTxCount').textContent = state.transactions.length + ' معاملة';
   if(state.transactions.length){
@@ -2882,12 +2963,12 @@ async function applyImport(text){
 }
 
 async function resetBalancesOnly(){
-  if(!confirm('سيتم تصفير جميع الأرصدة إلى ٠ (لن تُحذف المعاملات). متابعة؟')) return;
-  WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+  if(!confirm('سيتم إعادة جميع الأرصدة إلى قيمها الابتدائية الافتراضية (لن تُحذف المعاملات). متابعة؟')) return;
+  WALLET_DEFS.forEach(w => state.wallets[w.id] = w.initial);
   await saveBalances();
   closeModal('settingsModal');
   render();
-  toast('✓ تمت تصفير الأرصدة');
+  toast('✓ تمت استعادة الأرصدة الابتدائية');
 }
 
 async function wipeAll(){
@@ -2949,6 +3030,7 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 
 let gisTokenClient = null;
 let driveAccessToken = null;
+let _pendingDriveCloud = null;
 let driveFileId = null;
 let driveSyncTimer = null;
 let driveClientId = '';
@@ -3144,8 +3226,15 @@ async function driveSyncToCloud(){
     setDriveIndicator('error');
     if(e.message && e.message.includes('401')){
       driveAccessToken = null;
+      try{ sessionStorage.removeItem(LS_PREFIX + 'driveToken'); }catch(_){}
       refreshDriveSettingsUI();
-      toast('⚠ انتهت الجلسة، سجّل الدخول بجوجل من جديد', true);
+      // attempt silent token refresh before asking user
+      if(gisTokenClient){
+        try{ gisTokenClient.requestAccessToken({prompt:''}); }catch(_){}
+        toast('⚠ انتهت جلسة Drive — جارٍ تجديد التسجيل تلقائيًا...', true);
+      } else {
+        toast('⚠ انتهت الجلسة، افتح الإعدادات وسجّل الدخول بجوجل من جديد', true);
+      }
     } else if(e.message && e.message.includes('403')){
       toast('⚠ تم رفض الإذن من Drive — تأكد من صلاحيات appdata بالـ Client ID', true);
     } else if(!navigator.onLine){
@@ -3187,26 +3276,34 @@ async function driveSyncFromCloud(isInitial){
       render();
       toast('☁️ تم تحميل بياناتك من Drive');
     } else if(isInitial && cloudHasData && localHasData){
-      // both have data — ask which to keep
-      const useCloud = confirm('وجدنا بيانات محفوظة على Drive وأيضًا بيانات محلية على هذا الجهاز.\n\nاضغط "موافق" لاستخدام نسخة Drive (سيتم استبدال البيانات المحلية).\nاضغط "إلغاء" للاحتفاظ بالبيانات المحلية ورفعها إلى Drive.');
-      if(useCloud){
-        if(cloud.wallets) state.wallets = cloud.wallets;
-        if(cloud.transactions) state.transactions = cloud.transactions;
-        if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
-        if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
-        await saveBalances(); await saveTx(); await saveConfig();
-        render();
-        toast('☁️ تم استخدام نسخة Drive');
-      } else {
-        await driveSyncToCloud();
-        toast('☁️ تم رفع نسختك المحلية إلى Drive');
-      }
+      // both have data — show non-blocking conflict modal
+      _pendingDriveCloud = cloud;
+      openModal('driveConflictModal');
     } else {
       setDriveIndicator('ok');
     }
   }catch(e){
     console.error(e);
     setDriveIndicator('error');
+  }
+}
+
+async function resolveConflict(useCloud){
+  closeModal('driveConflictModal');
+  if(!_pendingDriveCloud) return;
+  const cloud = _pendingDriveCloud;
+  _pendingDriveCloud = null;
+  if(useCloud){
+    if(cloud.wallets) state.wallets = cloud.wallets;
+    if(cloud.transactions) state.transactions = cloud.transactions;
+    if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
+    if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
+    await saveBalances(); await saveTx(); await saveConfig();
+    render();
+    toast('☁️ تم استخدام نسخة Drive');
+  } else {
+    await driveSyncToCloud();
+    toast('☁️ تم رفع نسختك المحلية إلى Drive');
   }
 }
 
@@ -3229,13 +3326,16 @@ function initDrive(){
   }catch(e){}
   refreshDriveSettingsUI();
   if(driveClientId){
-    // GIS script may still be loading
+    let _gisRetries = 0;
     const tryInit = () => {
       if(typeof google !== 'undefined' && google.accounts){
         initGisClient();
         if(driveAccessToken) driveSyncFromCloud(true);
-      } else {
+      } else if(_gisRetries++ < 25){ // ~7.5s max wait
         setTimeout(tryInit, 300);
+      } else {
+        setDriveIndicator('error');
+        console.warn('GIS script failed to load — Drive sync disabled');
       }
     };
     tryInit();
