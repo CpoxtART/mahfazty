@@ -1309,6 +1309,15 @@ function fmt(n){
   return Number(n).toLocaleString('en-US', {maximumFractionDigits:2});
 }
 
+function escHtml(str){
+  return String(str||'')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#x27;');
+}
+
 function animateNumber(el, from, to, duration){
   if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
     el.textContent = fmt(to);
@@ -1458,6 +1467,8 @@ function getWalletPctLabel(w){
 }
 
 let _monthlyExpenseCache = null;
+let _heroStatsCache = null;
+let _heroStatsSig = '';
 function _buildMonthlyExpenseCache(){
   const now = new Date();
   const cache = {};
@@ -1554,6 +1565,7 @@ function renderWallets(){
 
 function setWalletFilter(id){
   walletFilter = (walletFilter === id) ? null : id;
+  _txVisibleCount = 50;
   const chip = document.getElementById('walletFilterChip');
   if(walletFilter){
     const w = WALLET_DEFS.find(x=>x.id===walletFilter);
@@ -1568,6 +1580,7 @@ function setWalletFilter(id){
 }
 function clearWalletFilter(){
   walletFilter = null;
+  _txVisibleCount = 50;
   document.getElementById('walletFilterChip').classList.remove('show');
   renderWallets();
   renderTxList();
@@ -1576,6 +1589,7 @@ function clearWalletFilter(){
 
 function toggleCategoryFilter(catId){
   categoryFilter = (categoryFilter === catId) ? null : catId;
+  _txVisibleCount = 50;
   const chip = document.getElementById('categoryFilterChip');
   if(categoryFilter){
     const cat = getCategory(categoryFilter);
@@ -1773,7 +1787,7 @@ function applyVoiceTranscript(text){
   }
   if(category){
     selectedCategory = category;
-    renderCategoryGrid();
+    setAddFormType(type); // sync form type so category grid shows correct options
   }
   txTypeForCategory = type;
 
@@ -2150,7 +2164,7 @@ function openWalletDetail(walletId){
       div.className = 'tx';
       div.innerHTML = `
         <div class="info">
-          <div class="desc">${cat.icon} ${tx.desc || cat.name}</div>
+          <div class="desc">${cat.icon} ${escHtml(tx.desc || cat.name)}</div>
           <div class="meta">${date.toLocaleDateString('ar-EG',{day:'numeric',month:'short'})}</div>
         </div>
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
@@ -2183,14 +2197,24 @@ function sumExpenses(start, end, categoryId){
   return total;
 }
 
+let _analyticsCache = null;
+let _analyticsSig = '';
+
 function renderAnalytics(){
   const grid = document.getElementById('analyticsGrid');
   grid.innerHTML = '';
 
   const [curStart, curEnd] = monthRange(0);
   const [prevStart, prevEnd] = monthRange(1);
-  const curTotal = sumExpenses(curStart, curEnd);
-  const prevTotal = sumExpenses(prevStart, prevEnd);
+
+  // cache analytics totals — expensive full-scan, only recompute when txs change
+  const aSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'');
+  if(aSig !== _analyticsSig || !_analyticsCache){
+    _analyticsCache = { cur: sumExpenses(curStart, curEnd), prev: sumExpenses(prevStart, prevEnd) };
+    _analyticsSig = aSig;
+  }
+  const curTotal = _analyticsCache.cur;
+  const prevTotal = _analyticsCache.prev;
 
   let cmpHtml = '';
   if(prevTotal > 0){
@@ -2280,7 +2304,7 @@ function renderRecurring(){
     card.className = 'recurring-card';
     card.innerHTML = `
       <div class="title">🔁 معاملة متكررة محتملة</div>
-      <div class="desc">${cat.icon} "${s.desc}" — تكررت ${s.count} مرات بمتوسط ${fmt(s.avg)} (${wallet?wallet.name:''})</div>
+      <div class="desc">${cat.icon} "${escHtml(s.desc)}" — تكررت ${s.count} مرات بمتوسط ${fmt(s.avg)} (${escHtml(wallet?wallet.name:'')})</div>
       <div class="actions">
         <button class="btn-secondary" data-dismiss="${s.key}">تجاهل</button>
         <button class="btn-primary" data-remind="${s.key}">⏰ سجّلها الآن</button>
@@ -2386,17 +2410,22 @@ function renderTxList(){
   document.getElementById('sumNet').textContent = fmt(income - expense);
   document.getElementById('sumNet').style.color = (income-expense) >= 0 ? 'var(--green)' : 'var(--red)';
 
-  // hero monthly stats (always month, regardless of filter)
-  let mIncome=0, mExpense=0;
+  // hero monthly stats — cached to avoid rescanning all txs on every render
   const now = new Date();
-  state.transactions.forEach(tx=>{
-    const d = new Date(tx.ts);
-    if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
-      if(tx.type==='income') mIncome+=tx.amount; else mExpense+=tx.amount;
-    }
-  });
-  document.getElementById('heroIncome').textContent = fmt(mIncome);
-  document.getElementById('heroExpense').textContent = fmt(mExpense);
+  const _hSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + now.getMonth() + '|' + now.getFullYear();
+  if(_hSig !== _heroStatsSig || !_heroStatsCache){
+    let mIncome=0, mExpense=0;
+    state.transactions.forEach(tx=>{
+      const d = new Date(tx.ts);
+      if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
+        if(tx.type==='income') mIncome+=tx.amount; else mExpense+=tx.amount;
+      }
+    });
+    _heroStatsCache = {mIncome, mExpense};
+    _heroStatsSig = _hSig;
+  }
+  document.getElementById('heroIncome').textContent = fmt(_heroStatsCache.mIncome);
+  document.getElementById('heroExpense').textContent = fmt(_heroStatsCache.mExpense);
 
   if(filtered.length === 0){
     if(state.transactions.length === 0 && !searchQuery && currentFilter==='all'){
@@ -2440,8 +2469,8 @@ function renderTxList(){
     const cat = getCategory(tx.category);
     div.innerHTML = `
       <div class="info">
-        <div class="desc">${tx.desc || (wallet ? wallet.name : '')}</div>
-        <div class="meta"><span class="ctag">${cat.icon}</span><span class="wtag">${wallet ? wallet.name : ''}</span> ${timeStr}</div>
+        <div class="desc">${escHtml(tx.desc || (wallet ? wallet.name : ''))}</div>
+        <div class="meta"><span class="ctag">${cat.icon}</span><span class="wtag">${escHtml(wallet ? wallet.name : '')}</span> ${timeStr}</div>
       </div>
       <div class="right">
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
@@ -3315,7 +3344,7 @@ function driveManualSync(){
 function scheduleDriveSync(){
   if(!driveAccessToken) return;
   clearTimeout(driveSyncTimer);
-  driveSyncTimer = setTimeout(()=> driveSyncToCloud(), 1500);
+  driveSyncTimer = setTimeout(()=> { if(driveAccessToken) driveSyncToCloud(); }, 1500);
 }
 
 function initDrive(){
@@ -3567,7 +3596,7 @@ function render(force){
   const sig = computeRenderSig();
   if(!force && sig === _renderSig) return; // nothing visual changed
   _renderSig = sig;
-  _monthlyExpenseCache = null; // invalidate per-render
+  _monthlyExpenseCache = null; // invalidate budget bars per-render
   renderWallets();
   renderWalletSelect();
   renderTxList();
