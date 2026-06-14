@@ -375,6 +375,9 @@
   }
   .form input:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(220,182,116,.12);}
   .form input[type=number]{font-variant-numeric: tabular-nums;}
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+  input[type=number]{-moz-appearance:textfield;}
   .form input[type=date]{color-scheme: dark;}
 
   .custom-select{
@@ -954,7 +957,7 @@
 <div class="tx-list" id="txList"></div>
 
 <!-- ===== EDIT TX MODAL ===== -->
-<div class="modal-overlay" id="editModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="editModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>✎ تعديل المعاملة</h3>
@@ -985,7 +988,7 @@
 </div>
 
 <!-- ===== DATA MODAL ===== -->
-<div class="modal-overlay" id="dataModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="dataModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>⇅ البيانات</h3>
@@ -1005,7 +1008,7 @@
 </div>
 
 <!-- ===== SETTINGS MODAL ===== -->
-<div class="modal-overlay" id="settingsModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="settingsModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>⚙ الإعدادات</h3>
@@ -1070,7 +1073,7 @@
 </div>
 
 <!-- ===== TRANSFER MODAL ===== -->
-<div class="modal-overlay" id="transferModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="transferModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>🔁 تحويل بين المحافظ</h3>
@@ -1100,7 +1103,7 @@
 </div>
 
 <!-- ===== WALLET DETAIL MODAL ===== -->
-<div class="modal-overlay" id="walletDetailModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="walletDetailModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3 id="detailTitle">المحفظة</h3>
@@ -1134,7 +1137,7 @@
 </div>
 
 <!-- ===== DISTRIBUTE INCOME MODAL ===== -->
-<div class="modal-overlay" id="distributeModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="distributeModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>🔄 توزيع الدخل</h3>
@@ -1154,7 +1157,7 @@
 </div>
 
 <!-- ===== WELCOME MODAL (first run) ===== -->
-<div class="modal-overlay" id="welcomeModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="welcomeModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>🙂‍↔️ أهلاً بك في محفظتيييي</h3>
@@ -1174,7 +1177,7 @@
 </div>
 
 <!-- ===== DAILY REVIEW MODAL ===== -->
-<div class="modal-overlay" id="dailyReviewModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="dailyReviewModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>☀️ مراجعة سريعة</h3>
@@ -1186,7 +1189,7 @@
 </div>
 
 <!-- ===== DRIVE CONFLICT MODAL ===== -->
-<div class="modal-overlay" id="driveConflictModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="driveConflictModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>☁️ تعارض في البيانات</h3>
@@ -2602,25 +2605,36 @@ function renderTxList(){
    SWIPE TO DELETE (touch)
 ============================================================ */
 function attachSwipe(el, wrap, txId){
-  let startX = 0, currentX = 0, dragging = false;
+  let startX = 0, startY = 0, currentX = 0, dragging = false, swipeMode = false;
   const threshold = 90;
 
   el.addEventListener('touchstart', e=>{
     startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
     dragging = true;
+    swipeMode = false;
     el.style.transition = 'none';
   }, {passive:true});
 
   el.addEventListener('touchmove', e=>{
     if(!dragging) return;
-    currentX = e.touches[0].clientX - startX;
-    if(currentX > 0) currentX = 0; // only allow swipe to the left visually (RTL: reveal on right via translateX negative)
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if(!swipeMode){
+      if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 5){ swipeMode = true; }
+      else if(Math.abs(dy) > 5){ dragging = false; return; }
+      else return;
+    }
+    e.preventDefault(); // stop pull-to-refresh and scroll during confirmed horizontal swipe
+    currentX = dx;
+    if(currentX > 0) currentX = 0;
     el.style.transform = `translateX(${currentX}px)`;
-  }, {passive:true});
+  }, {passive:false});
 
   el.addEventListener('touchend', ()=>{
     if(!dragging) return;
     dragging = false;
+    swipeMode = false;
     el.style.transition = 'transform .25s var(--ease)';
     if(Math.abs(currentX) > threshold){
       el.style.transform = 'translateX(-100%)';
@@ -2804,15 +2818,23 @@ function openDistributionModal(amount){
   document.getElementById('distAmountLabel').textContent = fmt(amount);
   const wrap = document.getElementById('distBreakdown');
   wrap.innerHTML = '';
-  DISTRIBUTION.forEach(d=>{
-    const w = WALLET_DEFS.find(x=>x.id===d.id);
-    if(!w) return; // guard against a stale wallet id in saved distribution
-    const share = round2(amount * d.pct / 100);
-    const row = document.createElement('div');
-    row.className = 'dist-row';
-    row.innerHTML = `<span class="name">${w.name} <span class="pct">${d.pct}%</span></span><span class="amt">${fmt(share)}</span>`;
-    wrap.appendChild(row);
-  });
+  const activeEntries = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id));
+  if(activeEntries.length === 0){
+    const warn = document.createElement('div');
+    warn.className = 'hint';
+    warn.style.cssText = 'color:var(--red); margin:0; font-size:13px;';
+    warn.textContent = '⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً';
+    wrap.appendChild(warn);
+  } else {
+    activeEntries.forEach(d=>{
+      const w = WALLET_DEFS.find(x=>x.id===d.id);
+      const share = round2(amount * d.pct / 100);
+      const row = document.createElement('div');
+      row.className = 'dist-row';
+      row.innerHTML = `<span class="name">${w.name} <span class="pct">${d.pct}%</span></span><span class="amt">${fmt(share)}</span>`;
+      wrap.appendChild(row);
+    });
+  }
   document.getElementById('autoDistributeCheck').checked = autoDistribute;
   openModal('distributeModal');
 }
@@ -2826,6 +2848,11 @@ function skipDistribution(){
 async function confirmDistribution(){
   saveAutoDistributePref();
   if(!pendingIncomeTx) { closeModal('distributeModal'); return; }
+  const hasActive = DISTRIBUTION.some(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id));
+  if(!hasActive){
+    toast('⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً', true);
+    return;
+  }
   const txToDistribute = pendingIncomeTx;
   pendingIncomeTx = null; // clear early so double-tap cannot trigger a second distribution
   await runDistribution(txToDistribute, txToDistribute.amount);
@@ -3982,6 +4009,11 @@ window.addEventListener('storage', (e) => {
 window.addEventListener('unhandledrejection', (e) => {
   console.error('Unhandled rejection:', e.reason);
   toast('⚠ حدث خطأ غير متوقع', true);
+});
+
+// Prevent accidental scroll-wheel from changing number input values on desktop
+document.querySelectorAll('input[type=number]').forEach(el => {
+  el.addEventListener('wheel', e => { if(document.activeElement === el) e.preventDefault(); }, {passive:false});
 });
 </script>
 </body>
