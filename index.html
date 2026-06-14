@@ -1314,6 +1314,20 @@ function fmt(n){
   return s === '-0.00' ? '0.00' : s;
 }
 
+// Normalize Arabic-Indic (٠-٩) and Persian (۰-۹) digits + Arabic decimal/thousands
+// separators to ASCII so amount fields accept numbers typed on Arabic keyboards.
+function normalizeDigits(str){
+  return String(str == null ? '' : str)
+    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+    .replace(/[٫]/g, '.')   // Arabic decimal separator
+    .replace(/[٬,]/g, '');  // Arabic + Latin thousands separators
+}
+// Parse a user-entered money string robustly (Arabic numerals, separators).
+function parseAmount(str){
+  return parseFloat(normalizeDigits(str));
+}
+
 function escHtml(str){
   return String(str||'')
     .replace(/&/g,'&amp;')
@@ -1926,7 +1940,7 @@ function renderQuickAmounts(){
 }
 function _initQuickAmountSync(){
   document.getElementById('amountInput').addEventListener('input', ()=>{
-    const v = parseFloat(document.getElementById('amountInput').value);
+    const v = parseAmount(document.getElementById('amountInput').value);
     document.querySelectorAll('#quickAmounts button').forEach(b=>{
       b.classList.toggle('active', parseFloat(b.textContent.replace(/,/g,'')) === v);
     });
@@ -2118,7 +2132,7 @@ function toggleTransferMenu(dir){
 let _doTransferBusy = false;
 async function doTransfer(){
   if(_doTransferBusy) return;
-  const amt = parseFloat(document.getElementById('transferAmount').value.replace(/,/g,''));
+  const amt = parseAmount(document.getElementById('transferAmount').value);
   if(!isFinite(amt) || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
   if(!transferFrom || !transferTo){ toast('⚠ اختر المحفظتين أولاً', true); return; }
   if(transferFrom === transferTo){ toast('⚠ اختر محفظتين مختلفتين', true); return; }
@@ -2170,7 +2184,7 @@ let _updateBalanceBusy = false;
 async function updateTrackedBalance(){
   if(_updateBalanceBusy || !detailWalletId) return;
   const w = WALLET_DEFS.find(x=>x.id===detailWalletId);
-  const newVal = parseFloat(document.getElementById('detailNewBalance').value.replace(/,/g,''));
+  const newVal = parseAmount(document.getElementById('detailNewBalance').value);
   if(isNaN(newVal)){ toast('⚠ أدخل رصيد صحيح', true); return; }
 
   const current = state.wallets[detailWalletId] ?? 0;
@@ -2203,7 +2217,7 @@ async function updateTrackedBalance(){
 
 async function saveWalletBudget(){
   if(!detailWalletId) return;
-  const val = parseFloat(document.getElementById('detailBudgetInput').value);
+  const val = parseAmount(document.getElementById('detailBudgetInput').value);
   if(!val || val <= 0){
     delete budgets[detailWalletId];
   } else {
@@ -2227,7 +2241,7 @@ function renderDistributionEditor(){
       <span class="pct-sign">%</span>
     `;
     row.querySelector('input').oninput = (e)=>{
-      DISTRIBUTION[i].pct = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
+      DISTRIBUTION[i].pct = Math.min(100, Math.max(0, parseAmount(e.target.value) || 0));
       updateDistTotal();
     };
     wrap.appendChild(row);
@@ -2542,7 +2556,10 @@ function getFilteredTx(){
     .filter(tx => {
       if(!searchQuery) return true;
       const wallet = WALLET_DEFS.find(w=>w.id===tx.wallet);
-      const hay = ((tx.desc||'') + ' ' + (wallet?wallet.name:'')).toLowerCase();
+      const cat = getCategory(tx.category);
+      // search description, wallet name AND category name (so "طعام" finds food
+      // transactions even when the description is empty)
+      const hay = ((tx.desc||'') + ' ' + (wallet?wallet.name:'') + ' ' + (cat?cat.name:'')).toLowerCase();
       return hay.includes(searchQuery);
     });
   return _filteredTxCache;
@@ -2746,10 +2763,14 @@ function renderChart(){
 
   const min = Math.min(...points);
   const max = Math.max(...points);
-  const range = (max - min) || 1;
+  // when every point is identical the spread is 0; draw the line through the
+  // vertical centre instead of pinning it to the bottom (range fallback of 1)
+  const flat = max === min;
+  const range = flat ? 1 : (max - min);
   const padX = 6, padY = 12;
   const w = cssW - padX*2;
   const h = cssH - padY*2;
+  const yOf = p => flat ? (padY + h/2) : (padY + h - ((p - min) / range) * h);
 
   // theme-aware grid color (light vs dark) — hardcoded white was invisible in light mode
   const isLightTheme = document.body.classList.contains('light');
@@ -2760,7 +2781,7 @@ function renderChart(){
     ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(padX+w,y); ctx.stroke();
   }
 
-  const zeroY = padY + h - ((0-min)/range)*h;
+  const zeroY = yOf(0);
   ctx.strokeStyle = isLightTheme ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.12)';
   ctx.setLineDash([3,3]);
   ctx.beginPath(); ctx.moveTo(padX,zeroY); ctx.lineTo(padX+w,zeroY); ctx.stroke();
@@ -2769,7 +2790,7 @@ function renderChart(){
   ctx.beginPath();
   points.forEach((p,i)=>{
     const x = padX + (w * i/(points.length-1));
-    const y = padY + h - ((p-min)/range)*h;
+    const y = yOf(p);
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   const finalNet = points[points.length-1];
@@ -2790,7 +2811,7 @@ function renderChart(){
   ctx.fill();
 
   const lastX = padX + w;
-  const lastY = padY + h - ((finalNet-min)/range)*h;
+  const lastY = yOf(finalNet);
   ctx.beginPath();
   ctx.arc(lastX, lastY, 4, 0, Math.PI*2);
   ctx.fillStyle = lineColor;
@@ -2816,7 +2837,7 @@ async function addTx(type){
   try{
     const walletId = selectedWallet;
     const desc = document.getElementById('descInput').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
-    const amountVal = parseFloat(document.getElementById('amountInput').value.replace(/,/g,''));
+    const amountVal = parseAmount(document.getElementById('amountInput').value);
     const dateVal = document.getElementById('dateInput').value || todayISO();
 
     if(!isFinite(amountVal) || amountVal <= 0){
@@ -3060,7 +3081,7 @@ async function saveEdit(){
     return;
   }
 
-  const newAmount = parseFloat(document.getElementById('editAmount').value.replace(/,/g,''));
+  const newAmount = parseAmount(document.getElementById('editAmount').value);
   if(!isFinite(newAmount) || newAmount <= 0){
     toast('⚠ أدخل مبلغ صحيح', true);
     return;
@@ -3200,6 +3221,9 @@ function openModal(id){
   _modalReturnFocus = document.activeElement;
   const modal = document.getElementById(id);
   modal.classList.add('open');
+  // lock background scroll so the page behind the sheet doesn't move while a
+  // modal (and the on-screen keyboard) is open on mobile
+  document.body.style.overflow = 'hidden';
   if(id==='dataModal') document.getElementById('jsonArea').value = '';
   if(id==='settingsModal'){
     updateSettingsStats();
@@ -3216,6 +3240,8 @@ function openModal(id){
 }
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
+  // restore background scroll only once no modal remains open
+  if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
   if(id === 'editModal'){ editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id; }
   if(id === 'distributeModal') pendingIncomeTx = null;
   if(id === 'walletDetailModal') detailWalletId = null;
