@@ -1437,10 +1437,16 @@ async function loadState(){
     }
   }catch(e){}
 
-  // IDB fallback: only if localStorage was never written (e.g. browser cleared storage)
-  const _lsHadData = !!localStorage.getItem(LS_PREFIX + 'lastEdit');
-  if(!_lsHadData){
-    const _idb = await idbRestore();
+  // IDB fallback: restore when localStorage was never written (browser cleared
+  // storage) OR when the IndexedDB snapshot is strictly newer than the last
+  // successful localStorage write. The latter covers the case where a quota
+  // error blocked the localStorage save but idbBackup still captured the change
+  // (idbBackup runs outside the save try/catch), which would otherwise lose the
+  // most recent transactions on reload.
+  const _lsLastEdit = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0;
+  const _idb = await idbRestore();
+  const _idbNewer = _idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt) && _idb.savedAt > _lsLastEdit;
+  if((!_lsLastEdit || _idbNewer)){
     if(_idb && Array.isArray(_idb.transactions) && _idb.transactions.length){
       // apply same guards as the main load path — known wallets only, valid transactions
       if(_idb.wallets) WALLET_DEFS.forEach(w => { if(_idb.wallets[w.id] !== undefined) state.wallets[w.id] = _idb.wallets[w.id]; });
@@ -1459,17 +1465,20 @@ async function loadState(){
     }
   }
 
-  // IndexedDB backup (best-effort, non-blocking)
-  idbBackup();
+  // IndexedDB backup (best-effort, non-blocking). Stamp with the freshest known
+  // time so we never downgrade a snapshot that is still newer than localStorage
+  // (otherwise a quota-recovery marker would be lost before the next save).
+  const _backupStamp = Math.max(_lsLastEdit, (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0);
+  idbBackup(_backupStamp || Date.now());
 
   document.getElementById('dateInput').value = todayISO();
   capDateInputsToToday();
   render(true);
 }
 
-async function saveBalances(){ try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(); }
-async function saveTx(){ try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(); }
-async function saveConfig(){ try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(); }
+async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
+async function saveTx(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
+async function saveConfig(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(ts); }
 
 /* ============================================================
    INDEXEDDB BACKUP (extra resilience alongside localStorage)
@@ -1487,7 +1496,7 @@ function idbOpen(){
     req.onerror = () => reject(req.error);
   });
 }
-async function idbBackup(){
+async function idbBackup(savedAt){
   try{
     const db = await idbOpen();
     const tx = db.transaction('backup','readwrite');
@@ -1498,7 +1507,9 @@ async function idbBackup(){
       autoDistribute, budgets,
       distribution: DISTRIBUTION,
       dismissedRecurring: Array.from(dismissedRecurring),
-      savedAt: Date.now()
+      // stamp with the matching lastEdit time so freshness can be compared on
+      // load; falls back to now only when no explicit timestamp is supplied
+      savedAt: (typeof savedAt === 'number' && isFinite(savedAt)) ? savedAt : Date.now()
     }, 'snapshot');
   }catch(e){ /* non-fatal */ }
 }
@@ -2911,16 +2922,27 @@ async function runDistribution(sourceTx, amount){
   const ts = sourceTx.ts;
   const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
 
+  // Only wallets with a positive share and a valid id participate
+  const active = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id));
+  const totalPct = active.reduce((s,d)=> s + d.pct, 0);
+  // never distribute more than the income itself (caps any >100% misconfiguration)
+  const intendedTotal = round2(Math.min(amount, amount * totalPct / 100));
+
+  // nothing to distribute — leave the income where it landed, don't withdraw
+  if(intendedTotal <= 0){ await saveBalances(); await saveTx(); return; }
+
   // Link the originating income too, so deleting any leg removes the whole
   // income+distribution group and balances stay consistent.
   sourceTx.link = linkId;
 
-  // Withdraw the full amount from the source wallet (it already received it as income)
+  // Withdraw only the portion that will actually be distributed. Any
+  // undistributed remainder (when percentages sum to < 100%) then stays in
+  // the source wallet instead of silently vanishing from the balance.
   const txOut = {
     id: 'tx_'+Date.now()+'_d0'+Math.random().toString(36).slice(2,4),
     wallet: sourceWalletId,
     desc: 'توزيع الدخل على المحافظ',
-    amount: amount,
+    amount: intendedTotal,
     type: 'expense',
     category: 'transfer',
     ts: ts+1,
@@ -2929,10 +2951,6 @@ async function runDistribution(sourceTx, amount){
   state.transactions.push(txOut);
   applyTxToBalance(txOut, +1);
 
-  // Only wallets with a positive share and a valid id participate
-  const active = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id));
-  const totalPct = active.reduce((s,d)=> s + d.pct, 0);
-  const intendedTotal = round2(Math.min(amount, amount * totalPct / 100));
   let allocated = 0;
 
   // Deposit each share into its target wallet
