@@ -375,6 +375,9 @@
   }
   .form input:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(220,182,116,.12);}
   .form input[type=number]{font-variant-numeric: tabular-nums;}
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+  input[type=number]{-moz-appearance:textfield;}
   .form input[type=date]{color-scheme: dark;}
 
   .custom-select{
@@ -852,7 +855,7 @@
 
   <label>الوصف</label>
   <div class="voice-input-row">
-    <input type="text" id="descInput" placeholder="مثال: عشاء، راتب، مواصلات...">
+    <input type="text" id="descInput" maxlength="120" placeholder="مثال: عشاء، راتب، مواصلات...">
     <button type="button" class="voice-btn" id="voiceBtn" onclick="startVoiceInput()" title="إدخال صوتي" aria-label="إدخال صوتي">🎤</button>
   </div>
 
@@ -954,28 +957,31 @@
 <div class="tx-list" id="txList"></div>
 
 <!-- ===== EDIT TX MODAL ===== -->
-<div class="modal-overlay" id="editModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="editModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>✎ تعديل المعاملة</h3>
-    <div class="type-toggle">
+    <div class="hint" id="editTransferHint" style="display:none; margin-top:0;">🔁 هذه حركة تحويل بين محفظتين — يمكنك تعديل المبلغ والمحفظة والتاريخ فقط (يُحدَّث الطرفان معًا).</div>
+    <div class="type-toggle" id="editTypeToggle">
       <button id="editTypeExp" class="exp" onclick="setEditType('expense')">➖ مصروف</button>
       <button id="editTypeInc" class="inc" onclick="setEditType('income')">➕ دخل</button>
     </div>
     <label>المحفظة</label>
-    <div class="custom-select" id="editWalletBtn" onclick="toggleEditWalletMenu()">
+    <div class="custom-select" id="editWalletBtn" onclick="toggleEditWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox">
       <span id="editWalletLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
     <div class="wallet-menu" id="editWalletMenuWrap"><div id="editWalletMenu" role="listbox"></div></div>
     <label>الوصف</label>
-    <input type="text" id="editDesc" placeholder="الوصف">
+    <input type="text" id="editDesc" maxlength="120" placeholder="الوصف">
     <label>المبلغ</label>
     <input type="number" id="editAmount" step="any" inputmode="decimal">
     <label>التاريخ</label>
     <input type="date" id="editDate">
-    <label>الفئة</label>
-    <div class="category-grid" id="editCategoryGrid"></div>
+    <div id="editCategorySection">
+      <label>الفئة</label>
+      <div class="category-grid" id="editCategoryGrid"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('editModal')">إلغاء</button>
       <button class="btn-danger" onclick="deleteFromEdit()">حذف</button>
@@ -985,7 +991,7 @@
 </div>
 
 <!-- ===== DATA MODAL ===== -->
-<div class="modal-overlay" id="dataModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="dataModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>⇅ البيانات</h3>
@@ -1005,7 +1011,7 @@
 </div>
 
 <!-- ===== SETTINGS MODAL ===== -->
-<div class="modal-overlay" id="settingsModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="settingsModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>⚙ الإعدادات</h3>
@@ -1045,12 +1051,42 @@
     </div>
 
     <div id="driveActions" style="display:none;">
+      <div class="hint" id="driveEmbeddedWarn" style="display:none; margin-top:0; border:1px solid var(--gold); border-radius:8px; padding:8px 10px; color:var(--text);">
+        ⚠️ يبدو أنك تفتح التطبيق داخل تطبيق آخر أو كاختصار على الشاشة. قد تعلق صفحة تسجيل دخول جوجل فارغة. إن حدث ذلك، ارجع للخلف ثم افتح التطبيق في متصفح <b>Chrome</b> أو <b>Safari</b> مباشرةً وسجّل الدخول من هناك.
+      </div>
+      <!-- shown while silent auto-reconnect is in progress -->
+      <div id="driveReconnectRow" style="display:none; padding:10px 4px; font-size:13px; color:var(--blue); display:flex; align-items:center; gap:8px;">
+        <span style="font-size:16px;">🔄</span>
+        <span>جارٍ الاتصال بـ Google Drive تلقائياً…</span>
+      </div>
       <div class="modal-actions" style="margin-top:8px;">
         <button class="btn-primary" id="driveSignInBtn" onclick="driveSignIn()">🔐 تسجيل الدخول بجوجل</button>
       </div>
       <div class="modal-actions" id="driveSignedInActions" style="display:none;">
         <button class="btn-secondary" onclick="driveManualSync()">⬆ مزامنة الآن</button>
         <button class="btn-secondary" onclick="driveSignOut()">تسجيل الخروج</button>
+      </div>
+      <!-- auto-sign-in first-time prompt — appears after the first successful sign-in -->
+      <div id="driveAutoSignInPrompt" style="display:none; margin-top:12px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:10px;">
+        <div style="font-size:13px; font-weight:600; margin-bottom:6px;">🔐 الاتصال التلقائي</div>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:10px; line-height:1.6;">
+          هل تريد أن يتصل التطبيق بـ Google Drive تلقائياً في كل مرة تفتحه؟<br>
+          لن تحتاج لتسجيل الدخول طالما جلستك في Google نشطة.
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn-primary" style="font-size:12px; padding:6px 16px;" onclick="enableDriveAutoSignIn()">✓ نعم، دائماً</button>
+          <button class="btn-secondary" style="font-size:12px; padding:6px 14px;" onclick="dismissDriveAutoSignInPrompt()">ليس الآن</button>
+        </div>
+      </div>
+      <!-- toggle row — visible when connected, lets user control the preference -->
+      <div id="driveAutoSignInRow" style="display:none; margin-top:10px; padding:8px 10px; background:var(--card2); border-radius:8px;">
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+          <input type="checkbox" id="driveAutoSignInChk" onchange="setDriveAutoSignIn(this.checked)" style="width:16px; height:16px; accent-color:var(--gold); cursor:pointer;">
+          <div>
+            <div style="font-size:12px; font-weight:600;">الاتصال التلقائي عند الفتح</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">يتصل بـ Drive تلقائياً ما دامت جلسة Google نشطة</div>
+          </div>
+        </label>
       </div>
       <div class="modal-actions">
         <button class="btn-secondary" onclick="changeDriveClientId()" style="font-size:11px;">تغيير Client ID</button>
@@ -1070,19 +1106,19 @@
 </div>
 
 <!-- ===== TRANSFER MODAL ===== -->
-<div class="modal-overlay" id="transferModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="transferModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>🔁 تحويل بين المحافظ</h3>
     <label>من محفظة</label>
-    <div class="custom-select" id="transferFromBtn" onclick="toggleTransferMenu('from')">
+    <div class="custom-select" id="transferFromBtn" onclick="toggleTransferMenu('from')" role="button" tabindex="0" aria-haspopup="listbox">
       <span id="transferFromLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
     <div class="wallet-menu" id="transferFromMenuWrap"><div id="transferFromMenu" role="listbox"></div></div>
 
     <label>إلى محفظة</label>
-    <div class="custom-select" id="transferToBtn" onclick="toggleTransferMenu('to')">
+    <div class="custom-select" id="transferToBtn" onclick="toggleTransferMenu('to')" role="button" tabindex="0" aria-haspopup="listbox">
       <span id="transferToLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
@@ -1100,7 +1136,7 @@
 </div>
 
 <!-- ===== WALLET DETAIL MODAL ===== -->
-<div class="modal-overlay" id="walletDetailModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="walletDetailModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3 id="detailTitle">المحفظة</h3>
@@ -1113,7 +1149,7 @@
     <div id="detailBudgetSetting" style="display:none; margin-bottom:14px;">
       <label>الميزانية الشهرية (مصروفات)</label>
       <div class="row2">
-        <input type="number" id="detailBudgetInput" step="any" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)">
+        <input type="number" id="detailBudgetInput" min="0" step="any" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)">
         <button class="btn-secondary" style="flex:0 0 auto; padding:0 18px;" onclick="saveWalletBudget()">حفظ</button>
       </div>
       <div class="hint" style="margin-top:0;">عند الوصول إليها سيتلون شريط التقدم بالأحمر وتظهر علامة تحذير ⚠ على بطاقة المحفظة.</div>
@@ -1134,7 +1170,7 @@
 </div>
 
 <!-- ===== DISTRIBUTE INCOME MODAL ===== -->
-<div class="modal-overlay" id="distributeModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="distributeModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>🔄 توزيع الدخل</h3>
@@ -1154,7 +1190,7 @@
 </div>
 
 <!-- ===== WELCOME MODAL (first run) ===== -->
-<div class="modal-overlay" id="welcomeModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="welcomeModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>🙂‍↔️ أهلاً بك في محفظتيييي</h3>
@@ -1174,7 +1210,7 @@
 </div>
 
 <!-- ===== DAILY REVIEW MODAL ===== -->
-<div class="modal-overlay" id="dailyReviewModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="dailyReviewModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>☀️ مراجعة سريعة</h3>
@@ -1186,7 +1222,7 @@
 </div>
 
 <!-- ===== DRIVE CONFLICT MODAL ===== -->
-<div class="modal-overlay" id="driveConflictModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="driveConflictModal">
   <div class="modal">
     <div class="grabber"></div>
     <h3>☁️ تعارض في البيانات</h3>
@@ -1194,6 +1230,7 @@
       وجدنا بيانات محفوظة على Drive <b style="color:var(--text)">وأيضًا</b> بيانات محلية على هذا الجهاز.<br>
       أيٌّ منهما تريد الاحتفاظ به؟
     </div>
+    <div id="conflictInfo" style="margin-top:12px; font-size:12.5px; line-height:1.9;"></div>
     <div style="display:flex; flex-direction:column; gap:10px; margin:16px 0;">
       <button class="btn-primary" onclick="resolveConflict(true)">☁️ استخدم نسخة Drive (تستبدل المحلية)</button>
       <button class="btn-secondary" onclick="resolveConflict(false)">📱 احتفظ بالمحلية (ارفعها إلى Drive)</button>
@@ -1289,29 +1326,49 @@ let selectedWallet = WALLET_DEFS[0].id;
 let editingTxId = null;
 let editType = 'expense';
 let editWallet = WALLET_DEFS[0].id;
+let _editingTransferLeg = false; // when true, type/category are locked (transfer)
 let searchQuery = '';
 let prevSpendable = null;
 let selectedCategory = 'other';
 let editCategory = 'other';
 let addFormType = 'expense';
 let detailWalletId = null; // when set, shows wallet detail view
-let txTypeForCategory = 'expense'; // tracks which categories to show in add form
 let pendingIncomeTx = null;
 let autoDistribute = false;
 let budgets = {}; // walletId -> monthly budget limit (expenses)
-let recurringSuggestions = []; // detected recurring transactions not yet acknowledged
 let dismissedRecurring = new Set();
 
 /* ============================================================
    FORMAT HELPERS
 ============================================================ */
 function fmt(n){
-  if(isNaN(n) || !isFinite(n)) return '0';
-  return Number(n).toLocaleString('en-US', {maximumFractionDigits:2});
+  if(isNaN(n) || !isFinite(n)) return '0.00';
+  // collapse -0 and sub-cent negatives so they never render as "-0.00"
+  if(Object.is(n, -0) || (n < 0 && n > -0.005)) n = 0;
+  const s = Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return s === '-0.00' ? '0.00' : s;
+}
+
+// Normalize Arabic-Indic (٠-٩) and Persian (۰-۹) digits + Arabic decimal/thousands
+// separators to ASCII so amount fields accept numbers typed on Arabic keyboards.
+function normalizeDigits(str){
+  return String(str == null ? '' : str)
+    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+    .replace(/[٫]/g, '.')   // Arabic decimal separator
+    .replace(/[٬,]/g, '');  // Arabic + Latin thousands separators
+}
+// Parse a user-entered money string robustly (Arabic numerals, separators).
+function parseAmount(str){
+  return parseFloat(normalizeDigits(str));
 }
 
 function escHtml(str){
   return String(str||'')
+    // strip Unicode bidi embedding/override/isolate controls — a pasted or voiced
+    // description containing e.g. U+202E can otherwise visually scramble the whole
+    // RTL layout of surrounding UI text ("Trojan Source"-style display corruption)
+    .replace(/[‪-‮⁦-⁩]/g,'')
     .replace(/&/g,'&amp;')
     .replace(/</g,'&lt;')
     .replace(/>/g,'&gt;')
@@ -1319,19 +1376,23 @@ function escHtml(str){
     .replace(/'/g,'&#x27;');
 }
 
+const _animFrames = {}; // track active animation frames per element id to allow cancellation
 function animateNumber(el, from, to, duration){
+  if(!el) return; // guard against missing/detached DOM element
   if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
     el.textContent = fmt(to);
     return;
   }
+  if(_animFrames[el.id]) cancelAnimationFrame(_animFrames[el.id]);
   const start = performance.now();
   function frame(now){
     const t = Math.min(1, (now - start) / duration);
     const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
     el.textContent = fmt(from + (to - from) * eased);
-    if(t < 1) requestAnimationFrame(frame);
+    if(t < 1) _animFrames[el.id] = requestAnimationFrame(frame);
+    else delete _animFrames[el.id];
   }
-  requestAnimationFrame(frame);
+  _animFrames[el.id] = requestAnimationFrame(frame);
 }
 /* ============================================================
    THEME (dark / light)
@@ -1342,22 +1403,39 @@ function applyTheme(theme){
   if(btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', theme === 'light' ? '#f4f2ed' : '#15171c');
+  // keep the installed PWA splash/chrome color in sync with the chosen theme
+  if(typeof applyManifest === 'function') applyManifest(theme === 'light');
 }
 function toggleTheme(){
   const isLight = document.body.classList.contains('light');
   const next = isLight ? 'dark' : 'light';
   applyTheme(next);
   try{ localStorage.setItem(LS_PREFIX + 'theme', next); }catch(e){}
+  // canvas charts bake theme colors at draw time — redraw so they match the new theme
+  if(typeof renderChart === 'function') renderChart();
+  if(typeof renderPieChart === 'function') renderPieChart();
 }
 function initTheme(){
-  let theme = 'dark';
-  try{ theme = localStorage.getItem(LS_PREFIX + 'theme') || 'dark'; }catch(e){}
+  let theme = null;
+  try{ theme = localStorage.getItem(LS_PREFIX + 'theme'); }catch(e){}
+  if(!theme){
+    theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
   applyTheme(theme);
 }
 
 function todayISO(){
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// Cap all date pickers at today so a transaction can't be accidentally future-dated
+function capDateInputsToToday(){
+  const t = todayISO();
+  ['dateInput','editDate','transferDate'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.setAttribute('max', t);
+  });
 }
 
 /* ============================================================
@@ -1373,12 +1451,24 @@ async function loadState(){
 
   try{
     const bal = localStorage.getItem(LS_PREFIX + 'balances');
-    if(bal) state.wallets = Object.assign(state.wallets, JSON.parse(bal));
+    if(bal){
+      const saved = JSON.parse(bal);
+      // only restore known wallet ids — prevents orphaned keys from corrupted imports
+      WALLET_DEFS.forEach(w => { if(saved[w.id] !== undefined) state.wallets[w.id] = saved[w.id]; });
+    }
   }catch(e){}
 
   try{
     const tx = localStorage.getItem(LS_PREFIX + 'transactions');
-    if(tx) state.transactions = JSON.parse(tx);
+    if(tx){
+      const parsed = JSON.parse(tx);
+      state.transactions = Array.isArray(parsed) ? parsed.filter(t =>
+        t && (t.type === 'income' || t.type === 'expense') &&
+        typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
+        typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 &&
+        WALLET_DEFS.find(w => w.id === t.wallet)
+      ) : [];
+    }
   }catch(e){}
 
   try{
@@ -1387,7 +1477,13 @@ async function loadState(){
       const c = JSON.parse(cfg);
       state.crisisMode = !!c.crisisMode;
       autoDistribute = !!c.autoDistribute;
-      budgets = c.budgets || {};
+      if(c.budgets && typeof c.budgets === 'object'){
+        budgets = {};
+        WALLET_DEFS.forEach(w => {
+          const v = parseFloat(c.budgets[w.id]);
+          if(isFinite(v) && v > 0) budgets[w.id] = v;
+        });
+      }
       if(c.distribution && Array.isArray(c.distribution) && c.distribution.length){
         DISTRIBUTION = c.distribution.filter(d => WALLET_DEFS.find(w=>w.id===d.id));
         if(!DISTRIBUTION.length) DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
@@ -1396,32 +1492,48 @@ async function loadState(){
     }
   }catch(e){}
 
-  // IDB fallback: only if localStorage was never written (e.g. browser cleared storage)
-  const _lsHadData = !!localStorage.getItem(LS_PREFIX + 'lastEdit');
-  if(!_lsHadData){
-    const _idb = await idbRestore();
+  // IDB fallback: restore when localStorage was never written (browser cleared
+  // storage) OR when the IndexedDB snapshot is strictly newer than the last
+  // successful localStorage write. The latter covers the case where a quota
+  // error blocked the localStorage save but idbBackup still captured the change
+  // (idbBackup runs outside the save try/catch), which would otherwise lose the
+  // most recent transactions on reload.
+  const _lsLastEdit = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0;
+  const _idb = await idbRestore();
+  const _idbNewer = _idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt) && _idb.savedAt > _lsLastEdit;
+  if((!_lsLastEdit || _idbNewer)){
     if(_idb && Array.isArray(_idb.transactions) && _idb.transactions.length){
-      state.wallets = Object.assign(state.wallets, _idb.wallets || {});
-      state.transactions = _idb.transactions;
+      // apply same guards as the main load path — known wallets only, valid transactions
+      if(_idb.wallets) WALLET_DEFS.forEach(w => { if(_idb.wallets[w.id] !== undefined) state.wallets[w.id] = _idb.wallets[w.id]; });
+      state.transactions = _idb.transactions.filter(tx =>
+        tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+        typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+        (tx.type === 'income' || tx.type === 'expense') &&
+        WALLET_DEFS.find(w => w.id === tx.wallet)
+      );
       if(typeof _idb.crisisMode === 'boolean') state.crisisMode = _idb.crisisMode;
       if(typeof _idb.autoDistribute === 'boolean') autoDistribute = _idb.autoDistribute;
-      if(_idb.budgets && typeof _idb.budgets === 'object') budgets = _idb.budgets;
+      if(_idb.budgets && typeof _idb.budgets === 'object') budgets = sanitizeBudgets(_idb.budgets);
       if(Array.isArray(_idb.dismissedRecurring)) dismissedRecurring = new Set(_idb.dismissedRecurring);
-      if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = _idb.distribution;
+      if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = sanitizeDistribution(_idb.distribution);
       toast('✓ تمت استعادة البيانات من النسخ الاحتياطي');
     }
   }
 
-  // IndexedDB backup (best-effort, non-blocking)
-  idbBackup();
+  // IndexedDB backup (best-effort, non-blocking). Stamp with the freshest known
+  // time so we never downgrade a snapshot that is still newer than localStorage
+  // (otherwise a quota-recovery marker would be lost before the next save).
+  const _backupStamp = Math.max(_lsLastEdit, (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0);
+  idbBackup(_backupStamp || Date.now());
 
   document.getElementById('dateInput').value = todayISO();
+  capDateInputsToToday();
   render(true);
 }
 
-async function saveBalances(){ try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){ toast('⚠ فشل الحفظ', true); } }
-async function saveTx(){ try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){ toast('⚠ فشل الحفظ', true); } }
-async function saveConfig(){ try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){} }
+async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
+async function saveTx(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
+async function saveConfig(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(ts); }
 
 /* ============================================================
    INDEXEDDB BACKUP (extra resilience alongside localStorage)
@@ -1439,7 +1551,7 @@ function idbOpen(){
     req.onerror = () => reject(req.error);
   });
 }
-async function idbBackup(){
+async function idbBackup(savedAt){
   try{
     const db = await idbOpen();
     const tx = db.transaction('backup','readwrite');
@@ -1450,7 +1562,9 @@ async function idbBackup(){
       autoDistribute, budgets,
       distribution: DISTRIBUTION,
       dismissedRecurring: Array.from(dismissedRecurring),
-      savedAt: Date.now()
+      // stamp with the matching lastEdit time so freshness can be compared on
+      // load; falls back to now only when no explicit timestamp is supplied
+      savedAt: (typeof savedAt === 'number' && isFinite(savedAt)) ? savedAt : Date.now()
     }, 'snapshot');
   }catch(e){ /* non-fatal */ }
 }
@@ -1488,13 +1602,14 @@ function getWalletPctLabel(w){
 }
 
 let _monthlyExpenseCache = null;
+let _monthlyExpenseCacheKey = '';
 let _heroStatsCache = null;
 let _heroStatsSig = '';
 function _buildMonthlyExpenseCache(){
   const now = new Date();
   const cache = {};
   state.transactions.forEach(tx=>{
-    if(tx.type!=='expense' || tx.category==='transfer') return;
+    if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
     const d = new Date(tx.ts);
     if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
       cache[tx.wallet] = (cache[tx.wallet]||0) + tx.amount;
@@ -1503,7 +1618,12 @@ function _buildMonthlyExpenseCache(){
   return cache;
 }
 function monthlyExpenseForWallet(walletId){
-  if(!_monthlyExpenseCache) _monthlyExpenseCache = _buildMonthlyExpenseCache();
+  const now = new Date();
+  const key = now.getFullYear() + '-' + now.getMonth();
+  if(!_monthlyExpenseCache || _monthlyExpenseCacheKey !== key){
+    _monthlyExpenseCache = _buildMonthlyExpenseCache();
+    _monthlyExpenseCacheKey = key;
+  }
   return _monthlyExpenseCache[walletId] || 0;
 }
 
@@ -1559,6 +1679,7 @@ function renderWallets(){
   if(state.crisisMode){
     let crisisTotal = 0;
     CRISIS_WALLET_IDS.forEach(id => crisisTotal += (state.wallets[id] ?? 0));
+    spendable += crisisTotal; // crisis reserve is part of total liquidity in emergency mode
     const div = document.createElement('div');
     div.className = 'wallet crisis-combined';
     div.innerHTML = `
@@ -1598,6 +1719,8 @@ function setWalletFilter(id){
   renderWallets();
   renderTxList();
   renderChart();
+  renderPieChart();
+  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function clearWalletFilter(){
   walletFilter = null;
@@ -1606,6 +1729,8 @@ function clearWalletFilter(){
   renderWallets();
   renderTxList();
   renderChart();
+  renderPieChart();
+  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function toggleCategoryFilter(catId){
@@ -1621,6 +1746,8 @@ function toggleCategoryFilter(catId){
   }
   renderTxList();
   renderChart();
+  renderPieChart();
+  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 
@@ -1634,6 +1761,7 @@ function renderWalletSelect(){
     const opt = document.createElement('div');
     opt.className = 'opt' + (w.id === selectedWallet ? ' selected' : '');
     opt.setAttribute('role','option');
+    opt.tabIndex = 0; // keyboard-reachable when the menu is open
     const val = state.wallets[w.id] ?? 0;
     opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
     opt.onclick = () => selectWallet(w.id);
@@ -1667,6 +1795,8 @@ function renderEditWalletSelect(){
   list.forEach(w => {
     const opt = document.createElement('div');
     opt.className = 'opt' + (w.id === editWallet ? ' selected' : '');
+    opt.setAttribute('role','option');
+    opt.tabIndex = 0;
     const val = state.wallets[w.id] ?? 0;
     opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
     opt.onclick = () => { editWallet = w.id; document.getElementById('editWalletMenuWrap').classList.remove('open'); document.getElementById('editWalletBtn').classList.remove('open'); renderEditWalletSelect(); };
@@ -1683,6 +1813,10 @@ function setEditType(type){
   editType = type;
   document.getElementById('editTypeExp').classList.toggle('active', type==='expense');
   document.getElementById('editTypeInc').classList.toggle('active', type==='income');
+  // keep category compatible with the chosen type (mirrors the add form)
+  const cat = CATEGORIES.find(c=>c.id===editCategory);
+  if(cat && !cat.types.includes(type)) editCategory = 'other';
+  renderEditCategoryGrid();
 }
 
 /* ============================================================
@@ -1736,11 +1870,12 @@ function guessCategory(text){
 }
 
 function guessType(text){
-  const incomeWords = ['استلمت','استقبلت','دخل','راتب','ربحت','حولوا لي','جاني'];
+  const incomeWords = ['استلمت','استقبلت','دخل','راتب','ربحت','كسبت','حولوا لي','حول لي','حولني','وصلني','وصل لي','جاني','هدية','مكافأة','بونص','عائد','فائدة','أرسلوا لي'];
   return incomeWords.some(w => text.includes(w)) ? 'income' : 'expense';
 }
 
 let voiceRecognition = null;
+let _voiceTimer = null;
 function startVoiceInput(){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SpeechRecognition){
@@ -1750,20 +1885,37 @@ function startVoiceInput(){
   const btn = document.getElementById('voiceBtn');
 
   if(voiceRecognition){
-    voiceRecognition.stop();
+    // abort (not stop) so a cancel-tap discards partial audio instead of
+    // submitting an unintended transcript; onerror('aborted') is ignored below
+    voiceRecognition.abort();
     return;
   }
+
+  // single idempotent teardown — guarantees the mic button never gets stuck in
+  // the "listening" state and the recognition object is always released
+  const cleanup = () => {
+    clearTimeout(_voiceTimer); _voiceTimer = null;
+    btn.classList.remove('listening');
+    voiceRecognition = null;
+  };
 
   voiceRecognition = new SpeechRecognition();
   voiceRecognition.lang = 'ar-SA';
   voiceRecognition.interimResults = false;
   voiceRecognition.maxAlternatives = 1;
 
-  voiceRecognition.onstart = () => btn.classList.add('listening');
-  voiceRecognition.onend = () => { btn.classList.remove('listening'); voiceRecognition = null; };
+  voiceRecognition.onstart = () => {
+    btn.classList.add('listening');
+    // watchdog: if the engine hangs and never fires onend/onerror (a known
+    // flaky-browser case), force-release after 12s so the button recovers
+    clearTimeout(_voiceTimer);
+    _voiceTimer = setTimeout(() => {
+      if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} cleanup(); }
+    }, 12000);
+  };
+  voiceRecognition.onend = cleanup;
   voiceRecognition.onerror = (e) => {
-    btn.classList.remove('listening');
-    voiceRecognition = null;
+    cleanup();
     if(e.error === 'not-allowed'){
       toast('⚠ يجب السماح بالوصول للميكروفون', true);
     } else if(e.error !== 'aborted'){
@@ -1774,11 +1926,15 @@ function startVoiceInput(){
   voiceRecognition.onresult = (event) => {
     if(!event.results || !event.results[0] || !event.results[0][0]) return;
     const transcript = event.results[0][0].transcript.trim();
+    if(!transcript){
+      toast('🎤 لم يُفهم الكلام — حاول مجددًا', true);
+      return;
+    }
     applyVoiceTranscript(transcript);
   };
 
   try{ voiceRecognition.start(); }
-  catch(e){ toast('⚠ تعذر بدء التعرف الصوتي', true); }
+  catch(e){ cleanup(); toast('⚠ تعذر بدء التعرف الصوتي', true); }
 }
 
 function applyVoiceTranscript(text){
@@ -1800,23 +1956,28 @@ function applyVoiceTranscript(text){
   desc = desc.replace(/\s{2,}/g,' ').trim();
 
   if(amount !== null){
-    document.getElementById('amountInput').value = amount;
+    const amtEl = document.getElementById('amountInput');
+    amtEl.value = amount;
+    amtEl.dispatchEvent(new Event('input')); // sync quick-amount button highlight
   }
   if(desc){
     document.getElementById('descInput').value = desc;
   } else if(!amount){
     document.getElementById('descInput').value = text; // fallback: raw transcript
   }
-  if(category){
-    selectedCategory = category;
-    setAddFormType(type); // sync form type so category grid shows correct options
-  }
-  txTypeForCategory = type;
+  // apply the guessed income/expense type even when no category matched, so a
+  // clear income phrase isn't left sitting on the expense form. setAddFormType
+  // also drops the category if it's incompatible with the type, then re-renders.
+  if(category) selectedCategory = category;
+  setAddFormType(type);
 
   if(amount !== null){
     toast(`🎤 "${text}" → ${fmt(amount)} ${desc?'· '+desc:''}`);
   } else {
-    toast('🎤 لم يتم العثور على رقم، تم تعبية الوصف فقط');
+    toast('🎤 لم يتم العثور على رقم — اكتب المبلغ يدويًا', true);
+    const amtEl = document.getElementById('amountInput');
+    amtEl.focus(); // guide the user straight to the missing field
+    window.scrollTo({top:0, behavior:'smooth'});
   }
 }
 
@@ -1839,7 +2000,7 @@ function renderQuickAmounts(){
 }
 function _initQuickAmountSync(){
   document.getElementById('amountInput').addEventListener('input', ()=>{
-    const v = parseFloat(document.getElementById('amountInput').value);
+    const v = parseAmount(document.getElementById('amountInput').value);
     document.querySelectorAll('#quickAmounts button').forEach(b=>{
       b.classList.toggle('active', parseFloat(b.textContent.replace(/,/g,'')) === v);
     });
@@ -1875,7 +2036,7 @@ function renderCategoryGrid(){
 function renderEditCategoryGrid(){
   const grid = document.getElementById('editCategoryGrid');
   grid.innerHTML = '';
-  CATEGORIES.forEach(c => {
+  CATEGORIES.filter(c => c.types.includes(editType)).forEach(c => {
     const chip = document.createElement('div');
     chip.className = 'cat-chip' + (editCategory===c.id ? ' active' : '');
     chip.innerHTML = `<span class="ic">${c.icon}</span><span>${c.name}</span>`;
@@ -1884,7 +2045,13 @@ function renderEditCategoryGrid(){
   });
 }
 function getCategory(id){
-  return CATEGORIES.find(c=>c.id===id) || CATEGORIES[CATEGORIES.length-1];
+  return CATEGORIES.find(c=>c.id===id) || CATEGORIES.find(c=>c.id==='other') || CATEGORIES[0];
+}
+// Collapse any unknown/untrusted category (e.g. from a crafted backup) to a
+// known id; 'adjustment' is internal-but-valid, everything else falls to 'other'
+const _KNOWN_CATEGORIES = new Set([...CATEGORIES.map(c=>c.id), 'adjustment']);
+function normalizeCategory(cat){
+  return _KNOWN_CATEGORIES.has(cat) ? cat : 'other';
 }
 
 /* ============================================================
@@ -1895,7 +2062,7 @@ function renderPieChart(){
   const filtered = state.transactions
     .filter(tx => inRange(tx.ts))
     .filter(tx => !walletFilter || tx.wallet === walletFilter)
-    .filter(tx => tx.type==='expense' && tx.category !== 'transfer');
+    .filter(tx => tx.type==='expense' && tx.category !== 'transfer' && tx.category !== 'adjustment');
 
   if(filtered.length === 0){
     wrap.innerHTML = '<div class="chart-empty" style="flex:1;">لا توجد مصروفات في هذه الفترة</div>';
@@ -1916,7 +2083,7 @@ function renderPieChart(){
     prevTotals = {};
     const [prevStart, prevEnd] = monthRange(1);
     state.transactions.forEach(tx=>{
-      if(tx.type!=='expense' || tx.category==='transfer') return;
+      if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
       if(tx.ts < prevStart || tx.ts >= prevEnd) return;
       if(walletFilter && tx.wallet !== walletFilter) return;
       const cat = tx.category || 'other';
@@ -1943,7 +2110,7 @@ function renderPieChart(){
         cmpHtml = `<span class="cat-cmp up">جديد</span>`;
       }
     }
-    html += `<div class="row cat-row" data-cat="${catId}"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct.toFixed(0)}%)</span></div>`;
+    html += `<div class="row cat-row" data-cat="${escHtml(catId)}"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct.toFixed(0)}%)</span></div>`;
   });
   html += '</div>';
   wrap.innerHTML = html;
@@ -1957,6 +2124,7 @@ function renderPieChart(){
   const dpr = window.devicePixelRatio || 1;
   canvas.width = size*dpr; canvas.height = size*dpr;
   const ctx = canvas.getContext('2d');
+  if(!ctx) return;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   let start = -Math.PI/2;
   entries.forEach(([catId, amt]) => {
@@ -1983,8 +2151,10 @@ function renderPieChart(){
 let transferFrom = null, transferTo = null;
 
 function openTransferModal(){
-  transferFrom = WALLET_DEFS[0].id;
-  transferTo = WALLET_DEFS[1].id;
+  // default to spendable wallets (the menus only list SELECTABLE_WALLETS), and
+  // stay valid even if the wallet list is reordered or shrinks
+  transferFrom = SELECTABLE_WALLETS[0].id;
+  transferTo = (SELECTABLE_WALLETS[1] || SELECTABLE_WALLETS[0]).id;
   renderTransferMenus();
   document.getElementById('transferAmount').value = '';
   document.getElementById('transferDate').value = todayISO();
@@ -1999,6 +2169,8 @@ function renderTransferMenus(){
     SELECTABLE_WALLETS.forEach(w=>{
       const opt = document.createElement('div');
       opt.className = 'opt' + (w.id===selected ? ' selected' : '');
+      opt.setAttribute('role','option');
+      opt.tabIndex = 0;
       const val = state.wallets[w.id] ?? 0;
       opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
       opt.onclick = () => {
@@ -2019,75 +2191,95 @@ function toggleTransferMenu(dir){
   document.getElementById('transfer'+key+'Btn').classList.toggle('open');
 }
 
+let _doTransferBusy = false;
 async function doTransfer(){
-  const amt = parseFloat(document.getElementById('transferAmount').value.replace(/,/g,''));
-  if(!amt || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
+  if(_doTransferBusy) return;
+  const amt = parseAmount(document.getElementById('transferAmount').value);
+  if(!isFinite(amt) || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
   if(!transferFrom || !transferTo){ toast('⚠ اختر المحفظتين أولاً', true); return; }
   if(transferFrom === transferTo){ toast('⚠ اختر محفظتين مختلفتين', true); return; }
+  _doTransferBusy = true;
+  try{
+    const dateVal = document.getElementById('transferDate').value || todayISO();
+    let ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
+    if(!isFinite(ts)) ts = Date.now(); // guard against an invalid date string
+    const fromWallet = WALLET_DEFS.find(w=>w.id===transferFrom);
+    const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
+    if(!fromWallet || !toWallet){ toast('⚠ محفظة غير صحيحة', true); return; }
+    const fromBalance = state.wallets[transferFrom] ?? 0;
+    if(!fromWallet.track && fromBalance - amt < -0.01){
+      toast(`⚠ الرصيد غير كافٍ — المتاح: ${fmt(Math.max(0, fromBalance))}`, true);
+      return;
+    }
+    const fromName = fromWallet.name;
+    const toName = toWallet.name;
 
-  const dateVal = document.getElementById('transferDate').value || todayISO();
-  const ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
-  const fromWallet = WALLET_DEFS.find(w=>w.id===transferFrom);
-  const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
-  if(!fromWallet || !toWallet){ toast('⚠ محفظة غير صحيحة', true); return; }
-  const fromName = fromWallet.name;
-  const toName = toWallet.name;
+    // shared link so the two legs are deleted/undone together as one operation
+    const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    const txOut = {
+      id: 'tx_'+Date.now()+'_a'+Math.random().toString(36).slice(2,5),
+      wallet: transferFrom, desc: 'تحويل إلى ' + toName, amount: amt, type:'expense', category:'transfer', ts, link: linkId
+    };
+    const txIn = {
+      id: 'tx_'+Date.now()+'_b'+Math.random().toString(36).slice(2,5),
+      wallet: transferTo, desc: 'تحويل من ' + fromName, amount: amt, type:'income', category:'transfer', ts: ts+1, link: linkId
+    };
 
-  const txOut = {
-    id: 'tx_'+Date.now()+'_a'+Math.random().toString(36).slice(2,5),
-    wallet: transferFrom, desc: 'تحويل إلى ' + toName, amount: amt, type:'expense', category:'transfer', ts
-  };
-  const txIn = {
-    id: 'tx_'+Date.now()+'_b'+Math.random().toString(36).slice(2,5),
-    wallet: transferTo, desc: 'تحويل من ' + fromName, amount: amt, type:'income', category:'transfer', ts: ts+1
-  };
+    state.transactions.push(txOut, txIn);
+    applyTxToBalance(txOut, +1);
+    applyTxToBalance(txIn, +1);
 
-  state.transactions.push(txOut, txIn);
-  applyTxToBalance(txOut, +1);
-  applyTxToBalance(txIn, +1);
-
-  await saveBalances();
-  await saveTx();
-  closeModal('transferModal');
-  render();
-  toast('✓ تم التحويل بنجاح');
+    await saveBalances();
+    await saveTx();
+    closeModal('transferModal');
+    render();
+    toast('✓ تم التحويل بنجاح');
+  } finally {
+    _doTransferBusy = false;
+  }
 }
 
 /* ============================================================
    WALLET DETAIL VIEW
 ============================================================ */
+let _updateBalanceBusy = false;
 async function updateTrackedBalance(){
-  if(!detailWalletId) return;
+  if(_updateBalanceBusy || !detailWalletId) return;
   const w = WALLET_DEFS.find(x=>x.id===detailWalletId);
-  const newVal = parseFloat(document.getElementById('detailNewBalance').value.replace(/,/g,''));
+  const newVal = parseAmount(document.getElementById('detailNewBalance').value);
   if(isNaN(newVal)){ toast('⚠ أدخل رصيد صحيح', true); return; }
 
   const current = state.wallets[detailWalletId] ?? 0;
   const diff = round2(newVal - current);
   if(diff === 0){ toast('لا يوجد تغيير بالرصيد'); return; }
 
-  const tx = {
-    id: 'tx_'+Date.now()+'_adj'+Math.random().toString(36).slice(2,4),
-    wallet: detailWalletId,
-    desc: 'تحديث رصيد ' + w.name,
-    amount: Math.abs(diff),
-    type: diff > 0 ? 'income' : 'expense',
-    category: 'other',
-    ts: Date.now()
-  };
-  state.transactions.push(tx);
-  applyTxToBalance(tx, +1);
+  _updateBalanceBusy = true;
+  try{
+    const tx = {
+      id: 'tx_'+Date.now()+'_adj'+Math.random().toString(36).slice(2,4),
+      wallet: detailWalletId,
+      desc: 'تحديث رصيد ' + w.name,
+      amount: Math.abs(diff),
+      type: diff > 0 ? 'income' : 'expense',
+      category: 'adjustment', // excluded from pie chart and recurring detection
+      ts: Date.now()
+    };
+    state.transactions.push(tx);
+    applyTxToBalance(tx, +1);
 
-  await saveBalances();
-  await saveTx();
-  render();
-  openWalletDetail(detailWalletId); // refresh modal in place
-  toast('✓ تم تحديث الرصيد');
+    await saveBalances();
+    await saveTx();
+    render();
+    openWalletDetail(detailWalletId); // refresh modal in place
+    toast('✓ تم تحديث الرصيد');
+  } finally {
+    _updateBalanceBusy = false;
+  }
 }
 
 async function saveWalletBudget(){
   if(!detailWalletId) return;
-  const val = parseFloat(document.getElementById('detailBudgetInput').value);
+  const val = parseAmount(document.getElementById('detailBudgetInput').value);
   if(!val || val <= 0){
     delete budgets[detailWalletId];
   } else {
@@ -2107,11 +2299,11 @@ function renderDistributionEditor(){
     row.className = 'dist-edit-row';
     row.innerHTML = `
       <span class="name">${w ? w.name : d.id}</span>
-      <input type="number" step="any" inputmode="decimal" value="${d.pct}" data-idx="${i}">
+      <input type="number" min="0" max="100" step="any" inputmode="decimal" value="${d.pct}" data-idx="${i}">
       <span class="pct-sign">%</span>
     `;
     row.querySelector('input').oninput = (e)=>{
-      DISTRIBUTION[i].pct = parseFloat(e.target.value) || 0;
+      DISTRIBUTION[i].pct = Math.min(100, Math.max(0, parseAmount(e.target.value) || 0));
       updateDistTotal();
     };
     wrap.appendChild(row);
@@ -2127,13 +2319,15 @@ function updateDistTotal(){
   const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
   const el = document.getElementById('distTotalRow');
   if(!el) return;
-  el.textContent = 'الإجمالي: ' + total.toFixed(1) + '%';
-  el.className = 'dist-total ' + (Math.abs(total-100)<0.01 ? 'ok' : 'warn');
+  const display = total.toFixed(1);
+  el.textContent = 'الإجمالي: ' + display + '%';
+  // compare using the rounded display value so color always matches what user reads
+  el.className = 'dist-total ' + (parseFloat(display) === 100 ? 'ok' : 'warn');
 }
 
 async function saveDistribution(){
   const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
-  if(Math.abs(total-100) > 0.01){
+  if(parseFloat(total.toFixed(1)) !== 100){
     if(!confirm(`الإجمالي الحالي ${total.toFixed(1)}% وليس 100%. حفظ مع ذلك؟`)) return;
   }
   await saveConfig();
@@ -2172,7 +2366,10 @@ function openWalletDetail(walletId){
 
   const txs = state.transactions.filter(t=>t.wallet===walletId).sort((a,b)=>b.ts-a.ts);
   let inc=0, exp=0;
-  txs.forEach(t => t.type==='income' ? inc+=t.amount : exp+=t.amount);
+  txs.forEach(t => {
+    if(t.category==='transfer' || t.category==='adjustment') return;
+    t.type==='income' ? inc+=t.amount : exp+=t.amount;
+  });
   document.getElementById('detailCount').textContent = txs.length;
   document.getElementById('detailIncome').textContent = fmt(inc);
   document.getElementById('detailExpense').textContent = fmt(exp);
@@ -2189,6 +2386,7 @@ function openWalletDetail(walletId){
       const cls = tx.type==='expense' ? 'neg' : 'pos';
       const div = document.createElement('div');
       div.className = 'tx';
+      div.style.cursor = 'pointer';
       div.innerHTML = `
         <div class="info">
           <div class="desc">${cat.icon} ${escHtml(tx.desc || cat.name)}</div>
@@ -2196,6 +2394,7 @@ function openWalletDetail(walletId){
         </div>
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
       `;
+      div.onclick = () => openEdit(tx.id);
       list.appendChild(div);
     });
   }
@@ -2216,7 +2415,7 @@ function monthRange(monthsAgo){
 function sumExpenses(start, end, categoryId){
   let total = 0;
   state.transactions.forEach(tx=>{
-    if(tx.type!=='expense' || tx.category==='transfer') return;
+    if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
     if(tx.ts < start || tx.ts >= end) return;
     if(categoryId && tx.category !== categoryId) return;
     total += tx.amount;
@@ -2235,7 +2434,7 @@ function renderAnalytics(){
   const [prevStart, prevEnd] = monthRange(1);
 
   // cache analytics totals — expensive full-scan, only recompute when txs change
-  const aSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'');
+  const aSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + curStart;
   if(aSig !== _analyticsSig || !_analyticsCache){
     _analyticsCache = { cur: sumExpenses(curStart, curEnd), prev: sumExpenses(prevStart, prevEnd) };
     _analyticsSig = aSig;
@@ -2243,8 +2442,11 @@ function renderAnalytics(){
   const curTotal = _analyticsCache.cur;
   const prevTotal = _analyticsCache.prev;
 
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
   let cmpHtml = '';
-  if(prevTotal > 0){
+  if(prevTotal > 0 && (dayOfMonth > 1 || curTotal > 0)){
     const diff = curTotal - prevTotal;
     const pct = Math.abs(diff/prevTotal*100).toFixed(0);
     const up = diff > 0;
@@ -2258,10 +2460,6 @@ function renderAnalytics(){
       <div class="v">${fmt(curTotal)}</div>
       ${cmpHtml}
     </div>`;
-
-  const now = new Date();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
   let projHtml;
   if(dayOfMonth >= 3 && curTotal > 0){
     const dailyRate = curTotal / dayOfMonth;
@@ -2286,13 +2484,14 @@ function renderAnalytics(){
 let _recurringCache = null;
 let _recurringCacheSig = '';
 function detectRecurring(){
-  const sig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size;
+  const descLen = state.transactions.reduce((s,t)=>s+(t.desc||'').length, 0);
+  const sig = state.transactions.length + '|' + descLen + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size;
   if(sig === _recurringCacheSig && _recurringCache) return _recurringCache;
   _recurringCacheSig = sig;
 
   const groups = {};
   state.transactions.forEach(tx=>{
-    if(tx.type!=='expense' || tx.category==='transfer') return;
+    if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
     const key = (tx.desc||'').trim().toLowerCase();
     if(!key) return;
     if(!groups[key]) groups[key] = [];
@@ -2344,7 +2543,7 @@ function renderRecurring(){
     };
     card.querySelector('[data-remind]').onclick = () => {
       document.getElementById('descInput').value = s.desc;
-      document.getElementById('amountInput').value = Math.round(s.avg);
+      document.getElementById('amountInput').value = round2(s.avg);
       selectedWallet = s.wallet;
       selectedCategory = s.category;
       renderWalletSelect();
@@ -2367,6 +2566,8 @@ function setFilter(f){
   });
   renderTxList();
   renderChart();
+  renderPieChart(); // pie depends on the active time range (inRange)
+  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function inRange(ts){
@@ -2376,7 +2577,7 @@ function inRange(ts){
   if(currentFilter === 'day') return d.toDateString() === now.toDateString();
   if(currentFilter === 'week'){
     const diff = (now - d) / (1000*60*60*24);
-    return diff <= 7;
+    return diff >= 0 && diff <= 7; // exclude future-dated txs (negative diff)
   }
   if(currentFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   if(currentFilter === 'year') return d.getFullYear() === now.getFullYear();
@@ -2385,12 +2586,27 @@ function inRange(ts){
 
 let _searchDebounce = null;
 let _txVisibleCount = 50;
+// Fold Arabic orthographic variants so search is forgiving: a user typing
+// "قهوه" should match "قهوة", "احمد" should match "أحمد", "مصطفى" ↔ "مصطفي".
+// Also strips tashkeel (diacritics) and tatweel, and lowercases Latin text.
+function normalizeSearch(str){
+  return String(str || '')
+    .replace(/[ً-ْٰ]/g, '') // tashkeel/diacritics
+    .replace(/ـ/g, '')                 // tatweel (ـ)
+    .replace(/[أإآ]/g, 'ا')                  // alef variants → ا
+    .replace(/ى/g, 'ي')                      // alef maqsura → ي
+    .replace(/ة/g, 'ه')                      // teh marbuta → ه
+    .replace(/[ؤئ]/g, 'ء')                   // hamza seats → ء
+    .toLowerCase()
+    .trim();
+}
+
 function onSearchInput(){
-  searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+  searchQuery = normalizeSearch(document.getElementById('searchInput').value);
   document.getElementById('searchBox').classList.toggle('has-text', searchQuery.length>0);
   _txVisibleCount = 50;
   clearTimeout(_searchDebounce);
-  _searchDebounce = setTimeout(()=> renderTxList(), 150);
+  _searchDebounce = setTimeout(()=>{ renderTxList(); document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
 }
 function clearSearch(){
   searchQuery = '';
@@ -2403,7 +2619,11 @@ function clearSearch(){
 let _filteredTxCache = null;
 let _filteredTxSig = '';
 function getFilteredTx(){
-  const sig = state.transactions.length + '|' + currentFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery;
+  // include today's date for every time-bounded filter (day/week/month/year all
+  // shift at a day boundary) so the cache invalidates across a midnight/month/
+  // year rollover instead of showing the previous period's transactions
+  const dateKey = currentFilter === 'all' ? '' : todayISO();
+  const sig = state.transactions.length + '|' + currentFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery + '|' + dateKey;
   if(sig === _filteredTxSig && _filteredTxCache) return _filteredTxCache;
   _filteredTxSig = sig;
   _filteredTxCache = state.transactions
@@ -2413,7 +2633,10 @@ function getFilteredTx(){
     .filter(tx => {
       if(!searchQuery) return true;
       const wallet = WALLET_DEFS.find(w=>w.id===tx.wallet);
-      const hay = ((tx.desc||'') + ' ' + (wallet?wallet.name:'')).toLowerCase();
+      const cat = getCategory(tx.category);
+      // search description, wallet name AND category name (so "طعام" finds food
+      // transactions even when the description is empty)
+      const hay = normalizeSearch((tx.desc||'') + ' ' + (wallet?wallet.name:'') + ' ' + (cat?cat.name:''));
       return hay.includes(searchQuery);
     });
   return _filteredTxCache;
@@ -2429,9 +2652,13 @@ function renderTxList(){
 
   let income = 0, expense = 0;
   filtered.forEach(tx => {
+    // exclude inter-wallet transfers AND manual balance adjustments so the
+    // income/expense summary matches the category pie chart (which excludes both)
+    if(tx.category === 'transfer' || tx.category === 'adjustment') return;
     if(tx.type === 'income') income += tx.amount;
     else expense += tx.amount;
   });
+  income = round2(income); expense = round2(expense);
   document.getElementById('sumIncome').textContent = fmt(income);
   document.getElementById('sumExpense').textContent = fmt(expense);
   document.getElementById('sumNet').textContent = fmt(income - expense);
@@ -2443,12 +2670,14 @@ function renderTxList(){
   if(_hSig !== _heroStatsSig || !_heroStatsCache){
     let mIncome=0, mExpense=0;
     state.transactions.forEach(tx=>{
+      // exclude inter-wallet moves and manual adjustments from hero totals
+      if(tx.category === 'transfer' || tx.category === 'adjustment') return;
       const d = new Date(tx.ts);
       if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
         if(tx.type==='income') mIncome+=tx.amount; else mExpense+=tx.amount;
       }
     });
-    _heroStatsCache = {mIncome, mExpense};
+    _heroStatsCache = {mIncome: round2(mIncome), mExpense: round2(mExpense)};
     _heroStatsSig = _hSig;
   }
   document.getElementById('heroIncome').textContent = fmt(_heroStatsCache.mIncome);
@@ -2476,7 +2705,9 @@ function renderTxList(){
       const lbl = document.createElement('div');
       lbl.className = 'tx-day-label';
       const isToday = dayKey === new Date().toDateString();
-      const isYesterday = dayKey === new Date(Date.now()-86400000).toDateString();
+      // step back one calendar day (not 24h) so DST transition days still label correctly
+      const _yest = new Date(); _yest.setDate(_yest.getDate()-1);
+      const isYesterday = dayKey === _yest.toDateString();
       lbl.textContent = isToday ? 'اليوم' : isYesterday ? 'أمس' : date.toLocaleDateString('ar-EG', {weekday:'long', day:'numeric', month:'long'});
       list.appendChild(lbl);
     }
@@ -2504,8 +2735,8 @@ function renderTxList(){
         <button class="edit-btn" aria-label="تعديل">✎</button>
       </div>
     `;
-    div.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); openEdit(tx.id); };
-    div.onclick = () => openEdit(tx.id);
+    div.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); if(!div._swipeDeleting) openEdit(tx.id); };
+    div.onclick = () => { if(!div._swipeDeleting) openEdit(tx.id); };
 
     attachSwipe(div, wrap, tx.id);
 
@@ -2529,29 +2760,41 @@ function renderTxList(){
    SWIPE TO DELETE (touch)
 ============================================================ */
 function attachSwipe(el, wrap, txId){
-  let startX = 0, currentX = 0, dragging = false;
+  let startX = 0, startY = 0, currentX = 0, dragging = false, swipeMode = false;
   const threshold = 90;
 
   el.addEventListener('touchstart', e=>{
     startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
     dragging = true;
+    swipeMode = false;
     el.style.transition = 'none';
   }, {passive:true});
 
   el.addEventListener('touchmove', e=>{
     if(!dragging) return;
-    currentX = e.touches[0].clientX - startX;
-    if(currentX > 0) currentX = 0; // only allow swipe to the left visually (RTL: reveal on right via translateX negative)
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if(!swipeMode){
+      if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 5){ swipeMode = true; }
+      else if(Math.abs(dy) > 5){ dragging = false; return; }
+      else return;
+    }
+    e.preventDefault(); // stop pull-to-refresh and scroll during confirmed horizontal swipe
+    currentX = dx;
+    if(currentX > 0) currentX = 0;
     el.style.transform = `translateX(${currentX}px)`;
-  }, {passive:true});
+  }, {passive:false});
 
   el.addEventListener('touchend', ()=>{
     if(!dragging) return;
     dragging = false;
+    swipeMode = false;
     el.style.transition = 'transform .25s var(--ease)';
     if(Math.abs(currentX) > threshold){
       el.style.transform = 'translateX(-100%)';
       el.style.opacity = '0';
+      el._swipeDeleting = true;
       setTimeout(()=> deleteTx(txId), 220);
     } else {
       el.style.transform = 'translateX(0)';
@@ -2567,6 +2810,7 @@ function renderChart(){
   const canvas = document.getElementById('chartCanvas');
   const emptyEl = document.getElementById('chartEmpty');
   const ctx = canvas.getContext('2d');
+  if(!ctx){ emptyEl.style.display='block'; canvas.style.display='none'; return; }
   const dpr = window.devicePixelRatio || 1;
   const cssW = (canvas.parentElement?.clientWidth || 400) - 28;
   if(cssW < 50){ emptyEl.style.display='block'; canvas.style.display='none'; return; }
@@ -2596,20 +2840,26 @@ function renderChart(){
 
   const min = Math.min(...points);
   const max = Math.max(...points);
-  const range = (max - min) || 1;
+  // when every point is identical the spread is 0; draw the line through the
+  // vertical centre instead of pinning it to the bottom (range fallback of 1)
+  const flat = max === min;
+  const range = flat ? 1 : (max - min);
   const padX = 6, padY = 12;
   const w = cssW - padX*2;
   const h = cssH - padY*2;
+  const yOf = p => flat ? (padY + h/2) : (padY + h - ((p - min) / range) * h);
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.045)';
+  // theme-aware grid color (light vs dark) — hardcoded white was invisible in light mode
+  const isLightTheme = document.body.classList.contains('light');
+  ctx.strokeStyle = isLightTheme ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.045)';
   ctx.lineWidth = 1;
   for(let i=0;i<=2;i++){
     const y = padY + (h/2)*i;
     ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(padX+w,y); ctx.stroke();
   }
 
-  const zeroY = padY + h - ((0-min)/range)*h;
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  const zeroY = yOf(0);
+  ctx.strokeStyle = isLightTheme ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.12)';
   ctx.setLineDash([3,3]);
   ctx.beginPath(); ctx.moveTo(padX,zeroY); ctx.lineTo(padX+w,zeroY); ctx.stroke();
   ctx.setLineDash([]);
@@ -2617,7 +2867,7 @@ function renderChart(){
   ctx.beginPath();
   points.forEach((p,i)=>{
     const x = padX + (w * i/(points.length-1));
-    const y = padY + h - ((p-min)/range)*h;
+    const y = yOf(p);
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   const finalNet = points[points.length-1];
@@ -2638,7 +2888,7 @@ function renderChart(){
   ctx.fill();
 
   const lastX = padX + w;
-  const lastY = padY + h - ((finalNet-min)/range)*h;
+  const lastY = yOf(finalNet);
   ctx.beginPath();
   ctx.arc(lastX, lastY, 4, 0, Math.PI*2);
   ctx.fillStyle = lineColor;
@@ -2663,17 +2913,22 @@ async function addTx(type){
   _addTxBusy = true;
   try{
     const walletId = selectedWallet;
-    const desc = document.getElementById('descInput').value.trim();
-    const amountVal = parseFloat(document.getElementById('amountInput').value.replace(/,/g,''));
+    const desc = document.getElementById('descInput').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
+    const amountVal = parseAmount(document.getElementById('amountInput').value);
     const dateVal = document.getElementById('dateInput').value || todayISO();
 
-    if(isNaN(amountVal) || amountVal <= 0){
+    if(!isFinite(amountVal) || amountVal <= 0){
       toast('⚠ أدخل مبلغ صحيح', true);
       document.getElementById('amountInput').focus();
       return;
     }
+    if(!WALLET_DEFS.find(w => w.id === walletId)){
+      toast('⚠ اختر محفظة صحيحة', true);
+      return;
+    }
 
-    const ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
+    let ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
+    if(!isFinite(ts)) ts = Date.now(); // guard against an invalid date string
 
     const tx = {
       id: 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -2704,6 +2959,7 @@ async function addTx(type){
     if(type === 'income' && tx.category !== 'transfer'){
       if(autoDistribute){
         await runDistribution(tx, amountVal);
+        render(); // reflect the distributed shares (render above ran before distribution)
         toast('🔄 تم توزيع الدخل تلقائيًا');
       } else {
         pendingIncomeTx = tx;
@@ -2722,14 +2978,31 @@ function openDistributionModal(amount){
   document.getElementById('distAmountLabel').textContent = fmt(amount);
   const wrap = document.getElementById('distBreakdown');
   wrap.innerHTML = '';
-  DISTRIBUTION.forEach(d=>{
-    const w = WALLET_DEFS.find(x=>x.id===d.id);
-    const share = round2(amount * d.pct / 100);
-    const row = document.createElement('div');
-    row.className = 'dist-row';
-    row.innerHTML = `<span class="name">${w.name} <span class="pct">${d.pct}%</span></span><span class="amt">${fmt(share)}</span>`;
-    wrap.appendChild(row);
-  });
+  const activeEntries = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
+  if(activeEntries.length === 0){
+    const warn = document.createElement('div');
+    warn.className = 'hint';
+    warn.style.cssText = 'color:var(--red); margin:0; font-size:13px;';
+    warn.textContent = '⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً';
+    wrap.appendChild(warn);
+  } else {
+    const totalPct = activeEntries.reduce((s,d)=>s+d.pct, 0);
+    activeEntries.forEach(d=>{
+      const w = WALLET_DEFS.find(x=>x.id===d.id);
+      const share = round2(amount * d.pct / 100);
+      const row = document.createElement('div');
+      row.className = 'dist-row';
+      row.innerHTML = `<span class="name">${w.name} <span class="pct">${d.pct}%</span></span><span class="amt">${fmt(share)}</span>`;
+      wrap.appendChild(row);
+    });
+    if(totalPct > 100){
+      const warn = document.createElement('div');
+      warn.className = 'hint';
+      warn.style.cssText = 'color:var(--red); margin:8px 0 0; font-size:13px;';
+      warn.textContent = `⚠ مجموع النسب ${totalPct}% — يتجاوز 100%، راجع الإعدادات`;
+      wrap.appendChild(warn);
+    }
+  }
   document.getElementById('autoDistributeCheck').checked = autoDistribute;
   openModal('distributeModal');
 }
@@ -2743,8 +3016,14 @@ function skipDistribution(){
 async function confirmDistribution(){
   saveAutoDistributePref();
   if(!pendingIncomeTx) { closeModal('distributeModal'); return; }
-  await runDistribution(pendingIncomeTx, pendingIncomeTx.amount);
-  pendingIncomeTx = null;
+  const hasActive = DISTRIBUTION.some(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
+  if(!hasActive){
+    toast('⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً', true);
+    return;
+  }
+  const txToDistribute = pendingIncomeTx;
+  pendingIncomeTx = null; // clear early so double-tap cannot trigger a second distribution
+  await runDistribution(txToDistribute, txToDistribute.amount);
   closeModal('distributeModal');
   render();
   toast('✓ تم توزيع الدخل على المحافظ');
@@ -2763,27 +3042,48 @@ function saveAutoDistributePref(){
 async function runDistribution(sourceTx, amount){
   const sourceWalletId = sourceTx.wallet;
   const ts = sourceTx.ts;
-  const sourceName = (WALLET_DEFS.find(w=>w.id===sourceWalletId)||{}).name || '';
+  const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
 
-  // Withdraw the full amount from the source wallet (it already received it as income)
+  // Only spendable wallets with a positive share participate — never route
+  // distributed income into a track-only wallet (uber/cards/cash)
+  const active = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
+  const totalPct = active.reduce((s,d)=> s + d.pct, 0);
+  // never distribute more than the income itself (caps any >100% misconfiguration)
+  const intendedTotal = round2(Math.min(amount, amount * totalPct / 100));
+
+  // nothing to distribute — leave the income where it landed, don't withdraw
+  if(intendedTotal <= 0){ await saveBalances(); await saveTx(); return; }
+
+  // Link the originating income too, so deleting any leg removes the whole
+  // income+distribution group and balances stay consistent.
+  sourceTx.link = linkId;
+
+  // Withdraw only the portion that will actually be distributed. Any
+  // undistributed remainder (when percentages sum to < 100%) then stays in
+  // the source wallet instead of silently vanishing from the balance.
   const txOut = {
     id: 'tx_'+Date.now()+'_d0'+Math.random().toString(36).slice(2,4),
     wallet: sourceWalletId,
     desc: 'توزيع الدخل على المحافظ',
-    amount: amount,
+    amount: intendedTotal,
     type: 'expense',
     category: 'transfer',
-    ts: ts+1
+    ts: ts+1,
+    link: linkId
   };
   state.transactions.push(txOut);
   applyTxToBalance(txOut, +1);
 
+  let allocated = 0;
+
   // Deposit each share into its target wallet
-  DISTRIBUTION.forEach((d, i) => {
-    if(!d.pct || d.pct <= 0) return; // skip zero-percent allocations
-    const share = round2(amount * d.pct / 100);
+  active.forEach((d, i) => {
     const w = WALLET_DEFS.find(x=>x.id===d.id);
     if(!w) return; // guard against stale wallet ID in saved DISTRIBUTION
+    let share = round2(amount * d.pct / 100);
+    // last leg absorbs the rounding residual so the shares sum exactly
+    if(i === active.length - 1) share = round2(intendedTotal - allocated);
+    allocated = round2(allocated + share);
     const txIn = {
       id: 'tx_'+Date.now()+'_d'+(i+1)+Math.random().toString(36).slice(2,4),
       wallet: d.id,
@@ -2791,7 +3091,8 @@ async function runDistribution(sourceTx, amount){
       amount: share,
       type: 'income',
       category: 'transfer',
-      ts: ts+2+i
+      ts: ts+2+i,
+      link: linkId
     };
     state.transactions.push(txIn);
     applyTxToBalance(txIn, +1);
@@ -2805,10 +3106,31 @@ function round2(n){
   return Math.round(n * 100) / 100;
 }
 
+// Drop any distribution entries whose wallet id no longer exists (e.g. from an
+// imported/cloud backup). Falls back to defaults if nothing valid remains.
+function sanitizeDistribution(arr){
+  if(!Array.isArray(arr)) return DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  const cleaned = arr
+    .filter(d => d && WALLET_DEFS.find(w=>w.id===d.id && !w.track))
+    .map(d => ({...d, pct: Math.min(100, Math.max(0, isFinite(d.pct) ? d.pct : 0))}));
+  return cleaned.length ? cleaned : DEFAULT_DISTRIBUTION.map(d=>({...d}));
+}
+function sanitizeBudgets(obj){
+  const out = {};
+  if(obj && typeof obj === 'object'){
+    WALLET_DEFS.forEach(w => {
+      const v = parseFloat(obj[w.id]);
+      if(isFinite(v) && v > 0) out[w.id] = v;
+    });
+  }
+  return out;
+}
+
 function applyTxToBalance(tx, sign){
-  if(!tx || isNaN(tx.amount)) return;
+  if(!tx || !isFinite(tx.amount) || tx.amount <= 0) return;
+  if(!WALLET_DEFS.find(w => w.id === tx.wallet)) return; // reject orphaned wallet refs
   const delta = (tx.type === 'expense' ? -tx.amount : tx.amount) * sign;
-  state.wallets[tx.wallet] = (state.wallets[tx.wallet] ?? 0) + delta;
+  state.wallets[tx.wallet] = round2((state.wallets[tx.wallet] ?? 0) + delta);
 }
 
 function openEdit(id){
@@ -2818,6 +3140,13 @@ function openEdit(id){
   editType = tx.type;
   editWallet = tx.wallet;
   editCategory = tx.category || 'other';
+  // A transfer leg's type/category must stay fixed — flipping its type or
+  // category would unbalance the two-leg transfer (money created/destroyed),
+  // and only amount/wallet/desc are synced to the partner. Hide those controls.
+  _editingTransferLeg = !!(tx.link && tx.category === 'transfer');
+  document.getElementById('editTypeToggle').style.display = _editingTransferLeg ? 'none' : '';
+  document.getElementById('editCategorySection').style.display = _editingTransferLeg ? 'none' : '';
+  document.getElementById('editTransferHint').style.display = _editingTransferLeg ? 'block' : 'none';
   setEditType(tx.type);
   renderEditWalletSelect();
   renderEditCategoryGrid();
@@ -2831,32 +3160,70 @@ function openEdit(id){
 
 async function saveEdit(){
   const tx = state.transactions.find(t=>t.id===editingTxId);
-  if(!tx) return;
+  if(!tx){
+    toast('⚠ المعاملة لم تعد موجودة — ربما حُذفت من تبويب آخر', true);
+    closeModal('editModal');
+    return;
+  }
 
-  const newAmount = parseFloat(document.getElementById('editAmount').value.replace(/,/g,''));
-  if(!newAmount || newAmount <= 0){
+  const newAmount = parseAmount(document.getElementById('editAmount').value);
+  if(!isFinite(newAmount) || newAmount <= 0){
     toast('⚠ أدخل مبلغ صحيح', true);
+    return;
+  }
+  if(!WALLET_DEFS.find(w => w.id === editWallet)){
+    toast('⚠ محفظة غير صالحة', true);
     return;
   }
 
   // reverse old effect
   applyTxToBalance(tx, -1);
 
-  tx.desc = document.getElementById('editDesc').value.trim();
+  // for a simple 2-leg transfer (link shared by exactly one other transfer leg),
+  // keep both amounts in sync so balances stay consistent after editing one side
+  if(tx.link && tx.category === 'transfer'){
+    const transferPartners = state.transactions.filter(t => t.link === tx.link && t.id !== tx.id && t.category === 'transfer');
+    if(transferPartners.length === 1){
+      const partner = transferPartners[0];
+      applyTxToBalance(partner, -1);
+      partner.amount = newAmount;
+      // keep partner description in sync with the edited leg's wallet
+      const newWalletDef = WALLET_DEFS.find(w => w.id === editWallet);
+      const partnerWalletDef = WALLET_DEFS.find(w => w.id === partner.wallet);
+      if(newWalletDef && partnerWalletDef){
+        if(tx.type === 'expense'){
+          tx.desc = tx.desc || ('تحويل إلى ' + partnerWalletDef.name);
+          partner.desc = 'تحويل من ' + newWalletDef.name;
+        } else {
+          tx.desc = tx.desc || ('تحويل من ' + partnerWalletDef.name);
+          partner.desc = 'تحويل إلى ' + newWalletDef.name;
+        }
+      }
+      applyTxToBalance(partner, +1);
+    }
+  }
+
+  tx.desc = document.getElementById('editDesc').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
   tx.amount = newAmount;
-  tx.type = editType;
   tx.wallet = editWallet;
-  tx.category = editCategory;
+  // transfer legs keep their original type/category (locked in the UI) so the
+  // two-leg balance stays consistent; only non-transfer txs adopt the new values
+  if(!_editingTransferLeg){
+    tx.type = editType;
+    tx.category = editCategory;
+  }
   const dateVal = document.getElementById('editDate').value || todayISO();
   const oldDate = new Date(tx.ts);
-  tx.ts = new Date(dateVal + 'T' + oldDate.toTimeString().slice(0,8)).getTime();
+  const newTs = new Date(dateVal + 'T' + oldDate.toTimeString().slice(0,8)).getTime();
+  // cap to now — prevents future-dated transactions from corrupting time filters
+  tx.ts = isFinite(newTs) ? Math.min(newTs, Date.now()) : (isFinite(tx.ts) ? tx.ts : Date.now());
 
   applyTxToBalance(tx, +1);
 
   await saveBalances();
   await saveTx();
   closeModal('editModal');
-  render();
+  render(true); // force: desc/date-only edits don't change the render signature
   toast('✓ تم التحديث');
 }
 
@@ -2873,6 +3240,7 @@ function repeatLastTx(){
   document.getElementById('descInput').value = last.desc || '';
   document.getElementById('amountInput').value = last.amount;
   document.getElementById('amountInput').dispatchEvent(new Event('input'));
+  document.getElementById('dateInput').value = todayISO();
   if(!WALLET_DEFS.find(w=>w.id===last.wallet)?.track){
     selectedWallet = last.wallet;
     renderWalletSelect();
@@ -2889,40 +3257,62 @@ let _lastDeleted = null;
 let _undoTimer = null;
 
 async function deleteTx(id){
-  const idx = state.transactions.findIndex(t => t.id === id);
-  if(idx === -1) return;
-  const tx = state.transactions[idx];
-  applyTxToBalance(tx, -1);
-  state.transactions.splice(idx, 1);
+  const target = state.transactions.find(t => t.id === id);
+  if(!target) return;
+  // a transfer / income-distribution is one logical operation spread across
+  // several linked legs — remove them all together to keep balances consistent
+  const group = target.link
+    ? state.transactions.filter(t => t.link === target.link)
+    : [target];
+
+  const removed = [];
+  group.forEach(tx => {
+    const idx = state.transactions.indexOf(tx);
+    if(idx === -1) return;
+    applyTxToBalance(tx, -1);
+    state.transactions.splice(idx, 1);
+    removed.push(tx);
+  });
+  if(!removed.length) return;
+
   await saveBalances();
   await saveTx();
   render();
 
-  _lastDeleted = { tx, idx };
+  _lastDeleted = removed;
   clearTimeout(_undoTimer);
   _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
-  toastWithUndo('🗑 تم الحذف', undoDelete);
+  toastWithUndo(removed.length > 1 ? `🗑 تم حذف ${removed.length} حركات مرتبطة` : '🗑 تم الحذف', undoDelete);
 }
 
 async function undoDelete(){
   if(!_lastDeleted) return;
-  const { tx, idx } = _lastDeleted;
+  const removed = _lastDeleted;
   _lastDeleted = null;
   clearTimeout(_undoTimer);
-  const insertAt = Math.min(idx, state.transactions.length);
-  state.transactions.splice(insertAt, 0, tx);
-  applyTxToBalance(tx, +1);
+  // position in the array is irrelevant (the list is always sorted by ts)
+  removed.forEach(tx => {
+    state.transactions.push(tx);
+    applyTxToBalance(tx, +1);
+  });
   await saveBalances();
   await saveTx();
   render();
-  toast('↩️ تم استرجاع المعاملة');
+  toast(removed.length > 1 ? '↩️ تم استرجاع الحركات' : '↩️ تم استرجاع المعاملة');
 }
 
 /* ============================================================
    MODALS
 ============================================================ */
+let _modalReturnFocus = null;
 function openModal(id){
-  document.getElementById(id).classList.add('open');
+  // remember what had focus so we can restore it when the modal closes (a11y)
+  _modalReturnFocus = document.activeElement;
+  const modal = document.getElementById(id);
+  modal.classList.add('open');
+  // lock background scroll so the page behind the sheet doesn't move while a
+  // modal (and the on-screen keyboard) is open on mobile
+  document.body.style.overflow = 'hidden';
   if(id==='dataModal') document.getElementById('jsonArea').value = '';
   if(id==='settingsModal'){
     updateSettingsStats();
@@ -2930,15 +3320,31 @@ function openModal(id){
     refreshDriveSettingsUI();
     renderDistributionEditor();
   }
+  // move focus into the modal so keyboard/screen-reader users land in context.
+  // target a button (not a text input) so the mobile keyboard doesn't pop open.
+  requestAnimationFrame(()=>{
+    const focusable = modal.querySelector('button, [tabindex]');
+    if(focusable) try{ focusable.focus({preventScroll:true}); }catch(_){}
+  });
 }
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
-  if(id === 'editModal'){ editingTxId = null; editCategory = 'other'; }
+  // restore background scroll only once no modal remains open
+  if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+  if(id === 'editModal'){ editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id; }
   if(id === 'distributeModal') pendingIncomeTx = null;
   if(id === 'walletDetailModal') detailWalletId = null;
+  // restore focus to whatever triggered the modal
+  if(_modalReturnFocus && typeof _modalReturnFocus.focus === 'function'){
+    try{ _modalReturnFocus.focus({preventScroll:true}); }catch(_){}
+  }
+  _modalReturnFocus = null;
 }
+// Modals that hold unsaved form input must NOT close on an accidental
+// backdrop tap (common on mobile) — only their explicit buttons close them.
+const _protectedModals = new Set(['editModal','transferModal','distributeModal','walletDetailModal']);
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
-  ov.addEventListener('click', e=>{ if(e.target===ov) closeModal(ov.id); });
+  ov.addEventListener('click', e=>{ if(e.target===ov && !_protectedModals.has(ov.id)) closeModal(ov.id); });
 });
 
 // Close custom dropdowns when clicking outside
@@ -3008,18 +3414,32 @@ function exportData(){
 function importFromFile(event){
   const file = event.target.files[0];
   if(!file) return;
+  // a real export is tiny JSON — reject oversized/binary files before reading
+  if(file.size > 10 * 1024 * 1024){
+    toast('⚠ الملف كبير جدًا — اختر ملف نسخة احتياطية صالح', true);
+    event.target.value = '';
+    return;
+  }
   const reader = new FileReader();
   reader.onload = e => {
     document.getElementById('jsonArea').value = e.target.result;
     applyImport(e.target.result);
   };
+  reader.onerror = () => toast('⚠ تعذّر قراءة الملف', true);
   reader.readAsText(file);
+  event.target.value = ''; // allow re-selecting the same file later
 }
 
 function importFromTextarea(){
   const txt = document.getElementById('jsonArea').value.trim();
   if(!txt){ toast('⚠ الصق بيانات JSON أولاً', true); return; }
   applyImport(txt);
+}
+
+function stripOrphanLinks(txList){
+  const counts = {};
+  txList.forEach(tx => { if(tx.link) counts[tx.link] = (counts[tx.link]||0) + 1; });
+  txList.forEach(tx => { if(tx.link && counts[tx.link] < 2) delete tx.link; });
 }
 
 async function applyImport(text){
@@ -3032,13 +3452,32 @@ async function applyImport(text){
   }
   if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
 
-  if(data.wallets) state.wallets = data.wallets;
-  if(data.transactions) state.transactions = data.transactions.filter(tx => tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0);
+  if(data.wallets){
+    // a backup is a complete snapshot — clear all balances first so wallets that
+    // are omitted from the imported file don't keep stale values that would
+    // mismatch the freshly-replaced transaction list
+    WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+    WALLET_DEFS.forEach(w => { if(data.wallets[w.id] !== undefined) state.wallets[w.id] = data.wallets[w.id]; });
+  }
+  if(data.transactions) state.transactions = data.transactions.filter(tx =>
+    tx &&
+    typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+    typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+    (tx.type === 'income' || tx.type === 'expense') &&
+    WALLET_DEFS.find(w => w.id === tx.wallet)
+  ).map(tx => ({ ...tx, category: normalizeCategory(tx.category) }));
+
+  // Strip orphaned link IDs — if only one leg of a linked transfer/distribution
+  // group survived the import filter, its link field is dangling; unset it so
+  // a future delete of that transaction doesn't cascade to nothing and leave
+  // the balance adjustment unapplied.
+  stripOrphanLinks(state.transactions);
   if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
-  if(data.budgets && typeof data.budgets === 'object') budgets = data.budgets;
+  if(data.budgets && typeof data.budgets === 'object') budgets = sanitizeBudgets(data.budgets);
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
-  if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = data.distribution;
+  if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
   if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring);
+  prevSpendable = null; // reset animation baseline after full data replacement
 
   await saveBalances();
   await saveTx();
@@ -3060,6 +3499,7 @@ async function resetBalancesOnly(){
 async function wipeAll(){
   if(!confirm('سيتم حذف جميع الأرصدة والمعاملات نهائياً. هذا الإجراء لا يمكن التراجع عنه. متابعة؟')) return;
   if(!confirm('تأكيد أخير: هل أنت متأكد تماماً؟')) return;
+  clearTimeout(_undoTimer); _lastDeleted = null;
   WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
   state.transactions = [];
   state.crisisMode = false;
@@ -3073,6 +3513,16 @@ async function wipeAll(){
   transferTo = null;
   detailWalletId = null;
   pendingIncomeTx = null;
+  prevSpendable = null;
+  walletFilter = null;
+  categoryFilter = null;
+  searchQuery = '';
+  _txVisibleCount = 50;
+  DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  document.getElementById('walletFilterChip').classList.remove('show');
+  document.getElementById('categoryFilterChip').classList.remove('show');
+  const si = document.getElementById('searchInput');
+  if(si){ si.value = ''; document.getElementById('searchBox').classList.remove('has-text'); }
   await saveBalances();
   await saveTx();
   await saveConfig();
@@ -3085,6 +3535,8 @@ async function wipeAll(){
    TOAST
 ============================================================ */
 function toast(msg, isError){
+  // If an undo-delete is pending, cancel it before overwriting the undo button in the DOM
+  if(_lastDeleted){ clearTimeout(_undoTimer); _lastDeleted = null; }
   const el = document.getElementById('saveStatus');
   el.textContent = msg;
   el.style.borderColor = isError ? 'var(--red)' : 'var(--line)';
@@ -3126,15 +3578,123 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 
 let gisTokenClient = null;
 let driveAccessToken = null;
+let driveTokenExpiry = 0; // epoch ms when the current access token stops being valid
 let _pendingDriveCloud = null;
 let driveFileId = null;
 let driveSyncTimer = null;
 let driveClientId = '';
+let _driveSilentRefresh = false; // true while re-acquiring a token after expiry
+let _driveAutoReconnect = false; // true while silently reconnecting on app open
+let _driveAutoReconnectGuard = null; // timeout to reset _driveAutoReconnect if GIS never calls back
+let _driveSilentRefreshGuard = null; // timeout to reset _driveSilentRefresh if GIS never calls back
+let _driveTokenRefreshTimer = null; // proactive refresh 5 min before token expires
+
+// Cookie helpers — used as a second-layer storage alongside localStorage so the
+// Drive token survives when the browser wipes localStorage on force-close.
+// Cookies are scoped to the app's own path (e.g. /mahfazty/) to avoid leaking
+// the token to other GitHub-Pages sites that share the github.io domain.
+function _driveCookiePath(){
+  try{ return new URL('.', location.href).pathname; }catch(_){ return '/'; }
+}
+function _setDriveCookie(name, val, expMs){
+  try{
+    const d = new Date(expMs).toUTCString();
+    const path = _driveCookiePath();
+    document.cookie = `${name}=${encodeURIComponent(val)}; expires=${d}; path=${path}; SameSite=Strict`;
+  }catch(_){}
+}
+function _getDriveCookie(name){
+  try{
+    const entry = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith(name+'='));
+    return entry ? decodeURIComponent(entry.slice(name.length+1)) : null;
+  }catch(_){ return null; }
+}
+function _deleteDriveCookie(name){
+  try{
+    const path = _driveCookiePath();
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${path}; SameSite=Strict`;
+  }catch(_){}
+}
+
+// Persist the access token in BOTH localStorage and a path-scoped cookie so
+// it survives whether the browser wipes one storage type on force-close.
+function storeDriveToken(token, expiresInSec){
+  driveAccessToken = token;
+  driveTokenExpiry = Date.now() + (Math.max(0, (expiresInSec || 3600) - 60) * 1000); // 60s safety margin
+  try{
+    localStorage.setItem(LS_PREFIX + 'driveToken', token);
+    localStorage.setItem(LS_PREFIX + 'driveTokenExp', String(driveTokenExpiry));
+  }catch(e){}
+  _setDriveCookie('mhfzty_dtok', token, driveTokenExpiry);
+  _setDriveCookie('mhfzty_dexp', String(driveTokenExpiry), driveTokenExpiry);
+  // schedule a silent refresh 5 min before the token expires so an active
+  // session never suddenly loses Drive access mid-use
+  _scheduleTokenRefresh();
+}
+function clearDriveToken(){
+  clearTimeout(_driveTokenRefreshTimer); _driveTokenRefreshTimer = null;
+  driveAccessToken = null;
+  driveTokenExpiry = 0;
+  try{
+    localStorage.removeItem(LS_PREFIX + 'driveToken');
+    localStorage.removeItem(LS_PREFIX + 'driveTokenExp');
+    sessionStorage.removeItem(LS_PREFIX + 'driveToken'); // clean up legacy key
+  }catch(e){}
+  _deleteDriveCookie('mhfzty_dtok');
+  _deleteDriveCookie('mhfzty_dexp');
+}
+function driveTokenValid(){
+  return !!driveAccessToken && Date.now() < driveTokenExpiry;
+}
+function _scheduleTokenRefresh(){
+  clearTimeout(_driveTokenRefreshTimer); _driveTokenRefreshTimer = null;
+  if(!driveTokenExpiry) return;
+  const delay = driveTokenExpiry - Date.now() - 5*60*1000; // 5 min before expiry
+  if(delay <= 0) return; // already near-expired; don't bother
+  _driveTokenRefreshTimer = setTimeout(() => {
+    _driveTokenRefreshTimer = null;
+    if(!gisTokenClient || !driveAccessToken || isEmbeddedOrStandalone()) return;
+    // silent in-session refresh: user is actively on the page, Google session
+    // is almost certainly still alive since we got a token < 55 min ago
+    _driveSilentRefresh = true;
+    clearTimeout(_driveSilentRefreshGuard);
+    _driveSilentRefreshGuard = setTimeout(() => {
+      if(_driveSilentRefresh){ _driveSilentRefresh = false; refreshDriveSettingsUI(); }
+      _driveSilentRefreshGuard = null;
+    }, 10000);
+    try{ gisTokenClient.requestAccessToken({prompt:''}); }
+    catch(_){ clearTimeout(_driveSilentRefreshGuard); _driveSilentRefreshGuard = null; _driveSilentRefresh = false; }
+  }, delay);
+}
 
 function loadDriveConfig(){
   try{
     driveClientId = localStorage.getItem(LS_PREFIX + 'driveClientId') || '';
   }catch(e){}
+}
+
+// Auto-sign-in preference — persists across sessions as a simple boolean
+function loadDriveAutoSignIn(){
+  try{ return localStorage.getItem(LS_PREFIX + 'driveAutoSignIn') === 'true'; }catch(_){ return false; }
+}
+function setDriveAutoSignIn(enabled){
+  try{ localStorage.setItem(LS_PREFIX + 'driveAutoSignIn', enabled ? 'true' : 'false'); }catch(_){}
+  const chk = document.getElementById('driveAutoSignInChk');
+  if(chk) chk.checked = !!enabled;
+}
+function enableDriveAutoSignIn(){
+  setDriveAutoSignIn(true);
+  const p = document.getElementById('driveAutoSignInPrompt');
+  if(p) p.style.display = 'none';
+  const row = document.getElementById('driveAutoSignInRow');
+  if(row) row.style.display = 'block';
+  toast('✓ سيتصل التطبيق بـ Drive تلقائياً في كل مرة تفتحه');
+}
+function dismissDriveAutoSignInPrompt(){
+  const p = document.getElementById('driveAutoSignInPrompt');
+  if(p) p.style.display = 'none';
+  // mark as seen so we don't ask again this session; next sign-in it may show again
+  try{ sessionStorage.setItem(LS_PREFIX + 'autoSignInAsked', '1'); }catch(_){}
 }
 
 function setDriveIndicator(state_){
@@ -3163,12 +3723,34 @@ function setDriveIndicator(state_){
   }[state_] || '';
 }
 
+// Google's sign-in popup (accounts.google.com/gsi/...) often can't close itself
+// and return the token when the app runs inside an in-app/embedded browser or as
+// an installed PWA in standalone mode, leaving the user stuck on a blank page.
+// Detect those contexts so we can advise opening a real browser tab instead.
+function isEmbeddedOrStandalone(){
+  try{
+    const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || window.navigator.standalone === true;
+    const ua = navigator.userAgent || '';
+    // common in-app browser signatures (Facebook, Instagram, Snapchat, Line,
+    // Twitter, TikTok, WhatsApp, generic WebView)
+    const inApp = /(FBAN|FBAV|FB_IAB|Instagram|Snapchat|Line\/|Twitter|TikTok|WhatsApp|; wv\)|GSA\/)/i.test(ua);
+    return standalone || inApp;
+  }catch(_){ return false; }
+}
+
 function refreshDriveSettingsUI(){
   const setupEl = document.getElementById('driveSetup');
   const actionsEl = document.getElementById('driveActions');
   const statusEl = document.getElementById('driveStatusText');
   const signInBtn = document.getElementById('driveSignInBtn');
   const signedInActions = document.getElementById('driveSignedInActions');
+  const embeddedWarn = document.getElementById('driveEmbeddedWarn');
+  const reconnectRow = document.getElementById('driveReconnectRow');
+  const autoSignInRow = document.getElementById('driveAutoSignInRow');
+  const autoSignInChk = document.getElementById('driveAutoSignInChk');
+
+  if(embeddedWarn) embeddedWarn.style.display = (!driveAccessToken && !_driveAutoReconnect && isEmbeddedOrStandalone()) ? 'block' : 'none';
 
   if(!driveClientId){
     setupEl.style.display = 'block';
@@ -3182,13 +3764,28 @@ function refreshDriveSettingsUI(){
 
   if(driveAccessToken){
     statusEl.textContent = 'متصل ✓ — البيانات تُحفظ تلقائيًا على Google Drive (مجلد بيانات التطبيق الخاص).';
+    if(reconnectRow) reconnectRow.style.display = 'none';
     signInBtn.style.display = 'none';
     signedInActions.style.display = 'flex';
+    // show the auto-sign-in toggle with the current preference
+    if(autoSignInRow){ autoSignInRow.style.display = 'block'; }
+    if(autoSignInChk){ autoSignInChk.checked = loadDriveAutoSignIn(); }
     setDriveIndicator('ok');
+  } else if(_driveAutoReconnect){
+    // Silent reconnect in progress — don't show sign-in button yet so the
+    // user doesn't click it unnecessarily while we're about to get a token
+    statusEl.textContent = 'جارٍ الاتصال بـ Google Drive تلقائياً…';
+    if(reconnectRow) reconnectRow.style.display = 'flex';
+    signInBtn.style.display = 'none';
+    signedInActions.style.display = 'none';
+    if(autoSignInRow) autoSignInRow.style.display = 'none';
+    setDriveIndicator('syncing');
   } else {
     statusEl.textContent = 'Client ID محفوظ. سجّل الدخول لتفعيل المزامنة التلقائية.';
+    if(reconnectRow) reconnectRow.style.display = 'none';
     signInBtn.style.display = 'block';
     signedInActions.style.display = 'none';
+    if(autoSignInRow) autoSignInRow.style.display = 'none';
     setDriveIndicator('idle');
   }
 }
@@ -3225,16 +3822,43 @@ function initGisClient(){
       client_id: driveClientId,
       scope: DRIVE_SCOPE,
       callback: async (resp) => {
+        // clear safety timeouts — callback fired, flags will be read then cleared
+        clearTimeout(_driveAutoReconnectGuard); _driveAutoReconnectGuard = null;
+        clearTimeout(_driveSilentRefreshGuard); _driveSilentRefreshGuard = null;
+        const wasSilent = _driveSilentRefresh, wasAuto = _driveAutoReconnect;
+        _driveSilentRefresh = false; _driveAutoReconnect = false;
         if(resp.error){
           setDriveIndicator('error');
-          toast('⚠ فشل تسجيل الدخول بجوجل', true);
+          // a failed silent/auto reconnect is expected when the Google session
+          // lapsed — stay quiet and just show the sign-in button again
+          if(!wasSilent && !wasAuto) toast('⚠ فشل تسجيل الدخول بجوجل', true);
+          refreshDriveSettingsUI();
           return;
         }
-        driveAccessToken = resp.access_token;
-        try{ sessionStorage.setItem(LS_PREFIX + 'driveToken', driveAccessToken); }catch(e){}
+        storeDriveToken(resp.access_token, parseInt(resp.expires_in, 10));
         refreshDriveSettingsUI();
-        toast('✓ تم تسجيل الدخول بجوجل');
-        await driveSyncFromCloud(true);
+        if(wasSilent){
+          // token was renewed mid-session after a 401 — just resume the upload,
+          // don't re-run the initial pull (which would pop a conflict dialog)
+          await driveSyncToCloud();
+        } else if(wasAuto){
+          // seamless reconnect on app open — pull quietly, auto-resolve by
+          // timestamp (no interactive conflict modal, no "signed in" toast)
+          await driveSyncFromCloud(true, false);
+        } else {
+          toast('✓ تم تسجيل الدخول بجوجل');
+          // First time the user signs in: offer to remember the preference.
+          // Skip if they've already set it or already dismissed this session.
+          const prefSet = localStorage.getItem(LS_PREFIX + 'driveAutoSignIn') !== null;
+          const askedThisSession = (() => { try{ return sessionStorage.getItem(LS_PREFIX+'autoSignInAsked')==='1'; }catch(_){ return false; } })();
+          if(!prefSet && !askedThisSession){
+            setTimeout(() => {
+              const p = document.getElementById('driveAutoSignInPrompt');
+              if(p) p.style.display = 'block';
+            }, 600);
+          }
+          await driveSyncFromCloud(true, true);
+        }
       }
     });
   }catch(e){
@@ -3245,15 +3869,35 @@ function initGisClient(){
 function driveSignIn(){
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
-  gisTokenClient.requestAccessToken({prompt: driveAccessToken ? '' : 'consent'});
+  try{
+    gisTokenClient.requestAccessToken({
+      // 'select_account' shows the account picker popup (full interactive flow)
+      // This avoids the silent gsi/transfer iframe path that can hang blank when
+      // Google's own session has expired. Only go silent if we already hold a
+      // live token (rare path — normally the button isn't shown when connected).
+      prompt: driveTokenValid() ? '' : 'select_account',
+      // surface popup-level failures (blocked / closed / can't return) instead of
+      // leaving the user staring at a blank google sign-in page with no feedback
+      error_callback: (err) => {
+        setDriveIndicator('error');
+        const t = (err && err.type) || '';
+        if(t === 'popup_failed_to_open'){
+          toast('⚠ تعذّر فتح نافذة جوجل — افتح التطبيق في متصفح Chrome/Safari', true);
+        } else if(t === 'popup_closed'){
+          toast('أُغلقت نافذة تسجيل الدخول قبل اكتمالها', true);
+        } else {
+          toast('⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', true);
+        }
+      }
+    });
+  }catch(e){ toast('⚠ تعذّر بدء تسجيل الدخول بجوجل', true); }
 }
 
 function driveSignOut(){
   if(driveAccessToken && typeof google !== 'undefined' && google.accounts){
     try{ google.accounts.oauth2.revoke(driveAccessToken, ()=>{}); }catch(e){}
   }
-  driveAccessToken = null;
-  try{ sessionStorage.removeItem(LS_PREFIX + 'driveToken'); }catch(e){}
+  clearDriveToken();
   refreshDriveSettingsUI();
   toast('تم تسجيل الخروج من Drive');
 }
@@ -3273,8 +3917,14 @@ async function driveFindFile(){
 }
 
 // Push current local state to Drive (create file if needed)
+let _driveSyncBusy = false;
+let _driveResyncPending = false; // a change arrived mid-sync — re-sync afterwards
 async function driveSyncToCloud(){
   if(!driveAccessToken) return;
+  // if a sync is already running, remember that newer changes need flushing
+  // afterwards instead of dropping them silently
+  if(_driveSyncBusy){ _driveResyncPending = true; return; }
+  _driveSyncBusy = true;
   setDriveIndicator('syncing');
   try{
     const payload = JSON.stringify({
@@ -3284,7 +3934,8 @@ async function driveSyncToCloud(){
       crisisMode: state.crisisMode,
       autoDistribute: autoDistribute,
       budgets: budgets,
-      distribution: DISTRIBUTION
+      distribution: DISTRIBUTION,
+      dismissedRecurring: Array.from(dismissedRecurring)
     });
 
     await driveFindFile();
@@ -3298,6 +3949,13 @@ async function driveSyncToCloud(){
         },
         body: payload
       });
+      if(res.status === 404){
+        // the cached file was deleted on Drive — forget it and recreate on the
+        // follow-up sync that the finally block schedules
+        driveFileId = null;
+        _driveResyncPending = true;
+        throw new Error('drive update failed: 404 (file gone, will recreate)');
+      }
       if(!res.ok) throw new Error('drive update failed: ' + res.status);
     } else {
       const boundary = 'wallet_boundary_' + Date.now();
@@ -3323,12 +3981,18 @@ async function driveSyncToCloud(){
     console.error(e);
     setDriveIndicator('error');
     if(e.message && e.message.includes('401')){
-      driveAccessToken = null;
-      try{ sessionStorage.removeItem(LS_PREFIX + 'driveToken'); }catch(_){}
+      clearDriveToken();
       refreshDriveSettingsUI();
       // attempt silent token refresh before asking user
-      if(gisTokenClient){
-        try{ gisTokenClient.requestAccessToken({prompt:''}); }catch(_){}
+      if(gisTokenClient && !isEmbeddedOrStandalone()){
+        _driveSilentRefresh = true;
+        clearTimeout(_driveSilentRefreshGuard);
+        _driveSilentRefreshGuard = setTimeout(() => {
+          if(_driveSilentRefresh){ _driveSilentRefresh = false; refreshDriveSettingsUI(); }
+          _driveSilentRefreshGuard = null;
+        }, 10000);
+        try{ gisTokenClient.requestAccessToken({prompt:''}); }
+        catch(_){ clearTimeout(_driveSilentRefreshGuard); _driveSilentRefreshGuard = null; _driveSilentRefresh = false; }
         toast('⚠ انتهت جلسة Drive — جارٍ تجديد التسجيل تلقائيًا...', true);
       } else {
         toast('⚠ انتهت الجلسة، افتح الإعدادات وسجّل الدخول بجوجل من جديد', true);
@@ -3340,12 +4004,50 @@ async function driveSyncToCloud(){
     } else {
       toast('⚠ تعذر الاتصال بـ Drive، سيُعاد المحاولة لاحقًا', true);
     }
+  } finally {
+    _driveSyncBusy = false;
+    // flush a change that arrived while this sync was in flight, or recreate a
+    // file that Drive reported missing (404) — so no edit is left unsynced
+    if(_driveResyncPending){
+      _driveResyncPending = false;
+      if(driveAccessToken) scheduleDriveSync();
+    }
   }
 }
 
 // Pull from Drive on sign-in / startup. If cloud has data and local is empty
 // (or cloud is newer), merge by replacing local with cloud.
-async function driveSyncFromCloud(isInitial){
+// Replace all local state with a cloud snapshot (single source of truth so the
+// import/Drive/conflict paths can't drift apart). Clears balances first so wallets
+// omitted from the snapshot don't keep stale values.
+async function adoptCloudSnapshot(cloud){
+  if(cloud.wallets){
+    WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+    WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
+  }
+  if(cloud.transactions){
+    state.transactions = cloud.transactions.filter(tx =>
+      tx && (tx.type === 'income' || tx.type === 'expense') &&
+      typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+      WALLET_DEFS.find(w => w.id === tx.wallet));
+    stripOrphanLinks(state.transactions);
+  }
+  if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
+  if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
+  if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
+  if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
+  if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
+  prevSpendable = null; // force fresh hero animation after loading a new data set
+  await saveBalances(); await saveTx(); await saveConfig();
+  render();
+}
+
+// isInitial: this is the first pull after (re)connecting.
+// interactive: the user explicitly tapped "sign in" — only then do we ever
+//   interrupt with the conflict modal. Automatic reconnects on app open resolve
+//   silently by timestamp so the user is never nagged on every visit.
+async function driveSyncFromCloud(isInitial, interactive){
   if(!driveAccessToken) return;
   setDriveIndicator('syncing');
   try{
@@ -3364,24 +4066,54 @@ async function driveSyncFromCloud(isInitial){
     const localHasData = state.transactions.length > 0;
     const cloudHasData = (cloud.transactions || []).length > 0;
 
-    if(isInitial && cloudHasData && !localHasData){
-      // adopt cloud data
-      if(cloud.wallets) state.wallets = cloud.wallets;
-      if(cloud.transactions) state.transactions = cloud.transactions;
-      if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
-      if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
-      if(cloud.budgets && typeof cloud.budgets === 'object') budgets = cloud.budgets;
-      if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = cloud.distribution;
-      await saveBalances(); await saveTx(); await saveConfig();
-      render();
-      toast('☁️ تم تحميل بياناتك من Drive');
-    } else if(isInitial && cloudHasData && localHasData){
-      // both have data — show non-blocking conflict modal
-      _pendingDriveCloud = cloud;
-      openModal('driveConflictModal');
-    } else {
+    if(!(isInitial && cloudHasData)){
+      // not an adoption scenario (no cloud data, or a later background pull) —
+      // nothing to merge here; the debounced push keeps the cloud current
       setDriveIndicator('ok');
+      return;
     }
+
+    if(!localHasData){
+      // local is empty — safely adopt the cloud copy
+      await adoptCloudSnapshot(cloud);
+      setDriveIndicator('ok');
+      toast('☁️ تم تحميل بياناتك من Drive');
+      return;
+    }
+
+    // both sides have data
+    const cloudTime = cloud.exportedAt ? Date.parse(cloud.exportedAt) : 0;
+    const localTime = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0;
+
+    if(!interactive){
+      // automatic reconnect — never interrupt; keep whichever copy is newer
+      if(cloudTime > localTime){
+        await adoptCloudSnapshot(cloud);
+        toast('☁️ حُدّثت بياناتك من Drive');
+      } else {
+        await driveSyncToCloud(); // local is newer/equal — push it up
+      }
+      setDriveIndicator('ok');
+      return;
+    }
+
+    // interactive sign-in with genuine data on both sides — let the user choose,
+    // showing each copy's size + timestamp so the decision is informed
+    _pendingDriveCloud = cloud;
+    const fmtWhen = ms => {
+      if(!ms || !isFinite(ms)) return 'غير معروف';
+      try{ return new Date(ms).toLocaleString('ar', {dateStyle:'medium', timeStyle:'short'}); }
+      catch(_){ return new Date(ms).toLocaleString(); }
+    };
+    const cloudCount = (cloud.transactions || []).length;
+    const localCount = state.transactions.length;
+    const newer = cloudTime > localTime ? 'cloud' : (localTime > cloudTime ? 'local' : '');
+    const tag = side => newer === side ? ' <b style="color:var(--green)">(الأحدث)</b>' : '';
+    const info = document.getElementById('conflictInfo');
+    if(info) info.innerHTML =
+      `☁️ <b>Drive</b>: ${cloudCount} عملية · ${escHtml(fmtWhen(cloudTime))}${tag('cloud')}<br>` +
+      `📱 <b>المحلية</b>: ${localCount} عملية · ${escHtml(fmtWhen(localTime))}${tag('local')}`;
+    openModal('driveConflictModal');
   }catch(e){
     console.error(e);
     setDriveIndicator('error');
@@ -3394,14 +4126,7 @@ async function resolveConflict(useCloud){
   const cloud = _pendingDriveCloud;
   _pendingDriveCloud = null;
   if(useCloud){
-    if(cloud.wallets) state.wallets = cloud.wallets;
-    if(cloud.transactions) state.transactions = cloud.transactions;
-    if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
-    if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
-    if(cloud.budgets && typeof cloud.budgets === 'object') budgets = cloud.budgets;
-    if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = cloud.distribution;
-    await saveBalances(); await saveTx(); await saveConfig();
-    render();
+    await adoptCloudSnapshot(cloud);
     toast('☁️ تم استخدام نسخة Drive');
   } else {
     await driveSyncToCloud();
@@ -3422,9 +4147,24 @@ function scheduleDriveSync(){
 
 function initDrive(){
   loadDriveConfig();
+  // Restore the previously stored access token. Check localStorage first, then
+  // cookies as fallback — some browsers wipe localStorage when force-closed from
+  // the recent-apps list while cookies may survive (or vice-versa).
+  let _savedTokenExp = 0; // captured before clearDriveToken() so tryInit can use it
   try{
-    const tok = sessionStorage.getItem(LS_PREFIX + 'driveToken');
-    if(tok) driveAccessToken = tok;
+    let tok = localStorage.getItem(LS_PREFIX + 'driveToken');
+    let exp = parseInt(localStorage.getItem(LS_PREFIX + 'driveTokenExp') || '0', 10) || 0;
+    // If localStorage was cleared, try cookies
+    if(!tok || Date.now() >= exp){
+      const ctok = _getDriveCookie('mhfzty_dtok');
+      const cexp = parseInt(_getDriveCookie('mhfzty_dexp') || '0', 10) || 0;
+      if(ctok && Date.now() < cexp){ tok = ctok; exp = cexp; }
+    }
+    _savedTokenExp = exp; // capture now, BEFORE clearDriveToken removes the keys
+    if(tok && Date.now() < exp){ driveAccessToken = tok; driveTokenExpiry = exp; }
+    else if(tok || exp){ clearDriveToken(); } // stale — drop both storage locations
+    // If we restored a live token, re-arm the proactive refresh timer
+    if(driveTokenValid()) _scheduleTokenRefresh();
   }catch(e){}
   refreshDriveSettingsUI();
   if(driveClientId){
@@ -3432,7 +4172,28 @@ function initDrive(){
     const tryInit = () => {
       if(typeof google !== 'undefined' && google.accounts){
         initGisClient();
-        if(driveAccessToken) driveSyncFromCloud(true);
+        if(driveTokenValid()){
+          // still have a live token — pull quietly (auto-resolve, no modal)
+          driveSyncFromCloud(true, false);
+        } else if(gisTokenClient && !isEmbeddedOrStandalone()){
+          // Always attempt a silent reconnect when we don't have a live token.
+          // Google's own session cookies live under google.com and survive
+          // browser storage wipes on our domain, so prompt:'' succeeds silently
+          // as long as the user's Google session is active (typically weeks).
+          // If the session has truly expired the GIS callback fires immediately
+          // with resp.error and we show the sign-in button — no popup, no hang.
+          // The 10s guard below protects against the rare edge-case where the
+          // callback never fires at all (blocked popup, network loss, etc.).
+          _driveAutoReconnect = true;
+          refreshDriveSettingsUI(); // immediately show "جارٍ الاتصال..." in the settings UI
+          clearTimeout(_driveAutoReconnectGuard);
+          _driveAutoReconnectGuard = setTimeout(() => {
+            if(_driveAutoReconnect){ _driveAutoReconnect = false; refreshDriveSettingsUI(); }
+            _driveAutoReconnectGuard = null;
+          }, 10000);
+          try{ gisTokenClient.requestAccessToken({prompt:''}); }
+          catch(_){ clearTimeout(_driveAutoReconnectGuard); _driveAutoReconnectGuard = null; _driveAutoReconnect = false; refreshDriveSettingsUI(); }
+        }
       } else if(_gisRetries++ < 25){ // ~7.5s max wait
         setTimeout(tryInit, 300);
       } else {
@@ -3493,7 +4254,8 @@ function buildDailyReviewContent(){
   const now = new Date();
   const yesterday = new Date(now); yesterday.setDate(now.getDate()-1);
   const yStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()).getTime();
-  const yEnd = yStart + 86400000;
+  // exclusive end = start of today (calendar arithmetic, DST-safe — not yStart+24h)
+  const yEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()+1).getTime();
 
   let yExpense = 0, yIncome = 0, yCount = 0;
   state.transactions.forEach(tx=>{
@@ -3571,10 +4333,9 @@ function exportMonthlyReport(){
 
   report += `\n📱 محفظتيييي 🙂‍↔️`;
 
-  if(navigator.share){
-    navigator.share({ title: `تقرير محفظتيييي — ${monthName}`, text: report }).catch(()=>{
-      copyReportToClipboard(report);
-    });
+  const shareData = { title: `تقرير محفظتيييي — ${monthName}`, text: report };
+  if(navigator.share && (!navigator.canShare || navigator.canShare(shareData))){
+    navigator.share(shareData).catch(()=>{ copyReportToClipboard(report); });
   } else {
     copyReportToClipboard(report);
   }
@@ -3606,14 +4367,15 @@ function downloadReport(report){
 /* ============================================================
    PWA: MANIFEST + SERVICE WORKER (inline, no extra files needed)
 ============================================================ */
-function setupPWA(){
+function buildManifestBlob(isLight){
+  const themeColor = isLight ? '#f4f2ed' : '#121419';
   const manifest = {
     name: 'محفظتيييي',
     short_name: 'محفظتيييي',
-    start_url: '.',
+    start_url: new URL('.', location.href).pathname,
     display: 'standalone',
-    background_color: '#121419',
-    theme_color: '#121419',
+    background_color: themeColor,
+    theme_color: themeColor,
     orientation: 'portrait',
     dir: 'rtl',
     lang: 'ar',
@@ -3622,32 +4384,65 @@ function setupPWA(){
         src: 'data:image/svg+xml,' + encodeURIComponent(
           '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%23dcb674"/><text x="50" y="65" font-size="50" text-anchor="middle">💰</text></svg>'
         ),
-        sizes: '192x192',
-        type: 'image/svg+xml'
+        sizes: '192x192 512x512',
+        type: 'image/svg+xml',
+        purpose: 'any maskable'
       }
     ]
   };
+  return new Blob([JSON.stringify(manifest)], {type:'application/json'});
+}
+function applyManifest(isLight){
   try{
-    const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(buildManifestBlob(isLight));
     const link = document.getElementById('manifestLink');
     if(link) link.setAttribute('href', url);
   }catch(e){}
+}
+function setupPWA(){
+  applyManifest(document.body.classList.contains('light'));
 
   if('serviceWorker' in navigator){
     try{
       const swCode = `
-        self.addEventListener('install', e => self.skipWaiting());
-        self.addEventListener('activate', e => self.clients.claim());
+        const CACHE = 'mhfzty-v2';
+        self.addEventListener('install', e => {
+          self.skipWaiting();
+        });
+        self.addEventListener('activate', e => {
+          e.waitUntil(
+            caches.keys().then(keys =>
+              Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+            )
+          );
+          self.clients.claim();
+        });
         self.addEventListener('fetch', e => {
+          if(e.request.method !== 'GET') return;
+          const url = new URL(e.request.url);
+          // Only cache same-origin requests; let Drive/GIS API calls pass through
+          if(url.origin !== self.location.origin) return;
           e.respondWith(
-            fetch(e.request).catch(() => caches.match(e.request))
+            caches.match(e.request).then(cached => {
+              const fresh = fetch(e.request).then(res => {
+                if(res && res.ok){
+                  const clone = res.clone();
+                  caches.open(CACHE).then(c => c.put(e.request, clone));
+                }
+                return res;
+              }).catch(() => cached);
+              // Return cached immediately if available, refresh in background
+              return cached || fresh;
+            })
           );
         });
       `;
       const swBlob = new Blob([swCode], {type:'application/javascript'});
       const swUrl = URL.createObjectURL(swBlob);
-      navigator.serviceWorker.register(swUrl).catch(()=>{});
+      // revoke once the browser has fetched the SW code so the blob isn't leaked
+      navigator.serviceWorker.register(swUrl)
+        .then(()=> URL.revokeObjectURL(swUrl))
+        .catch(()=> URL.revokeObjectURL(swUrl));
     }catch(e){}
   }
 }
@@ -3662,7 +4457,8 @@ function computeRenderSig(){
     JSON.stringify(state.wallets),
     currentFilter, walletFilter, categoryFilter, searchQuery,
     state.crisisMode, JSON.stringify(budgets),
-    JSON.stringify(DISTRIBUTION), autoDistribute
+    JSON.stringify(DISTRIBUTION), autoDistribute,
+    dismissedRecurring.size
   ].join('|');
 }
 
@@ -3672,6 +4468,12 @@ function render(force){
   _renderSig = sig;
   _monthlyExpenseCache = null; // invalidate budget bars per-render
   _recurringCache = null; // invalidate so edited tx amounts are re-evaluated
+  // invalidate content caches keyed only on length/last-id — edits (amount,
+  // desc, date, wallet, category) don't change those, so they must be reset
+  // here to reflect in-place edits in the list, chart, analytics and hero.
+  _filteredTxSig = '';
+  _analyticsSig = '';
+  _heroStatsSig = '';
   renderWallets();
   renderWalletSelect();
   renderTxList();
@@ -3690,6 +4492,56 @@ renderQuickAmounts();
 _initQuickAmountSync();
 renderCategoryGrid();
 renderEditCategoryGrid();
+
+// Enter key: submit add-form or save edit; Escape: close focused modal
+document.addEventListener('keydown', e => {
+  if(e.key === 'Enter'){
+    const tag = document.activeElement && document.activeElement.tagName;
+    const id  = document.activeElement && document.activeElement.id;
+    // Add-form inputs → submit with current addFormType
+    if(id === 'descInput' || id === 'amountInput'){
+      e.preventDefault();
+      addTx(addFormType);
+    }
+    // Edit-modal inputs → save
+    if(id === 'editDesc' || id === 'editAmount'){
+      e.preventDefault();
+      saveEdit();
+    }
+  }
+  // Enter/Space activates custom dropdown triggers and their options (these are
+  // <div>s with onclick, so they need explicit keyboard activation unlike <button>)
+  if(e.key === 'Enter' || e.key === ' '){
+    const el = document.activeElement;
+    if(el && (el.classList.contains('custom-select') || el.classList.contains('opt'))){
+      e.preventDefault();
+      el.click();
+    }
+  }
+  if(e.key === 'Escape'){
+    // Close the topmost open modal
+    const open = [...document.querySelectorAll('.modal-overlay.open')];
+    if(open.length) closeModal(open[open.length-1].id);
+  }
+  if(e.key === 'Tab'){
+    // Focus trap: keep Tab navigation inside the topmost open modal
+    const openModals = [...document.querySelectorAll('.modal-overlay.open')];
+    if(openModals.length){
+      const modal = openModals[openModals.length-1];
+      const focusable = [...modal.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )].filter(el => el.offsetParent !== null); // only visible elements
+      if(focusable.length === 0) return;
+      const first = focusable[0], last = focusable[focusable.length-1];
+      if(e.shiftKey){
+        if(document.activeElement === first){ e.preventDefault(); last.focus(); }
+      } else {
+        if(document.activeElement === last){ e.preventDefault(); first.focus(); }
+      }
+    }
+  }
+});
+
 initTheme();
 setupPWA();
 loadState().then(()=>{
@@ -3705,6 +4557,39 @@ loadState().then(()=>{
 });
 initDrive();
 
+// Refresh time-sensitive UI (budget bars, day/week filter, analytics) when user returns to tab
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible'){
+    _monthlyExpenseCache = null;
+    _monthlyExpenseCacheKey = '';
+    capDateInputsToToday(); // "today" may have rolled over while tab was hidden
+    render(true);
+  } else {
+    // flush pending Drive sync immediately — the 1500ms debounce may never fire if tab is discarded
+    if(driveSyncTimer){ clearTimeout(driveSyncTimer); driveSyncTimer = null; if(driveAccessToken) driveSyncToCloud(); }
+  }
+});
+
+// Proactive refresh when date rolls over while tab stays open in foreground
+// (visibilitychange only fires when the user switches away/back — this covers the
+// midnight-in-foreground case: month stats, day/week/year filter, budget bars all
+// depend on "today" and must update the moment the day changes)
+function scheduleNextMidnightRefresh(){
+  const now = new Date();
+  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  setTimeout(function midnightRefresh(){
+    _monthlyExpenseCache = null;
+    _monthlyExpenseCacheKey = '';
+    capDateInputsToToday();
+    render(true);
+    // re-arm for the following midnight
+    const n = new Date();
+    const nm = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1);
+    setTimeout(midnightRefresh, nm.getTime() - n.getTime());
+  }, nextMidnight.getTime() - now.getTime());
+}
+scheduleNextMidnightRefresh();
+
 // Multi-tab sync: reload state if another tab saves data
 window.addEventListener('storage', (e) => {
   if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit'){
@@ -3717,6 +4602,14 @@ window.addEventListener('unhandledrejection', (e) => {
   console.error('Unhandled rejection:', e.reason);
   toast('⚠ حدث خطأ غير متوقع', true);
 });
+
+// Prevent accidental scroll-wheel from changing number input values on desktop
+// Delegated to document so it covers any dynamically added number inputs too
+document.addEventListener('wheel', e => {
+  if(e.target && e.target.tagName === 'INPUT' && e.target.type === 'number' && document.activeElement === e.target){
+    e.preventDefault();
+  }
+}, {passive:false});
 </script>
 </body>
 </html>
