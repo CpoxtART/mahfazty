@@ -1578,6 +1578,7 @@ function renderWallets(){
   if(state.crisisMode){
     let crisisTotal = 0;
     CRISIS_WALLET_IDS.forEach(id => crisisTotal += (state.wallets[id] ?? 0));
+    spendable += crisisTotal; // crisis reserve is part of total liquidity in emergency mode
     const div = document.createElement('div');
     div.className = 'wallet crisis-combined';
     div.innerHTML = `
@@ -1909,7 +1910,7 @@ function renderEditCategoryGrid(){
   });
 }
 function getCategory(id){
-  return CATEGORIES.find(c=>c.id===id) || CATEGORIES[CATEGORIES.length-1];
+  return CATEGORIES.find(c=>c.id===id) || CATEGORIES.find(c=>c.id==='other') || CATEGORIES[0];
 }
 
 /* ============================================================
@@ -3226,6 +3227,8 @@ async function wipeAll(){
    TOAST
 ============================================================ */
 function toast(msg, isError){
+  // If an undo-delete is pending, cancel it before overwriting the undo button in the DOM
+  if(_lastDeleted){ clearTimeout(_undoTimer); _lastDeleted = null; }
   const el = document.getElementById('saveStatus');
   el.textContent = msg;
   el.style.borderColor = isError ? 'var(--red)' : 'var(--line)';
@@ -3368,6 +3371,7 @@ function initGisClient(){
       scope: DRIVE_SCOPE,
       callback: async (resp) => {
         if(resp.error){
+          _driveSilentRefresh = false; // reset so future logins trigger conflict-check, not silent upload
           setDriveIndicator('error');
           toast('⚠ فشل تسجيل الدخول بجوجل', true);
           return;
@@ -3864,6 +3868,30 @@ renderQuickAmounts();
 _initQuickAmountSync();
 renderCategoryGrid();
 renderEditCategoryGrid();
+
+// Enter key: submit add-form or save edit; Escape: close focused modal
+document.addEventListener('keydown', e => {
+  if(e.key === 'Enter'){
+    const tag = document.activeElement && document.activeElement.tagName;
+    const id  = document.activeElement && document.activeElement.id;
+    // Add-form inputs → submit with current addFormType
+    if(id === 'descInput' || id === 'amountInput'){
+      e.preventDefault();
+      addTx(addFormType);
+    }
+    // Edit-modal inputs → save
+    if(id === 'editDesc' || id === 'editAmount'){
+      e.preventDefault();
+      saveEdit();
+    }
+  }
+  if(e.key === 'Escape'){
+    // Close the topmost open modal
+    const open = [...document.querySelectorAll('.modal-overlay.open')];
+    if(open.length) closeModal(open[open.length-1].id);
+  }
+});
+
 initTheme();
 setupPWA();
 loadState().then(()=>{
