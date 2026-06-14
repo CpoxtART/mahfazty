@@ -3650,20 +3650,17 @@ function _scheduleTokenRefresh(){
   clearTimeout(_driveTokenRefreshTimer); _driveTokenRefreshTimer = null;
   if(!driveTokenExpiry) return;
   const delay = driveTokenExpiry - Date.now() - 5*60*1000; // 5 min before expiry
-  if(delay <= 0) return; // already near-expired; don't bother
+  if(delay <= 0) return;
   _driveTokenRefreshTimer = setTimeout(() => {
     _driveTokenRefreshTimer = null;
-    if(!gisTokenClient || !driveAccessToken || isEmbeddedOrStandalone()) return;
-    // silent in-session refresh: user is actively on the page, Google session
-    // is almost certainly still alive since we got a token < 55 min ago
-    _driveSilentRefresh = true;
-    clearTimeout(_driveSilentRefreshGuard);
-    _driveSilentRefreshGuard = setTimeout(() => {
-      if(_driveSilentRefresh){ _driveSilentRefresh = false; refreshDriveSettingsUI(); }
-      _driveSilentRefreshGuard = null;
-    }, 10000);
-    try{ gisTokenClient.requestAccessToken({prompt:''}); }
-    catch(_){ clearTimeout(_driveSilentRefreshGuard); _driveSilentRefreshGuard = null; _driveSilentRefresh = false; }
+    if(!driveAccessToken) return;
+    // We do NOT auto-call requestAccessToken here because on mobile Chrome
+    // a programmatic call (without user gesture) causes a redirect to
+    // accounts.google.com/gsi/transfer which hangs blank.
+    // Instead: clear the token and prompt the user to tap sign-in.
+    clearDriveToken();
+    refreshDriveSettingsUI();
+    toast('⏱ انتهت جلسة Drive — اضغط على أيقونة ☁️ في الأعلى أو سجّل دخولك من الإعدادات', true);
   }, delay);
 }
 
@@ -3711,15 +3708,19 @@ function setDriveIndicator(state_){
     error:   {icon:'⚠️', label:'خطأ',    color:'var(--red)'}
   };
   const cfg = map[state_] || map.idle;
+  const clickable = (state_ === 'idle' || state_ === 'error'); // tap to sign in when disconnected
   el.style.display = 'flex';
   el.style.cssText += ';gap:4px; align-items:center; font-size:11px; font-weight:600; background:var(--card); border:1px solid var(--line); border-radius:99px; padding:4px 10px;';
   el.style.color = cfg.color;
-  el.innerHTML = `<span style="font-size:12px;">${cfg.icon}</span><span>${cfg.label}</span>`;
+  el.style.cursor = clickable ? 'pointer' : 'default';
+  el.onclick = clickable ? driveSignIn : null;
+  const label = clickable ? cfg.label + ' — اضغط للدخول' : cfg.label;
+  el.innerHTML = `<span style="font-size:12px;">${cfg.icon}</span><span>${label}</span>`;
   el.title = {
-    idle: 'جاهز للمزامنة',
+    idle: 'اضغط لتسجيل الدخول بـ Google Drive',
     syncing: 'جاري المزامنة مع Drive...',
     ok: 'تمت المزامنة مع Drive',
-    error: 'خطأ بالمزامنة — راجع الإعدادات'
+    error: 'اضغط لتسجيل الدخول مجدداً'
   }[state_] || '';
 }
 
@@ -3746,11 +3747,10 @@ function refreshDriveSettingsUI(){
   const signInBtn = document.getElementById('driveSignInBtn');
   const signedInActions = document.getElementById('driveSignedInActions');
   const embeddedWarn = document.getElementById('driveEmbeddedWarn');
-  const reconnectRow = document.getElementById('driveReconnectRow');
   const autoSignInRow = document.getElementById('driveAutoSignInRow');
   const autoSignInChk = document.getElementById('driveAutoSignInChk');
 
-  if(embeddedWarn) embeddedWarn.style.display = (!driveAccessToken && !_driveAutoReconnect && isEmbeddedOrStandalone()) ? 'block' : 'none';
+  if(embeddedWarn) embeddedWarn.style.display = (!driveAccessToken && isEmbeddedOrStandalone()) ? 'block' : 'none';
 
   if(!driveClientId){
     setupEl.style.display = 'block';
@@ -3764,25 +3764,12 @@ function refreshDriveSettingsUI(){
 
   if(driveAccessToken){
     statusEl.textContent = 'متصل ✓ — البيانات تُحفظ تلقائيًا على Google Drive (مجلد بيانات التطبيق الخاص).';
-    if(reconnectRow) reconnectRow.style.display = 'none';
     signInBtn.style.display = 'none';
     signedInActions.style.display = 'flex';
-    // show the auto-sign-in toggle with the current preference
-    if(autoSignInRow){ autoSignInRow.style.display = 'block'; }
-    if(autoSignInChk){ autoSignInChk.checked = loadDriveAutoSignIn(); }
+    if(autoSignInRow){ autoSignInRow.style.display = 'none'; } // preference no longer applies; hide
     setDriveIndicator('ok');
-  } else if(_driveAutoReconnect){
-    // Silent reconnect in progress — don't show sign-in button yet so the
-    // user doesn't click it unnecessarily while we're about to get a token
-    statusEl.textContent = 'جارٍ الاتصال بـ Google Drive تلقائياً…';
-    if(reconnectRow) reconnectRow.style.display = 'flex';
-    signInBtn.style.display = 'none';
-    signedInActions.style.display = 'none';
-    if(autoSignInRow) autoSignInRow.style.display = 'none';
-    setDriveIndicator('syncing');
   } else {
-    statusEl.textContent = 'Client ID محفوظ. سجّل الدخول لتفعيل المزامنة التلقائية.';
-    if(reconnectRow) reconnectRow.style.display = 'none';
+    statusEl.textContent = 'اضغط على زر أدناه أو على أيقونة ☁️ في الأعلى لتسجيل الدخول.';
     signInBtn.style.display = 'block';
     signedInActions.style.display = 'none';
     if(autoSignInRow) autoSignInRow.style.display = 'none';
@@ -3822,43 +3809,18 @@ function initGisClient(){
       client_id: driveClientId,
       scope: DRIVE_SCOPE,
       callback: async (resp) => {
-        // clear safety timeouts — callback fired, flags will be read then cleared
-        clearTimeout(_driveAutoReconnectGuard); _driveAutoReconnectGuard = null;
-        clearTimeout(_driveSilentRefreshGuard); _driveSilentRefreshGuard = null;
-        const wasSilent = _driveSilentRefresh, wasAuto = _driveAutoReconnect;
-        _driveSilentRefresh = false; _driveAutoReconnect = false;
+        // All sign-ins now go through driveSignIn() (user gesture, select_account).
+        // No more silent prompt:'' paths — they caused gsi/transfer redirect on mobile.
         if(resp.error){
           setDriveIndicator('error');
-          // a failed silent/auto reconnect is expected when the Google session
-          // lapsed — stay quiet and just show the sign-in button again
-          if(!wasSilent && !wasAuto) toast('⚠ فشل تسجيل الدخول بجوجل', true);
+          toast('⚠ فشل تسجيل الدخول بجوجل', true);
           refreshDriveSettingsUI();
           return;
         }
         storeDriveToken(resp.access_token, parseInt(resp.expires_in, 10));
         refreshDriveSettingsUI();
-        if(wasSilent){
-          // token was renewed mid-session after a 401 — just resume the upload,
-          // don't re-run the initial pull (which would pop a conflict dialog)
-          await driveSyncToCloud();
-        } else if(wasAuto){
-          // seamless reconnect on app open — pull quietly, auto-resolve by
-          // timestamp (no interactive conflict modal, no "signed in" toast)
-          await driveSyncFromCloud(true, false);
-        } else {
-          toast('✓ تم تسجيل الدخول بجوجل');
-          // First time the user signs in: offer to remember the preference.
-          // Skip if they've already set it or already dismissed this session.
-          const prefSet = localStorage.getItem(LS_PREFIX + 'driveAutoSignIn') !== null;
-          const askedThisSession = (() => { try{ return sessionStorage.getItem(LS_PREFIX+'autoSignInAsked')==='1'; }catch(_){ return false; } })();
-          if(!prefSet && !askedThisSession){
-            setTimeout(() => {
-              const p = document.getElementById('driveAutoSignInPrompt');
-              if(p) p.style.display = 'block';
-            }, 600);
-          }
-          await driveSyncFromCloud(true, true);
-        }
+        toast('✓ تم تسجيل الدخول بجوجل');
+        await driveSyncFromCloud(true, true);
       }
     });
   }catch(e){
@@ -3871,11 +3833,11 @@ function driveSignIn(){
   if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
   try{
     gisTokenClient.requestAccessToken({
-      // 'select_account' shows the account picker popup (full interactive flow)
-      // This avoids the silent gsi/transfer iframe path that can hang blank when
-      // Google's own session has expired. Only go silent if we already hold a
-      // live token (rare path — normally the button isn't shown when connected).
-      prompt: driveTokenValid() ? '' : 'select_account',
+      // Always use 'select_account' — shows a proper Google account picker popup.
+      // Never use prompt:'' here because on mobile Chrome a programmatic
+      // (user-gesture-free) call redirects the current tab to gsi/transfer
+      // which shows a blank page and hangs.
+      prompt: 'select_account',
       // surface popup-level failures (blocked / closed / can't return) instead of
       // leaving the user staring at a blank google sign-in page with no feedback
       error_callback: (err) => {
@@ -3983,20 +3945,10 @@ async function driveSyncToCloud(){
     if(e.message && e.message.includes('401')){
       clearDriveToken();
       refreshDriveSettingsUI();
-      // attempt silent token refresh before asking user
-      if(gisTokenClient && !isEmbeddedOrStandalone()){
-        _driveSilentRefresh = true;
-        clearTimeout(_driveSilentRefreshGuard);
-        _driveSilentRefreshGuard = setTimeout(() => {
-          if(_driveSilentRefresh){ _driveSilentRefresh = false; refreshDriveSettingsUI(); }
-          _driveSilentRefreshGuard = null;
-        }, 10000);
-        try{ gisTokenClient.requestAccessToken({prompt:''}); }
-        catch(_){ clearTimeout(_driveSilentRefreshGuard); _driveSilentRefreshGuard = null; _driveSilentRefresh = false; }
-        toast('⚠ انتهت جلسة Drive — جارٍ تجديد التسجيل تلقائيًا...', true);
-      } else {
-        toast('⚠ انتهت الجلسة، افتح الإعدادات وسجّل الدخول بجوجل من جديد', true);
-      }
+      // Do NOT auto-call requestAccessToken here — on mobile Chrome it causes
+      // a redirect to gsi/transfer that hangs blank. Instead, guide the user
+      // to tap sign-in manually (one tap via the header indicator or settings).
+      toast('⚠ انتهت جلسة Drive — اضغط على ☁️ في الأعلى لتسجيل الدخول من جديد', true);
     } else if(e.message && e.message.includes('403')){
       toast('⚠ تم رفض الإذن من Drive — تأكد من صلاحيات appdata بالـ Client ID', true);
     } else if(!navigator.onLine){
@@ -4175,25 +4127,13 @@ function initDrive(){
         if(driveTokenValid()){
           // still have a live token — pull quietly (auto-resolve, no modal)
           driveSyncFromCloud(true, false);
-        } else if(gisTokenClient && !isEmbeddedOrStandalone()){
-          // Always attempt a silent reconnect when we don't have a live token.
-          // Google's own session cookies live under google.com and survive
-          // browser storage wipes on our domain, so prompt:'' succeeds silently
-          // as long as the user's Google session is active (typically weeks).
-          // If the session has truly expired the GIS callback fires immediately
-          // with resp.error and we show the sign-in button — no popup, no hang.
-          // The 10s guard below protects against the rare edge-case where the
-          // callback never fires at all (blocked popup, network loss, etc.).
-          _driveAutoReconnect = true;
-          refreshDriveSettingsUI(); // immediately show "جارٍ الاتصال..." in the settings UI
-          clearTimeout(_driveAutoReconnectGuard);
-          _driveAutoReconnectGuard = setTimeout(() => {
-            if(_driveAutoReconnect){ _driveAutoReconnect = false; refreshDriveSettingsUI(); }
-            _driveAutoReconnectGuard = null;
-          }, 10000);
-          try{ gisTokenClient.requestAccessToken({prompt:''}); }
-          catch(_){ clearTimeout(_driveAutoReconnectGuard); _driveAutoReconnectGuard = null; _driveAutoReconnect = false; refreshDriveSettingsUI(); }
-        }
+        // No live token: show the sign-in button.
+        // We intentionally do NOT call requestAccessToken({prompt:''}) here
+        // because on mobile Chrome a programmatic call without a user gesture
+        // causes the browser to redirect the current tab to
+        // accounts.google.com/gsi/transfer which hangs as a blank page.
+        // The user can sign in by tapping the ☁️ indicator in the header
+        // or the sign-in button in Settings — both are proper user gestures.
       } else if(_gisRetries++ < 25){ // ~7.5s max wait
         setTimeout(tryInit, 300);
       } else {
