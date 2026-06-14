@@ -2339,7 +2339,7 @@ function monthRange(monthsAgo){
 function sumExpenses(start, end, categoryId){
   let total = 0;
   state.transactions.forEach(tx=>{
-    if(tx.type!=='expense' || tx.category==='transfer') return;
+    if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
     if(tx.ts < start || tx.ts >= end) return;
     if(categoryId && tx.category !== categoryId) return;
     total += tx.amount;
@@ -2501,7 +2501,7 @@ function inRange(ts){
   if(currentFilter === 'day') return d.toDateString() === now.toDateString();
   if(currentFilter === 'week'){
     const diff = (now - d) / (1000*60*60*24);
-    return diff <= 7;
+    return diff >= 0 && diff <= 7; // exclude future-dated txs (negative diff)
   }
   if(currentFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   if(currentFilter === 'year') return d.getFullYear() === now.getFullYear();
@@ -2528,8 +2528,10 @@ function clearSearch(){
 let _filteredTxCache = null;
 let _filteredTxSig = '';
 function getFilteredTx(){
-  // include today's date for time-sensitive filters so cache invalidates at midnight
-  const dateKey = (currentFilter === 'day' || currentFilter === 'week') ? todayISO() : '';
+  // include today's date for every time-bounded filter (day/week/month/year all
+  // shift at a day boundary) so the cache invalidates across a midnight/month/
+  // year rollover instead of showing the previous period's transactions
+  const dateKey = currentFilter === 'all' ? '' : todayISO();
   const sig = state.transactions.length + '|' + currentFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery + '|' + dateKey;
   if(sig === _filteredTxSig && _filteredTxCache) return _filteredTxCache;
   _filteredTxSig = sig;
@@ -2556,7 +2558,9 @@ function renderTxList(){
 
   let income = 0, expense = 0;
   filtered.forEach(tx => {
-    if(tx.category === 'transfer') return;
+    // exclude inter-wallet transfers AND manual balance adjustments so the
+    // income/expense summary matches the category pie chart (which excludes both)
+    if(tx.category === 'transfer' || tx.category === 'adjustment') return;
     if(tx.type === 'income') income += tx.amount;
     else expense += tx.amount;
   });
@@ -2572,7 +2576,8 @@ function renderTxList(){
   if(_hSig !== _heroStatsSig || !_heroStatsCache){
     let mIncome=0, mExpense=0;
     state.transactions.forEach(tx=>{
-      if(tx.category === 'transfer') return; // exclude inter-wallet moves from hero totals
+      // exclude inter-wallet moves and manual adjustments from hero totals
+      if(tx.category === 'transfer' || tx.category === 'adjustment') return;
       const d = new Date(tx.ts);
       if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
         if(tx.type==='income') mIncome+=tx.amount; else mExpense+=tx.amount;
@@ -3603,8 +3608,12 @@ async function driveFindFile(){
 
 // Push current local state to Drive (create file if needed)
 let _driveSyncBusy = false;
+let _driveResyncPending = false; // a change arrived mid-sync — re-sync afterwards
 async function driveSyncToCloud(){
-  if(!driveAccessToken || _driveSyncBusy) return;
+  if(!driveAccessToken) return;
+  // if a sync is already running, remember that newer changes need flushing
+  // afterwards instead of dropping them silently
+  if(_driveSyncBusy){ _driveResyncPending = true; return; }
   _driveSyncBusy = true;
   setDriveIndicator('syncing');
   try{
@@ -3630,6 +3639,13 @@ async function driveSyncToCloud(){
         },
         body: payload
       });
+      if(res.status === 404){
+        // the cached file was deleted on Drive — forget it and recreate on the
+        // follow-up sync that the finally block schedules
+        driveFileId = null;
+        _driveResyncPending = true;
+        throw new Error('drive update failed: 404 (file gone, will recreate)');
+      }
       if(!res.ok) throw new Error('drive update failed: ' + res.status);
     } else {
       const boundary = 'wallet_boundary_' + Date.now();
@@ -3675,6 +3691,12 @@ async function driveSyncToCloud(){
     }
   } finally {
     _driveSyncBusy = false;
+    // flush a change that arrived while this sync was in flight, or recreate a
+    // file that Drive reported missing (404) — so no edit is left unsynced
+    if(_driveResyncPending){
+      _driveResyncPending = false;
+      if(driveAccessToken) scheduleDriveSync();
+    }
   }
 }
 
