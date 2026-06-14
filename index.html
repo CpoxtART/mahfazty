@@ -484,7 +484,7 @@ try{
   window.addEventListener('error', function(ev){
     showFatal(ev && (ev.message || (ev.error && ev.error.message)));
   });
-  setTimeout(function(){
+  window._splashTimer = setTimeout(function(){
     var s = document.getElementById('splash');
     if(s && !s.classList.contains('hide')){
       showFatal('انتهت مهلة التحميل (6 ثوانٍ) دون اكتمال التشغيل.');

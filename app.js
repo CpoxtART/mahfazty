@@ -1224,8 +1224,8 @@ function detectRecurring(){
   const groups = {};
   state.transactions.forEach(tx=>{
     if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
-    const key = (tx.desc||'').trim().toLowerCase();
-    if(!key) return;
+    const key = ((tx.desc||'').trim().toLowerCase()) + '\x00' + tx.wallet;
+    if(!key.split('\x00')[0]) return;
     if(!groups[key]) groups[key] = [];
     groups[key].push(tx);
   });
@@ -1246,6 +1246,7 @@ function detectRecurring(){
     if(!variance) return;
 
     suggestions.push({ key, desc: txs[0].desc, avg, count: txs.length, wallet: txs[0].wallet, category: txs[0].category });
+    // key = "desc\x00walletId" — dismiss per wallet so same desc in two wallets shows two suggestions
   });
   _recurringCache = suggestions.slice(0,3);
   return _recurringCache;
@@ -1387,6 +1388,7 @@ function getFilteredTx(){
 ============================================================ */
 function renderTxList(){
   const list = document.getElementById('txList');
+  list.setAttribute('role','list');
   list.innerHTML = '';
   const filtered = getFilteredTx().slice().sort((a,b)=>b.ts-a.ts);
 
@@ -1454,6 +1456,7 @@ function renderTxList(){
 
     const wrap = document.createElement('div');
     wrap.className = 'tx-wrap';
+    wrap.setAttribute('role','listitem');
 
     const bg = document.createElement('div');
     bg.className = 'tx-swipe-bg';
@@ -2919,6 +2922,7 @@ function initDrive(){
    SPLASH SCREEN
 ============================================================ */
 function hideSplash(){
+  clearTimeout(window._splashTimer); // cancel the 6s error watchdog — we loaded successfully
   const el = document.getElementById('splash');
   if(el) el.classList.add('hide');
 }
@@ -3282,9 +3286,10 @@ function scheduleNextMidnightRefresh(){
 scheduleNextMidnightRefresh();
 
 // Multi-tab sync: reload state if another tab saves data
+// Skip if an edit/transfer modal is open to avoid wiping unsaved form input
 window.addEventListener('storage', (e) => {
   if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit'){
-    loadState();
+    if(!document.querySelector('.modal-overlay.open')) loadState();
   }
 });
 
