@@ -2119,7 +2119,7 @@ let _doTransferBusy = false;
 async function doTransfer(){
   if(_doTransferBusy) return;
   const amt = parseFloat(document.getElementById('transferAmount').value.replace(/,/g,''));
-  if(!amt || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
+  if(!isFinite(amt) || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
   if(!transferFrom || !transferTo){ toast('⚠ اختر المحفظتين أولاً', true); return; }
   if(transferFrom === transferTo){ toast('⚠ اختر محفظتين مختلفتين', true); return; }
   _doTransferBusy = true;
@@ -2819,7 +2819,7 @@ async function addTx(type){
     const amountVal = parseFloat(document.getElementById('amountInput').value.replace(/,/g,''));
     const dateVal = document.getElementById('dateInput').value || todayISO();
 
-    if(isNaN(amountVal) || amountVal <= 0){
+    if(!isFinite(amountVal) || amountVal <= 0){
       toast('⚠ أدخل مبلغ صحيح', true);
       document.getElementById('amountInput').focus();
       return;
@@ -3061,7 +3061,7 @@ async function saveEdit(){
   }
 
   const newAmount = parseFloat(document.getElementById('editAmount').value.replace(/,/g,''));
-  if(!newAmount || newAmount <= 0){
+  if(!isFinite(newAmount) || newAmount <= 0){
     toast('⚠ أدخل مبلغ صحيح', true);
     return;
   }
