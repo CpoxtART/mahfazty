@@ -1376,6 +1376,8 @@ function applyTheme(theme){
   if(btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', theme === 'light' ? '#f4f2ed' : '#15171c');
+  // keep the installed PWA splash/chrome color in sync with the chosen theme
+  if(typeof applyManifest === 'function') applyManifest(theme === 'light');
 }
 function toggleTheme(){
   const isLight = document.body.classList.contains('light');
@@ -3555,6 +3557,8 @@ let driveSyncTimer = null;
 let driveClientId = '';
 let _driveSilentRefresh = false; // true while re-acquiring a token after expiry
 let _driveAutoReconnect = false; // true while silently reconnecting on app open
+let _driveAutoReconnectGuard = null; // timeout to reset _driveAutoReconnect if GIS never calls back
+let _driveSilentRefreshGuard = null; // timeout to reset _driveSilentRefresh if GIS never calls back
 
 // Persist the access token (with its expiry) in localStorage so returning to the
 // app within the token's lifetime doesn't force another sign-in. Access tokens
@@ -3696,6 +3700,9 @@ function initGisClient(){
       client_id: driveClientId,
       scope: DRIVE_SCOPE,
       callback: async (resp) => {
+        // clear safety timeouts — callback fired, flags will be read then cleared
+        clearTimeout(_driveAutoReconnectGuard); _driveAutoReconnectGuard = null;
+        clearTimeout(_driveSilentRefreshGuard); _driveSilentRefreshGuard = null;
         const wasSilent = _driveSilentRefresh, wasAuto = _driveAutoReconnect;
         _driveSilentRefresh = false; _driveAutoReconnect = false;
         if(resp.error){
@@ -3732,7 +3739,11 @@ function driveSignIn(){
   if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
   try{
     gisTokenClient.requestAccessToken({
-      prompt: driveAccessToken ? '' : 'consent',
+      // 'select_account' shows the account picker popup (full interactive flow)
+      // This avoids the silent gsi/transfer iframe path that can hang blank when
+      // Google's own session has expired. Only go silent if we already hold a
+      // live token (rare path — normally the button isn't shown when connected).
+      prompt: driveTokenValid() ? '' : 'select_account',
       // surface popup-level failures (blocked / closed / can't return) instead of
       // leaving the user staring at a blank google sign-in page with no feedback
       error_callback: (err) => {
@@ -3843,7 +3854,13 @@ async function driveSyncToCloud(){
       // attempt silent token refresh before asking user
       if(gisTokenClient && !isEmbeddedOrStandalone()){
         _driveSilentRefresh = true;
-        try{ gisTokenClient.requestAccessToken({prompt:''}); }catch(_){ _driveSilentRefresh = false; }
+        clearTimeout(_driveSilentRefreshGuard);
+        _driveSilentRefreshGuard = setTimeout(() => {
+          if(_driveSilentRefresh){ _driveSilentRefresh = false; refreshDriveSettingsUI(); }
+          _driveSilentRefreshGuard = null;
+        }, 10000);
+        try{ gisTokenClient.requestAccessToken({prompt:''}); }
+        catch(_){ clearTimeout(_driveSilentRefreshGuard); _driveSilentRefreshGuard = null; _driveSilentRefresh = false; }
         toast('⚠ انتهت جلسة Drive — جارٍ تجديد التسجيل تلقائيًا...', true);
       } else {
         toast('⚠ انتهت الجلسة، افتح الإعدادات وسجّل الدخول بجوجل من جديد', true);
@@ -4015,13 +4032,25 @@ function initDrive(){
           // still have a live token — pull quietly (auto-resolve, no modal)
           driveSyncFromCloud(true, false);
         } else if(gisTokenClient && !isEmbeddedOrStandalone()){
-          // no live token, but we may still hold a Google session + prior
-          // consent — try to get one silently so the user isn't asked to sign
-          // in again on every visit. Skipped in embedded browsers where the
-          // popup can't return (it would just hang on a blank page).
-          _driveAutoReconnect = true;
-          try{ gisTokenClient.requestAccessToken({prompt:''}); }
-          catch(_){ _driveAutoReconnect = false; }
+          // Attempt silent reconnect only when the token expired RECENTLY (≤ 2h).
+          // If the token expired > 2h ago, Google's own session has very likely
+          // also expired, so prompt:'' would open the gsi/transfer popup that
+          // hangs blank instead of completing silently. In that case we just show
+          // the sign-in button and let the user click it when ready.
+          const storedExp = parseInt(localStorage.getItem(LS_PREFIX+'driveTokenExp')||'0',10)||0;
+          const recentExpiry = storedExp > 0 && (Date.now() - storedExp) < 2*3600*1000;
+          if(recentExpiry){
+            _driveAutoReconnect = true;
+            // Safety: if the GIS callback never fires (e.g. popup blocked silently),
+            // reset the flag after 10s so the app doesn't stay in a limbo state.
+            clearTimeout(_driveAutoReconnectGuard);
+            _driveAutoReconnectGuard = setTimeout(() => {
+              if(_driveAutoReconnect){ _driveAutoReconnect = false; refreshDriveSettingsUI(); }
+              _driveAutoReconnectGuard = null;
+            }, 10000);
+            try{ gisTokenClient.requestAccessToken({prompt:''}); }
+            catch(_){ clearTimeout(_driveAutoReconnectGuard); _driveAutoReconnectGuard = null; _driveAutoReconnect = false; }
+          }
         }
       } else if(_gisRetries++ < 25){ // ~7.5s max wait
         setTimeout(tryInit, 300);
@@ -4196,14 +4225,15 @@ function downloadReport(report){
 /* ============================================================
    PWA: MANIFEST + SERVICE WORKER (inline, no extra files needed)
 ============================================================ */
-function setupPWA(){
+function buildManifestBlob(isLight){
+  const themeColor = isLight ? '#f4f2ed' : '#121419';
   const manifest = {
     name: 'محفظتيييي',
     short_name: 'محفظتيييي',
-    start_url: '.',
+    start_url: new URL('.', location.href).pathname,
     display: 'standalone',
-    background_color: '#121419',
-    theme_color: '#121419',
+    background_color: themeColor,
+    theme_color: themeColor,
     orientation: 'portrait',
     dir: 'rtl',
     lang: 'ar',
@@ -4212,17 +4242,23 @@ function setupPWA(){
         src: 'data:image/svg+xml,' + encodeURIComponent(
           '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%23dcb674"/><text x="50" y="65" font-size="50" text-anchor="middle">💰</text></svg>'
         ),
-        sizes: '192x192',
-        type: 'image/svg+xml'
+        sizes: '192x192 512x512',
+        type: 'image/svg+xml',
+        purpose: 'any maskable'
       }
     ]
   };
+  return new Blob([JSON.stringify(manifest)], {type:'application/json'});
+}
+function applyManifest(isLight){
   try{
-    const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(buildManifestBlob(isLight));
     const link = document.getElementById('manifestLink');
     if(link) link.setAttribute('href', url);
   }catch(e){}
+}
+function setupPWA(){
+  applyManifest(document.body.classList.contains('light'));
 
   if('serviceWorker' in navigator){
     try{
@@ -4426,9 +4462,12 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 
 // Prevent accidental scroll-wheel from changing number input values on desktop
-document.querySelectorAll('input[type=number]').forEach(el => {
-  el.addEventListener('wheel', e => { if(document.activeElement === el) e.preventDefault(); }, {passive:false});
-});
+// Delegated to document so it covers any dynamically added number inputs too
+document.addEventListener('wheel', e => {
+  if(e.target && e.target.tagName === 'INPUT' && e.target.type === 'number' && document.activeElement === e.target){
+    e.preventDefault();
+  }
+}, {passive:false});
 </script>
 </body>
 </html>
