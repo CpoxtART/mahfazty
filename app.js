@@ -1340,8 +1340,10 @@ function normalizeSearch(str){
 }
 
 function onSearchInput(){
-  searchQuery = normalizeSearch(document.getElementById('searchInput').value);
-  document.getElementById('searchBox').classList.toggle('has-text', searchQuery.length>0);
+  const raw = document.getElementById('searchInput').value;
+  searchQuery = normalizeSearch(raw);
+  // show clear-button based on raw input (not trimmed) so typing spaces still shows the X
+  document.getElementById('searchBox').classList.toggle('has-text', raw.length > 0);
   _txVisibleCount = 50;
   clearTimeout(_searchDebounce);
   _searchDebounce = setTimeout(()=>{ renderTxList(); document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
@@ -1610,7 +1612,11 @@ function renderChart(){
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   const finalNet = points[points.length-1];
-  const lineColor = finalNet >= 0 ? '#86c39a' : '#e3918f';
+  // Read from CSS variables so the chart adapts to light/dark theme
+  const cs = getComputedStyle(document.body);
+  const colorPos = cs.getPropertyValue('--green').trim() || '#86c39a';
+  const colorNeg = cs.getPropertyValue('--red').trim()   || '#e3918f';
+  const lineColor = finalNet >= 0 ? colorPos : colorNeg;
   ctx.strokeStyle = lineColor;
   ctx.lineWidth = 2.25;
   ctx.lineJoin = 'round';
@@ -1618,8 +1624,12 @@ function renderChart(){
   ctx.stroke();
 
   const grad = ctx.createLinearGradient(0,0,0,cssH);
-  grad.addColorStop(0, finalNet>=0 ? 'rgba(134,195,154,.20)' : 'rgba(227,145,143,.20)');
-  grad.addColorStop(1, 'rgba(134,195,154,0)');
+  const isLightForChart = document.body.classList.contains('light');
+  const gradTop = finalNet>=0
+    ? (isLightForChart ? 'rgba(62,141,89,.18)'   : 'rgba(134,195,154,.20)')
+    : (isLightForChart ? 'rgba(192,90,87,.18)'   : 'rgba(227,145,143,.20)');
+  grad.addColorStop(0, gradTop);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.lineTo(padX+w, padY+h);
   ctx.lineTo(padX, padY+h);
   ctx.closePath();

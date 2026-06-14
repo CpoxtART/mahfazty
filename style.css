@@ -365,6 +365,7 @@
     transition: border-color .15s, box-shadow .15s;
   }
   .form input:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(220,182,116,.12);}
+  .form input::placeholder, .modal input::placeholder, .modal textarea::placeholder{color:var(--muted); opacity:.6;}
   .form input[type=number]{font-variant-numeric: tabular-nums;}
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}

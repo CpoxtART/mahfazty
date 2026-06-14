@@ -1,6 +1,13 @@
 const CACHE = 'mhfzty-v3';
+const PRECACHE = ['./index.html', './style.css', './app.js'];
+
 self.addEventListener('install', e => {
-  self.skipWaiting();
+  // Pre-cache core files so the app works offline from the very first visit
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.addAll(PRECACHE))
+      .then(() => self.skipWaiting())
+  );
 });
 self.addEventListener('activate', e => {
   e.waitUntil(
