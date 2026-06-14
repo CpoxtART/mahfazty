@@ -3313,7 +3313,10 @@ async function applyImport(text){
   if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
 
   if(data.wallets){
-    // only restore known wallet ids from the imported file
+    // a backup is a complete snapshot — clear all balances first so wallets that
+    // are omitted from the imported file don't keep stale values that would
+    // mismatch the freshly-replaced transaction list
+    WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
     WALLET_DEFS.forEach(w => { if(data.wallets[w.id] !== undefined) state.wallets[w.id] = data.wallets[w.id]; });
   }
   if(data.transactions) state.transactions = data.transactions.filter(tx =>
@@ -3683,8 +3686,12 @@ async function driveSyncFromCloud(isInitial){
     const cloudHasData = (cloud.transactions || []).length > 0;
 
     if(isInitial && cloudHasData && !localHasData){
-      // adopt cloud data
-      if(cloud.wallets) WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
+      // adopt cloud data — clear balances first so the cloud snapshot fully
+      // replaces local wallets (omitted wallets must not keep stale values)
+      if(cloud.wallets){
+        WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+        WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
+      }
       if(cloud.transactions) state.transactions = cloud.transactions.filter(tx =>
         tx && (tx.type === 'income' || tx.type === 'expense') &&
         typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
@@ -3718,7 +3725,12 @@ async function resolveConflict(useCloud){
   const cloud = _pendingDriveCloud;
   _pendingDriveCloud = null;
   if(useCloud){
-    if(cloud.wallets) WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
+    // user chose to adopt the cloud copy — clear balances first so it fully
+    // replaces local wallets instead of merging stale values
+    if(cloud.wallets){
+      WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+      WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
+    }
     if(cloud.transactions) state.transactions = cloud.transactions.filter(tx =>
       tx && (tx.type === 'income' || tx.type === 'expense') &&
       typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
