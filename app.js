@@ -1504,6 +1504,7 @@ function attachSwipe(el, wrap, txId){
   const threshold = 90;
 
   el.addEventListener('touchstart', e=>{
+    if(el._swipeDeleting) return; // card is mid-delete — ignore new touches
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
     dragging = true;
@@ -1538,6 +1539,7 @@ function attachSwipe(el, wrap, txId){
       setTimeout(()=> deleteTx(txId), 220);
     } else {
       el.style.transform = 'translateX(0)';
+      el.style.opacity = ''; // restore if a previous swipe started fading it
     }
     currentX = 0;
   });
@@ -3116,6 +3118,10 @@ function setupPWA(){
     try{
       navigator.serviceWorker.register('./sw.js')
         .catch(e => console.warn('SW registration failed:', e));
+      // When a new SW takes control, prompt user to reload for the latest version
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        toast('📲 يتوفر تحديث جديد — أعد فتح التطبيق للحصول عليه');
+      });
     }catch(e){}
   }
 }
@@ -3183,10 +3189,15 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       addTx(addFormType);
     }
-    // Edit-modal inputs → save
-    if(id === 'editDesc' || id === 'editAmount'){
+    // Edit-modal inputs → save (date field included)
+    if(id === 'editDesc' || id === 'editAmount' || id === 'editDate'){
       e.preventDefault();
       saveEdit();
+    }
+    // Transfer-modal fields → execute transfer
+    if(id === 'transferAmount' || id === 'transferDate'){
+      e.preventDefault();
+      doTransfer();
     }
   }
   // Enter/Space activates custom dropdown triggers and their options (these are
