@@ -1329,7 +1329,7 @@ let _txVisibleCount = 50;
 // Also strips tashkeel (diacritics) and tatweel, and lowercases Latin text.
 function normalizeSearch(str){
   return String(str || '')
-    .replace(/[ً-ْٰ]/g, '') // tashkeel/diacritics
+    .replace(/[ً-ٰٟ]/g, '') // tashkeel/diacritics (full Arabic diacritic range)
     .replace(/ـ/g, '')                 // tatweel (ـ)
     .replace(/[أإآ]/g, 'ا')                  // alef variants → ا
     .replace(/ى/g, 'ي')                      // alef maqsura → ي

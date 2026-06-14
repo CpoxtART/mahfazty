@@ -9,6 +9,14 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<script>
+/* Apply saved theme before first paint to prevent dark-flash on light-mode devices */
+try{
+  var _t=localStorage.getItem('walletTracker_theme');
+  if(!_t)_t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme:light)').matches)?'light':'dark';
+  if(_t==='light')document.body.classList.add('light');
+}catch(e){}
+</script>
 
 <div id="splash">
   <div class="logo">💰</div>
