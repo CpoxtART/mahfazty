@@ -2491,8 +2491,10 @@ function renderAnalytics(){
 let _recurringCache = null;
 let _recurringCacheSig = '';
 function detectRecurring(){
-  const descLen = state.transactions.reduce((s,t)=>s+(t.desc||'').length, 0);
-  const sig = state.transactions.length + '|' + descLen + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size;
+  // _recurringCache is nulled on every render(); this inner sig only guards
+  // against duplicate calls within the same render cycle (e.g. from renderWallets
+  // and renderRecurring both running). descLen was O(n) and redundant here.
+  const sig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size;
   if(sig === _recurringCacheSig && _recurringCache) return _recurringCache;
   _recurringCacheSig = sig;
 
@@ -2822,6 +2824,7 @@ function attachSwipe(el, wrap, txId){
 function renderChart(){
   const canvas = document.getElementById('chartCanvas');
   const emptyEl = document.getElementById('chartEmpty');
+  if(!canvas || !emptyEl) return; // guard against missing DOM (e.g. while loading)
   const ctx = canvas.getContext('2d');
   if(!ctx){ emptyEl.style.display='block'; canvas.style.display='none'; return; }
   const dpr = window.devicePixelRatio || 1;
@@ -4364,9 +4367,12 @@ function buildManifestBlob(isLight){
 }
 function applyManifest(isLight){
   try{
-    const url = URL.createObjectURL(buildManifestBlob(isLight));
     const link = document.getElementById('manifestLink');
-    if(link) link.setAttribute('href', url);
+    if(!link) return;
+    // revoke the previous blob so it doesn't leak across theme toggles
+    const old = link.getAttribute('href');
+    if(old && old.startsWith('blob:')) URL.revokeObjectURL(old);
+    link.setAttribute('href', URL.createObjectURL(buildManifestBlob(isLight)));
   }catch(e){}
 }
 function setupPWA(){
@@ -4423,14 +4429,21 @@ function setupPWA(){
 /* Cheap signature of everything that affects visual output.
    Used to skip expensive re-renders when nothing changed. */
 let _renderSig = '';
+// Cached JSON strings for objects that change infrequently — avoids serializing
+// the entire object graph on every render() call (which fires on each interaction).
+let _sigWallets = '', _sigBudgets = '', _sigDist = '';
+let _sigWalletsObj = null, _sigBudgetsObj = null, _sigDistObj = null;
 function computeRenderSig(){
+  if(state.wallets !== _sigWalletsObj){ _sigWalletsObj = state.wallets; _sigWallets = JSON.stringify(state.wallets); }
+  if(budgets !== _sigBudgetsObj){ _sigBudgetsObj = budgets; _sigBudgets = JSON.stringify(budgets); }
+  if(DISTRIBUTION !== _sigDistObj){ _sigDistObj = DISTRIBUTION; _sigDist = JSON.stringify(DISTRIBUTION); }
   return [
     state.transactions.length,
     state.transactions.length ? state.transactions[state.transactions.length-1].id : '',
-    JSON.stringify(state.wallets),
+    _sigWallets,
     currentFilter, walletFilter, categoryFilter, searchQuery,
-    state.crisisMode, JSON.stringify(budgets),
-    JSON.stringify(DISTRIBUTION), autoDistribute,
+    state.crisisMode, _sigBudgets,
+    _sigDist, autoDistribute,
     dismissedRecurring.size
   ].join('|');
 }
