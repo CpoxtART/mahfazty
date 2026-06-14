@@ -1836,6 +1836,10 @@ function startVoiceInput(){
   voiceRecognition.onresult = (event) => {
     if(!event.results || !event.results[0] || !event.results[0][0]) return;
     const transcript = event.results[0][0].transcript.trim();
+    if(!transcript){
+      toast('🎤 لم يُفهم الكلام — حاول مجددًا', true);
+      return;
+    }
     applyVoiceTranscript(transcript);
   };
 
@@ -2259,7 +2263,10 @@ function openWalletDetail(walletId){
 
   const txs = state.transactions.filter(t=>t.wallet===walletId).sort((a,b)=>b.ts-a.ts);
   let inc=0, exp=0;
-  txs.forEach(t => { if(t.category==='transfer') return; t.type==='income' ? inc+=t.amount : exp+=t.amount; });
+  txs.forEach(t => {
+    if(t.category==='transfer' || t.category==='adjustment') return;
+    t.type==='income' ? inc+=t.amount : exp+=t.amount;
+  });
   document.getElementById('detailCount').textContent = txs.length;
   document.getElementById('detailIncome').textContent = fmt(inc);
   document.getElementById('detailExpense').textContent = fmt(exp);
@@ -3047,7 +3054,8 @@ async function saveEdit(){
   const dateVal = document.getElementById('editDate').value || todayISO();
   const oldDate = new Date(tx.ts);
   const newTs = new Date(dateVal + 'T' + oldDate.toTimeString().slice(0,8)).getTime();
-  tx.ts = isFinite(newTs) ? newTs : (isFinite(tx.ts) ? tx.ts : Date.now());
+  // cap to now — prevents future-dated transactions from corrupting time filters
+  tx.ts = isFinite(newTs) ? Math.min(newTs, Date.now()) : (isFinite(tx.ts) ? tx.ts : Date.now());
 
   applyTxToBalance(tx, +1);
 
