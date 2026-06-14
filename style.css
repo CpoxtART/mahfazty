@@ -195,6 +195,12 @@
   .hero .meta-row .dot{width:6px; height:6px; border-radius:50%;}
   .hero .meta-row .dot.g{background:var(--green);}
   .hero .meta-row .dot.r{background:var(--red);}
+  body.light .hero{
+    background:linear-gradient(160deg, var(--card2) 0%, var(--card) 65%, var(--bg-elev) 100%);
+  }
+  body.light .hero::before{
+    background:repeating-linear-gradient(135deg, rgba(220,182,116,.06) 0 2px, transparent 2px 30px);
+  }
 
   /* ================= CRISIS ================= */
   .crisis-toggle{
