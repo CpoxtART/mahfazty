@@ -1665,6 +1665,7 @@ function setWalletFilter(id){
   renderTxList();
   renderChart();
   renderPieChart();
+  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function clearWalletFilter(){
   walletFilter = null;
@@ -1674,6 +1675,7 @@ function clearWalletFilter(){
   renderTxList();
   renderChart();
   renderPieChart();
+  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function toggleCategoryFilter(catId){
@@ -1690,6 +1692,7 @@ function toggleCategoryFilter(catId){
   renderTxList();
   renderChart();
   renderPieChart();
+  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 
@@ -2229,13 +2232,15 @@ function updateDistTotal(){
   const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
   const el = document.getElementById('distTotalRow');
   if(!el) return;
-  el.textContent = 'الإجمالي: ' + total.toFixed(1) + '%';
-  el.className = 'dist-total ' + (Math.abs(total-100)<0.01 ? 'ok' : 'warn');
+  const display = total.toFixed(1);
+  el.textContent = 'الإجمالي: ' + display + '%';
+  // compare using the rounded display value so color always matches what user reads
+  el.className = 'dist-total ' + (parseFloat(display) === 100 ? 'ok' : 'warn');
 }
 
 async function saveDistribution(){
   const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
-  if(Math.abs(total-100) > 0.01){
+  if(parseFloat(total.toFixed(1)) !== 100){
     if(!confirm(`الإجمالي الحالي ${total.toFixed(1)}% وليس 100%. حفظ مع ذلك؟`)) return;
   }
   await saveConfig();
@@ -2475,6 +2480,7 @@ function setFilter(f){
   renderTxList();
   renderChart();
   renderPieChart(); // pie depends on the active time range (inRange)
+  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function inRange(ts){
@@ -2498,7 +2504,7 @@ function onSearchInput(){
   document.getElementById('searchBox').classList.toggle('has-text', searchQuery.length>0);
   _txVisibleCount = 50;
   clearTimeout(_searchDebounce);
-  _searchDebounce = setTimeout(()=> renderTxList(), 150);
+  _searchDebounce = setTimeout(()=>{ renderTxList(); document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
 }
 function clearSearch(){
   searchQuery = '';
