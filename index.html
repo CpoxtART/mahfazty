@@ -1973,6 +1973,12 @@ function renderEditCategoryGrid(){
 function getCategory(id){
   return CATEGORIES.find(c=>c.id===id) || CATEGORIES.find(c=>c.id==='other') || CATEGORIES[0];
 }
+// Collapse any unknown/untrusted category (e.g. from a crafted backup) to a
+// known id; 'adjustment' is internal-but-valid, everything else falls to 'other'
+const _KNOWN_CATEGORIES = new Set([...CATEGORIES.map(c=>c.id), 'adjustment']);
+function normalizeCategory(cat){
+  return _KNOWN_CATEGORIES.has(cat) ? cat : 'other';
+}
 
 /* ============================================================
    CATEGORY PIE CHART
@@ -2030,7 +2036,7 @@ function renderPieChart(){
         cmpHtml = `<span class="cat-cmp up">جديد</span>`;
       }
     }
-    html += `<div class="row cat-row" data-cat="${catId}"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct.toFixed(0)}%)</span></div>`;
+    html += `<div class="row cat-row" data-cat="${escHtml(catId)}"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct.toFixed(0)}%)</span></div>`;
   });
   html += '</div>';
   wrap.innerHTML = html;
@@ -3333,7 +3339,7 @@ async function applyImport(text){
     typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
     (tx.type === 'income' || tx.type === 'expense') &&
     WALLET_DEFS.find(w => w.id === tx.wallet)
-  );
+  ).map(tx => ({ ...tx, category: normalizeCategory(tx.category) }));
   if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
   if(data.budgets && typeof data.budgets === 'object') budgets = sanitizeBudgets(data.budgets);
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
