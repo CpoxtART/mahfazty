@@ -966,7 +966,7 @@
       <button id="editTypeInc" class="inc" onclick="setEditType('income')">➕ دخل</button>
     </div>
     <label>المحفظة</label>
-    <div class="custom-select" id="editWalletBtn" onclick="toggleEditWalletMenu()">
+    <div class="custom-select" id="editWalletBtn" onclick="toggleEditWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox">
       <span id="editWalletLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
@@ -1078,14 +1078,14 @@
     <div class="grabber"></div>
     <h3>🔁 تحويل بين المحافظ</h3>
     <label>من محفظة</label>
-    <div class="custom-select" id="transferFromBtn" onclick="toggleTransferMenu('from')">
+    <div class="custom-select" id="transferFromBtn" onclick="toggleTransferMenu('from')" role="button" tabindex="0" aria-haspopup="listbox">
       <span id="transferFromLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
     <div class="wallet-menu" id="transferFromMenuWrap"><div id="transferFromMenu" role="listbox"></div></div>
 
     <label>إلى محفظة</label>
-    <div class="custom-select" id="transferToBtn" onclick="toggleTransferMenu('to')">
+    <div class="custom-select" id="transferToBtn" onclick="toggleTransferMenu('to')" role="button" tabindex="0" aria-haspopup="listbox">
       <span id="transferToLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
@@ -1197,6 +1197,7 @@
       وجدنا بيانات محفوظة على Drive <b style="color:var(--text)">وأيضًا</b> بيانات محلية على هذا الجهاز.<br>
       أيٌّ منهما تريد الاحتفاظ به؟
     </div>
+    <div id="conflictInfo" style="margin-top:12px; font-size:12.5px; line-height:1.9;"></div>
     <div style="display:flex; flex-direction:column; gap:10px; margin:16px 0;">
       <button class="btn-primary" onclick="resolveConflict(true)">☁️ استخدم نسخة Drive (تستبدل المحلية)</button>
       <button class="btn-secondary" onclick="resolveConflict(false)">📱 احتفظ بالمحلية (ارفعها إلى Drive)</button>
@@ -1330,6 +1331,10 @@ function parseAmount(str){
 
 function escHtml(str){
   return String(str||'')
+    // strip Unicode bidi embedding/override/isolate controls — a pasted or voiced
+    // description containing e.g. U+202E can otherwise visually scramble the whole
+    // RTL layout of surrounding UI text ("Trojan Source"-style display corruption)
+    .replace(/[‪-‮⁦-⁩]/g,'')
     .replace(/&/g,'&amp;')
     .replace(/</g,'&lt;')
     .replace(/>/g,'&gt;')
@@ -1720,6 +1725,7 @@ function renderWalletSelect(){
     const opt = document.createElement('div');
     opt.className = 'opt' + (w.id === selectedWallet ? ' selected' : '');
     opt.setAttribute('role','option');
+    opt.tabIndex = 0; // keyboard-reachable when the menu is open
     const val = state.wallets[w.id] ?? 0;
     opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
     opt.onclick = () => selectWallet(w.id);
@@ -1753,6 +1759,8 @@ function renderEditWalletSelect(){
   list.forEach(w => {
     const opt = document.createElement('div');
     opt.className = 'opt' + (w.id === editWallet ? ' selected' : '');
+    opt.setAttribute('role','option');
+    opt.tabIndex = 0;
     const val = state.wallets[w.id] ?? 0;
     opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
     opt.onclick = () => { editWallet = w.id; document.getElementById('editWalletMenuWrap').classList.remove('open'); document.getElementById('editWalletBtn').classList.remove('open'); renderEditWalletSelect(); };
@@ -2109,6 +2117,8 @@ function renderTransferMenus(){
     SELECTABLE_WALLETS.forEach(w=>{
       const opt = document.createElement('div');
       opt.className = 'opt' + (w.id===selected ? ' selected' : '');
+      opt.setAttribute('role','option');
+      opt.tabIndex = 0;
       const val = state.wallets[w.id] ?? 0;
       opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
       opt.onclick = () => {
@@ -3769,8 +3779,25 @@ async function driveSyncFromCloud(isInitial){
       render();
       toast('☁️ تم تحميل بياناتك من Drive');
     } else if(isInitial && cloudHasData && localHasData){
-      // both have data — show non-blocking conflict modal
+      // both have data — show conflict modal WITH a summary of each copy so the
+      // user makes an informed choice (we deliberately don't auto-resolve by
+      // timestamp: clock skew between devices could silently drop newer edits)
       _pendingDriveCloud = cloud;
+      const fmtWhen = ms => {
+        if(!ms || !isFinite(ms)) return 'غير معروف';
+        try{ return new Date(ms).toLocaleString('ar', {dateStyle:'medium', timeStyle:'short'}); }
+        catch(_){ return new Date(ms).toLocaleString(); }
+      };
+      const cloudTime = cloud.exportedAt ? Date.parse(cloud.exportedAt) : 0;
+      const localTime = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0;
+      const cloudCount = (cloud.transactions || []).length;
+      const localCount = state.transactions.length;
+      const newer = cloudTime > localTime ? 'cloud' : (localTime > cloudTime ? 'local' : '');
+      const tag = side => newer === side ? ' <b style="color:var(--green)">(الأحدث)</b>' : '';
+      const info = document.getElementById('conflictInfo');
+      if(info) info.innerHTML =
+        `☁️ <b>Drive</b>: ${cloudCount} عملية · ${escHtml(fmtWhen(cloudTime))}${tag('cloud')}<br>` +
+        `📱 <b>المحلية</b>: ${localCount} عملية · ${escHtml(fmtWhen(localTime))}${tag('local')}`;
       openModal('driveConflictModal');
     } else {
       setDriveIndicator('ok');
@@ -4143,6 +4170,15 @@ document.addEventListener('keydown', e => {
     if(id === 'editDesc' || id === 'editAmount'){
       e.preventDefault();
       saveEdit();
+    }
+  }
+  // Enter/Space activates custom dropdown triggers and their options (these are
+  // <div>s with onclick, so they need explicit keyboard activation unlike <button>)
+  if(e.key === 'Enter' || e.key === ' '){
+    const el = document.activeElement;
+    if(el && (el.classList.contains('custom-select') || el.classList.contains('opt'))){
+      e.preventDefault();
+      el.click();
     }
   }
   if(e.key === 'Escape'){
