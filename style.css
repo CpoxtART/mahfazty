@@ -399,22 +399,26 @@
   .custom-select .arrow{color:var(--muted); transition:transform .2s var(--ease); font-size:11px;}
   .custom-select.open .arrow{transform:rotate(180deg);}
   .wallet-menu{
-    display:grid;
-    grid-template-rows: 0fr;
     background:var(--bg-elev);
     border:1px solid transparent;
     border-radius:var(--radius-sm);
     margin-bottom:0;
+    max-height:0;
+    opacity:0;
     overflow:hidden;
-    transition: grid-template-rows .25s var(--ease), margin-bottom .25s var(--ease), border-color .25s;
+    /* isolate the dropdown's reflow from the rest of the page so opening it
+       doesn't re-layout the whole form (was using grid 0fr→1fr which is
+       not GPU-composited and janked on mobile) */
+    contain:layout paint;
+    transition: max-height .22s var(--ease), margin-bottom .22s var(--ease), border-color .2s, opacity .16s var(--ease);
   }
   .wallet-menu.open{
-    grid-template-rows: 1fr;
+    max-height:280px;
     margin-bottom:12px;
     border-color: var(--line);
-    max-height:260px;
+    opacity:1;
   }
-  .wallet-menu > div{overflow-y:auto; max-height:260px; min-height:0;}
+  .wallet-menu > div{overflow-y:auto; max-height:280px; min-height:0; -webkit-overflow-scrolling:touch;}
   .wallet-menu .opt{
     padding:11px 13px;
     font-size:13.5px;
