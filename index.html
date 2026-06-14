@@ -4127,6 +4127,7 @@ function initDrive(){
         if(driveTokenValid()){
           // still have a live token — pull quietly (auto-resolve, no modal)
           driveSyncFromCloud(true, false);
+        }
         // No live token: show the sign-in button.
         // We intentionally do NOT call requestAccessToken({prompt:''}) here
         // because on mobile Chrome a programmatic call without a user gesture
