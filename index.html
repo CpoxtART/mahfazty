@@ -1307,8 +1307,8 @@ let dismissedRecurring = new Set();
    FORMAT HELPERS
 ============================================================ */
 function fmt(n){
-  if(isNaN(n) || !isFinite(n)) return '0';
-  return Number(n).toLocaleString('en-US', {maximumFractionDigits:2});
+  if(isNaN(n) || !isFinite(n)) return '0.00';
+  return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
 function escHtml(str){
@@ -2193,7 +2193,7 @@ function renderDistributionEditor(){
       <span class="pct-sign">%</span>
     `;
     row.querySelector('input').oninput = (e)=>{
-      DISTRIBUTION[i].pct = Math.max(0, parseFloat(e.target.value) || 0);
+      DISTRIBUTION[i].pct = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
       updateDistTotal();
     };
     wrap.appendChild(row);
@@ -2949,7 +2949,7 @@ function sanitizeDistribution(arr){
   if(!Array.isArray(arr)) return DEFAULT_DISTRIBUTION.map(d=>({...d}));
   const cleaned = arr
     .filter(d => d && WALLET_DEFS.find(w=>w.id===d.id))
-    .map(d => ({...d, pct: Math.max(0, isFinite(d.pct) ? d.pct : 0)}));
+    .map(d => ({...d, pct: Math.min(100, Math.max(0, isFinite(d.pct) ? d.pct : 0))}));
   return cleaned.length ? cleaned : DEFAULT_DISTRIBUTION.map(d=>({...d}));
 }
 function sanitizeBudgets(obj){
