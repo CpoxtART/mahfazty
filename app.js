@@ -386,7 +386,7 @@ function renderWallets(){
       const color = over ? 'var(--red)' : ratio > 0.8 ? '#e0c074' : 'var(--green)';
       budgetHtml = `
         <div class="budget-row">
-          <div class="bar" style="margin-top:6px;"><i style="width:${(ratio*100).toFixed(0)}%; background:${color};"></i></div>
+          <div class="bar" style="margin-top:6px;"><i style="transform:scaleX(${ratio.toFixed(4)}); background:${color};"></i></div>
           <div class="budget-label" style="color:${over?'var(--red)':'var(--muted)'}">${fmt(spent)} / ${fmt(budget)}${over?' ⚠':''}</div>
         </div>`;
     }
@@ -397,7 +397,7 @@ function renderWallets(){
         <div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" title="التفاصيل">ⓘ ${getWalletPctLabel(w)}</div>
       </div>
       <div class="val">${fmt(val)}</div>
-      <div class="bar"><i style="width:${pctWidth}%"></i></div>
+      <div class="bar"><i style="transform:scaleX(${(pctWidth/100).toFixed(4)})"></i></div>
       ${budgetHtml}
     `;
     div.title = w.track ? (w.name + ' — رقم تتبع فقط، غير مُحتسب بالإجمالي المتاح للصرف') : '';

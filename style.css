@@ -279,7 +279,7 @@
   .wallet .bar{
     height:3px; background:var(--line-soft); border-radius:2px; margin-top:9px; overflow:hidden;
   }
-  .wallet .bar i{display:block; height:100%; background:linear-gradient(to left, var(--gold), var(--gold-dim)); border-radius:2px; transition:width .5s var(--ease);}
+  .wallet .bar i{display:block; height:100%; width:100%; background:linear-gradient(to left, var(--gold), var(--gold-dim)); border-radius:2px; transform-origin:right center; transition:transform .5s var(--ease);}
   .budget-label{font-size:9.5px; color:var(--muted); margin-top:4px; direction:ltr; text-align:right; font-variant-numeric: tabular-nums;}
 
   /* analytics */
