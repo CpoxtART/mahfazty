@@ -1317,19 +1317,22 @@ function escHtml(str){
     .replace(/'/g,'&#x27;');
 }
 
+const _animFrames = {}; // track active animation frames per element id to allow cancellation
 function animateNumber(el, from, to, duration){
   if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
     el.textContent = fmt(to);
     return;
   }
+  if(_animFrames[el.id]) cancelAnimationFrame(_animFrames[el.id]);
   const start = performance.now();
   function frame(now){
     const t = Math.min(1, (now - start) / duration);
     const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
     el.textContent = fmt(from + (to - from) * eased);
-    if(t < 1) requestAnimationFrame(frame);
+    if(t < 1) _animFrames[el.id] = requestAnimationFrame(frame);
+    else delete _animFrames[el.id];
   }
-  requestAnimationFrame(frame);
+  _animFrames[el.id] = requestAnimationFrame(frame);
 }
 /* ============================================================
    THEME (dark / light)
@@ -2479,6 +2482,7 @@ function renderTxList(){
     if(tx.type === 'income') income += tx.amount;
     else expense += tx.amount;
   });
+  income = round2(income); expense = round2(expense);
   document.getElementById('sumIncome').textContent = fmt(income);
   document.getElementById('sumExpense').textContent = fmt(expense);
   document.getElementById('sumNet').textContent = fmt(income - expense);
@@ -2496,7 +2500,7 @@ function renderTxList(){
         if(tx.type==='income') mIncome+=tx.amount; else mExpense+=tx.amount;
       }
     });
-    _heroStatsCache = {mIncome, mExpense};
+    _heroStatsCache = {mIncome: round2(mIncome), mExpense: round2(mExpense)};
     _heroStatsSig = _hSig;
   }
   document.getElementById('heroIncome').textContent = fmt(_heroStatsCache.mIncome);
@@ -2945,6 +2949,18 @@ async function saveEdit(){
       const partner = transferPartners[0];
       applyTxToBalance(partner, -1);
       partner.amount = newAmount;
+      // keep partner description in sync with the edited leg's wallet
+      const newWalletDef = WALLET_DEFS.find(w => w.id === editWallet);
+      const partnerWalletDef = WALLET_DEFS.find(w => w.id === partner.wallet);
+      if(newWalletDef && partnerWalletDef){
+        if(tx.type === 'expense'){
+          tx.desc = tx.desc || ('تحويل إلى ' + partnerWalletDef.name);
+          partner.desc = 'تحويل من ' + newWalletDef.name;
+        } else {
+          tx.desc = tx.desc || ('تحويل من ' + partnerWalletDef.name);
+          partner.desc = 'تحويل إلى ' + newWalletDef.name;
+        }
+      }
       applyTxToBalance(partner, +1);
     }
   }
@@ -3906,6 +3922,15 @@ loadState().then(()=>{
   }
 });
 initDrive();
+
+// Refresh time-sensitive UI (budget bars, day/week filter, analytics) when user returns to tab
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible'){
+    _monthlyExpenseCache = null;
+    _monthlyExpenseCacheKey = '';
+    render(true);
+  }
+});
 
 // Multi-tab sync: reload state if another tab saves data
 window.addEventListener('storage', (e) => {
