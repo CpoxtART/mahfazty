@@ -1401,7 +1401,15 @@ async function loadState(){
 
   try{
     const tx = localStorage.getItem(LS_PREFIX + 'transactions');
-    if(tx) state.transactions = JSON.parse(tx);
+    if(tx){
+      const parsed = JSON.parse(tx);
+      state.transactions = Array.isArray(parsed) ? parsed.filter(t =>
+        t && (t.type === 'income' || t.type === 'expense') &&
+        typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
+        typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 &&
+        WALLET_DEFS.find(w => w.id === t.wallet)
+      ) : [];
+    }
   }catch(e){}
 
   try{
@@ -1435,6 +1443,7 @@ async function loadState(){
       state.transactions = _idb.transactions.filter(tx =>
         tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
         typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+        (tx.type === 'income' || tx.type === 'expense') &&
         WALLET_DEFS.find(w => w.id === tx.wallet)
       );
       if(typeof _idb.crisisMode === 'boolean') state.crisisMode = _idb.crisisMode;
@@ -1530,7 +1539,7 @@ function _buildMonthlyExpenseCache(){
   const now = new Date();
   const cache = {};
   state.transactions.forEach(tx=>{
-    if(tx.type!=='expense' || tx.category==='transfer') return;
+    if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
     const d = new Date(tx.ts);
     if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
       cache[tx.wallet] = (cache[tx.wallet]||0) + tx.amount;
@@ -1948,7 +1957,7 @@ function renderPieChart(){
   const filtered = state.transactions
     .filter(tx => inRange(tx.ts))
     .filter(tx => !walletFilter || tx.wallet === walletFilter)
-    .filter(tx => tx.type==='expense' && tx.category !== 'transfer');
+    .filter(tx => tx.type==='expense' && tx.category !== 'transfer' && tx.category !== 'adjustment');
 
   if(filtered.length === 0){
     wrap.innerHTML = '<div class="chart-empty" style="flex:1;">لا توجد مصروفات في هذه الفترة</div>';
@@ -1969,7 +1978,7 @@ function renderPieChart(){
     prevTotals = {};
     const [prevStart, prevEnd] = monthRange(1);
     state.transactions.forEach(tx=>{
-      if(tx.type!=='expense' || tx.category==='transfer') return;
+      if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
       if(tx.ts < prevStart || tx.ts >= prevEnd) return;
       if(walletFilter && tx.wallet !== walletFilter) return;
       const cat = tx.category || 'other';
@@ -2142,7 +2151,7 @@ async function updateTrackedBalance(){
       desc: 'تحديث رصيد ' + w.name,
       amount: Math.abs(diff),
       type: diff > 0 ? 'income' : 'expense',
-      category: 'other',
+      category: 'adjustment', // excluded from pie chart and recurring detection
       ts: Date.now()
     };
     state.transactions.push(tx);
@@ -2367,7 +2376,7 @@ function detectRecurring(){
 
   const groups = {};
   state.transactions.forEach(tx=>{
-    if(tx.type!=='expense' || tx.category==='transfer') return;
+    if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
     const key = (tx.desc||'').trim().toLowerCase();
     if(!key) return;
     if(!groups[key]) groups[key] = [];
@@ -3249,6 +3258,7 @@ async function applyImport(text){
     tx &&
     typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
     typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+    (tx.type === 'income' || tx.type === 'expense') &&
     WALLET_DEFS.find(w => w.id === tx.wallet)
   );
   if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
@@ -3613,7 +3623,8 @@ async function driveSyncFromCloud(isInitial){
       // adopt cloud data
       if(cloud.wallets) WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
       if(cloud.transactions) state.transactions = cloud.transactions.filter(tx =>
-        tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+        tx && (tx.type === 'income' || tx.type === 'expense') &&
+        typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
         typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
         WALLET_DEFS.find(w => w.id === tx.wallet));
       if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
@@ -3646,7 +3657,8 @@ async function resolveConflict(useCloud){
   if(useCloud){
     if(cloud.wallets) WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
     if(cloud.transactions) state.transactions = cloud.transactions.filter(tx =>
-      tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+      tx && (tx.type === 'income' || tx.type === 'expense') &&
+      typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
       typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
       WALLET_DEFS.find(w => w.id === tx.wallet));
     if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
