@@ -2583,8 +2583,14 @@ function inRange(ts){
   if(currentFilter === 'all') return true;
   if(currentFilter === 'day') return d.toDateString() === now.toDateString();
   if(currentFilter === 'week'){
-    const diff = (now - d) / (1000*60*60*24);
-    return diff >= 0 && diff <= 7; // exclude future-dated txs (negative diff)
+    // calendar week starting Saturday (Gulf locale) — consistent with the
+    // calendar-based month/year filters instead of a ragged rolling 7-day window
+    const start = new Date(now);
+    start.setHours(0,0,0,0);
+    start.setDate(start.getDate() - ((now.getDay() + 1) % 7)); // back to Saturday
+    const end = new Date(start);
+    end.setDate(start.getDate() + 7);
+    return d >= start && d < end;
   }
   if(currentFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   if(currentFilter === 'year') return d.getFullYear() === now.getFullYear();
@@ -3087,9 +3093,16 @@ async function runDistribution(sourceTx, amount){
   active.forEach((d, i) => {
     const w = WALLET_DEFS.find(x=>x.id===d.id);
     if(!w) return; // guard against stale wallet ID in saved DISTRIBUTION
-    let share = round2(amount * d.pct / 100);
-    // last leg absorbs the rounding residual so the shares sum exactly
-    if(i === active.length - 1) share = round2(intendedTotal - allocated);
+    const remaining = round2(intendedTotal - allocated);
+    let share = (i === active.length - 1)
+      ? remaining                          // last leg absorbs the rounding residual
+      : round2(amount * d.pct / 100);
+    // never allocate more than what's left of intendedTotal — guards a >100%
+    // misconfiguration from producing a negative final share (which would push a
+    // bogus negative-amount tx AND create money out of nothing as later legs
+    // skip the negative apply while earlier legs already over-deposited)
+    if(share > remaining) share = remaining;
+    if(share <= 0) return; // nothing left for this (or any later) leg — skip it
     allocated = round2(allocated + share);
     const txIn = {
       id: 'tx_'+Date.now()+'_d'+(i+1)+Math.random().toString(36).slice(2,4),
@@ -3466,13 +3479,18 @@ async function applyImport(text){
     WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
     WALLET_DEFS.forEach(w => { if(data.wallets[w.id] !== undefined) state.wallets[w.id] = data.wallets[w.id]; });
   }
-  if(data.transactions) state.transactions = data.transactions.filter(tx =>
-    tx &&
-    typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
-    typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
-    (tx.type === 'income' || tx.type === 'expense') &&
-    WALLET_DEFS.find(w => w.id === tx.wallet)
-  ).map(tx => ({ ...tx, category: normalizeCategory(tx.category) }));
+  let _droppedTx = 0;
+  if(data.transactions){
+    const incoming = Array.isArray(data.transactions) ? data.transactions : [];
+    state.transactions = incoming.filter(tx =>
+      tx &&
+      typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+      (tx.type === 'income' || tx.type === 'expense') &&
+      WALLET_DEFS.find(w => w.id === tx.wallet)
+    ).map(tx => ({ ...tx, category: normalizeCategory(tx.category) }));
+    _droppedTx = incoming.length - state.transactions.length;
+  }
 
   // Strip orphaned link IDs — if only one leg of a linked transfer/distribution
   // group survived the import filter, its link field is dangling; unset it so
@@ -3491,7 +3509,11 @@ async function applyImport(text){
   await saveConfig();
   closeModal('dataModal');
   render(true);
-  toast('✓ تم الاستيراد بنجاح');
+  if(_droppedTx > 0){
+    toast(`✓ تم الاستيراد — لكن تم تجاهل ${_droppedTx} معاملة غير صالحة (محفظة مجهولة أو بيانات تالفة)`, true);
+  } else {
+    toast('✓ تم الاستيراد بنجاح');
+  }
 }
 
 async function resetBalancesOnly(){
