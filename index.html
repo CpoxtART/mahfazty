@@ -1826,7 +1826,9 @@ function startVoiceInput(){
   const btn = document.getElementById('voiceBtn');
 
   if(voiceRecognition){
-    voiceRecognition.stop();
+    // abort (not stop) so a cancel-tap discards partial audio instead of
+    // submitting an unintended transcript; onerror('aborted') is ignored below
+    voiceRecognition.abort();
     return;
   }
 
@@ -2595,7 +2597,9 @@ function renderTxList(){
       const lbl = document.createElement('div');
       lbl.className = 'tx-day-label';
       const isToday = dayKey === new Date().toDateString();
-      const isYesterday = dayKey === new Date(Date.now()-86400000).toDateString();
+      // step back one calendar day (not 24h) so DST transition days still label correctly
+      const _yest = new Date(); _yest.setDate(_yest.getDate()-1);
+      const isYesterday = dayKey === _yest.toDateString();
       lbl.textContent = isToday ? 'اليوم' : isYesterday ? 'أمس' : date.toLocaleDateString('ar-EG', {weekday:'long', day:'numeric', month:'long'});
       list.appendChild(lbl);
     }
@@ -3835,7 +3839,8 @@ function buildDailyReviewContent(){
   const now = new Date();
   const yesterday = new Date(now); yesterday.setDate(now.getDate()-1);
   const yStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()).getTime();
-  const yEnd = yStart + 86400000;
+  // exclusive end = start of today (calendar arithmetic, DST-safe — not yStart+24h)
+  const yEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()+1).getTime();
 
   let yExpense = 0, yIncome = 0, yCount = 0;
   state.transactions.forEach(tx=>{
@@ -4012,7 +4017,10 @@ function setupPWA(){
       `;
       const swBlob = new Blob([swCode], {type:'application/javascript'});
       const swUrl = URL.createObjectURL(swBlob);
-      navigator.serviceWorker.register(swUrl).catch(()=>{});
+      // revoke once the browser has fetched the SW code so the blob isn't leaked
+      navigator.serviceWorker.register(swUrl)
+        .then(()=> URL.revokeObjectURL(swUrl))
+        .catch(()=> URL.revokeObjectURL(swUrl));
     }catch(e){}
   }
 }
