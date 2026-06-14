@@ -1493,7 +1493,11 @@ function renderTxList(){
     const more = document.createElement('button');
     more.className = 'btn-secondary';
     more.style.cssText = 'margin:10px auto; display:block; width:auto; padding:10px 24px; font-size:13px;';
-    more.textContent = `⬇ عرض ${Math.min(remaining, 50)} معاملة أخرى (${remaining} متبقية)`;
+    const toShow = Math.min(remaining, 50);
+    const afterLoad = remaining - toShow;
+    more.textContent = afterLoad > 0
+      ? `⬇ عرض ${toShow} معاملة (${afterLoad} ستبقى مخفية)`
+      : `⬇ عرض الـ ${toShow} المتبقية`;
     more.onclick = () => { _txVisibleCount += 50; renderTxList(); };
     list.appendChild(more);
   }
@@ -2550,7 +2554,7 @@ function refreshDriveSettingsUI(){
 
 function saveDriveClientId(){
   const val = document.getElementById('driveClientId').value.trim();
-  if(!val || !val.endsWith('.apps.googleusercontent.com')){
+  if(!val || !/^[\w.-]+\.apps\.googleusercontent\.com$/.test(val)){
     toast('⚠ تأكد من نسخ Client ID كاملاً (ينتهي بـ .apps.googleusercontent.com)', true);
     return;
   }
