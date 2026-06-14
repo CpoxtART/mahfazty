@@ -4171,6 +4171,26 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// Proactive refresh when date rolls over while tab stays open in foreground
+// (visibilitychange only fires when the user switches away/back — this covers the
+// midnight-in-foreground case: month stats, day/week/year filter, budget bars all
+// depend on "today" and must update the moment the day changes)
+function scheduleNextMidnightRefresh(){
+  const now = new Date();
+  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  setTimeout(function midnightRefresh(){
+    _monthlyExpenseCache = null;
+    _monthlyExpenseCacheKey = '';
+    capDateInputsToToday();
+    render(true);
+    // re-arm for the following midnight
+    const n = new Date();
+    const nm = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1);
+    setTimeout(midnightRefresh, nm.getTime() - n.getTime());
+  }, nextMidnight.getTime() - now.getTime());
+}
+scheduleNextMidnightRefresh();
+
 // Multi-tab sync: reload state if another tab saves data
 window.addEventListener('storage', (e) => {
   if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit'){
