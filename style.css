@@ -666,6 +666,7 @@
     position:relative;
     transition: transform .25s var(--ease), background .15s;
     touch-action: pan-y;
+    will-change: transform; /* pre-promote so swipe-delete starts on the GPU without a first-frame pop */
   }
   .tx:active{background:var(--card2);}
   .tx.removing{

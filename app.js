@@ -122,7 +122,29 @@ function animateNumber(el, from, to, duration){
 /* ============================================================
    THEME (dark / light)
 ============================================================ */
+// Cache resolved CSS theme colors — getComputedStyle() forces a synchronous
+// layout flush, and the charts read these on every redraw. Invalidated whenever
+// the theme changes (applyTheme below).
+let _themeColorCache = {};
+function themeColor(name, fallback){
+  let v = _themeColorCache[name];
+  if(v === undefined){
+    v = getComputedStyle(document.body).getPropertyValue(name).trim() || fallback;
+    _themeColorCache[name] = v;
+  }
+  return v;
+}
+
+// Smooth-scroll the tx list into view AFTER the current render settles (deferring
+// to the next frame stops the scroll animation from competing with layout/canvas
+// work, which caused visible stutter on filter/search changes)
+function scrollToTxList(){
+  const el = document.getElementById('txList');
+  if(el) requestAnimationFrame(()=> el.scrollIntoView({behavior:'smooth', block:'start'}));
+}
+
 function applyTheme(theme){
+  _themeColorCache = {}; // theme switch — drop cached colors so charts re-read them
   document.body.classList.toggle('light', theme === 'light');
   const btn = document.getElementById('themeToggle');
   if(btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
@@ -450,7 +472,7 @@ function setWalletFilter(id){
   renderTxList();
   renderChart();
   renderPieChart();
-  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
+  scrollToTxList();
 }
 function clearWalletFilter(){
   walletFilter = null;
@@ -460,7 +482,7 @@ function clearWalletFilter(){
   renderTxList();
   renderChart();
   renderPieChart();
-  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
+  scrollToTxList();
 }
 
 function toggleCategoryFilter(catId){
@@ -477,7 +499,7 @@ function toggleCategoryFilter(catId){
   renderTxList();
   renderChart();
   renderPieChart();
-  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
+  scrollToTxList();
 }
 
 
@@ -887,7 +909,7 @@ function renderPieChart(){
   // donut hole
   ctx.beginPath();
   ctx.arc(cx,cy,r*0.55,0,Math.PI*2);
-  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--card') || '#1e222a';
+  ctx.fillStyle = themeColor('--card', '#1e222a');
   ctx.fill();
 }
 
@@ -1316,7 +1338,7 @@ function setFilter(f){
   renderTxList();
   renderChart();
   renderPieChart(); // pie depends on the active time range (inRange)
-  document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'});
+  scrollToTxList();
 }
 
 function inRange(ts){
@@ -1363,7 +1385,7 @@ function onSearchInput(){
   document.getElementById('searchBox').classList.toggle('has-text', raw.length > 0);
   _txVisibleCount = 50;
   clearTimeout(_searchDebounce);
-  _searchDebounce = setTimeout(()=>{ renderTxList(); document.getElementById('txList').scrollIntoView({behavior:'smooth', block:'start'}); }, 150);
+  _searchDebounce = setTimeout(()=>{ renderTxList(); scrollToTxList(); }, 150);
 }
 function clearSearch(){
   searchQuery = '';
@@ -1637,10 +1659,9 @@ function renderChart(){
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   const finalNet = points[points.length-1];
-  // Read from CSS variables so the chart adapts to light/dark theme
-  const cs = getComputedStyle(document.body);
-  const colorPos = cs.getPropertyValue('--green').trim() || '#86c39a';
-  const colorNeg = cs.getPropertyValue('--red').trim()   || '#e3918f';
+  // Read from CSS variables so the chart adapts to light/dark theme (cached)
+  const colorPos = themeColor('--green', '#86c39a');
+  const colorNeg = themeColor('--red', '#e3918f');
   const lineColor = finalNet >= 0 ? colorPos : colorNeg;
   ctx.strokeStyle = lineColor;
   ctx.lineWidth = 2.25;
