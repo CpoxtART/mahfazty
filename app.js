@@ -807,6 +807,22 @@ function renderPieChart(){
   const total = Object.values(totals).reduce((a,b)=>a+b,0);
   const entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
 
+  // largest-remainder rounding so the displayed integer percentages always sum
+  // to exactly 100 (plain toFixed(0) per slice could yield 99% or 101%)
+  const pctMap = {};
+  if(total > 0){
+    let floorSum = 0;
+    const fracs = entries.map(([catId, amt]) => {
+      const exact = amt / total * 100;
+      const fl = Math.floor(exact);
+      pctMap[catId] = fl; floorSum += fl;
+      return { catId, frac: exact - fl };
+    });
+    let leftover = Math.round(100 - floorSum);
+    fracs.sort((a,b)=> b.frac - a.frac);
+    for(let i=0; i<leftover && i<fracs.length; i++) pctMap[fracs[i].catId] += 1;
+  }
+
   // per-category comparison vs last month (only meaningful when viewing "month")
   let prevTotals = null;
   if(currentFilter === 'month'){
@@ -826,7 +842,7 @@ function renderPieChart(){
   html += '<div class="pie-legend">';
   entries.forEach(([catId, amt]) => {
     const cat = getCategory(catId);
-    const pct = (amt/total*100);
+    const pct = pctMap[catId] ?? Math.round(amt/total*100);
     let cmpHtml = '';
     if(prevTotals){
       const prevAmt = prevTotals[catId] || 0;
@@ -840,7 +856,7 @@ function renderPieChart(){
         cmpHtml = `<span class="cat-cmp up">جديد</span>`;
       }
     }
-    html += `<div class="row cat-row" data-cat="${escHtml(catId)}"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct.toFixed(0)}%)</span></div>`;
+    html += `<div class="row cat-row" data-cat="${escHtml(catId)}"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
   });
   html += '</div>';
   wrap.innerHTML = html;
