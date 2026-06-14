@@ -4097,25 +4097,22 @@ function initDrive(){
           // still have a live token — pull quietly (auto-resolve, no modal)
           driveSyncFromCloud(true, false);
         } else if(gisTokenClient && !isEmbeddedOrStandalone()){
-          // Attempt silent reconnect only when the token expired RECENTLY (≤ 2h).
-          // _savedTokenExp was captured before clearDriveToken() removed the key,
-          // so this check is accurate even after the stale token was cleared.
-          // If the token expired > 2h ago, Google's own session has very likely
-          // also expired, so prompt:'' would open the gsi/transfer popup that
-          // hangs blank instead of completing silently.
-          const recentExpiry = _savedTokenExp > 0 && (Date.now() - _savedTokenExp) < 2*3600*1000;
-          if(recentExpiry){
-            _driveAutoReconnect = true;
-            // Safety: if the GIS callback never fires (e.g. popup blocked silently),
-            // reset the flag after 10s so the app doesn't stay in a limbo state.
-            clearTimeout(_driveAutoReconnectGuard);
-            _driveAutoReconnectGuard = setTimeout(() => {
-              if(_driveAutoReconnect){ _driveAutoReconnect = false; refreshDriveSettingsUI(); }
-              _driveAutoReconnectGuard = null;
-            }, 10000);
-            try{ gisTokenClient.requestAccessToken({prompt:''}); }
-            catch(_){ clearTimeout(_driveAutoReconnectGuard); _driveAutoReconnectGuard = null; _driveAutoReconnect = false; }
-          }
+          // Always attempt a silent reconnect when we don't have a live token.
+          // Google's own session cookies live under google.com and survive
+          // browser storage wipes on our domain, so prompt:'' succeeds silently
+          // as long as the user's Google session is active (typically weeks).
+          // If the session has truly expired the GIS callback fires immediately
+          // with resp.error and we show the sign-in button — no popup, no hang.
+          // The 10s guard below protects against the rare edge-case where the
+          // callback never fires at all (blocked popup, network loss, etc.).
+          _driveAutoReconnect = true;
+          clearTimeout(_driveAutoReconnectGuard);
+          _driveAutoReconnectGuard = setTimeout(() => {
+            if(_driveAutoReconnect){ _driveAutoReconnect = false; refreshDriveSettingsUI(); }
+            _driveAutoReconnectGuard = null;
+          }, 10000);
+          try{ gisTokenClient.requestAccessToken({prompt:''}); }
+          catch(_){ clearTimeout(_driveAutoReconnectGuard); _driveAutoReconnectGuard = null; _driveAutoReconnect = false; }
         }
       } else if(_gisRetries++ < 25){ // ~7.5s max wait
         setTimeout(tryInit, 300);
