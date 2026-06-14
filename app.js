@@ -937,7 +937,7 @@ async function doTransfer(){
     const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
     if(!fromWallet || !toWallet){ toast('⚠ محفظة غير صحيحة', true); return; }
     const fromBalance = state.wallets[transferFrom] ?? 0;
-    if(!fromWallet.track && fromBalance - amt < -0.01){
+    if(!fromWallet.track && round2(fromBalance - amt) < 0){
       toast(`⚠ الرصيد غير كافٍ — المتاح: ${fmt(Math.max(0, fromBalance))}`, true);
       return;
     }
@@ -2300,7 +2300,8 @@ async function wipeAll(){
    TOAST
 ============================================================ */
 function toast(msg, isError){
-  // If an undo-delete is pending, cancel it before overwriting the undo button in the DOM
+  // Non-error toasts must not overwrite an active undo-delete button; error toasts always show
+  if(_lastDeleted && !isError) return;
   if(_lastDeleted){ clearTimeout(_undoTimer); _lastDeleted = null; }
   const el = document.getElementById('saveStatus');
   el.textContent = msg;
