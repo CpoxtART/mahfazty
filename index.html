@@ -855,7 +855,7 @@
 
   <label>الوصف</label>
   <div class="voice-input-row">
-    <input type="text" id="descInput" placeholder="مثال: عشاء، راتب، مواصلات...">
+    <input type="text" id="descInput" maxlength="120" placeholder="مثال: عشاء، راتب، مواصلات...">
     <button type="button" class="voice-btn" id="voiceBtn" onclick="startVoiceInput()" title="إدخال صوتي" aria-label="إدخال صوتي">🎤</button>
   </div>
 
@@ -972,7 +972,7 @@
     </div>
     <div class="wallet-menu" id="editWalletMenuWrap"><div id="editWalletMenu" role="listbox"></div></div>
     <label>الوصف</label>
-    <input type="text" id="editDesc" placeholder="الوصف">
+    <input type="text" id="editDesc" maxlength="120" placeholder="الوصف">
     <label>المبلغ</label>
     <input type="number" id="editAmount" step="any" inputmode="decimal">
     <label>التاريخ</label>
@@ -1812,7 +1812,7 @@ function guessCategory(text){
 }
 
 function guessType(text){
-  const incomeWords = ['استلمت','استقبلت','دخل','راتب','ربحت','حولوا لي','جاني'];
+  const incomeWords = ['استلمت','استقبلت','دخل','راتب','ربحت','كسبت','حولوا لي','حول لي','حولني','وصلني','وصل لي','جاني','هدية','مكافأة','بونص','عائد','فائدة','أرسلوا لي'];
   return incomeWords.some(w => text.includes(w)) ? 'income' : 'expense';
 }
 
@@ -1891,10 +1891,11 @@ function applyVoiceTranscript(text){
   } else if(!amount){
     document.getElementById('descInput').value = text; // fallback: raw transcript
   }
-  if(category){
-    selectedCategory = category;
-    setAddFormType(type); // sync form type so category grid shows correct options
-  }
+  // apply the guessed income/expense type even when no category matched, so a
+  // clear income phrase isn't left sitting on the expense form. setAddFormType
+  // also drops the category if it's incompatible with the type, then re-renders.
+  if(category) selectedCategory = category;
+  setAddFormType(type);
 
   if(amount !== null){
     toast(`🎤 "${text}" → ${fmt(amount)} ${desc?'· '+desc:''}`);
@@ -2070,8 +2071,10 @@ function renderPieChart(){
 let transferFrom = null, transferTo = null;
 
 function openTransferModal(){
-  transferFrom = WALLET_DEFS[0].id;
-  transferTo = WALLET_DEFS[1].id;
+  // default to spendable wallets (the menus only list SELECTABLE_WALLETS), and
+  // stay valid even if the wallet list is reordered or shrinks
+  transferFrom = SELECTABLE_WALLETS[0].id;
+  transferTo = (SELECTABLE_WALLETS[1] || SELECTABLE_WALLETS[0]).id;
   renderTransferMenus();
   document.getElementById('transferAmount').value = '';
   document.getElementById('transferDate').value = todayISO();
@@ -2801,7 +2804,7 @@ async function addTx(type){
   _addTxBusy = true;
   try{
     const walletId = selectedWallet;
-    const desc = document.getElementById('descInput').value.trim();
+    const desc = document.getElementById('descInput').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
     const amountVal = parseFloat(document.getElementById('amountInput').value.replace(/,/g,''));
     const dateVal = document.getElementById('dateInput').value || todayISO();
 
@@ -2866,7 +2869,7 @@ function openDistributionModal(amount){
   document.getElementById('distAmountLabel').textContent = fmt(amount);
   const wrap = document.getElementById('distBreakdown');
   wrap.innerHTML = '';
-  const activeEntries = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id));
+  const activeEntries = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
   if(activeEntries.length === 0){
     const warn = document.createElement('div');
     warn.className = 'hint';
@@ -2904,7 +2907,7 @@ function skipDistribution(){
 async function confirmDistribution(){
   saveAutoDistributePref();
   if(!pendingIncomeTx) { closeModal('distributeModal'); return; }
-  const hasActive = DISTRIBUTION.some(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id));
+  const hasActive = DISTRIBUTION.some(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
   if(!hasActive){
     toast('⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً', true);
     return;
@@ -2932,8 +2935,9 @@ async function runDistribution(sourceTx, amount){
   const ts = sourceTx.ts;
   const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
 
-  // Only wallets with a positive share and a valid id participate
-  const active = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id));
+  // Only spendable wallets with a positive share participate — never route
+  // distributed income into a track-only wallet (uber/cards/cash)
+  const active = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
   const totalPct = active.reduce((s,d)=> s + d.pct, 0);
   // never distribute more than the income itself (caps any >100% misconfiguration)
   const intendedTotal = round2(Math.min(amount, amount * totalPct / 100));
@@ -2997,7 +3001,7 @@ function round2(n){
 function sanitizeDistribution(arr){
   if(!Array.isArray(arr)) return DEFAULT_DISTRIBUTION.map(d=>({...d}));
   const cleaned = arr
-    .filter(d => d && WALLET_DEFS.find(w=>w.id===d.id))
+    .filter(d => d && WALLET_DEFS.find(w=>w.id===d.id && !w.track))
     .map(d => ({...d, pct: Math.min(100, Math.max(0, isFinite(d.pct) ? d.pct : 0))}));
   return cleaned.length ? cleaned : DEFAULT_DISTRIBUTION.map(d=>({...d}));
 }
@@ -3082,7 +3086,7 @@ async function saveEdit(){
     }
   }
 
-  tx.desc = document.getElementById('editDesc').value.trim();
+  tx.desc = document.getElementById('editDesc').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
   tx.amount = newAmount;
   tx.type = editType;
   tx.wallet = editWallet;
