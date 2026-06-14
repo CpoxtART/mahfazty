@@ -459,12 +459,12 @@
 
   /* quick amounts */
   .quick-amounts{
-    display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;
+    display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:12px;
   }
   .quick-amounts button{
-    flex:1; min-width:50px; padding:8px 4px; background:var(--bg-elev);
+    padding:9px 4px; background:var(--bg-elev);
     border:1px solid var(--line); color:var(--muted); font-size:12.5px; font-weight:600;
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: tabular-nums; text-align:center; width:100%;
   }
   .quick-amounts button.active{background:var(--gold-soft); color:var(--gold); border-color:var(--gold-dim);}
 
