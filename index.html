@@ -2339,8 +2339,11 @@ function renderAnalytics(){
   const curTotal = _analyticsCache.cur;
   const prevTotal = _analyticsCache.prev;
 
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
   let cmpHtml = '';
-  if(prevTotal > 0){
+  if(prevTotal > 0 && (dayOfMonth > 1 || curTotal > 0)){
     const diff = curTotal - prevTotal;
     const pct = Math.abs(diff/prevTotal*100).toFixed(0);
     const up = diff > 0;
@@ -2354,10 +2357,6 @@ function renderAnalytics(){
       <div class="v">${fmt(curTotal)}</div>
       ${cmpHtml}
     </div>`;
-
-  const now = new Date();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
   let projHtml;
   if(dayOfMonth >= 3 && curTotal > 0){
     const dailyRate = curTotal / dayOfMonth;
@@ -2382,7 +2381,8 @@ function renderAnalytics(){
 let _recurringCache = null;
 let _recurringCacheSig = '';
 function detectRecurring(){
-  const sig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size;
+  const descLen = state.transactions.reduce((s,t)=>s+(t.desc||'').length, 0);
+  const sig = state.transactions.length + '|' + descLen + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size;
   if(sig === _recurringCacheSig && _recurringCache) return _recurringCache;
   _recurringCacheSig = sig;
 
@@ -2853,6 +2853,7 @@ function openDistributionModal(amount){
     warn.textContent = '⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً';
     wrap.appendChild(warn);
   } else {
+    const totalPct = activeEntries.reduce((s,d)=>s+d.pct, 0);
     activeEntries.forEach(d=>{
       const w = WALLET_DEFS.find(x=>x.id===d.id);
       const share = round2(amount * d.pct / 100);
@@ -2861,6 +2862,13 @@ function openDistributionModal(amount){
       row.innerHTML = `<span class="name">${w.name} <span class="pct">${d.pct}%</span></span><span class="amt">${fmt(share)}</span>`;
       wrap.appendChild(row);
     });
+    if(totalPct > 100){
+      const warn = document.createElement('div');
+      warn.className = 'hint';
+      warn.style.cssText = 'color:var(--red); margin:8px 0 0; font-size:13px;';
+      warn.textContent = `⚠ مجموع النسب ${totalPct}% — يتجاوز 100%، راجع الإعدادات`;
+      wrap.appendChild(warn);
+    }
   }
   document.getElementById('autoDistributeCheck').checked = autoDistribute;
   openModal('distributeModal');
@@ -3318,6 +3326,7 @@ async function resetBalancesOnly(){
 async function wipeAll(){
   if(!confirm('سيتم حذف جميع الأرصدة والمعاملات نهائياً. هذا الإجراء لا يمكن التراجع عنه. متابعة؟')) return;
   if(!confirm('تأكيد أخير: هل أنت متأكد تماماً؟')) return;
+  clearTimeout(_undoTimer); _lastDeleted = null;
   WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
   state.transactions = [];
   state.crisisMode = false;
@@ -4080,6 +4089,9 @@ document.addEventListener('visibilitychange', () => {
     _monthlyExpenseCacheKey = '';
     capDateInputsToToday(); // "today" may have rolled over while tab was hidden
     render(true);
+  } else {
+    // flush pending Drive sync immediately — the 1500ms debounce may never fire if tab is discarded
+    if(driveSyncTimer){ clearTimeout(driveSyncTimer); driveSyncTimer = null; if(driveAccessToken) driveSyncToCloud(); }
   }
 });
 
