@@ -2557,8 +2557,23 @@ function inRange(ts){
 
 let _searchDebounce = null;
 let _txVisibleCount = 50;
+// Fold Arabic orthographic variants so search is forgiving: a user typing
+// "قهوه" should match "قهوة", "احمد" should match "أحمد", "مصطفى" ↔ "مصطفي".
+// Also strips tashkeel (diacritics) and tatweel, and lowercases Latin text.
+function normalizeSearch(str){
+  return String(str || '')
+    .replace(/[ً-ْٰ]/g, '') // tashkeel/diacritics
+    .replace(/ـ/g, '')                 // tatweel (ـ)
+    .replace(/[أإآ]/g, 'ا')                  // alef variants → ا
+    .replace(/ى/g, 'ي')                      // alef maqsura → ي
+    .replace(/ة/g, 'ه')                      // teh marbuta → ه
+    .replace(/[ؤئ]/g, 'ء')                   // hamza seats → ء
+    .toLowerCase()
+    .trim();
+}
+
 function onSearchInput(){
-  searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+  searchQuery = normalizeSearch(document.getElementById('searchInput').value);
   document.getElementById('searchBox').classList.toggle('has-text', searchQuery.length>0);
   _txVisibleCount = 50;
   clearTimeout(_searchDebounce);
@@ -2592,7 +2607,7 @@ function getFilteredTx(){
       const cat = getCategory(tx.category);
       // search description, wallet name AND category name (so "طعام" finds food
       // transactions even when the description is empty)
-      const hay = ((tx.desc||'') + ' ' + (wallet?wallet.name:'') + ' ' + (cat?cat.name:'')).toLowerCase();
+      const hay = normalizeSearch((tx.desc||'') + ' ' + (wallet?wallet.name:'') + ' ' + (cat?cat.name:''));
       return hay.includes(searchQuery);
     });
   return _filteredTxCache;
@@ -3533,11 +3548,39 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 
 let gisTokenClient = null;
 let driveAccessToken = null;
+let driveTokenExpiry = 0; // epoch ms when the current access token stops being valid
 let _pendingDriveCloud = null;
 let driveFileId = null;
 let driveSyncTimer = null;
 let driveClientId = '';
 let _driveSilentRefresh = false; // true while re-acquiring a token after expiry
+let _driveAutoReconnect = false; // true while silently reconnecting on app open
+
+// Persist the access token (with its expiry) in localStorage so returning to the
+// app within the token's lifetime doesn't force another sign-in. Access tokens
+// are short-lived (~1h) and scoped to the app's own hidden Drive folder, so this
+// is a deliberate UX/scope trade-off. sessionStorage was too aggressive — it was
+// wiped every time the tab/PWA closed, which is why sign-in kept being demanded.
+function storeDriveToken(token, expiresInSec){
+  driveAccessToken = token;
+  driveTokenExpiry = Date.now() + (Math.max(0, (expiresInSec || 3600) - 60) * 1000); // 60s safety margin
+  try{
+    localStorage.setItem(LS_PREFIX + 'driveToken', token);
+    localStorage.setItem(LS_PREFIX + 'driveTokenExp', String(driveTokenExpiry));
+  }catch(e){}
+}
+function clearDriveToken(){
+  driveAccessToken = null;
+  driveTokenExpiry = 0;
+  try{
+    localStorage.removeItem(LS_PREFIX + 'driveToken');
+    localStorage.removeItem(LS_PREFIX + 'driveTokenExp');
+    sessionStorage.removeItem(LS_PREFIX + 'driveToken'); // clean up legacy key
+  }catch(e){}
+}
+function driveTokenValid(){
+  return !!driveAccessToken && Date.now() < driveTokenExpiry;
+}
 
 function loadDriveConfig(){
   try{
@@ -3653,23 +3696,29 @@ function initGisClient(){
       client_id: driveClientId,
       scope: DRIVE_SCOPE,
       callback: async (resp) => {
+        const wasSilent = _driveSilentRefresh, wasAuto = _driveAutoReconnect;
+        _driveSilentRefresh = false; _driveAutoReconnect = false;
         if(resp.error){
-          _driveSilentRefresh = false; // reset so future logins trigger conflict-check, not silent upload
           setDriveIndicator('error');
-          toast('⚠ فشل تسجيل الدخول بجوجل', true);
+          // a failed silent/auto reconnect is expected when the Google session
+          // lapsed — stay quiet and just show the sign-in button again
+          if(!wasSilent && !wasAuto) toast('⚠ فشل تسجيل الدخول بجوجل', true);
+          refreshDriveSettingsUI();
           return;
         }
-        driveAccessToken = resp.access_token;
-        try{ sessionStorage.setItem(LS_PREFIX + 'driveToken', driveAccessToken); }catch(e){}
+        storeDriveToken(resp.access_token, parseInt(resp.expires_in, 10));
         refreshDriveSettingsUI();
-        if(_driveSilentRefresh){
+        if(wasSilent){
           // token was renewed mid-session after a 401 — just resume the upload,
           // don't re-run the initial pull (which would pop a conflict dialog)
-          _driveSilentRefresh = false;
           await driveSyncToCloud();
+        } else if(wasAuto){
+          // seamless reconnect on app open — pull quietly, auto-resolve by
+          // timestamp (no interactive conflict modal, no "signed in" toast)
+          await driveSyncFromCloud(true, false);
         } else {
           toast('✓ تم تسجيل الدخول بجوجل');
-          await driveSyncFromCloud(true);
+          await driveSyncFromCloud(true, true);
         }
       }
     });
@@ -3705,8 +3754,7 @@ function driveSignOut(){
   if(driveAccessToken && typeof google !== 'undefined' && google.accounts){
     try{ google.accounts.oauth2.revoke(driveAccessToken, ()=>{}); }catch(e){}
   }
-  driveAccessToken = null;
-  try{ sessionStorage.removeItem(LS_PREFIX + 'driveToken'); }catch(e){}
+  clearDriveToken();
   refreshDriveSettingsUI();
   toast('تم تسجيل الخروج من Drive');
 }
@@ -3790,11 +3838,10 @@ async function driveSyncToCloud(){
     console.error(e);
     setDriveIndicator('error');
     if(e.message && e.message.includes('401')){
-      driveAccessToken = null;
-      try{ sessionStorage.removeItem(LS_PREFIX + 'driveToken'); }catch(_){}
+      clearDriveToken();
       refreshDriveSettingsUI();
       // attempt silent token refresh before asking user
-      if(gisTokenClient){
+      if(gisTokenClient && !isEmbeddedOrStandalone()){
         _driveSilentRefresh = true;
         try{ gisTokenClient.requestAccessToken({prompt:''}); }catch(_){ _driveSilentRefresh = false; }
         toast('⚠ انتهت جلسة Drive — جارٍ تجديد التسجيل تلقائيًا...', true);
@@ -3821,7 +3868,37 @@ async function driveSyncToCloud(){
 
 // Pull from Drive on sign-in / startup. If cloud has data and local is empty
 // (or cloud is newer), merge by replacing local with cloud.
-async function driveSyncFromCloud(isInitial){
+// Replace all local state with a cloud snapshot (single source of truth so the
+// import/Drive/conflict paths can't drift apart). Clears balances first so wallets
+// omitted from the snapshot don't keep stale values.
+async function adoptCloudSnapshot(cloud){
+  if(cloud.wallets){
+    WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+    WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
+  }
+  if(cloud.transactions){
+    state.transactions = cloud.transactions.filter(tx =>
+      tx && (tx.type === 'income' || tx.type === 'expense') &&
+      typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+      WALLET_DEFS.find(w => w.id === tx.wallet));
+    stripOrphanLinks(state.transactions);
+  }
+  if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
+  if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
+  if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
+  if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
+  if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
+  prevSpendable = null; // force fresh hero animation after loading a new data set
+  await saveBalances(); await saveTx(); await saveConfig();
+  render();
+}
+
+// isInitial: this is the first pull after (re)connecting.
+// interactive: the user explicitly tapped "sign in" — only then do we ever
+//   interrupt with the conflict modal. Automatic reconnects on app open resolve
+//   silently by timestamp so the user is never nagged on every visit.
+async function driveSyncFromCloud(isInitial, interactive){
   if(!driveAccessToken) return;
   setDriveIndicator('syncing');
   try{
@@ -3840,54 +3917,54 @@ async function driveSyncFromCloud(isInitial){
     const localHasData = state.transactions.length > 0;
     const cloudHasData = (cloud.transactions || []).length > 0;
 
-    if(isInitial && cloudHasData && !localHasData){
-      // adopt cloud data — clear balances first so the cloud snapshot fully
-      // replaces local wallets (omitted wallets must not keep stale values)
-      if(cloud.wallets){
-        WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
-        WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
-      }
-      if(cloud.transactions){
-        state.transactions = cloud.transactions.filter(tx =>
-          tx && (tx.type === 'income' || tx.type === 'expense') &&
-          typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
-          typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
-          WALLET_DEFS.find(w => w.id === tx.wallet));
-        stripOrphanLinks(state.transactions);
-      }
-      if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
-      if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
-      if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
-      if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
-      if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
-      prevSpendable = null; // force fresh hero animation after loading new data set
-      await saveBalances(); await saveTx(); await saveConfig();
-      render();
-      toast('☁️ تم تحميل بياناتك من Drive');
-    } else if(isInitial && cloudHasData && localHasData){
-      // both have data — show conflict modal WITH a summary of each copy so the
-      // user makes an informed choice (we deliberately don't auto-resolve by
-      // timestamp: clock skew between devices could silently drop newer edits)
-      _pendingDriveCloud = cloud;
-      const fmtWhen = ms => {
-        if(!ms || !isFinite(ms)) return 'غير معروف';
-        try{ return new Date(ms).toLocaleString('ar', {dateStyle:'medium', timeStyle:'short'}); }
-        catch(_){ return new Date(ms).toLocaleString(); }
-      };
-      const cloudTime = cloud.exportedAt ? Date.parse(cloud.exportedAt) : 0;
-      const localTime = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0;
-      const cloudCount = (cloud.transactions || []).length;
-      const localCount = state.transactions.length;
-      const newer = cloudTime > localTime ? 'cloud' : (localTime > cloudTime ? 'local' : '');
-      const tag = side => newer === side ? ' <b style="color:var(--green)">(الأحدث)</b>' : '';
-      const info = document.getElementById('conflictInfo');
-      if(info) info.innerHTML =
-        `☁️ <b>Drive</b>: ${cloudCount} عملية · ${escHtml(fmtWhen(cloudTime))}${tag('cloud')}<br>` +
-        `📱 <b>المحلية</b>: ${localCount} عملية · ${escHtml(fmtWhen(localTime))}${tag('local')}`;
-      openModal('driveConflictModal');
-    } else {
+    if(!(isInitial && cloudHasData)){
+      // not an adoption scenario (no cloud data, or a later background pull) —
+      // nothing to merge here; the debounced push keeps the cloud current
       setDriveIndicator('ok');
+      return;
     }
+
+    if(!localHasData){
+      // local is empty — safely adopt the cloud copy
+      await adoptCloudSnapshot(cloud);
+      setDriveIndicator('ok');
+      toast('☁️ تم تحميل بياناتك من Drive');
+      return;
+    }
+
+    // both sides have data
+    const cloudTime = cloud.exportedAt ? Date.parse(cloud.exportedAt) : 0;
+    const localTime = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0;
+
+    if(!interactive){
+      // automatic reconnect — never interrupt; keep whichever copy is newer
+      if(cloudTime > localTime){
+        await adoptCloudSnapshot(cloud);
+        toast('☁️ حُدّثت بياناتك من Drive');
+      } else {
+        await driveSyncToCloud(); // local is newer/equal — push it up
+      }
+      setDriveIndicator('ok');
+      return;
+    }
+
+    // interactive sign-in with genuine data on both sides — let the user choose,
+    // showing each copy's size + timestamp so the decision is informed
+    _pendingDriveCloud = cloud;
+    const fmtWhen = ms => {
+      if(!ms || !isFinite(ms)) return 'غير معروف';
+      try{ return new Date(ms).toLocaleString('ar', {dateStyle:'medium', timeStyle:'short'}); }
+      catch(_){ return new Date(ms).toLocaleString(); }
+    };
+    const cloudCount = (cloud.transactions || []).length;
+    const localCount = state.transactions.length;
+    const newer = cloudTime > localTime ? 'cloud' : (localTime > cloudTime ? 'local' : '');
+    const tag = side => newer === side ? ' <b style="color:var(--green)">(الأحدث)</b>' : '';
+    const info = document.getElementById('conflictInfo');
+    if(info) info.innerHTML =
+      `☁️ <b>Drive</b>: ${cloudCount} عملية · ${escHtml(fmtWhen(cloudTime))}${tag('cloud')}<br>` +
+      `📱 <b>المحلية</b>: ${localCount} عملية · ${escHtml(fmtWhen(localTime))}${tag('local')}`;
+    openModal('driveConflictModal');
   }catch(e){
     console.error(e);
     setDriveIndicator('error');
@@ -3900,28 +3977,7 @@ async function resolveConflict(useCloud){
   const cloud = _pendingDriveCloud;
   _pendingDriveCloud = null;
   if(useCloud){
-    // user chose to adopt the cloud copy — clear balances first so it fully
-    // replaces local wallets instead of merging stale values
-    if(cloud.wallets){
-      WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
-      WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
-    }
-    if(cloud.transactions){
-      state.transactions = cloud.transactions.filter(tx =>
-        tx && (tx.type === 'income' || tx.type === 'expense') &&
-        typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
-        typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
-        WALLET_DEFS.find(w => w.id === tx.wallet));
-      stripOrphanLinks(state.transactions);
-    }
-    if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
-    if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
-    if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
-    if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
-    if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
-    prevSpendable = null;
-    await saveBalances(); await saveTx(); await saveConfig();
-    render();
+    await adoptCloudSnapshot(cloud);
     toast('☁️ تم استخدام نسخة Drive');
   } else {
     await driveSyncToCloud();
@@ -3942,9 +3998,12 @@ function scheduleDriveSync(){
 
 function initDrive(){
   loadDriveConfig();
+  // restore a previously stored token only if it hasn't expired yet
   try{
-    const tok = sessionStorage.getItem(LS_PREFIX + 'driveToken');
-    if(tok) driveAccessToken = tok;
+    const tok = localStorage.getItem(LS_PREFIX + 'driveToken');
+    const exp = parseInt(localStorage.getItem(LS_PREFIX + 'driveTokenExp') || '0', 10) || 0;
+    if(tok && Date.now() < exp){ driveAccessToken = tok; driveTokenExpiry = exp; }
+    else if(tok){ clearDriveToken(); } // stale — drop it
   }catch(e){}
   refreshDriveSettingsUI();
   if(driveClientId){
@@ -3952,7 +4011,18 @@ function initDrive(){
     const tryInit = () => {
       if(typeof google !== 'undefined' && google.accounts){
         initGisClient();
-        if(driveAccessToken) driveSyncFromCloud(true);
+        if(driveTokenValid()){
+          // still have a live token — pull quietly (auto-resolve, no modal)
+          driveSyncFromCloud(true, false);
+        } else if(gisTokenClient && !isEmbeddedOrStandalone()){
+          // no live token, but we may still hold a Google session + prior
+          // consent — try to get one silently so the user isn't asked to sign
+          // in again on every visit. Skipped in embedded browsers where the
+          // popup can't return (it would just hang on a blank page).
+          _driveAutoReconnect = true;
+          try{ gisTokenClient.requestAccessToken({prompt:''}); }
+          catch(_){ _driveAutoReconnect = false; }
+        }
       } else if(_gisRetries++ < 25){ // ~7.5s max wait
         setTimeout(tryInit, 300);
       } else {
