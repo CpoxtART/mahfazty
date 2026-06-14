@@ -961,7 +961,8 @@
   <div class="modal">
     <div class="grabber"></div>
     <h3>✎ تعديل المعاملة</h3>
-    <div class="type-toggle">
+    <div class="hint" id="editTransferHint" style="display:none; margin-top:0;">🔁 هذه حركة تحويل بين محفظتين — يمكنك تعديل المبلغ والمحفظة والتاريخ فقط (يُحدَّث الطرفان معًا).</div>
+    <div class="type-toggle" id="editTypeToggle">
       <button id="editTypeExp" class="exp" onclick="setEditType('expense')">➖ مصروف</button>
       <button id="editTypeInc" class="inc" onclick="setEditType('income')">➕ دخل</button>
     </div>
@@ -977,8 +978,10 @@
     <input type="number" id="editAmount" step="any" inputmode="decimal">
     <label>التاريخ</label>
     <input type="date" id="editDate">
-    <label>الفئة</label>
-    <div class="category-grid" id="editCategoryGrid"></div>
+    <div id="editCategorySection">
+      <label>الفئة</label>
+      <div class="category-grid" id="editCategoryGrid"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('editModal')">إلغاء</button>
       <button class="btn-danger" onclick="deleteFromEdit()">حذف</button>
@@ -1048,6 +1051,9 @@
     </div>
 
     <div id="driveActions" style="display:none;">
+      <div class="hint" id="driveEmbeddedWarn" style="display:none; margin-top:0; border:1px solid var(--gold); border-radius:8px; padding:8px 10px; color:var(--text);">
+        ⚠️ يبدو أنك تفتح التطبيق داخل تطبيق آخر أو كاختصار على الشاشة. قد تعلق صفحة تسجيل دخول جوجل فارغة. إن حدث ذلك، ارجع للخلف ثم افتح التطبيق في متصفح <b>Chrome</b> أو <b>Safari</b> مباشرةً وسجّل الدخول من هناك.
+      </div>
       <div class="modal-actions" style="margin-top:8px;">
         <button class="btn-primary" id="driveSignInBtn" onclick="driveSignIn()">🔐 تسجيل الدخول بجوجل</button>
       </div>
@@ -1293,6 +1299,7 @@ let selectedWallet = WALLET_DEFS[0].id;
 let editingTxId = null;
 let editType = 'expense';
 let editWallet = WALLET_DEFS[0].id;
+let _editingTransferLeg = false; // when true, type/category are locked (transfer)
 let searchQuery = '';
 let prevSpendable = null;
 let selectedCategory = 'other';
@@ -1839,6 +1846,7 @@ function guessType(text){
 }
 
 let voiceRecognition = null;
+let _voiceTimer = null;
 function startVoiceInput(){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SpeechRecognition){
@@ -1854,16 +1862,31 @@ function startVoiceInput(){
     return;
   }
 
+  // single idempotent teardown — guarantees the mic button never gets stuck in
+  // the "listening" state and the recognition object is always released
+  const cleanup = () => {
+    clearTimeout(_voiceTimer); _voiceTimer = null;
+    btn.classList.remove('listening');
+    voiceRecognition = null;
+  };
+
   voiceRecognition = new SpeechRecognition();
   voiceRecognition.lang = 'ar-SA';
   voiceRecognition.interimResults = false;
   voiceRecognition.maxAlternatives = 1;
 
-  voiceRecognition.onstart = () => btn.classList.add('listening');
-  voiceRecognition.onend = () => { btn.classList.remove('listening'); voiceRecognition = null; };
+  voiceRecognition.onstart = () => {
+    btn.classList.add('listening');
+    // watchdog: if the engine hangs and never fires onend/onerror (a known
+    // flaky-browser case), force-release after 12s so the button recovers
+    clearTimeout(_voiceTimer);
+    _voiceTimer = setTimeout(() => {
+      if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} cleanup(); }
+    }, 12000);
+  };
+  voiceRecognition.onend = cleanup;
   voiceRecognition.onerror = (e) => {
-    btn.classList.remove('listening');
-    voiceRecognition = null;
+    cleanup();
     if(e.error === 'not-allowed'){
       toast('⚠ يجب السماح بالوصول للميكروفون', true);
     } else if(e.error !== 'aborted'){
@@ -1882,7 +1905,7 @@ function startVoiceInput(){
   };
 
   try{ voiceRecognition.start(); }
-  catch(e){ toast('⚠ تعذر بدء التعرف الصوتي', true); }
+  catch(e){ cleanup(); toast('⚠ تعذر بدء التعرف الصوتي', true); }
 }
 
 function applyVoiceTranscript(text){
@@ -3072,6 +3095,13 @@ function openEdit(id){
   editType = tx.type;
   editWallet = tx.wallet;
   editCategory = tx.category || 'other';
+  // A transfer leg's type/category must stay fixed — flipping its type or
+  // category would unbalance the two-leg transfer (money created/destroyed),
+  // and only amount/wallet/desc are synced to the partner. Hide those controls.
+  _editingTransferLeg = !!(tx.link && tx.category === 'transfer');
+  document.getElementById('editTypeToggle').style.display = _editingTransferLeg ? 'none' : '';
+  document.getElementById('editCategorySection').style.display = _editingTransferLeg ? 'none' : '';
+  document.getElementById('editTransferHint').style.display = _editingTransferLeg ? 'block' : 'none';
   setEditType(tx.type);
   renderEditWalletSelect();
   renderEditCategoryGrid();
@@ -3130,9 +3160,13 @@ async function saveEdit(){
 
   tx.desc = document.getElementById('editDesc').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
   tx.amount = newAmount;
-  tx.type = editType;
   tx.wallet = editWallet;
-  tx.category = editCategory;
+  // transfer legs keep their original type/category (locked in the UI) so the
+  // two-leg balance stays consistent; only non-transfer txs adopt the new values
+  if(!_editingTransferLeg){
+    tx.type = editType;
+    tx.category = editCategory;
+  }
   const dateVal = document.getElementById('editDate').value || todayISO();
   const oldDate = new Date(tx.ts);
   const newTs = new Date(dateVal + 'T' + oldDate.toTimeString().slice(0,8)).getTime();
@@ -3537,12 +3571,32 @@ function setDriveIndicator(state_){
   }[state_] || '';
 }
 
+// Google's sign-in popup (accounts.google.com/gsi/...) often can't close itself
+// and return the token when the app runs inside an in-app/embedded browser or as
+// an installed PWA in standalone mode, leaving the user stuck on a blank page.
+// Detect those contexts so we can advise opening a real browser tab instead.
+function isEmbeddedOrStandalone(){
+  try{
+    const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || window.navigator.standalone === true;
+    const ua = navigator.userAgent || '';
+    // common in-app browser signatures (Facebook, Instagram, Snapchat, Line,
+    // Twitter, TikTok, WhatsApp, generic WebView)
+    const inApp = /(FBAN|FBAV|FB_IAB|Instagram|Snapchat|Line\/|Twitter|TikTok|WhatsApp|; wv\)|GSA\/)/i.test(ua);
+    return standalone || inApp;
+  }catch(_){ return false; }
+}
+
 function refreshDriveSettingsUI(){
   const setupEl = document.getElementById('driveSetup');
   const actionsEl = document.getElementById('driveActions');
   const statusEl = document.getElementById('driveStatusText');
   const signInBtn = document.getElementById('driveSignInBtn');
   const signedInActions = document.getElementById('driveSignedInActions');
+  const embeddedWarn = document.getElementById('driveEmbeddedWarn');
+  // show the embedded-browser caution only when not yet signed in and the
+  // context is one where the GIS popup is known to hang
+  if(embeddedWarn) embeddedWarn.style.display = (!driveAccessToken && isEmbeddedOrStandalone()) ? 'block' : 'none';
 
   if(!driveClientId){
     setupEl.style.display = 'block';
@@ -3627,7 +3681,24 @@ function initGisClient(){
 function driveSignIn(){
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
-  gisTokenClient.requestAccessToken({prompt: driveAccessToken ? '' : 'consent'});
+  try{
+    gisTokenClient.requestAccessToken({
+      prompt: driveAccessToken ? '' : 'consent',
+      // surface popup-level failures (blocked / closed / can't return) instead of
+      // leaving the user staring at a blank google sign-in page with no feedback
+      error_callback: (err) => {
+        setDriveIndicator('error');
+        const t = (err && err.type) || '';
+        if(t === 'popup_failed_to_open'){
+          toast('⚠ تعذّر فتح نافذة جوجل — افتح التطبيق في متصفح Chrome/Safari', true);
+        } else if(t === 'popup_closed'){
+          toast('أُغلقت نافذة تسجيل الدخول قبل اكتمالها', true);
+        } else {
+          toast('⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', true);
+        }
+      }
+    });
+  }catch(e){ toast('⚠ تعذّر بدء تسجيل الدخول بجوجل', true); }
 }
 
 function driveSignOut(){
