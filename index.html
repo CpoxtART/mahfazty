@@ -2087,6 +2087,11 @@ async function doTransfer(){
     const fromWallet = WALLET_DEFS.find(w=>w.id===transferFrom);
     const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
     if(!fromWallet || !toWallet){ toast('⚠ محفظة غير صحيحة', true); return; }
+    const fromBalance = state.wallets[transferFrom] ?? 0;
+    if(!fromWallet.track && fromBalance - amt < -0.01){
+      toast(`⚠ الرصيد غير كافٍ — المتاح: ${fmt(Math.max(0, fromBalance))}`, true);
+      return;
+    }
     const fromName = fromWallet.name;
     const toName = toWallet.name;
 
@@ -3887,14 +3892,36 @@ function setupPWA(){
   if('serviceWorker' in navigator){
     try{
       const swCode = `
-        self.addEventListener('install', e => self.skipWaiting());
-        self.addEventListener('activate', e => self.clients.claim());
+        const CACHE = 'mhfzty-v2';
+        self.addEventListener('install', e => {
+          self.skipWaiting();
+        });
+        self.addEventListener('activate', e => {
+          e.waitUntil(
+            caches.keys().then(keys =>
+              Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+            )
+          );
+          self.clients.claim();
+        });
         self.addEventListener('fetch', e => {
-          // Only intercept same-origin navigation requests; skip all cross-origin
-          // API calls (Drive, GIS OAuth) so error codes reach the app unmodified.
-          if(e.request.url.startsWith(self.location.origin)){
-            e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
-          }
+          if(e.request.method !== 'GET') return;
+          const url = new URL(e.request.url);
+          // Only cache same-origin requests; let Drive/GIS API calls pass through
+          if(url.origin !== self.location.origin) return;
+          e.respondWith(
+            caches.match(e.request).then(cached => {
+              const fresh = fetch(e.request).then(res => {
+                if(res && res.ok){
+                  const clone = res.clone();
+                  caches.open(CACHE).then(c => c.put(e.request, clone));
+                }
+                return res;
+              }).catch(() => cached);
+              // Return cached immediately if available, refresh in background
+              return cached || fresh;
+            })
+          );
         });
       `;
       const swBlob = new Blob([swCode], {type:'application/javascript'});
@@ -3970,6 +3997,23 @@ document.addEventListener('keydown', e => {
     // Close the topmost open modal
     const open = [...document.querySelectorAll('.modal-overlay.open')];
     if(open.length) closeModal(open[open.length-1].id);
+  }
+  if(e.key === 'Tab'){
+    // Focus trap: keep Tab navigation inside the topmost open modal
+    const openModals = [...document.querySelectorAll('.modal-overlay.open')];
+    if(openModals.length){
+      const modal = openModals[openModals.length-1];
+      const focusable = [...modal.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )].filter(el => el.offsetParent !== null); // only visible elements
+      if(focusable.length === 0) return;
+      const first = focusable[0], last = focusable[focusable.length-1];
+      if(e.shiftKey){
+        if(document.activeElement === first){ e.preventDefault(); last.focus(); }
+      } else {
+        if(document.activeElement === last){ e.preventDefault(); first.focus(); }
+      }
+    }
   }
 });
 
