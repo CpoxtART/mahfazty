@@ -1349,16 +1349,31 @@ function toggleTheme(){
   const next = isLight ? 'dark' : 'light';
   applyTheme(next);
   try{ localStorage.setItem(LS_PREFIX + 'theme', next); }catch(e){}
+  // canvas charts bake theme colors at draw time — redraw so they match the new theme
+  if(typeof renderChart === 'function') renderChart();
+  if(typeof renderPieChart === 'function') renderPieChart();
 }
 function initTheme(){
-  let theme = 'dark';
-  try{ theme = localStorage.getItem(LS_PREFIX + 'theme') || 'dark'; }catch(e){}
+  let theme = null;
+  try{ theme = localStorage.getItem(LS_PREFIX + 'theme'); }catch(e){}
+  if(!theme){
+    theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
   applyTheme(theme);
 }
 
 function todayISO(){
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// Cap all date pickers at today so a transaction can't be accidentally future-dated
+function capDateInputsToToday(){
+  const t = todayISO();
+  ['dateInput','editDate','transferDate'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.setAttribute('max', t);
+  });
 }
 
 /* ============================================================
@@ -1432,6 +1447,7 @@ async function loadState(){
   idbBackup();
 
   document.getElementById('dateInput').value = todayISO();
+  capDateInputsToToday();
   render(true);
 }
 
@@ -1830,7 +1846,9 @@ function applyVoiceTranscript(text){
   desc = desc.replace(/\s{2,}/g,' ').trim();
 
   if(amount !== null){
-    document.getElementById('amountInput').value = amount;
+    const amtEl = document.getElementById('amountInput');
+    amtEl.value = amount;
+    amtEl.dispatchEvent(new Event('input')); // sync quick-amount button highlight
   }
   if(desc){
     document.getElementById('descInput').value = desc;
@@ -1845,7 +1863,10 @@ function applyVoiceTranscript(text){
   if(amount !== null){
     toast(`🎤 "${text}" → ${fmt(amount)} ${desc?'· '+desc:''}`);
   } else {
-    toast('🎤 لم يتم العثور على رقم، تم تعبية الوصف فقط');
+    toast('🎤 لم يتم العثور على رقم — اكتب المبلغ يدويًا', true);
+    const amtEl = document.getElementById('amountInput');
+    amtEl.focus(); // guide the user straight to the missing field
+    window.scrollTo({top:0, behavior:'smooth'});
   }
 }
 
@@ -2655,7 +2676,9 @@ function renderChart(){
   const w = cssW - padX*2;
   const h = cssH - padY*2;
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.045)';
+  // theme-aware grid color (light vs dark) — hardcoded white was invisible in light mode
+  const isLightTheme = document.body.classList.contains('light');
+  ctx.strokeStyle = isLightTheme ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.045)';
   ctx.lineWidth = 1;
   for(let i=0;i<=2;i++){
     const y = padY + (h/2)*i;
@@ -2663,7 +2686,7 @@ function renderChart(){
   }
 
   const zeroY = padY + h - ((0-min)/range)*h;
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.strokeStyle = isLightTheme ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.12)';
   ctx.setLineDash([3,3]);
   ctx.beginPath(); ctx.moveTo(padX,zeroY); ctx.lineTo(padX+w,zeroY); ctx.stroke();
   ctx.setLineDash([]);
@@ -3060,8 +3083,12 @@ async function undoDelete(){
 /* ============================================================
    MODALS
 ============================================================ */
+let _modalReturnFocus = null;
 function openModal(id){
-  document.getElementById(id).classList.add('open');
+  // remember what had focus so we can restore it when the modal closes (a11y)
+  _modalReturnFocus = document.activeElement;
+  const modal = document.getElementById(id);
+  modal.classList.add('open');
   if(id==='dataModal') document.getElementById('jsonArea').value = '';
   if(id==='settingsModal'){
     updateSettingsStats();
@@ -3069,12 +3096,23 @@ function openModal(id){
     refreshDriveSettingsUI();
     renderDistributionEditor();
   }
+  // move focus into the modal so keyboard/screen-reader users land in context.
+  // target a button (not a text input) so the mobile keyboard doesn't pop open.
+  requestAnimationFrame(()=>{
+    const focusable = modal.querySelector('button, [tabindex]');
+    if(focusable) try{ focusable.focus({preventScroll:true}); }catch(_){}
+  });
 }
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
   if(id === 'editModal'){ editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id; }
   if(id === 'distributeModal') pendingIncomeTx = null;
   if(id === 'walletDetailModal') detailWalletId = null;
+  // restore focus to whatever triggered the modal
+  if(_modalReturnFocus && typeof _modalReturnFocus.focus === 'function'){
+    try{ _modalReturnFocus.focus({preventScroll:true}); }catch(_){}
+  }
+  _modalReturnFocus = null;
 }
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
   ov.addEventListener('click', e=>{ if(e.target===ov) closeModal(ov.id); });
@@ -3928,6 +3966,7 @@ document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible'){
     _monthlyExpenseCache = null;
     _monthlyExpenseCacheKey = '';
+    capDateInputsToToday(); // "today" may have rolled over while tab was hidden
     render(true);
   }
 });
