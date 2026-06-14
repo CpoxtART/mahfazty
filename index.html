@@ -1434,7 +1434,7 @@ async function loadState(){
 
 async function saveBalances(){ try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){ toast('⚠ فشل الحفظ', true); } }
 async function saveTx(){ try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){ toast('⚠ فشل الحفظ', true); } }
-async function saveConfig(){ try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){} }
+async function saveConfig(){ try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){ toast('⚠ فشل حفظ الإعدادات', true); } }
 
 /* ============================================================
    INDEXEDDB BACKUP (extra resilience alongside localStorage)
@@ -2229,6 +2229,7 @@ function openWalletDetail(walletId){
       const cls = tx.type==='expense' ? 'neg' : 'pos';
       const div = document.createElement('div');
       div.className = 'tx';
+      div.style.cursor = 'pointer';
       div.innerHTML = `
         <div class="info">
           <div class="desc">${cat.icon} ${escHtml(tx.desc || cat.name)}</div>
@@ -2236,6 +2237,7 @@ function openWalletDetail(walletId){
         </div>
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
       `;
+      div.onclick = () => openEdit(tx.id);
       list.appendChild(div);
     });
   }
@@ -2384,7 +2386,7 @@ function renderRecurring(){
     };
     card.querySelector('[data-remind]').onclick = () => {
       document.getElementById('descInput').value = s.desc;
-      document.getElementById('amountInput').value = Math.round(s.avg);
+      document.getElementById('amountInput').value = round2(s.avg);
       selectedWallet = s.wallet;
       selectedCategory = s.category;
       renderWalletSelect();
@@ -3559,7 +3561,7 @@ async function resolveConflict(useCloud){
       WALLET_DEFS.find(w => w.id === tx.wallet));
     if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
     if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
-    if(cloud.budgets && typeof cloud.budgets === 'object') budgets = cloud.budgets;
+    if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
     if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
     if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
     prevSpendable = null;
@@ -3803,9 +3805,11 @@ function setupPWA(){
         self.addEventListener('install', e => self.skipWaiting());
         self.addEventListener('activate', e => self.clients.claim());
         self.addEventListener('fetch', e => {
-          e.respondWith(
-            fetch(e.request).catch(() => caches.match(e.request))
-          );
+          // Only intercept same-origin navigation requests; skip all cross-origin
+          // API calls (Drive, GIS OAuth) so error codes reach the app unmodified.
+          if(e.request.url.startsWith(self.location.origin)){
+            e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+          }
         });
       `;
       const swBlob = new Blob([swCode], {type:'application/javascript'});
@@ -3825,7 +3829,8 @@ function computeRenderSig(){
     JSON.stringify(state.wallets),
     currentFilter, walletFilter, categoryFilter, searchQuery,
     state.crisisMode, JSON.stringify(budgets),
-    JSON.stringify(DISTRIBUTION), autoDistribute
+    JSON.stringify(DISTRIBUTION), autoDistribute,
+    dismissedRecurring.size
   ].join('|');
 }
 
