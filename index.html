@@ -1308,7 +1308,10 @@ let dismissedRecurring = new Set();
 ============================================================ */
 function fmt(n){
   if(isNaN(n) || !isFinite(n)) return '0.00';
-  return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  // collapse -0 and sub-cent negatives so they never render as "-0.00"
+  if(Object.is(n, -0) || (n < 0 && n > -0.005)) n = 0;
+  const s = Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return s === '-0.00' ? '0.00' : s;
 }
 
 function escHtml(str){
@@ -1464,9 +1467,9 @@ async function loadState(){
   render(true);
 }
 
-async function saveBalances(){ try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){ toast('⚠ فشل الحفظ', true); } }
-async function saveTx(){ try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){ toast('⚠ فشل الحفظ', true); } }
-async function saveConfig(){ try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); scheduleDriveSync(); idbBackup(); }catch(e){ toast('⚠ فشل حفظ الإعدادات', true); } }
+async function saveBalances(){ try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(); }
+async function saveTx(){ try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(); }
+async function saveConfig(){ try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(Date.now())); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(); }
 
 /* ============================================================
    INDEXEDDB BACKUP (extra resilience alongside localStorage)
@@ -2093,7 +2096,8 @@ async function doTransfer(){
   _doTransferBusy = true;
   try{
     const dateVal = document.getElementById('transferDate').value || todayISO();
-    const ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
+    let ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
+    if(!isFinite(ts)) ts = Date.now(); // guard against an invalid date string
     const fromWallet = WALLET_DEFS.find(w=>w.id===transferFrom);
     const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
     if(!fromWallet || !toWallet){ toast('⚠ محفظة غير صحيحة', true); return; }
@@ -2783,7 +2787,8 @@ async function addTx(type){
       return;
     }
 
-    const ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
+    let ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
+    if(!isFinite(ts)) ts = Date.now(); // guard against an invalid date string
 
     const tx = {
       id: 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -3041,7 +3046,8 @@ async function saveEdit(){
   tx.category = editCategory;
   const dateVal = document.getElementById('editDate').value || todayISO();
   const oldDate = new Date(tx.ts);
-  tx.ts = new Date(dateVal + 'T' + oldDate.toTimeString().slice(0,8)).getTime();
+  const newTs = new Date(dateVal + 'T' + oldDate.toTimeString().slice(0,8)).getTime();
+  tx.ts = isFinite(newTs) ? newTs : (isFinite(tx.ts) ? tx.ts : Date.now());
 
   applyTxToBalance(tx, +1);
 
@@ -3160,8 +3166,11 @@ function closeModal(id){
   }
   _modalReturnFocus = null;
 }
+// Modals that hold unsaved form input must NOT close on an accidental
+// backdrop tap (common on mobile) — only their explicit buttons close them.
+const _protectedModals = new Set(['editModal','transferModal','distributeModal','walletDetailModal']);
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
-  ov.addEventListener('click', e=>{ if(e.target===ov) closeModal(ov.id); });
+  ov.addEventListener('click', e=>{ if(e.target===ov && !_protectedModals.has(ov.id)) closeModal(ov.id); });
 });
 
 // Close custom dropdowns when clicking outside
@@ -3231,12 +3240,20 @@ function exportData(){
 function importFromFile(event){
   const file = event.target.files[0];
   if(!file) return;
+  // a real export is tiny JSON — reject oversized/binary files before reading
+  if(file.size > 10 * 1024 * 1024){
+    toast('⚠ الملف كبير جدًا — اختر ملف نسخة احتياطية صالح', true);
+    event.target.value = '';
+    return;
+  }
   const reader = new FileReader();
   reader.onload = e => {
     document.getElementById('jsonArea').value = e.target.result;
     applyImport(e.target.result);
   };
+  reader.onerror = () => toast('⚠ تعذّر قراءة الملف', true);
   reader.readAsText(file);
+  event.target.value = ''; // allow re-selecting the same file later
 }
 
 function importFromTextarea(){
