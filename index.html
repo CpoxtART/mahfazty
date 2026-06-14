@@ -1054,12 +1054,39 @@
       <div class="hint" id="driveEmbeddedWarn" style="display:none; margin-top:0; border:1px solid var(--gold); border-radius:8px; padding:8px 10px; color:var(--text);">
         ⚠️ يبدو أنك تفتح التطبيق داخل تطبيق آخر أو كاختصار على الشاشة. قد تعلق صفحة تسجيل دخول جوجل فارغة. إن حدث ذلك، ارجع للخلف ثم افتح التطبيق في متصفح <b>Chrome</b> أو <b>Safari</b> مباشرةً وسجّل الدخول من هناك.
       </div>
+      <!-- shown while silent auto-reconnect is in progress -->
+      <div id="driveReconnectRow" style="display:none; padding:10px 4px; font-size:13px; color:var(--blue); display:flex; align-items:center; gap:8px;">
+        <span style="font-size:16px;">🔄</span>
+        <span>جارٍ الاتصال بـ Google Drive تلقائياً…</span>
+      </div>
       <div class="modal-actions" style="margin-top:8px;">
         <button class="btn-primary" id="driveSignInBtn" onclick="driveSignIn()">🔐 تسجيل الدخول بجوجل</button>
       </div>
       <div class="modal-actions" id="driveSignedInActions" style="display:none;">
         <button class="btn-secondary" onclick="driveManualSync()">⬆ مزامنة الآن</button>
         <button class="btn-secondary" onclick="driveSignOut()">تسجيل الخروج</button>
+      </div>
+      <!-- auto-sign-in first-time prompt — appears after the first successful sign-in -->
+      <div id="driveAutoSignInPrompt" style="display:none; margin-top:12px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:10px;">
+        <div style="font-size:13px; font-weight:600; margin-bottom:6px;">🔐 الاتصال التلقائي</div>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:10px; line-height:1.6;">
+          هل تريد أن يتصل التطبيق بـ Google Drive تلقائياً في كل مرة تفتحه؟<br>
+          لن تحتاج لتسجيل الدخول طالما جلستك في Google نشطة.
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn-primary" style="font-size:12px; padding:6px 16px;" onclick="enableDriveAutoSignIn()">✓ نعم، دائماً</button>
+          <button class="btn-secondary" style="font-size:12px; padding:6px 14px;" onclick="dismissDriveAutoSignInPrompt()">ليس الآن</button>
+        </div>
+      </div>
+      <!-- toggle row — visible when connected, lets user control the preference -->
+      <div id="driveAutoSignInRow" style="display:none; margin-top:10px; padding:8px 10px; background:var(--card2); border-radius:8px;">
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+          <input type="checkbox" id="driveAutoSignInChk" onchange="setDriveAutoSignIn(this.checked)" style="width:16px; height:16px; accent-color:var(--gold); cursor:pointer;">
+          <div>
+            <div style="font-size:12px; font-weight:600;">الاتصال التلقائي عند الفتح</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;">يتصل بـ Drive تلقائياً ما دامت جلسة Google نشطة</div>
+          </div>
+        </label>
       </div>
       <div class="modal-actions">
         <button class="btn-secondary" onclick="changeDriveClientId()" style="font-size:11px;">تغيير Client ID</button>
@@ -3645,6 +3672,30 @@ function loadDriveConfig(){
   }catch(e){}
 }
 
+// Auto-sign-in preference — persists across sessions as a simple boolean
+function loadDriveAutoSignIn(){
+  try{ return localStorage.getItem(LS_PREFIX + 'driveAutoSignIn') === 'true'; }catch(_){ return false; }
+}
+function setDriveAutoSignIn(enabled){
+  try{ localStorage.setItem(LS_PREFIX + 'driveAutoSignIn', enabled ? 'true' : 'false'); }catch(_){}
+  const chk = document.getElementById('driveAutoSignInChk');
+  if(chk) chk.checked = !!enabled;
+}
+function enableDriveAutoSignIn(){
+  setDriveAutoSignIn(true);
+  const p = document.getElementById('driveAutoSignInPrompt');
+  if(p) p.style.display = 'none';
+  const row = document.getElementById('driveAutoSignInRow');
+  if(row) row.style.display = 'block';
+  toast('✓ سيتصل التطبيق بـ Drive تلقائياً في كل مرة تفتحه');
+}
+function dismissDriveAutoSignInPrompt(){
+  const p = document.getElementById('driveAutoSignInPrompt');
+  if(p) p.style.display = 'none';
+  // mark as seen so we don't ask again this session; next sign-in it may show again
+  try{ sessionStorage.setItem(LS_PREFIX + 'autoSignInAsked', '1'); }catch(_){}
+}
+
 function setDriveIndicator(state_){
   // state_: 'idle' | 'syncing' | 'ok' | 'error' | 'off'
   const el = document.getElementById('driveIndicator');
@@ -3694,9 +3745,11 @@ function refreshDriveSettingsUI(){
   const signInBtn = document.getElementById('driveSignInBtn');
   const signedInActions = document.getElementById('driveSignedInActions');
   const embeddedWarn = document.getElementById('driveEmbeddedWarn');
-  // show the embedded-browser caution only when not yet signed in and the
-  // context is one where the GIS popup is known to hang
-  if(embeddedWarn) embeddedWarn.style.display = (!driveAccessToken && isEmbeddedOrStandalone()) ? 'block' : 'none';
+  const reconnectRow = document.getElementById('driveReconnectRow');
+  const autoSignInRow = document.getElementById('driveAutoSignInRow');
+  const autoSignInChk = document.getElementById('driveAutoSignInChk');
+
+  if(embeddedWarn) embeddedWarn.style.display = (!driveAccessToken && !_driveAutoReconnect && isEmbeddedOrStandalone()) ? 'block' : 'none';
 
   if(!driveClientId){
     setupEl.style.display = 'block';
@@ -3710,13 +3763,28 @@ function refreshDriveSettingsUI(){
 
   if(driveAccessToken){
     statusEl.textContent = 'متصل ✓ — البيانات تُحفظ تلقائيًا على Google Drive (مجلد بيانات التطبيق الخاص).';
+    if(reconnectRow) reconnectRow.style.display = 'none';
     signInBtn.style.display = 'none';
     signedInActions.style.display = 'flex';
+    // show the auto-sign-in toggle with the current preference
+    if(autoSignInRow){ autoSignInRow.style.display = 'block'; }
+    if(autoSignInChk){ autoSignInChk.checked = loadDriveAutoSignIn(); }
     setDriveIndicator('ok');
+  } else if(_driveAutoReconnect){
+    // Silent reconnect in progress — don't show sign-in button yet so the
+    // user doesn't click it unnecessarily while we're about to get a token
+    statusEl.textContent = 'جارٍ الاتصال بـ Google Drive تلقائياً…';
+    if(reconnectRow) reconnectRow.style.display = 'flex';
+    signInBtn.style.display = 'none';
+    signedInActions.style.display = 'none';
+    if(autoSignInRow) autoSignInRow.style.display = 'none';
+    setDriveIndicator('syncing');
   } else {
     statusEl.textContent = 'Client ID محفوظ. سجّل الدخول لتفعيل المزامنة التلقائية.';
+    if(reconnectRow) reconnectRow.style.display = 'none';
     signInBtn.style.display = 'block';
     signedInActions.style.display = 'none';
+    if(autoSignInRow) autoSignInRow.style.display = 'none';
     setDriveIndicator('idle');
   }
 }
@@ -3778,6 +3846,16 @@ function initGisClient(){
           await driveSyncFromCloud(true, false);
         } else {
           toast('✓ تم تسجيل الدخول بجوجل');
+          // First time the user signs in: offer to remember the preference.
+          // Skip if they've already set it or already dismissed this session.
+          const prefSet = localStorage.getItem(LS_PREFIX + 'driveAutoSignIn') !== null;
+          const askedThisSession = (() => { try{ return sessionStorage.getItem(LS_PREFIX+'autoSignInAsked')==='1'; }catch(_){ return false; } })();
+          if(!prefSet && !askedThisSession){
+            setTimeout(() => {
+              const p = document.getElementById('driveAutoSignInPrompt');
+              if(p) p.style.display = 'block';
+            }, 600);
+          }
           await driveSyncFromCloud(true, true);
         }
       }
@@ -4106,13 +4184,14 @@ function initDrive(){
           // The 10s guard below protects against the rare edge-case where the
           // callback never fires at all (blocked popup, network loss, etc.).
           _driveAutoReconnect = true;
+          refreshDriveSettingsUI(); // immediately show "جارٍ الاتصال..." in the settings UI
           clearTimeout(_driveAutoReconnectGuard);
           _driveAutoReconnectGuard = setTimeout(() => {
             if(_driveAutoReconnect){ _driveAutoReconnect = false; refreshDriveSettingsUI(); }
             _driveAutoReconnectGuard = null;
           }, 10000);
           try{ gisTokenClient.requestAccessToken({prompt:''}); }
-          catch(_){ clearTimeout(_driveAutoReconnectGuard); _driveAutoReconnectGuard = null; _driveAutoReconnect = false; }
+          catch(_){ clearTimeout(_driveAutoReconnectGuard); _driveAutoReconnectGuard = null; _driveAutoReconnect = false; refreshDriveSettingsUI(); }
         }
       } else if(_gisRetries++ < 25){ // ~7.5s max wait
         setTimeout(tryInit, 300);
