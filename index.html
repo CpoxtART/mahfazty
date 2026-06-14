@@ -1322,6 +1322,7 @@ function escHtml(str){
 
 const _animFrames = {}; // track active animation frames per element id to allow cancellation
 function animateNumber(el, from, to, duration){
+  if(!el) return; // guard against missing/detached DOM element
   if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
     el.textContent = fmt(to);
     return;
@@ -2990,7 +2991,11 @@ function openEdit(id){
 
 async function saveEdit(){
   const tx = state.transactions.find(t=>t.id===editingTxId);
-  if(!tx) return;
+  if(!tx){
+    toast('⚠ المعاملة لم تعد موجودة — ربما حُذفت من تبويب آخر', true);
+    closeModal('editModal');
+    return;
+  }
 
   const newAmount = parseFloat(document.getElementById('editAmount').value.replace(/,/g,''));
   if(!newAmount || newAmount <= 0){
@@ -3838,10 +3843,9 @@ function exportMonthlyReport(){
 
   report += `\n📱 محفظتيييي 🙂‍↔️`;
 
-  if(navigator.share){
-    navigator.share({ title: `تقرير محفظتيييي — ${monthName}`, text: report }).catch(()=>{
-      copyReportToClipboard(report);
-    });
+  const shareData = { title: `تقرير محفظتيييي — ${monthName}`, text: report };
+  if(navigator.share && (!navigator.canShare || navigator.canShare(shareData))){
+    navigator.share(shareData).catch(()=>{ copyReportToClipboard(report); });
   } else {
     copyReportToClipboard(report);
   }
