@@ -379,6 +379,7 @@
   input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
   input[type=number]{-moz-appearance:textfield;}
   .form input[type=date]{color-scheme: dark;}
+  body.light .form input[type=date]{color-scheme: light;}
 
   .custom-select{
     width:100%;
@@ -750,6 +751,7 @@
   }
   .modal input:focus{outline:none; border-color:var(--gold);}
   .modal input[type=date]{color-scheme: dark;}
+  body.light .modal input[type=date]{color-scheme: light;}
   .modal label{font-size:10.5px;color:var(--muted);display:block;margin-bottom:6px; text-transform:uppercase; letter-spacing:1px; font-weight:600;}
   textarea.json-area{
     width:100%; min-height:140px; background:var(--bg); color:var(--text);
@@ -1533,7 +1535,12 @@ async function loadState(){
 
 async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
 async function saveTx(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
-async function saveConfig(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(ts); }
+function _pruneRecurringDismissals(){
+  if(dismissedRecurring.size < 40) return;
+  const live = new Set(state.transactions.map(tx=>(tx.desc||'').trim().toLowerCase()).filter(Boolean));
+  for(const k of dismissedRecurring){ if(!live.has(k)) dismissedRecurring.delete(k); }
+}
+async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(ts); }
 
 /* ============================================================
    INDEXEDDB BACKUP (extra resilience alongside localStorage)
@@ -3600,7 +3607,7 @@ function _setDriveCookie(name, val, expMs){
   try{
     const d = new Date(expMs).toUTCString();
     const path = _driveCookiePath();
-    document.cookie = `${name}=${encodeURIComponent(val)}; expires=${d}; path=${path}; SameSite=Strict`;
+    document.cookie = `${name}=${encodeURIComponent(val)}; expires=${d}; path=${path}; SameSite=Strict; Secure`;
   }catch(_){}
 }
 function _getDriveCookie(name){
@@ -4380,8 +4387,11 @@ function setupPWA(){
       `;
       const swBlob = new Blob([swCode], {type:'application/javascript'});
       const swUrl = URL.createObjectURL(swBlob);
+      // Explicit scope so the blob-URL SW covers the app's real path,
+      // not the blob's own pseudo-path (which would match nothing).
+      const swScope = new URL('./', location.href).pathname;
       // revoke once the browser has fetched the SW code so the blob isn't leaked
-      navigator.serviceWorker.register(swUrl)
+      navigator.serviceWorker.register(swUrl, {scope: swScope})
         .then(()=> URL.revokeObjectURL(swUrl))
         .catch(()=> URL.revokeObjectURL(swUrl));
     }catch(e){}
