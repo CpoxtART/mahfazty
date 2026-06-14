@@ -3559,12 +3559,37 @@ let _driveSilentRefresh = false; // true while re-acquiring a token after expiry
 let _driveAutoReconnect = false; // true while silently reconnecting on app open
 let _driveAutoReconnectGuard = null; // timeout to reset _driveAutoReconnect if GIS never calls back
 let _driveSilentRefreshGuard = null; // timeout to reset _driveSilentRefresh if GIS never calls back
+let _driveTokenRefreshTimer = null; // proactive refresh 5 min before token expires
 
-// Persist the access token (with its expiry) in localStorage so returning to the
-// app within the token's lifetime doesn't force another sign-in. Access tokens
-// are short-lived (~1h) and scoped to the app's own hidden Drive folder, so this
-// is a deliberate UX/scope trade-off. sessionStorage was too aggressive — it was
-// wiped every time the tab/PWA closed, which is why sign-in kept being demanded.
+// Cookie helpers — used as a second-layer storage alongside localStorage so the
+// Drive token survives when the browser wipes localStorage on force-close.
+// Cookies are scoped to the app's own path (e.g. /mahfazty/) to avoid leaking
+// the token to other GitHub-Pages sites that share the github.io domain.
+function _driveCookiePath(){
+  try{ return new URL('.', location.href).pathname; }catch(_){ return '/'; }
+}
+function _setDriveCookie(name, val, expMs){
+  try{
+    const d = new Date(expMs).toUTCString();
+    const path = _driveCookiePath();
+    document.cookie = `${name}=${encodeURIComponent(val)}; expires=${d}; path=${path}; SameSite=Strict`;
+  }catch(_){}
+}
+function _getDriveCookie(name){
+  try{
+    const entry = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith(name+'='));
+    return entry ? decodeURIComponent(entry.slice(name.length+1)) : null;
+  }catch(_){ return null; }
+}
+function _deleteDriveCookie(name){
+  try{
+    const path = _driveCookiePath();
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${path}; SameSite=Strict`;
+  }catch(_){}
+}
+
+// Persist the access token in BOTH localStorage and a path-scoped cookie so
+// it survives whether the browser wipes one storage type on force-close.
 function storeDriveToken(token, expiresInSec){
   driveAccessToken = token;
   driveTokenExpiry = Date.now() + (Math.max(0, (expiresInSec || 3600) - 60) * 1000); // 60s safety margin
@@ -3572,8 +3597,14 @@ function storeDriveToken(token, expiresInSec){
     localStorage.setItem(LS_PREFIX + 'driveToken', token);
     localStorage.setItem(LS_PREFIX + 'driveTokenExp', String(driveTokenExpiry));
   }catch(e){}
+  _setDriveCookie('mhfzty_dtok', token, driveTokenExpiry);
+  _setDriveCookie('mhfzty_dexp', String(driveTokenExpiry), driveTokenExpiry);
+  // schedule a silent refresh 5 min before the token expires so an active
+  // session never suddenly loses Drive access mid-use
+  _scheduleTokenRefresh();
 }
 function clearDriveToken(){
+  clearTimeout(_driveTokenRefreshTimer); _driveTokenRefreshTimer = null;
   driveAccessToken = null;
   driveTokenExpiry = 0;
   try{
@@ -3581,9 +3612,31 @@ function clearDriveToken(){
     localStorage.removeItem(LS_PREFIX + 'driveTokenExp');
     sessionStorage.removeItem(LS_PREFIX + 'driveToken'); // clean up legacy key
   }catch(e){}
+  _deleteDriveCookie('mhfzty_dtok');
+  _deleteDriveCookie('mhfzty_dexp');
 }
 function driveTokenValid(){
   return !!driveAccessToken && Date.now() < driveTokenExpiry;
+}
+function _scheduleTokenRefresh(){
+  clearTimeout(_driveTokenRefreshTimer); _driveTokenRefreshTimer = null;
+  if(!driveTokenExpiry) return;
+  const delay = driveTokenExpiry - Date.now() - 5*60*1000; // 5 min before expiry
+  if(delay <= 0) return; // already near-expired; don't bother
+  _driveTokenRefreshTimer = setTimeout(() => {
+    _driveTokenRefreshTimer = null;
+    if(!gisTokenClient || !driveAccessToken || isEmbeddedOrStandalone()) return;
+    // silent in-session refresh: user is actively on the page, Google session
+    // is almost certainly still alive since we got a token < 55 min ago
+    _driveSilentRefresh = true;
+    clearTimeout(_driveSilentRefreshGuard);
+    _driveSilentRefreshGuard = setTimeout(() => {
+      if(_driveSilentRefresh){ _driveSilentRefresh = false; refreshDriveSettingsUI(); }
+      _driveSilentRefreshGuard = null;
+    }, 10000);
+    try{ gisTokenClient.requestAccessToken({prompt:''}); }
+    catch(_){ clearTimeout(_driveSilentRefreshGuard); _driveSilentRefreshGuard = null; _driveSilentRefresh = false; }
+  }, delay);
 }
 
 function loadDriveConfig(){
@@ -4015,12 +4068,24 @@ function scheduleDriveSync(){
 
 function initDrive(){
   loadDriveConfig();
-  // restore a previously stored token only if it hasn't expired yet
+  // Restore the previously stored access token. Check localStorage first, then
+  // cookies as fallback — some browsers wipe localStorage when force-closed from
+  // the recent-apps list while cookies may survive (or vice-versa).
+  let _savedTokenExp = 0; // captured before clearDriveToken() so tryInit can use it
   try{
-    const tok = localStorage.getItem(LS_PREFIX + 'driveToken');
-    const exp = parseInt(localStorage.getItem(LS_PREFIX + 'driveTokenExp') || '0', 10) || 0;
+    let tok = localStorage.getItem(LS_PREFIX + 'driveToken');
+    let exp = parseInt(localStorage.getItem(LS_PREFIX + 'driveTokenExp') || '0', 10) || 0;
+    // If localStorage was cleared, try cookies
+    if(!tok || Date.now() >= exp){
+      const ctok = _getDriveCookie('mhfzty_dtok');
+      const cexp = parseInt(_getDriveCookie('mhfzty_dexp') || '0', 10) || 0;
+      if(ctok && Date.now() < cexp){ tok = ctok; exp = cexp; }
+    }
+    _savedTokenExp = exp; // capture now, BEFORE clearDriveToken removes the keys
     if(tok && Date.now() < exp){ driveAccessToken = tok; driveTokenExpiry = exp; }
-    else if(tok){ clearDriveToken(); } // stale — drop it
+    else if(tok || exp){ clearDriveToken(); } // stale — drop both storage locations
+    // If we restored a live token, re-arm the proactive refresh timer
+    if(driveTokenValid()) _scheduleTokenRefresh();
   }catch(e){}
   refreshDriveSettingsUI();
   if(driveClientId){
@@ -4033,12 +4098,12 @@ function initDrive(){
           driveSyncFromCloud(true, false);
         } else if(gisTokenClient && !isEmbeddedOrStandalone()){
           // Attempt silent reconnect only when the token expired RECENTLY (≤ 2h).
+          // _savedTokenExp was captured before clearDriveToken() removed the key,
+          // so this check is accurate even after the stale token was cleared.
           // If the token expired > 2h ago, Google's own session has very likely
           // also expired, so prompt:'' would open the gsi/transfer popup that
-          // hangs blank instead of completing silently. In that case we just show
-          // the sign-in button and let the user click it when ready.
-          const storedExp = parseInt(localStorage.getItem(LS_PREFIX+'driveTokenExp')||'0',10)||0;
-          const recentExpiry = storedExp > 0 && (Date.now() - storedExp) < 2*3600*1000;
+          // hangs blank instead of completing silently.
+          const recentExpiry = _savedTokenExp > 0 && (Date.now() - _savedTokenExp) < 2*3600*1000;
           if(recentExpiry){
             _driveAutoReconnect = true;
             // Safety: if the GIS callback never fires (e.g. popup blocked silently),
