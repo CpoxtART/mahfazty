@@ -222,6 +222,16 @@ function todayISO(){
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
+// Timestamp for a transaction on the chosen date at the current time, INCLUDING
+// milliseconds — so two entries within the same second still get distinct,
+// correctly-ordered ts values (the sort's id tiebreaker covers any exact-ms tie).
+function buildTxTs(dateVal){
+  const now = new Date();
+  const ts = new Date(dateVal + 'T' + now.toTimeString().slice(0,8)).getTime();
+  if(!isFinite(ts)) return Date.now(); // guard against an invalid date string
+  return ts + now.getMilliseconds();
+}
+
 // Cap all date pickers at today so a transaction can't be accidentally future-dated
 function capDateInputsToToday(){
   const t = todayISO();
@@ -335,8 +345,13 @@ async function loadState(){
   render(true);
 }
 
-async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
-async function saveTx(){ _allTxSortedCache = null; const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
+// dataEdit marks the last change to actual user DATA (balances/transactions/subs),
+// distinct from lastEdit which any save (incl. config/prefs) bumps. Drive conflict
+// resolution compares dataEdit so a pref-only change (crisis toggle, layout) can't
+// make a stale local copy "win" over fresher cloud transaction data.
+function stampDataEdit(ts){ try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(ts)); }catch(e){} }
+async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } stampDataEdit(ts); scheduleDriveSync(); idbBackup(ts); }
+async function saveTx(){ _allTxSortedCache = null; const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } stampDataEdit(ts); scheduleDriveSync(); idbBackup(ts); }
 function _pruneRecurringDismissals(){
   if(dismissedRecurring.size < 40) return;
   // dismissal keys are "desc\x00walletId" (see detectRecurring) — build the live
@@ -359,6 +374,8 @@ function loadSubs(){
 async function saveSubs(){
   const ts = Date.now();
   try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(subscriptions)); }catch(e){}
+  stampDataEdit(ts);
+  scheduleDriveSync();
   idbBackup(ts);
 }
 
@@ -1472,8 +1489,7 @@ async function doTransfer(){
   _doTransferBusy = true;
   try{
     const dateVal = document.getElementById('transferDate').value || todayISO();
-    let ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
-    if(!isFinite(ts)) ts = Date.now(); // guard against an invalid date string
+    let ts = buildTxTs(dateVal);
     const fromWallet = WALLET_DEFS.find(w=>w.id===transferFrom);
     const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
     if(!fromWallet || !toWallet){ toast('⚠ محفظة غير صحيحة', true); return; }
@@ -2238,8 +2254,7 @@ async function addTx(type){
       return;
     }
 
-    let ts = new Date(dateVal + 'T' + new Date().toTimeString().slice(0,8)).getTime();
-    if(!isFinite(ts)) ts = Date.now(); // guard against an invalid date string
+    let ts = buildTxTs(dateVal);
 
     const tx = {
       id: 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -3247,6 +3262,7 @@ async function driveSyncToCloud(){
   try{
     const payload = JSON.stringify({
       exportedAt: new Date().toISOString(),
+      dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
       wallets: state.wallets,
       transactions: state.transactions,
       crisisMode: state.crisisMode,
@@ -3395,9 +3411,14 @@ async function driveSyncFromCloud(isInitial, interactive){
       return;
     }
 
-    // both sides have data
-    const cloudTime = cloud.exportedAt ? Date.parse(cloud.exportedAt) : 0;
-    const localTime = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0;
+    // both sides have data — compare by DATA-edit time (transactions/balances/subs),
+    // not lastEdit, so a pref-only tweak (crisis/layout) never overwrites fresher
+    // cloud transactions. Fall back to exportedAt/lastEdit for older snapshots.
+    const cloudTime = (typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0)
+      ? cloud.dataEditedAt
+      : (cloud.exportedAt ? Date.parse(cloud.exportedAt) : 0);
+    const localTime = (parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0)
+      || (parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0);
 
     if(!interactive){
       // automatic reconnect — never interrupt; keep whichever copy is newer
