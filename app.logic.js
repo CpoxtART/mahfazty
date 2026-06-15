@@ -1,0 +1,1856 @@
+/* ============================================================
+   ADD / EDIT / DELETE TRANSACTIONS
+============================================================ */
+let _addTxBusy = false;
+async function addTx(type){
+  if(_addTxBusy) return;
+  _addTxBusy = true;
+  _txMutationStamp++;
+  try{
+    const walletId = selectedWallet;
+    const desc = document.getElementById('descInput').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
+    // round to cents at entry so the stored amount matches what fmt() displays —
+    // otherwise sub-cent input (10.999) shows "11.00" but sums as 10.999 and drifts
+    const amountVal = round2(parseAmount(document.getElementById('amountInput').value));
+    const dateVal = document.getElementById('dateInput').value || todayISO();
+
+    if(!isFinite(amountVal) || amountVal <= 0){
+      toast('⚠ أدخل مبلغ صحيح', true);
+      document.getElementById('amountInput').focus();
+      return;
+    }
+    if(!WALLET_DEFS.find(w => w.id === walletId)){
+      toast('⚠ اختر محفظة صحيحة', true);
+      return;
+    }
+
+    let ts = buildTxTs(dateVal);
+
+    const tx = {
+      id: 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      wallet: walletId,
+      desc: desc,
+      amount: amountVal,
+      type: type,
+      category: selectedCategory,
+      ts: ts
+    };
+
+    state.transactions.push(tx);
+    applyTxToBalance(tx, +1);
+
+    document.getElementById('descInput').value = '';
+    document.getElementById('amountInput').value = '';
+    document.getElementById('dateInput').value = todayISO();
+    document.querySelectorAll('#quickAmounts button').forEach(b=>b.classList.remove('active'));
+    // category intentionally kept so consecutive same-category entries don't need reselecting
+
+    await saveBalances();
+    await saveTx();
+    render();
+    closeAddDrawer();
+    toast(type==='expense' ? '✓ تم تسجيل المصروف' : '✓ تم تسجيل الدخل');
+
+    // auto-distribution flow for income
+    if(type === 'income' && tx.category !== 'transfer'){
+      if(autoDistribute){
+        await runDistribution(tx, amountVal);
+        render(); // reflect the distributed shares (render above ran before distribution)
+        toast('🔄 تم توزيع الدخل تلقائيًا');
+      } else {
+        pendingIncomeTx = tx;
+        openDistributionModal(amountVal);
+      }
+    }
+  } finally {
+    _addTxBusy = false;
+  }
+}
+
+/* ============================================================
+   AUTOMATIC INCOME DISTRIBUTION
+============================================================ */
+function openDistributionModal(amount){
+  document.getElementById('distAmountLabel').textContent = fmt(amount);
+  const wrap = document.getElementById('distBreakdown');
+  wrap.innerHTML = '';
+  const activeEntries = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
+  if(activeEntries.length === 0){
+    const warn = document.createElement('div');
+    warn.className = 'hint';
+    warn.style.cssText = 'color:var(--red); margin:0; font-size:13px;';
+    warn.textContent = '⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً';
+    wrap.appendChild(warn);
+  } else {
+    const totalPct = activeEntries.reduce((s,d)=>s+d.pct, 0);
+    activeEntries.forEach(d=>{
+      const w = WALLET_DEFS.find(x=>x.id===d.id);
+      const share = round2(amount * d.pct / 100);
+      const row = document.createElement('div');
+      row.className = 'dist-row';
+      row.innerHTML = `<span class="name">${w.name} <span class="pct">${d.pct}%</span></span><span class="amt">${fmt(share)}</span>`;
+      wrap.appendChild(row);
+    });
+    if(totalPct > 100){
+      const warn = document.createElement('div');
+      warn.className = 'hint';
+      warn.style.cssText = 'color:var(--red); margin:8px 0 0; font-size:13px;';
+      warn.textContent = `⚠ مجموع النسب ${totalPct}% — يتجاوز 100%، راجع الإعدادات`;
+      wrap.appendChild(warn);
+    }
+  }
+  document.getElementById('autoDistributeCheck').checked = autoDistribute;
+  openModal('distributeModal');
+}
+
+function skipDistribution(){
+  saveAutoDistributePref();
+  pendingIncomeTx = null;
+  closeModal('distributeModal');
+}
+
+async function confirmDistribution(){
+  _txMutationStamp++;
+  saveAutoDistributePref();
+  if(!pendingIncomeTx) { closeModal('distributeModal'); return; }
+  const hasActive = DISTRIBUTION.some(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
+  if(!hasActive){
+    toast('⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً', true);
+    return;
+  }
+  const txToDistribute = pendingIncomeTx;
+  pendingIncomeTx = null; // clear early so double-tap cannot trigger a second distribution
+  await runDistribution(txToDistribute, txToDistribute.amount);
+  closeModal('distributeModal');
+  render();
+  toast('✓ تم توزيع الدخل على المحافظ');
+}
+
+function saveAutoDistributePref(){
+  const checked = document.getElementById('autoDistributeCheck').checked;
+  if(checked !== autoDistribute){
+    autoDistribute = checked;
+    saveConfig();
+  }
+}
+
+// Moves the income amount out of the wallet it was deposited into,
+// and distributes it across DISTRIBUTION wallets according to their %.
+async function runDistribution(sourceTx, amount){
+  _txMutationStamp++;
+  const sourceWalletId = sourceTx.wallet;
+  const ts = sourceTx.ts;
+  const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+
+  // Only spendable wallets with a positive share participate — never route
+  // distributed income into a track-only wallet (uber/cards/cash)
+  const active = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
+  const totalPct = active.reduce((s,d)=> s + d.pct, 0);
+  // never distribute more than the income itself (caps any >100% misconfiguration)
+  const intendedTotal = round2(Math.min(amount, amount * totalPct / 100));
+
+  // nothing to distribute — leave the income where it landed, don't withdraw
+  if(intendedTotal <= 0){ await saveBalances(); await saveTx(); return; }
+
+  // Link the originating income too, so deleting any leg removes the whole
+  // income+distribution group and balances stay consistent.
+  sourceTx.link = linkId;
+
+  // Withdraw only the portion that will actually be distributed. Any
+  // undistributed remainder (when percentages sum to < 100%) then stays in
+  // the source wallet instead of silently vanishing from the balance.
+  const txOut = {
+    id: 'tx_'+Date.now()+'_d0'+Math.random().toString(36).slice(2,4),
+    wallet: sourceWalletId,
+    desc: 'توزيع الدخل على المحافظ',
+    amount: intendedTotal,
+    type: 'expense',
+    category: 'transfer',
+    ts: ts+1,
+    link: linkId
+  };
+  state.transactions.push(txOut);
+  applyTxToBalance(txOut, +1);
+
+  let allocated = 0;
+
+  // Deposit each share into its target wallet
+  active.forEach((d, i) => {
+    const w = WALLET_DEFS.find(x=>x.id===d.id);
+    if(!w) return; // guard against stale wallet ID in saved DISTRIBUTION
+    const remaining = round2(intendedTotal - allocated);
+    let share = (i === active.length - 1)
+      ? remaining                          // last leg absorbs the rounding residual
+      : round2(amount * d.pct / 100);
+    // never allocate more than what's left of intendedTotal — guards a >100%
+    // misconfiguration from producing a negative final share (which would push a
+    // bogus negative-amount tx AND create money out of nothing as later legs
+    // skip the negative apply while earlier legs already over-deposited)
+    if(share > remaining) share = remaining;
+    if(share <= 0) return; // nothing left for this (or any later) leg — skip it
+    allocated = round2(allocated + share);
+    const txIn = {
+      id: 'tx_'+Date.now()+'_d'+(i+1)+Math.random().toString(36).slice(2,4),
+      wallet: d.id,
+      desc: `حصة ${w.name} (${d.pct}%) من دخل`,
+      amount: share,
+      type: 'income',
+      category: 'transfer',
+      ts: ts+2+i,
+      link: linkId
+    };
+    state.transactions.push(txIn);
+    applyTxToBalance(txIn, +1);
+  });
+
+  await saveBalances();
+  await saveTx();
+}
+
+function round2(n){
+  return Math.round(n * 100) / 100;
+}
+
+// Drop any distribution entries whose wallet id no longer exists (e.g. from an
+// imported/cloud backup). Falls back to defaults if nothing valid remains.
+function sanitizeDistribution(arr){
+  if(!Array.isArray(arr)) return DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  const cleaned = arr
+    .filter(d => d && WALLET_DEFS.find(w=>w.id===d.id && !w.track))
+    .map(d => ({...d, pct: Math.min(100, Math.max(0, isFinite(d.pct) ? d.pct : 0))}));
+  return cleaned.length ? cleaned : DEFAULT_DISTRIBUTION.map(d=>({...d}));
+}
+function sanitizeBudgets(obj){
+  const out = {};
+  if(obj && typeof obj === 'object'){
+    WALLET_DEFS.forEach(w => {
+      const v = parseFloat(obj[w.id]);
+      if(isFinite(v) && v > 0) out[w.id] = v;
+    });
+  }
+  return out;
+}
+
+function applyTxToBalance(tx, sign){
+  if(!tx || !isFinite(tx.amount) || tx.amount <= 0) return;
+  if(!WALLET_DEFS.find(w => w.id === tx.wallet)) return; // reject orphaned wallet refs
+  const delta = (tx.type === 'expense' ? -tx.amount : tx.amount) * sign;
+  state.wallets[tx.wallet] = round2((state.wallets[tx.wallet] ?? 0) + delta);
+}
+
+function openEdit(id){
+  const tx = state.transactions.find(t=>t.id===id);
+  if(!tx) return;
+  editingTxId = id;
+  editType = tx.type;
+  editWallet = tx.wallet;
+  editCategory = tx.category || 'other';
+  // A transfer leg's type/category must stay fixed — flipping its type or
+  // category would unbalance the two-leg transfer (money created/destroyed),
+  // and only amount/wallet/desc are synced to the partner. Hide those controls.
+  _editingTransferLeg = !!(tx.link && tx.category === 'transfer');
+  document.getElementById('editTypeToggle').style.display = _editingTransferLeg ? 'none' : '';
+  document.getElementById('editCategorySection').style.display = _editingTransferLeg ? 'none' : '';
+  document.getElementById('editTransferHint').style.display = _editingTransferLeg ? 'block' : 'none';
+  setEditType(tx.type);
+  renderEditWalletSelect();
+  renderEditCategoryGrid();
+  document.getElementById('editWalletMenuWrap').classList.remove('open');
+  const _ewb = document.getElementById('editWalletBtn');
+  _ewb.classList.remove('open');
+  _ewb.setAttribute('aria-expanded','false');
+  document.getElementById('editDesc').value = tx.desc || '';
+  document.getElementById('editAmount').value = (Number(tx.amount) || 0).toFixed(2); // match the 2-decimal display used everywhere else
+  const d = new Date(tx.ts);
+  document.getElementById('editDate').value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  openModal('editModal');
+}
+
+async function saveEdit(){
+  _txMutationStamp++;
+  const tx = state.transactions.find(t=>t.id===editingTxId);
+  if(!tx){
+    toast('⚠ المعاملة لم تعد موجودة — ربما حُذفت من تبويب آخر', true);
+    closeModal('editModal');
+    return;
+  }
+
+  const newAmount = round2(parseAmount(document.getElementById('editAmount').value)); // cent precision — match display, avoid sub-cent drift
+  if(!isFinite(newAmount) || newAmount <= 0){
+    toast('⚠ أدخل مبلغ صحيح', true);
+    return;
+  }
+  if(!WALLET_DEFS.find(w => w.id === editWallet)){
+    toast('⚠ محفظة غير صالحة', true);
+    return;
+  }
+
+  // reverse old effect
+  applyTxToBalance(tx, -1);
+
+  // for a simple 2-leg transfer (link shared by exactly one other transfer leg),
+  // keep both amounts in sync so balances stay consistent after editing one side
+  if(tx.link && tx.category === 'transfer'){
+    const transferPartners = state.transactions.filter(t => t.link === tx.link && t.id !== tx.id && t.category === 'transfer');
+    if(transferPartners.length === 1){
+      const partner = transferPartners[0];
+      applyTxToBalance(partner, -1);
+      partner.amount = newAmount;
+      // keep partner description in sync with the edited leg's wallet
+      const newWalletDef = WALLET_DEFS.find(w => w.id === editWallet);
+      const partnerWalletDef = WALLET_DEFS.find(w => w.id === partner.wallet);
+      if(newWalletDef && partnerWalletDef){
+        if(tx.type === 'expense'){
+          tx.desc = tx.desc || ('تحويل إلى ' + partnerWalletDef.name);
+          partner.desc = 'تحويل من ' + newWalletDef.name;
+        } else {
+          tx.desc = tx.desc || ('تحويل من ' + partnerWalletDef.name);
+          partner.desc = 'تحويل إلى ' + newWalletDef.name;
+        }
+      }
+      applyTxToBalance(partner, +1);
+    }
+  }
+
+  tx.desc = document.getElementById('editDesc').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
+  tx.amount = newAmount;
+  tx.wallet = editWallet;
+  // transfer legs keep their original type/category (locked in the UI) so the
+  // two-leg balance stays consistent; only non-transfer txs adopt the new values
+  if(!_editingTransferLeg){
+    tx.type = editType;
+    tx.category = editCategory;
+  }
+  const dateVal = document.getElementById('editDate').value || todayISO();
+  const oldDate = new Date(tx.ts);
+  const newTs = new Date(dateVal + 'T' + oldDate.toTimeString().slice(0,8)).getTime();
+  // cap to now — prevents future-dated transactions from corrupting time filters.
+  // Preserve the original sub-second offset (% 1000) so same-second transactions
+  // keep their original order even after a date edit (toTimeString gives HH:MM:SS
+  // which loses milliseconds — we add them back from the original ts).
+  const msPart = isFinite(tx.ts) ? (tx.ts % 1000) : 0;
+  tx.ts = isFinite(newTs) ? Math.min(newTs + msPart, Date.now()) : (isFinite(tx.ts) ? tx.ts : Date.now());
+
+  applyTxToBalance(tx, +1);
+
+  await saveBalances();
+  await saveTx();
+  closeModal('editModal');
+  render(true); // force: desc/date-only edits don't change the render signature
+  toast('✓ تم التحديث');
+}
+
+async function deleteFromEdit(){
+  if(!editingTxId) return;
+  await deleteTx(editingTxId);
+  closeModal('editModal');
+}
+
+function repeatLastTx(){
+  // Use the chronologically newest non-system tx (sorted newest-first), not the
+  // last array element — after an import the array order may not match dates.
+  const sorted = getAllTxSorted();
+  let last = null;
+  for(let i = 0; i < sorted.length; i++){
+    const t = sorted[i];
+    if(t.category !== 'transfer' && t.category !== 'adjustment'){ last = t; break; }
+  }
+  if(!last){ toast('لا توجد معاملة سابقة لتكرارها'); return; }
+  document.getElementById('descInput').value = last.desc || '';
+  document.getElementById('amountInput').value = (Number(last.amount) || 0).toFixed(2);
+  document.getElementById('amountInput').dispatchEvent(new Event('input'));
+  document.getElementById('dateInput').value = todayISO();
+  if(!WALLET_DEFS.find(w=>w.id===last.wallet)?.track){
+    selectedWallet = last.wallet;
+    renderWalletSelect();
+  }
+  setAddFormType(last.type);
+  const lastCat = CATEGORIES.find(c=>c.id===(last.category||'other'));
+  if(lastCat && lastCat.types.includes(last.type)) selectedCategory = last.category || 'other';
+  renderCategoryGrid();
+  openAddDrawer();
+  switchDrawerTab(0);
+  toast('✓ تم تعبية النموذج — راجع واضغط تسجيل');
+}
+
+let _lastDeleted = null;
+let _undoTimer = null;
+
+async function deleteTx(id){
+  _txMutationStamp++;
+  const target = state.transactions.find(t => t.id === id);
+  if(!target) return;
+  // a transfer / income-distribution is one logical operation spread across
+  // several linked legs — remove them all together to keep balances consistent
+  const group = target.link
+    ? state.transactions.filter(t => t.link === target.link)
+    : [target];
+
+  const removed = [];
+  group.forEach(tx => {
+    const idx = state.transactions.indexOf(tx);
+    if(idx === -1) return;
+    applyTxToBalance(tx, -1);
+    state.transactions.splice(idx, 1);
+    removed.push(tx);
+  });
+  if(!removed.length) return;
+
+  await saveBalances();
+  await saveTx();
+  render();
+
+  _lastDeleted = removed;
+  clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
+  toastWithUndo(removed.length > 1 ? `🗑 تم حذف ${removed.length} حركات مرتبطة` : '🗑 تم الحذف', undoDelete);
+}
+
+async function undoDelete(){
+  if(!_lastDeleted) return;
+  const removed = _lastDeleted;
+  _lastDeleted = null;
+  clearTimeout(_undoTimer);
+  // position in the array is irrelevant (the list is always sorted by ts)
+  removed.forEach(tx => {
+    state.transactions.push(tx);
+    applyTxToBalance(tx, +1);
+  });
+  await saveBalances();
+  await saveTx();
+  render();
+  toast(removed.length > 1 ? '↩️ تم استرجاع الحركات' : '↩️ تم استرجاع المعاملة');
+}
+
+/* ============================================================
+   MODALS
+============================================================ */
+// Stack (not a single var) so nested modals restore focus to the correct opener:
+// e.g. wallet card → wallet detail → edit tx. A single variable would lose the
+// outer modal's opener when the inner modal overwrote it.
+const _focusStack = [];
+function openModal(id){
+  // remember what had focus so we can restore it when the modal closes (a11y)
+  _focusStack.push(document.activeElement);
+  const modal = document.getElementById(id);
+  modal.classList.add('open');
+  // lock background scroll so the page behind the sheet doesn't move while a
+  // modal (and the on-screen keyboard) is open on mobile
+  document.body.style.overflow = 'hidden';
+  if(id==='dataModal') document.getElementById('jsonArea').value = '';
+  if(id==='settingsModal'){
+    updateSettingsStats();
+    document.getElementById('driveClientId').value = driveClientId;
+    refreshDriveSettingsUI();
+    renderDistributionEditor();
+    renderLayoutEditor();
+  }
+  // move focus into the modal so keyboard/screen-reader users land in context.
+  // target a button (not a text input) so the mobile keyboard doesn't pop open.
+  requestAnimationFrame(()=>{
+    const focusable = modal.querySelector('button, [tabindex]');
+    if(focusable) try{ focusable.focus({preventScroll:true}); }catch(_){}
+  });
+}
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+  // restore background scroll only once no modal remains open
+  if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+  if(id === 'editModal'){
+    editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id;
+    // ensure wallet dropdown is fully closed so stale 'open' state can't persist across edits
+    const ewWrap = document.getElementById('editWalletMenuWrap');
+    const ewBtn  = document.getElementById('editWalletBtn');
+    if(ewWrap) ewWrap.classList.remove('open');
+    if(ewBtn){ ewBtn.classList.remove('open'); ewBtn.setAttribute('aria-expanded','false'); }
+  }
+  if(id === 'distributeModal') pendingIncomeTx = null;
+  if(id === 'walletDetailModal') detailWalletId = null;
+  if(id === 'subModal') editingSubId = null;
+  // restore focus to whatever triggered this modal (pop the stack)
+  const _retFocus = _focusStack.pop();
+  if(_retFocus && typeof _retFocus.focus === 'function'){
+    try{ _retFocus.focus({preventScroll:true}); }catch(_){}
+  }
+}
+// Modals that hold unsaved form input must NOT close on an accidental
+// backdrop tap (common on mobile) — only their explicit buttons close them.
+const _protectedModals = new Set(['editModal','transferModal','distributeModal','walletDetailModal']);
+document.querySelectorAll('.modal-overlay').forEach(ov=>{
+  ov.addEventListener('click', e=>{ if(e.target===ov && !_protectedModals.has(ov.id)) closeModal(ov.id); });
+});
+
+// Close custom dropdowns when clicking outside
+document.addEventListener('click', function(e){
+  [
+    ['walletSelectBtn',  'walletMenuWrap'],
+    ['editWalletBtn',    'editWalletMenuWrap'],
+    ['transferFromBtn',  'transferFromMenuWrap'],
+    ['transferToBtn',    'transferToMenuWrap'],
+  ].forEach(([btnId, wrapId])=>{
+    const btn  = document.getElementById(btnId);
+    const wrap = document.getElementById(wrapId);
+    if(btn && wrap && !btn.contains(e.target) && !wrap.contains(e.target)){
+      wrap.classList.remove('open');
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded','false');
+    }
+  });
+});
+
+// memoize the earliest-tx scan (O(n)) so re-opening settings doesn't re-scan
+// thousands of transactions; keyed by _txMutationStamp so it auto-invalidates
+// on any add/edit/delete.
+let _firstTxStamp = -1, _firstTxMs = null;
+function updateSettingsStats(){
+  document.getElementById('statTxCount').textContent = state.transactions.length.toLocaleString('ar-EG');
+  if(_firstTxStamp !== _txMutationStamp){
+    _firstTxStamp = _txMutationStamp;
+    _firstTxMs = state.transactions.length
+      ? state.transactions.reduce((min,t)=> t.ts<min ? t.ts : min, state.transactions[0].ts)
+      : null;
+  }
+  document.getElementById('statFirstTx').textContent = _firstTxMs !== null
+    ? new Date(_firstTxMs).toLocaleDateString('ar-EG', {day:'numeric', month:'numeric', year:'2-digit'})
+    : '—';
+  try{
+    const last = localStorage.getItem(LS_PREFIX + 'lastEdit');
+    document.getElementById('statLastEdit').textContent = last
+      ? new Date(parseInt(last)).toLocaleString('ar-EG', {day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit', hour12:false})
+      : '—';
+  }catch(e){
+    document.getElementById('statLastEdit').textContent = '—';
+  }
+  // Show active cache version
+  const cacheEl = document.getElementById('statCacheVer');
+  if(cacheEl){
+    caches.keys().then(keys => {
+      cacheEl.textContent = keys.length ? keys.join(', ') : 'لا يوجد كاش';
+    }).catch(()=>{ cacheEl.textContent = '—'; });
+  }
+}
+
+/* ============================================================
+   EXPORT / IMPORT / RESET
+============================================================ */
+function exportData(){
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    wallets: state.wallets,
+    transactions: state.transactions,
+    crisisMode: state.crisisMode,
+    budgets: budgets,
+    autoDistribute: autoDistribute,
+    distribution: DISTRIBUTION,
+    dismissedRecurring: Array.from(dismissedRecurring),
+    subscriptions: subscriptions,
+    uiPrefs: collectUiPrefs()
+  };
+  const json = JSON.stringify(payload, null, 2);
+  document.getElementById('jsonArea').value = json;
+
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'wallet-backup-' + todayISO() + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('✓ تم تجهيز ملف التصدير');
+}
+
+function importFromFile(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  // a real export is tiny JSON — reject oversized/binary files before reading
+  if(file.size > 10 * 1024 * 1024){
+    toast('⚠ الملف كبير جدًا — اختر ملف نسخة احتياطية صالح', true);
+    event.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('jsonArea').value = e.target.result;
+    applyImport(e.target.result);
+  };
+  reader.onerror = () => toast('⚠ تعذّر قراءة الملف', true);
+  reader.readAsText(file);
+  event.target.value = ''; // allow re-selecting the same file later
+}
+
+function importFromTextarea(){
+  const txt = document.getElementById('jsonArea').value.trim();
+  if(!txt){ toast('⚠ الصق بيانات JSON أولاً', true); return; }
+  applyImport(txt);
+}
+
+function stripOrphanLinks(txList){
+  const counts = {};
+  txList.forEach(tx => { if(tx.link) counts[tx.link] = (counts[tx.link]||0) + 1; });
+  txList.forEach(tx => { if(tx.link && counts[tx.link] < 2) delete tx.link; });
+}
+
+async function applyImport(text){
+  let data;
+  try{ data = JSON.parse(text); }
+  catch(e){ toast('⚠ تنسيق JSON غير صالح', true); return; }
+
+  if(!data.wallets || !Array.isArray(data.transactions)){
+    toast('⚠ ملف غير صحيح — لا يحتوي على wallets أو transactions', true); return;
+  }
+  if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
+  _txMutationStamp++; // wholesale data replacement — invalidate derived caches
+
+  if(data.wallets){
+    // a backup is a complete snapshot — clear all balances first so wallets that
+    // are omitted from the imported file don't keep stale values that would
+    // mismatch the freshly-replaced transaction list
+    WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+    WALLET_DEFS.forEach(w => { if(data.wallets[w.id] !== undefined) state.wallets[w.id] = data.wallets[w.id]; });
+  }
+  let _droppedTx = 0;
+  if(data.transactions){
+    const incoming = Array.isArray(data.transactions) ? data.transactions : [];
+    state.transactions = incoming.filter(tx =>
+      tx &&
+      typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+      (tx.type === 'income' || tx.type === 'expense') &&
+      WALLET_DEFS.find(w => w.id === tx.wallet)
+    ).map(tx => ({ ...tx, category: normalizeCategory(tx.category) }));
+    _droppedTx = incoming.length - state.transactions.length;
+  }
+
+  // Strip orphaned link IDs — if only one leg of a linked transfer/distribution
+  // group survived the import filter, its link field is dangling; unset it so
+  // a future delete of that transaction doesn't cascade to nothing and leave
+  // the balance adjustment unapplied.
+  stripOrphanLinks(state.transactions);
+  if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
+  if(data.budgets && typeof data.budgets === 'object') budgets = sanitizeBudgets(data.budgets);
+  if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
+  if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
+  if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring);
+  if(Array.isArray(data.subscriptions)){
+    subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
+  }
+  if(data.uiPrefs) applyUiPrefs(data.uiPrefs);
+  prevSpendable = null; // reset animation baseline after full data replacement
+
+  await saveBalances();
+  await saveTx();
+  await saveConfig();
+  await saveSubs();
+  closeModal('dataModal');
+  render(true);
+  if(_droppedTx > 0){
+    toast(`✓ تم الاستيراد — لكن تم تجاهل ${_droppedTx} معاملة غير صالحة (محفظة مجهولة أو بيانات تالفة)`, true);
+  } else {
+    toast('✓ تم الاستيراد بنجاح');
+  }
+}
+
+async function resetBalancesOnly(){
+  if(!confirm('⚠️ تنبيه مهم:\n\nسيتم إرجاع الأرصدة إلى القيم الافتراضية، بينما تبقى كل معاملاتك كما هي.\n\nهذا يعني أن الأرصدة لن تعود مطابقة لسجل معاملاتك (قد تظهر أرقام غير منطقية في الإحصائيات).\n\nالأفضل عادةً هو الاستيراد من نسخة احتياطية. هل أنت متأكد من المتابعة؟')) return;
+  WALLET_DEFS.forEach(w => state.wallets[w.id] = w.initial);
+  await saveBalances();
+  closeModal('settingsModal');
+  render();
+  toast('✓ تمت استعادة الأرصدة الابتدائية');
+}
+
+async function wipeAll(){
+  if(!confirm('سيتم حذف جميع الأرصدة والمعاملات نهائياً. هذا الإجراء لا يمكن التراجع عنه. متابعة؟')) return;
+  if(!confirm('تأكيد أخير: هل أنت متأكد تماماً؟')) return;
+  clearTimeout(_undoTimer); _lastDeleted = null;
+  WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+  state.transactions = [];
+  state.crisisMode = false;
+  budgets = {};
+  autoDistribute = false;
+  dismissedRecurring.clear();
+  selectedWallet = WALLET_DEFS[0].id;
+  selectedCategory = 'other';
+  editingTxId = null;
+  transferFrom = null;
+  transferTo = null;
+  detailWalletId = null;
+  pendingIncomeTx = null;
+  prevSpendable = null;
+  walletFilter = null;
+  categoryFilter = null;
+  searchQuery = '';
+  _txVisibleCount = 50;
+  currentFilter = 'all';
+  DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  document.getElementById('walletFilterChip').classList.remove('show');
+  document.getElementById('categoryFilterChip').classList.remove('show');
+  document.querySelectorAll('.filters button').forEach(b => b.classList.toggle('active', b.dataset.f === 'all'));
+  const si = document.getElementById('searchInput');
+  if(si){ si.value = ''; document.getElementById('searchBox').classList.remove('has-text'); }
+  subscriptions = [];
+  await saveBalances();
+  await saveTx();
+  await saveConfig();
+  await saveSubs();
+  closeModal('settingsModal');
+  render();
+  toast('🗑 تم حذف كل البيانات');
+}
+
+/* ============================================================
+   TOAST
+============================================================ */
+function toast(msg, isError){
+  // A new notification means the user moved on — clear the undo timer so the
+  // new toast is always visible (previously non-error toasts were silently
+  // dropped for 5s after a delete, so "تم تسجيل المصروف" could vanish).
+  // Note: we do NOT null _lastDeleted here so undo can still work if the user
+  // taps the undo button in a toastWithUndo that appears after this toast.
+  if(_lastDeleted){ clearTimeout(_undoTimer); }
+  const el = document.getElementById('saveStatus');
+  el.textContent = msg;
+  el.style.borderColor = isError ? 'var(--red)' : 'var(--line)';
+  el.style.color = isError ? 'var(--red)' : 'var(--text)';
+  el.classList.add('show');
+  clearTimeout(window._saveTimeout);
+  window._saveTimeout = setTimeout(()=> el.classList.remove('show'), 2200);
+}
+
+function toastWithUndo(msg, undoFn){
+  const el = document.getElementById('saveStatus');
+  el.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  const btn = document.createElement('button');
+  btn.textContent = 'تراجع ↩️';
+  btn.style.cssText = 'background:var(--gold); color:#241d0d; border:none; border-radius:99px; padding:4px 12px; font-size:11.5px; font-weight:700; margin-inline-end:8px; cursor:pointer;';
+  btn.onclick = () => {
+    el.classList.remove('show');
+    undoFn();
+  };
+  el.appendChild(span);
+  el.appendChild(btn);
+  el.style.borderColor = 'var(--line)';
+  el.style.color = 'var(--text)';
+  el.classList.add('show');
+  clearTimeout(window._saveTimeout);
+  window._saveTimeout = setTimeout(()=> el.classList.remove('show'), 5000);
+}
+
+/* ============================================================
+   GOOGLE DRIVE AUTO-SYNC
+   Stores a single JSON file (wallet-data.json) in the user's
+   Drive appDataFolder (a hidden app-specific space, not visible
+   in the user's normal Drive UI, but fully owned by the user's account).
+============================================================ */
+const DRIVE_FILE_NAME = 'محفظتيييي-data.json';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+
+let gisTokenClient = null;
+let driveAccessToken = null;
+let driveTokenExpiry = 0; // epoch ms when the current access token stops being valid
+let _pendingDriveCloud = null;
+let driveFileId = null;
+let driveSyncTimer = null;
+let driveClientId = '';
+let _driveSilentRefresh = false; // true while re-acquiring a token after expiry
+let _driveAutoReconnect = false; // true while silently reconnecting on app open
+let _driveAutoReconnectGuard = null; // timeout to reset _driveAutoReconnect if GIS never calls back
+let _driveSilentRefreshGuard = null; // timeout to reset _driveSilentRefresh if GIS never calls back
+let _driveTokenRefreshTimer = null; // proactive refresh 5 min before token expires
+
+// Cookie helpers — used as a second-layer storage alongside localStorage so the
+// Drive token survives when the browser wipes localStorage on force-close.
+// Cookies are scoped to the app's own path (e.g. /mahfazty/) to avoid leaking
+// the token to other GitHub-Pages sites that share the github.io domain.
+function _driveCookiePath(){
+  try{ return new URL('.', location.href).pathname; }catch(_){ return '/'; }
+}
+function _setDriveCookie(name, val, expMs){
+  try{
+    const d = new Date(expMs).toUTCString();
+    const path = _driveCookiePath();
+    document.cookie = `${name}=${encodeURIComponent(val)}; expires=${d}; path=${path}; SameSite=Strict; Secure`;
+  }catch(_){}
+}
+function _getDriveCookie(name){
+  try{
+    const entry = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith(name+'='));
+    return entry ? decodeURIComponent(entry.slice(name.length+1)) : null;
+  }catch(_){ return null; }
+}
+function _deleteDriveCookie(name){
+  try{
+    const path = _driveCookiePath();
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${path}; SameSite=Strict`;
+  }catch(_){}
+}
+
+// Persist the access token in BOTH localStorage and a path-scoped cookie so
+// it survives whether the browser wipes one storage type on force-close.
+function storeDriveToken(token, expiresInSec){
+  driveAccessToken = token;
+  driveTokenExpiry = Date.now() + (Math.max(0, (expiresInSec || 3600) - 60) * 1000); // 60s safety margin
+  try{
+    localStorage.setItem(LS_PREFIX + 'driveToken', token);
+    localStorage.setItem(LS_PREFIX + 'driveTokenExp', String(driveTokenExpiry));
+  }catch(e){}
+  _setDriveCookie('mhfzty_dtok', token, driveTokenExpiry);
+  _setDriveCookie('mhfzty_dexp', String(driveTokenExpiry), driveTokenExpiry);
+  // schedule a silent refresh 5 min before the token expires so an active
+  // session never suddenly loses Drive access mid-use
+  _scheduleTokenRefresh();
+}
+function clearDriveToken(){
+  clearTimeout(_driveTokenRefreshTimer); _driveTokenRefreshTimer = null;
+  driveAccessToken = null;
+  driveTokenExpiry = 0;
+  try{
+    localStorage.removeItem(LS_PREFIX + 'driveToken');
+    localStorage.removeItem(LS_PREFIX + 'driveTokenExp');
+    sessionStorage.removeItem(LS_PREFIX + 'driveToken'); // clean up legacy key
+  }catch(e){}
+  _deleteDriveCookie('mhfzty_dtok');
+  _deleteDriveCookie('mhfzty_dexp');
+}
+function driveTokenValid(){
+  return !!driveAccessToken && Date.now() < driveTokenExpiry;
+}
+function _scheduleTokenRefresh(){
+  clearTimeout(_driveTokenRefreshTimer); _driveTokenRefreshTimer = null;
+  if(!driveTokenExpiry) return;
+  const delay = driveTokenExpiry - Date.now() - 5*60*1000; // 5 min before expiry
+  if(delay <= 0) return;
+  _driveTokenRefreshTimer = setTimeout(() => {
+    _driveTokenRefreshTimer = null;
+    if(!driveAccessToken) return;
+    // We do NOT auto-call requestAccessToken here because on mobile Chrome
+    // a programmatic call (without user gesture) causes a redirect to
+    // accounts.google.com/gsi/transfer which hangs blank.
+    // Instead: clear the token and prompt the user to tap sign-in.
+    clearDriveToken();
+    refreshDriveSettingsUI();
+    toast('⏱ انتهت جلسة Drive — اضغط على أيقونة ☁️ في الأعلى أو سجّل دخولك من الإعدادات', true);
+  }, delay);
+}
+
+function loadDriveConfig(){
+  try{
+    driveClientId = localStorage.getItem(LS_PREFIX + 'driveClientId') || '';
+  }catch(e){}
+}
+
+// Auto-sign-in preference — persists across sessions as a simple boolean
+function loadDriveAutoSignIn(){
+  try{ return localStorage.getItem(LS_PREFIX + 'driveAutoSignIn') === 'true'; }catch(_){ return false; }
+}
+function setDriveAutoSignIn(enabled){
+  try{ localStorage.setItem(LS_PREFIX + 'driveAutoSignIn', enabled ? 'true' : 'false'); }catch(_){}
+  const chk = document.getElementById('driveAutoSignInChk');
+  if(chk) chk.checked = !!enabled;
+}
+function enableDriveAutoSignIn(){
+  setDriveAutoSignIn(true);
+  const p = document.getElementById('driveAutoSignInPrompt');
+  if(p) p.style.display = 'none';
+  const row = document.getElementById('driveAutoSignInRow');
+  if(row) row.style.display = 'block';
+  toast('✓ سيتصل التطبيق بـ Drive تلقائياً في كل مرة تفتحه');
+}
+function dismissDriveAutoSignInPrompt(){
+  const p = document.getElementById('driveAutoSignInPrompt');
+  if(p) p.style.display = 'none';
+  // mark as seen so we don't ask again this session; next sign-in it may show again
+  try{ sessionStorage.setItem(LS_PREFIX + 'autoSignInAsked', '1'); }catch(_){}
+}
+
+function setDriveIndicator(state_){
+  // state_: 'idle' | 'syncing' | 'ok' | 'error' | 'off'
+  const el = document.getElementById('driveIndicator');
+  if(state_ === 'off' || !driveClientId){
+    el.style.display = 'none';
+    return;
+  }
+  const map = {
+    idle:    {icon:'☁️', label:'جاهز',   color:'var(--muted)'},
+    syncing: {icon:'🔄', label:'يزامن',  color:'var(--blue)'},
+    ok:      {icon:'✅', label:'متزامن', color:'var(--green)'},
+    error:   {icon:'⚠️', label:'خطأ',    color:'var(--red)'}
+  };
+  const cfg = map[state_] || map.idle;
+  const clickable = (state_ === 'idle' || state_ === 'error'); // tap to sign in when disconnected
+  // Icon-only pill: a text label here ("جاهز — اضغط للدخول") used to widen the
+  // actions group enough to squeeze the brand (min-width:0) down to nothing,
+  // hiding the logo + app name on launch. The full status lives in the tooltip.
+  el.style.cssText = 'display:flex; align-items:center; justify-content:center; flex-shrink:0; width:34px; height:34px; font-size:15px; background:var(--card); border:1px solid var(--line); border-radius:50%;';
+  el.style.color = cfg.color;
+  el.style.cursor = clickable ? 'pointer' : 'default';
+  el.onclick = clickable ? driveSignIn : null;
+  el.setAttribute('role', clickable ? 'button' : 'img');
+  el.innerHTML = `<span>${cfg.icon}</span>`;
+  const fullLabel = {
+    idle: 'Drive: جاهز — اضغط لتسجيل الدخول',
+    syncing: 'Drive: جاري المزامنة...',
+    ok: 'Drive: متزامن',
+    error: 'Drive: خطأ — اضغط لتسجيل الدخول مجدداً'
+  }[state_] || cfg.label;
+  el.title = fullLabel;
+  el.setAttribute('aria-label', fullLabel);
+}
+
+// Google's sign-in popup (accounts.google.com/gsi/...) often can't close itself
+// and return the token when the app runs inside an in-app/embedded browser or as
+// an installed PWA in standalone mode, leaving the user stuck on a blank page.
+// Detect those contexts so we can advise opening a real browser tab instead.
+function isEmbeddedOrStandalone(){
+  try{
+    const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || window.navigator.standalone === true;
+    const ua = navigator.userAgent || '';
+    // common in-app browser signatures (Facebook, Instagram, Snapchat, Line,
+    // Twitter, TikTok, WhatsApp, generic WebView)
+    const inApp = /(FBAN|FBAV|FB_IAB|Instagram|Snapchat|Line\/|Twitter|TikTok|WhatsApp|; wv\)|GSA\/)/i.test(ua);
+    return standalone || inApp;
+  }catch(_){ return false; }
+}
+
+function refreshDriveSettingsUI(){
+  const setupEl = document.getElementById('driveSetup');
+  const actionsEl = document.getElementById('driveActions');
+  const statusEl = document.getElementById('driveStatusText');
+  const signInBtn = document.getElementById('driveSignInBtn');
+  const signedInActions = document.getElementById('driveSignedInActions');
+  const embeddedWarn = document.getElementById('driveEmbeddedWarn');
+  const autoSignInRow = document.getElementById('driveAutoSignInRow');
+  const autoSignInChk = document.getElementById('driveAutoSignInChk');
+
+  if(embeddedWarn) embeddedWarn.style.display = (!driveAccessToken && isEmbeddedOrStandalone()) ? 'block' : 'none';
+
+  if(!driveClientId){
+    setupEl.style.display = 'block';
+    actionsEl.style.display = 'none';
+    statusEl.textContent = 'غير مفعّل. أدخل Client ID الخاص بك للبدء.';
+    setDriveIndicator('off');
+    return;
+  }
+  setupEl.style.display = 'none';
+  actionsEl.style.display = 'block';
+
+  if(driveAccessToken){
+    statusEl.textContent = 'متصل ✓ — البيانات تُحفظ تلقائيًا على Google Drive (مجلد بيانات التطبيق الخاص).';
+    signInBtn.style.display = 'none';
+    signedInActions.style.display = 'flex';
+    if(autoSignInRow){ autoSignInRow.style.display = 'none'; } // preference no longer applies; hide
+    setDriveIndicator('ok');
+  } else {
+    statusEl.textContent = 'اضغط على زر أدناه أو على أيقونة ☁️ في الأعلى لتسجيل الدخول.';
+    signInBtn.style.display = 'block';
+    signedInActions.style.display = 'none';
+    if(autoSignInRow) autoSignInRow.style.display = 'none';
+    setDriveIndicator('idle');
+  }
+}
+
+function saveDriveClientId(){
+  const val = document.getElementById('driveClientId').value.trim();
+  if(!val || !/^[\w.-]+\.apps\.googleusercontent\.com$/.test(val)){
+    toast('⚠ تأكد من نسخ Client ID كاملاً (ينتهي بـ .apps.googleusercontent.com)', true);
+    return;
+  }
+  driveClientId = val;
+  try{ localStorage.setItem(LS_PREFIX + 'driveClientId', val); }catch(e){}
+  refreshDriveSettingsUI();
+  initGisClient();
+  toast('✓ تم الحفظ. الآن سجّل الدخول بجوجل');
+}
+
+function changeDriveClientId(){
+  if(!confirm('سيتم تسجيل الخروج وحذف إعداد Drive الحالي. متابعة؟')) return;
+  driveSignOut();
+  driveClientId = '';
+  driveFileId = null;
+  try{ localStorage.removeItem(LS_PREFIX + 'driveClientId'); }catch(e){}
+  document.getElementById('driveClientId').value = '';
+  refreshDriveSettingsUI();
+}
+
+function initGisClient(){
+  if(!driveClientId || typeof google === 'undefined' || !google.accounts){
+    return;
+  }
+  try{
+    gisTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: driveClientId,
+      scope: DRIVE_SCOPE,
+      callback: async (resp) => {
+        // All sign-ins now go through driveSignIn() (user gesture, select_account).
+        // No more silent prompt:'' paths — they caused gsi/transfer redirect on mobile.
+        if(resp.error){
+          setDriveIndicator('error');
+          toast('⚠ فشل تسجيل الدخول بجوجل', true);
+          refreshDriveSettingsUI();
+          return;
+        }
+        storeDriveToken(resp.access_token, parseInt(resp.expires_in, 10));
+        refreshDriveSettingsUI();
+        toast('✓ تم تسجيل الدخول بجوجل');
+        await driveSyncFromCloud(true, true);
+      }
+    });
+  }catch(e){
+    console.error(e);
+  }
+}
+
+function driveSignIn(){
+  if(!gisTokenClient){ initGisClient(); }
+  if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
+  try{
+    gisTokenClient.requestAccessToken({
+      // Always use 'select_account' — shows a proper Google account picker popup.
+      // Never use prompt:'' here because on mobile Chrome a programmatic
+      // (user-gesture-free) call redirects the current tab to gsi/transfer
+      // which shows a blank page and hangs.
+      prompt: 'select_account',
+      // surface popup-level failures (blocked / closed / can't return) instead of
+      // leaving the user staring at a blank google sign-in page with no feedback
+      error_callback: (err) => {
+        setDriveIndicator('error');
+        const t = (err && err.type) || '';
+        if(t === 'popup_failed_to_open'){
+          toast('⚠ تعذّر فتح نافذة جوجل — افتح التطبيق في متصفح Chrome/Safari', true);
+        } else if(t === 'popup_closed'){
+          toast('أُغلقت نافذة تسجيل الدخول قبل اكتمالها', true);
+        } else {
+          toast('⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', true);
+        }
+      }
+    });
+  }catch(e){ toast('⚠ تعذّر بدء تسجيل الدخول بجوجل', true); }
+}
+
+function driveSignOut(){
+  if(driveAccessToken && typeof google !== 'undefined' && google.accounts){
+    try{ google.accounts.oauth2.revoke(driveAccessToken, ()=>{}); }catch(e){}
+  }
+  clearDriveToken();
+  refreshDriveSettingsUI();
+  toast('تم تسجيل الخروج من Drive');
+}
+
+// Find (or remember) the app data file on Drive
+async function driveFindFile(){
+  if(driveFileId) return driveFileId;
+  const res = await fetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q=' + encodeURIComponent(`name='${DRIVE_FILE_NAME}'`), {
+    headers: { 'Authorization': 'Bearer ' + driveAccessToken }
+  });
+  if(!res.ok) throw new Error('drive list failed: ' + res.status);
+  const data = await res.json();
+  if(data.files && data.files.length > 0){
+    driveFileId = data.files[0].id;
+  }
+  return driveFileId;
+}
+
+// Push current local state to Drive (create file if needed)
+let _driveSyncBusy = false;
+let _driveResyncPending = false; // a change arrived mid-sync — re-sync afterwards
+async function driveSyncToCloud(){
+  if(!driveAccessToken) return;
+  // if a sync is already running, remember that newer changes need flushing
+  // afterwards instead of dropping them silently
+  if(_driveSyncBusy){ _driveResyncPending = true; return; }
+  _driveSyncBusy = true;
+  setDriveIndicator('syncing');
+  try{
+    const payload = JSON.stringify({
+      exportedAt: new Date().toISOString(),
+      dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
+      wallets: state.wallets,
+      transactions: state.transactions,
+      crisisMode: state.crisisMode,
+      autoDistribute: autoDistribute,
+      budgets: budgets,
+      distribution: DISTRIBUTION,
+      dismissedRecurring: Array.from(dismissedRecurring),
+      subscriptions: subscriptions,
+      uiPrefs: collectUiPrefs()
+    });
+
+    await driveFindFile();
+
+    if(driveFileId){
+      const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': 'Bearer ' + driveAccessToken,
+          'Content-Type': 'application/json'
+        },
+        body: payload
+      });
+      if(res.status === 404){
+        // the cached file was deleted on Drive — forget it and recreate on the
+        // follow-up sync that the finally block schedules
+        driveFileId = null;
+        _driveResyncPending = true;
+        throw new Error('drive update failed: 404 (file gone, will recreate)');
+      }
+      if(!res.ok) throw new Error('drive update failed: ' + res.status);
+    } else {
+      const boundary = 'wallet_boundary_' + Date.now();
+      const metadata = { name: DRIVE_FILE_NAME, parents: ['appDataFolder'] };
+      const body =
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+        `--${boundary}\r\nContent-Type: application/json\r\n\r\n${payload}\r\n` +
+        `--${boundary}--`;
+      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + driveAccessToken,
+          'Content-Type': `multipart/related; boundary=${boundary}`
+        },
+        body
+      });
+      if(!res.ok) throw new Error('drive create failed: ' + res.status);
+      const data = await res.json();
+      driveFileId = data.id;
+    }
+    setDriveIndicator('ok');
+  }catch(e){
+    console.error(e);
+    setDriveIndicator('error');
+    if(e.message && e.message.includes('401')){
+      clearDriveToken();
+      refreshDriveSettingsUI();
+      // Do NOT auto-call requestAccessToken here — on mobile Chrome it causes
+      // a redirect to gsi/transfer that hangs blank. Instead, guide the user
+      // to tap sign-in manually (one tap via the header indicator or settings).
+      toast('⚠ انتهت جلسة Drive — اضغط على ☁️ في الأعلى لتسجيل الدخول من جديد', true);
+    } else if(e.message && e.message.includes('403')){
+      toast('⚠ تم رفض الإذن من Drive — تأكد من صلاحيات appdata بالـ Client ID', true);
+    } else if(!navigator.onLine){
+      toast('⚠ لا يوجد اتصال بالإنترنت — سيتم الحفظ محليًا فقط', true);
+    } else {
+      toast('⚠ تعذر الاتصال بـ Drive، سيُعاد المحاولة لاحقًا', true);
+    }
+  } finally {
+    _driveSyncBusy = false;
+    // flush a change that arrived while this sync was in flight, or recreate a
+    // file that Drive reported missing (404) — so no edit is left unsynced
+    if(_driveResyncPending){
+      _driveResyncPending = false;
+      if(driveAccessToken) scheduleDriveSync();
+    }
+  }
+}
+
+// Pull from Drive on sign-in / startup. If cloud has data and local is empty
+// (or cloud is newer), merge by replacing local with cloud.
+// Replace all local state with a cloud snapshot (single source of truth so the
+// import/Drive/conflict paths can't drift apart). Clears balances first so wallets
+// omitted from the snapshot don't keep stale values.
+async function adoptCloudSnapshot(cloud){
+  if(cloud.wallets){
+    WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+    WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
+  }
+  if(cloud.transactions){
+    state.transactions = cloud.transactions.filter(tx =>
+      tx && (tx.type === 'income' || tx.type === 'expense') &&
+      typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
+      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+      WALLET_DEFS.find(w => w.id === tx.wallet));
+    stripOrphanLinks(state.transactions);
+  }
+  if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
+  if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
+  if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
+  if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
+  if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
+  if(Array.isArray(cloud.subscriptions)){
+    subscriptions = cloud.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
+  }
+  if(cloud.uiPrefs) applyUiPrefs(cloud.uiPrefs);
+  _txMutationStamp++; // adopted a new cloud data set — invalidate derived caches
+  prevSpendable = null; // force fresh hero animation after loading a new data set
+  await saveBalances(); await saveTx(); await saveConfig(); await saveSubs();
+  render(true); // force: wallet object is mutated in-place so reference-equality sig check would miss balance changes
+}
+
+// isInitial: this is the first pull after (re)connecting.
+// interactive: the user explicitly tapped "sign in" — only then do we ever
+//   interrupt with the conflict modal. Automatic reconnects on app open resolve
+//   silently by timestamp so the user is never nagged on every visit.
+async function driveSyncFromCloud(isInitial, interactive){
+  if(!driveAccessToken) return;
+  setDriveIndicator('syncing');
+  try{
+    await driveFindFile();
+    if(!driveFileId){
+      // nothing on Drive yet — push current local state up
+      await driveSyncToCloud();
+      return;
+    }
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {
+      headers: { 'Authorization': 'Bearer ' + driveAccessToken }
+    });
+    if(!res.ok) throw new Error('drive download failed: ' + res.status);
+    const cloud = await res.json();
+
+    const localHasData = state.transactions.length > 0;
+    const cloudHasData = (cloud.transactions || []).length > 0;
+
+    if(!(isInitial && cloudHasData)){
+      // not an adoption scenario (no cloud data, or a later background pull) —
+      // nothing to merge here; the debounced push keeps the cloud current
+      setDriveIndicator('ok');
+      return;
+    }
+
+    if(!localHasData){
+      // local is empty — safely adopt the cloud copy
+      await adoptCloudSnapshot(cloud);
+      setDriveIndicator('ok');
+      toast('☁️ تم تحميل بياناتك من Drive');
+      return;
+    }
+
+    // both sides have data — compare by DATA-edit time (transactions/balances/subs),
+    // not lastEdit, so a pref-only tweak (crisis/layout) never overwrites fresher
+    // cloud transactions. Fall back to exportedAt/lastEdit for older snapshots.
+    const cloudTime = (typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0)
+      ? cloud.dataEditedAt
+      : (cloud.exportedAt ? Date.parse(cloud.exportedAt) : 0);
+    const localTime = (parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0)
+      || (parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0);
+
+    if(!interactive){
+      // automatic reconnect — never interrupt; keep whichever copy is newer
+      if(cloudTime > localTime){
+        await adoptCloudSnapshot(cloud);
+        toast('☁️ حُدّثت بياناتك من Drive');
+      } else {
+        await driveSyncToCloud(); // local is newer/equal — push it up
+      }
+      setDriveIndicator('ok');
+      return;
+    }
+
+    // interactive sign-in with genuine data on both sides — let the user choose,
+    // showing each copy's size + timestamp so the decision is informed
+    _pendingDriveCloud = cloud;
+    const fmtWhen = ms => {
+      if(!ms || !isFinite(ms)) return 'غير معروف';
+      try{ return new Date(ms).toLocaleString('ar', {dateStyle:'medium', timeStyle:'short'}); }
+      catch(_){ return new Date(ms).toLocaleString(); }
+    };
+    const cloudCount = (cloud.transactions || []).length;
+    const localCount = state.transactions.length;
+    const newer = cloudTime > localTime ? 'cloud' : (localTime > cloudTime ? 'local' : '');
+    const tag = side => newer === side ? ' <b style="color:var(--green)">(الأحدث)</b>' : '';
+    const info = document.getElementById('conflictInfo');
+    if(info) info.innerHTML =
+      `☁️ <b>Drive</b>: ${cloudCount} عملية · ${escHtml(fmtWhen(cloudTime))}${tag('cloud')}<br>` +
+      `📱 <b>المحلية</b>: ${localCount} عملية · ${escHtml(fmtWhen(localTime))}${tag('local')}`;
+    openModal('driveConflictModal');
+  }catch(e){
+    console.error(e);
+    setDriveIndicator('error');
+  }
+}
+
+async function resolveConflict(useCloud){
+  closeModal('driveConflictModal');
+  if(!_pendingDriveCloud) return;
+  const cloud = _pendingDriveCloud;
+  _pendingDriveCloud = null;
+  if(useCloud){
+    await adoptCloudSnapshot(cloud);
+    toast('☁️ تم استخدام نسخة Drive');
+  } else {
+    await driveSyncToCloud();
+    toast('☁️ تم رفع نسختك المحلية إلى Drive');
+  }
+}
+
+function driveManualSync(){
+  driveSyncToCloud().then(()=> toast('✓ تمت المزامنة مع Drive'));
+}
+
+// Debounced auto-sync: called after every local save
+function scheduleDriveSync(){
+  if(!driveAccessToken) return;
+  clearTimeout(driveSyncTimer);
+  driveSyncTimer = setTimeout(()=> { if(driveAccessToken) driveSyncToCloud(); }, 1500);
+}
+
+function initDrive(){
+  loadDriveConfig();
+  // Restore the previously stored access token. Check localStorage first, then
+  // cookies as fallback — some browsers wipe localStorage when force-closed from
+  // the recent-apps list while cookies may survive (or vice-versa).
+  let _savedTokenExp = 0; // captured before clearDriveToken() so tryInit can use it
+  try{
+    let tok = localStorage.getItem(LS_PREFIX + 'driveToken');
+    let exp = parseInt(localStorage.getItem(LS_PREFIX + 'driveTokenExp') || '0', 10) || 0;
+    // If localStorage was cleared, try cookies
+    if(!tok || Date.now() >= exp){
+      const ctok = _getDriveCookie('mhfzty_dtok');
+      const cexp = parseInt(_getDriveCookie('mhfzty_dexp') || '0', 10) || 0;
+      if(ctok && Date.now() < cexp){ tok = ctok; exp = cexp; }
+    }
+    _savedTokenExp = exp; // capture now, BEFORE clearDriveToken removes the keys
+    if(tok && Date.now() < exp){ driveAccessToken = tok; driveTokenExpiry = exp; }
+    else if(tok || exp){ clearDriveToken(); } // stale — drop both storage locations
+    // If we restored a live token, re-arm the proactive refresh timer
+    if(driveTokenValid()) _scheduleTokenRefresh();
+  }catch(e){}
+  refreshDriveSettingsUI();
+  if(driveClientId){
+    let _gisRetries = 0;
+    const tryInit = () => {
+      if(typeof google !== 'undefined' && google.accounts){
+        initGisClient();
+        if(driveTokenValid()){
+          // still have a live token — pull quietly (auto-resolve, no modal)
+          driveSyncFromCloud(true, false);
+        }
+        // No live token: show the sign-in button.
+        // We intentionally do NOT call requestAccessToken({prompt:''}) here
+        // because on mobile Chrome a programmatic call without a user gesture
+        // causes the browser to redirect the current tab to
+        // accounts.google.com/gsi/transfer which hangs as a blank page.
+        // The user can sign in by tapping the ☁️ indicator in the header
+        // or the sign-in button in Settings — both are proper user gestures.
+      } else if(_gisRetries++ < 25){ // ~7.5s max wait
+        setTimeout(tryInit, 300);
+      } else {
+        setDriveIndicator('error');
+        console.warn('GIS script failed to load — Drive sync disabled');
+      }
+    };
+    tryInit();
+  }
+}
+
+
+/* ============================================================
+   SPLASH SCREEN
+============================================================ */
+function hideSplash(){
+  clearTimeout(window._splashTimer); // cancel the 6s error watchdog — we loaded successfully
+  const el = document.getElementById('splash');
+  if(el) el.classList.add('hide');
+}
+
+/* ============================================================
+   FIRST-RUN WELCOME MODAL
+============================================================ */
+function checkFirstRun(){
+  try{
+    const seen = localStorage.getItem(LS_PREFIX + 'welcomeSeen');
+    if(!seen){
+      openModal('welcomeModal');
+    }
+  }catch(e){}
+}
+function closeWelcome(){
+  closeModal('welcomeModal');
+  try{ localStorage.setItem(LS_PREFIX + 'welcomeSeen', '1'); }catch(e){}
+}
+
+/* ============================================================
+   DAILY QUICK REVIEW
+============================================================ */
+function checkDailyReview(){
+  try{
+    const today = todayISO();
+    const lastSeen = localStorage.getItem(LS_PREFIX + 'lastReviewDate');
+    if(lastSeen === today) return;
+    localStorage.setItem(LS_PREFIX + 'lastReviewDate', today);
+
+    // only show if there's at least some history (avoid showing on very first run, welcome covers that)
+    if(state.transactions.length === 0) return;
+
+    const content = buildDailyReviewContent();
+    if(!content) return;
+    document.getElementById('dailyReviewContent').innerHTML = content;
+    openModal('dailyReviewModal');
+  }catch(e){}
+}
+
+function buildDailyReviewContent(){
+  const now = new Date();
+  const yesterday = new Date(now); yesterday.setDate(now.getDate()-1);
+  const yStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()).getTime();
+  // exclusive end = start of today (calendar arithmetic, DST-safe — not yStart+24h)
+  const yEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()+1).getTime();
+
+  let yExpense = 0, yIncome = 0, yCount = 0;
+  state.transactions.forEach(tx=>{
+    // exclude transfers AND manual balance adjustments so "أمس" matches the
+    // income/expense totals shown everywhere else in the app
+    if(tx.ts >= yStart && tx.ts < yEnd && tx.category!=='transfer' && tx.category!=='adjustment'){
+      if(tx.type==='expense'){ yExpense += tx.amount; yCount++; }
+      else { yIncome += tx.amount; }
+    }
+  });
+
+  let lines = [];
+  if(yCount > 0 || yIncome > 0){
+    lines.push(`📅 <b style="color:var(--text)">أمس:</b> صرفت <b style="color:var(--red)">${fmt(yExpense)}</b> على ${yCount} معاملة${yIncome>0?` · دخل <b style="color:var(--green)">${fmt(yIncome)}</b>`:''}`);
+  } else {
+    lines.push(`📅 لم تُسجَّل معاملات أمس.`);
+  }
+
+  // budget warnings
+  WALLET_DEFS.forEach(w=>{
+    if(w.track || !budgets[w.id]) return;
+    const spent = monthlyExpenseForWallet(w.id);
+    const budget = budgets[w.id];
+    if(spent >= budget){
+      lines.push(`🔴 محفظة <b style="color:var(--text)">${escHtml(w.name)}</b> تجاوزت ميزانيتها الشهرية (${fmt(spent)} / ${fmt(budget)}).`);
+    } else if(spent >= budget*0.8){
+      lines.push(`🟡 محفظة <b style="color:var(--text)">${escHtml(w.name)}</b> قاربت حد ميزانيتها (${fmt(spent)} / ${fmt(budget)}).`);
+    }
+  });
+
+  // subscriptions due today (billing day matches today's date)
+  const todayDay = now.getDate();
+  const dueSubs = subscriptions.filter(s => s.active !== false && s.billingDay === todayDay);
+  if(dueSubs.length > 0){
+    const dueTotal = round2(dueSubs.reduce((s,x) => s + x.amount, 0));
+    const dueNames = dueSubs.map(s => escHtml(s.name)).join('، ');
+    lines.push(`📆 اشتراكات تُحسم اليوم: <b style="color:var(--text)">${dueNames}</b> · إجمالي: <b style="color:var(--red)">${fmt(dueTotal)}</b>`);
+  }
+
+  // pending recurring suggestions
+  const recurring = detectRecurring();
+  if(recurring.length > 0){
+    lines.push(`🔁 لديك ${recurring.length} معاملة متكررة محتملة بانتظار مراجعتك (تبويب تحليلات).`);
+  }
+
+  if(lines.length === 1 && yCount===0 && yIncome===0) return null;
+  return lines.map(l=>`<div>${l}</div>`).join('');
+}
+
+/* ============================================================
+   MONTHLY REPORT EXPORT (text-based, share or download)
+============================================================ */
+function exportMonthlyReport(){
+  const now = new Date();
+  const monthName = now.toLocaleDateString('ar-EG', {month:'long', year:'numeric'});
+  const [start, end] = monthRange(0);
+
+  let totalIncome=0, totalExpense=0;
+  const catTotals = {};
+  state.transactions.forEach(tx=>{
+    // skip transfers AND manual balance adjustments — otherwise an 'adjustment'
+    // tx would be bucketed under "أخرى" and the report totals would diverge from
+    // the in-app income/expense summary the user sees
+    if(tx.ts < start || tx.ts >= end || tx.category==='transfer' || tx.category==='adjustment') return;
+    if(tx.type==='income') totalIncome += tx.amount;
+    else {
+      totalExpense += tx.amount;
+      const c = tx.category || 'other';
+      catTotals[c] = (catTotals[c]||0) + tx.amount;
+    }
+  });
+
+  let report = `📊 تقرير محفظتيييي — ${monthName}\n`;
+  report += `${'─'.repeat(28)}\n`;
+  report += `الدخل: ${fmt(totalIncome)}\n`;
+  report += `المصروف: ${fmt(totalExpense)}\n`;
+  report += `الصافي: ${fmt(totalIncome-totalExpense)}\n\n`;
+
+  report += `حسب الفئة:\n`;
+  Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).forEach(([catId,amt])=>{
+    const cat = getCategory(catId);
+    report += `  ${cat.icon} ${cat.name}: ${fmt(amt)}\n`;
+  });
+
+  report += `\nأرصدة المحافظ:\n`;
+  WALLET_DEFS.forEach(w=>{
+    report += `  ${w.track?'🏦':'💳'} ${w.name}: ${fmt(state.wallets[w.id] ?? 0)}\n`;
+  });
+
+  report += `\n📱 محفظتيييي 🙂‍↔️`;
+
+  const shareData = { title: `تقرير محفظتيييي — ${monthName}`, text: report };
+  if(navigator.share && (!navigator.canShare || navigator.canShare(shareData))){
+    navigator.share(shareData).catch(()=>{ copyReportToClipboard(report); });
+  } else {
+    copyReportToClipboard(report);
+  }
+}
+
+function copyReportToClipboard(report){
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(report).then(()=>{
+      toast('✓ تم نسخ التقرير للحافظة');
+    }).catch(()=> downloadReport(report));
+  } else {
+    downloadReport(report);
+  }
+}
+
+function downloadReport(report){
+  const blob = new Blob([report], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'تقرير-محفظتيييي-' + todayISO() + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('✓ تم تنزيل التقرير');
+}
+
+/* ============================================================
+   PWA: MANIFEST + SERVICE WORKER (inline, no extra files needed)
+============================================================ */
+function buildManifestBlob(isLight){
+  const themeColor = isLight ? '#f4f2ed' : '#121419';
+  const manifest = {
+    name: 'محفظتيييي',
+    short_name: 'محفظتيييي',
+    start_url: new URL('.', location.href).pathname,
+    display: 'standalone',
+    background_color: themeColor,
+    theme_color: themeColor,
+    orientation: 'portrait',
+    dir: 'rtl',
+    lang: 'ar',
+    icons: [
+      {
+        src: 'data:image/svg+xml,' + encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%23dcb674"/><text x="50" y="65" font-size="50" text-anchor="middle">💰</text></svg>'
+        ),
+        sizes: '192x192 512x512',
+        type: 'image/svg+xml',
+        purpose: 'any maskable'
+      }
+    ]
+  };
+  return new Blob([JSON.stringify(manifest)], {type:'application/json'});
+}
+function applyManifest(isLight){
+  try{
+    const link = document.getElementById('manifestLink');
+    if(!link) return;
+    // revoke the previous blob so it doesn't leak across theme toggles
+    const old = link.getAttribute('href');
+    if(old && old.startsWith('blob:')) URL.revokeObjectURL(old);
+    link.setAttribute('href', URL.createObjectURL(buildManifestBlob(isLight)));
+  }catch(e){}
+}
+/* ─── PWA Update Banner ─── */
+function showUpdateBanner(){
+  const el = document.getElementById('updateBanner');
+  if(!el || el.classList.contains('show')) return;
+  // Wire buttons via JS — more reliable than inline onclick across all browsers
+  const laterBtn = document.getElementById('btnUpdateLater');
+  const nowBtn   = document.getElementById('btnUpdateNow');
+  if(laterBtn) laterBtn.onclick = dismissUpdate;
+  if(nowBtn)   nowBtn.onclick   = applyUpdate;
+  requestAnimationFrame(()=> requestAnimationFrame(()=> el.classList.add('show')));
+}
+function dismissUpdate(){
+  const el = document.getElementById('updateBanner');
+  if(el) el.classList.remove('show');
+}
+function applyUpdate(){
+  const btn = document.getElementById('btnUpdateNow');
+  if(btn){ btn.disabled = true; btn.textContent = '...جاري'; }
+  _reloadOnControllerChange = true;
+  if(_pendingWorker){
+    try{ _pendingWorker.postMessage({type:'SKIP_WAITING'}); }catch(e){}
+  }
+  // Reload after 2s — covers browsers where controllerchange is unreliable
+  setTimeout(() => window.location.reload(), 2000);
+}
+
+async function forceClearAndUpdate(){
+  const btn = document.querySelector('.btn-cache-refresh');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري...'; }
+  try{
+    // Wipe every cache bucket the browser holds for this origin
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+    // If a new SW is already waiting, activate it immediately
+    const reg = await navigator.serviceWorker.getRegistration();
+    if(reg){
+      if(reg.waiting){
+        reg.waiting.postMessage({type:'SKIP_WAITING'});
+        await new Promise(r => setTimeout(r, 600));
+      } else {
+        // Force the browser to re-fetch sw.js and install a fresh SW
+        await reg.update();
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+  }catch(e){}
+  // Hard reload — cache is empty so browser fetches everything fresh
+  window.location.reload();
+}
+
+function setupPWA(){
+  applyManifest(document.body.classList.contains('light'));
+
+  if(!('serviceWorker' in navigator)) return;
+
+  // Suppress the banner on the load immediately after a user-triggered update
+  // to avoid showing it again for the same SW version.
+  const justUpdated = !!sessionStorage.getItem('_swJustUpdated');
+  sessionStorage.removeItem('_swJustUpdated');
+
+  try{
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => {
+        _swRegistration = reg;
+
+        if(reg.waiting && !justUpdated){
+          _pendingWorker = reg.waiting;
+          showUpdateBanner();
+        }
+
+        reg.addEventListener('updatefound', () => {
+          const worker = reg.installing;
+          if(!worker) return;
+          worker.addEventListener('statechange', () => {
+            if(worker.state === 'installed' && navigator.serviceWorker.controller && !justUpdated){
+              _pendingWorker = worker;
+              showUpdateBanner();
+            }
+          });
+        });
+      })
+      .catch(e => console.warn('SW registration failed:', e));
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if(_reloadOnControllerChange){
+        sessionStorage.setItem('_swJustUpdated', '1');
+        window.location.reload();
+      }
+    });
+  }catch(e){}
+}
+
+/* Cheap signature of everything that affects visual output.
+   Used to skip expensive re-renders when nothing changed. */
+let _renderSig = '';
+// budgets and DISTRIBUTION get new object references when changed, so reference
+// equality is a valid cheap check. state.wallets is ALWAYS the same reference
+// (mutated in-place), so it must be JSON-serialised fresh every call — the old
+// reference-equality optimisation caused resetBalancesOnly() to silently skip
+// the render because the wallet object ref never changed.
+let _sigBudgets = '', _sigDist = '';
+let _sigBudgetsObj = null, _sigDistObj = null;
+function computeRenderSig(){
+  if(budgets !== _sigBudgetsObj){ _sigBudgetsObj = budgets; _sigBudgets = JSON.stringify(budgets); }
+  if(DISTRIBUTION !== _sigDistObj){ _sigDistObj = DISTRIBUTION; _sigDist = JSON.stringify(DISTRIBUTION); }
+  return [
+    state.transactions.length,
+    state.transactions.length ? state.transactions[state.transactions.length-1].id : '',
+    JSON.stringify(state.wallets),
+    currentFilter, walletFilter, categoryFilter, searchQuery,
+    state.crisisMode, _sigBudgets,
+    _sigDist, autoDistribute,
+    dismissedRecurring.size,
+    _txMutationStamp
+  ].join('|');
+}
+
+function render(force){
+  const sig = computeRenderSig();
+  if(!force && sig === _renderSig) return; // nothing visual changed
+  _renderSig = sig;
+  _monthlyExpenseCache = null; // invalidate budget bars per-render
+  _recurringCache = null; // invalidate so edited tx amounts are re-evaluated
+  // invalidate content caches keyed only on length/last-id — edits (amount,
+  // desc, date, wallet, category) don't change those, so they must be reset
+  // here to reflect in-place edits in the list, chart, analytics and hero.
+  _filteredTxSig = '';
+  _analyticsSig = '';
+  _heroStatsSig = '';
+  // Always-visible / cheap essentials (home hero + wallets + form dropdowns)
+  renderWallets();
+  renderWalletSelect();
+  updateHeroStats();
+  // Heavy, tab-specific content — only build what's on screen. Switching tabs
+  // rebuilds the target tab via switchTab(), so hidden tabs don't pay the cost
+  // on every interaction (critical with 10k+ transactions).
+  if(currentTab === 'transactions') renderRecentTx();
+  if(currentTab === 'reports'){ renderTxList(); renderChart(); }
+  if(currentTab === 'analytics'){ renderAnalytics(); renderRecurring(); renderSubscriptions(); renderPieChart(); }
+}
+
+let _resizeTimer;
+window.addEventListener('resize', ()=> { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(()=>{ renderChart(); renderPieChart(); }, 150); });
+
+renderWalletSelect();
+renderEditWalletSelect();
+renderQuickAmounts();
+_initQuickAmountSync();
+renderCategoryGrid();
+renderEditCategoryGrid();
+
+// Enter key: submit add-form or save edit; Escape: close focused modal
+document.addEventListener('keydown', e => {
+  if(e.key === 'Enter'){
+    const tag = document.activeElement && document.activeElement.tagName;
+    const id  = document.activeElement && document.activeElement.id;
+    // Add-form inputs → submit with current addFormType
+    if(id === 'descInput' || id === 'amountInput'){
+      e.preventDefault();
+      addTx(addFormType);
+    }
+    // Edit-modal inputs → save (date field included)
+    if(id === 'editDesc' || id === 'editAmount' || id === 'editDate'){
+      e.preventDefault();
+      saveEdit();
+    }
+    // Transfer-modal fields → execute transfer
+    if(id === 'transferAmount' || id === 'transferDate'){
+      e.preventDefault();
+      doTransfer();
+    }
+  }
+  // Enter/Space activates custom dropdown triggers and their options (these are
+  // <div>s with onclick, so they need explicit keyboard activation unlike <button>)
+  if(e.key === 'Enter' || e.key === ' '){
+    const el = document.activeElement;
+    if(el && (el.classList.contains('custom-select') || el.classList.contains('opt'))){
+      e.preventDefault();
+      el.click();
+    }
+  }
+  if(e.key === 'Escape'){
+    // Close open custom dropdowns first; if none, close the topmost modal
+    const dropdowns = [
+      ['walletMenuWrap','walletSelectBtn'],
+      ['editWalletMenuWrap','editWalletBtn'],
+      ['transferFromMenuWrap','transferFromBtn'],
+      ['transferToMenuWrap','transferToBtn'],
+    ];
+    let closedDropdown = false;
+    dropdowns.forEach(([wrapId, btnId])=>{
+      const wrap = document.getElementById(wrapId);
+      if(wrap && wrap.classList.contains('open')){
+        wrap.classList.remove('open');
+        const btn = document.getElementById(btnId);
+        if(btn){ btn.classList.remove('open'); btn.setAttribute('aria-expanded','false'); btn.focus({preventScroll:true}); }
+        closedDropdown = true;
+      }
+    });
+    if(!closedDropdown){
+      if(addDrawerOpen){
+        closeAddDrawer();
+      } else {
+        const open = [...document.querySelectorAll('.modal-overlay.open')];
+        if(open.length) closeModal(open[open.length-1].id);
+      }
+    }
+  }
+  if(e.key === 'Tab'){
+    const container = addDrawerOpen
+      ? document.getElementById('addDrawer')
+      : (()=>{ const m = [...document.querySelectorAll('.modal-overlay.open')]; return m.length ? m[m.length-1] : null; })();
+    if(container){
+      const focusable = [...container.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )].filter(el => el.offsetParent !== null);
+      if(focusable.length === 0) return;
+      const first = focusable[0], last = focusable[focusable.length-1];
+      if(e.shiftKey){
+        if(document.activeElement === first){ e.preventDefault(); last.focus(); }
+      } else {
+        if(document.activeElement === last){ e.preventDefault(); first.focus(); }
+      }
+    }
+  }
+});
+
+initTheme();
+loadLayoutPrefs();
+renderBottomNav();
+applySectionOrder();
+setupPWA();
+loadState().then(()=>{
+  hideSplash();
+  const wasFirstRun = !localStorage.getItem(LS_PREFIX + 'welcomeSeen');
+  checkFirstRun();
+  if(wasFirstRun){
+    // mark today as reviewed so the daily modal doesn't stack on first run
+    try{ localStorage.setItem(LS_PREFIX + 'lastReviewDate', todayISO()); }catch(e){}
+  } else {
+    setTimeout(checkDailyReview, 400);
+  }
+});
+initDrive();
+
+// Refresh time-sensitive UI (budget bars, day/week filter, analytics) when user returns to tab
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible'){
+    _monthlyExpenseCache = null;
+    _monthlyExpenseCacheKey = '';
+    capDateInputsToToday(); // "today" may have rolled over while tab was hidden
+    render(true);
+  } else {
+    // flush pending Drive sync immediately — the 1500ms debounce may never fire if tab is discarded
+    if(driveSyncTimer){ clearTimeout(driveSyncTimer); driveSyncTimer = null; if(driveAccessToken) driveSyncToCloud(); }
+  }
+});
+
+// Proactive refresh when date rolls over while tab stays open in foreground
+// (visibilitychange only fires when the user switches away/back — this covers the
+// midnight-in-foreground case: month stats, day/week/year filter, budget bars all
+// depend on "today" and must update the moment the day changes)
+function scheduleNextMidnightRefresh(){
+  const now = new Date();
+  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  setTimeout(function midnightRefresh(){
+    _monthlyExpenseCache = null;
+    _monthlyExpenseCacheKey = '';
+    capDateInputsToToday();
+    render(true);
+    // re-arm for the following midnight
+    const n = new Date();
+    const nm = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1);
+    setTimeout(midnightRefresh, nm.getTime() - n.getTime());
+  }, nextMidnight.getTime() - now.getTime());
+}
+scheduleNextMidnightRefresh();
+
+// Multi-tab sync: reload state if another tab saves data.
+// Skip if a modal OR the add drawer is open, to avoid wiping unsaved form input
+// (the add drawer isn't a .modal-overlay, so it needs its own guard).
+// Small delay lets the other tab's async IndexedDB write (the primary tx store)
+// settle before we re-read it — localStorage fires this event synchronously.
+let _storageSyncTimer = null;
+window.addEventListener('storage', (e) => {
+  if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit'){
+    if(!document.querySelector('.modal-overlay.open') && !addDrawerOpen){
+      clearTimeout(_storageSyncTimer);
+      _storageSyncTimer = setTimeout(loadState, 200);
+    }
+  }
+});
+
+// Global handler for unhandled promise rejections — prevents silent failures
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('Unhandled rejection:', e.reason);
+  toast('⚠ حدث خطأ غير متوقع', true);
+});
+
+// Prevent accidental scroll-wheel from changing number input values on desktop
+// Delegated to document so it covers any dynamically added number inputs too
+document.addEventListener('wheel', e => {
+  if(e.target && e.target.tagName === 'INPUT' && e.target.type === 'number' && document.activeElement === e.target){
+    e.preventDefault();
+  }
+}, {passive:false});

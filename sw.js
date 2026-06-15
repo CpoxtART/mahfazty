@@ -1,5 +1,5 @@
-const CACHE = 'mhfzty-v12';
-const PRECACHE = ['./index.html', './style.css', './app.js', './sw.js'];
+const CACHE = 'mhfzty-v13';
+const PRECACHE = ['./index.html', './style.css', './app.core.js', './app.ui.js', './app.logic.js', './sw.js'];
 
 self.addEventListener('install', e => {
   // Pre-cache core files so the app works offline from the very first visit.

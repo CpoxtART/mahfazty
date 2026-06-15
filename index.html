@@ -651,5 +651,9 @@ try{
   }, 6000);
 })();
 </script>
-<script src="app.js"></script>
+<!-- app split into 3 ordered classic scripts (shared global scope, equivalent to
+     the old single app.js). Load order matters: core → ui → logic (bootstrap). -->
+<script src="app.core.js"></script>
+<script src="app.ui.js"></script>
+<script src="app.logic.js"></script>
 </body></html>
