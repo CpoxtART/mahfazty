@@ -646,6 +646,11 @@ function renderRecentTx(){
   const todayStr = new Date().toDateString();
   const yesterdayStr = _yest.toDateString();
 
+  // One grouped card with thin row dividers — far tidier than 10 floating cards.
+  const card = document.createElement('div');
+  card.className = 'recent-card';
+  card.setAttribute('role','list');
+
   recent.forEach(tx => {
     const wallet = WALLET_DEFS.find(w=>w.id===tx.wallet);
     const cat = getCategory(tx.category);
@@ -655,22 +660,21 @@ function renderRecentTx(){
     const timeStr = date.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
     const sign = tx.type==='expense'?'-':'+';
     const cls = tx.type==='expense'?'neg':'pos';
-    const div = document.createElement('div');
-    div.className = 'tx';
-    div.setAttribute('role','listitem');
-    div.innerHTML = `
-      <div class="info">
-        <div class="desc">${escHtml(tx.desc||(wallet?wallet.name:''))}</div>
-        <div class="meta"><span class="ctag">${cat.icon}</span><span class="wtag">${escHtml(wallet?wallet.name:'')}</span> ${dateLabel} ${timeStr}</div>
+    const row = document.createElement('div');
+    row.className = 'rtx';
+    row.setAttribute('role','listitem');
+    row.innerHTML = `
+      <div class="rtx-badge" style="background:${cat.color}22; color:${cat.color};">${cat.icon}</div>
+      <div class="rtx-body">
+        <div class="rtx-desc">${escHtml(tx.desc||(wallet?wallet.name:''))}</div>
+        <div class="rtx-sub"><span class="rtx-wallet">${escHtml(wallet?wallet.name:'')}</span><span class="rtx-dot">·</span>${dateLabel} ${timeStr}</div>
       </div>
-      <div class="right">
-        <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
-        <button class="edit-btn" aria-label="تعديل">✎</button>
-      </div>`;
-    div.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); openEdit(tx.id); };
-    div.onclick = () => openEdit(tx.id);
-    list.appendChild(div);
+      <div class="rtx-amt ${cls}">${sign}${fmt(tx.amount)}</div>`;
+    row.onclick = () => openEdit(tx.id);
+    card.appendChild(row);
   });
+
+  list.appendChild(card);
 }
 
 /* ============================================================
