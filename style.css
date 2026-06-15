@@ -249,7 +249,7 @@
   }
   .section-title::after{
     content:''; flex:1; height:1px;
-    background:linear-gradient(to left, var(--line-soft), transparent);
+    background:linear-gradient(to inline-end, var(--line-soft), transparent);
   }
   .section-title .count{
     background:var(--card2); color:var(--muted2); border-radius:99px;
@@ -272,6 +272,7 @@
     position:relative;
     overflow:hidden;
   }
+  .wallet:hover{border-color:var(--line-soft); background:var(--card2);}
   .wallet:active{transform:scale(.97);}
   .wallet.active-filter{
     border-color:var(--gold);
@@ -284,7 +285,7 @@
     border-color:transparent var(--gold) transparent transparent;
   }
   .wallet .top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:9px;}
-  .wallet .name{font-size:11.5px; color:var(--muted); letter-spacing:.3px; font-weight:500;}
+  .wallet .name{font-size:11.5px; color:var(--muted); letter-spacing:.3px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:calc(100% - 52px);}
   .wallet .pct{font-size:11px; color:var(--muted2); background:var(--bg-elev); padding:2px 7px; border-radius:6px; font-weight:600; letter-spacing:.5px;}
   .wallet .val{font-size:19px; font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; text-align:right; transition: color .25s;}
   .wallet.track .val{color:var(--blue);}
@@ -303,7 +304,7 @@
     background:var(--card); border:1px solid var(--line); border-radius:var(--radius-sm);
     padding:13px;
   }
-  .analytics-card .l{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; font-weight:600;}
+  .analytics-card .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; font-weight:600;}
   .analytics-card .v{font-size:16px; font-weight:700; font-variant-numeric: tabular-nums; direction:ltr;}
   .analytics-card .sub{font-size:11px; color:var(--muted); margin-top:4px;}
   .analytics-card .sub.up{color:var(--red);}
@@ -535,6 +536,7 @@
     border-radius:var(--radius-sm); color:var(--muted); font-size:10.5px; font-weight:600;
     cursor:pointer; transition: border-color .15s, background .15s, color .15s;
   }
+  .cat-chip:hover{border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold);}
   .cat-chip .ic{font-size:17px;}
   .cat-chip.active{border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold);}
 
@@ -570,7 +572,7 @@
     padding:10px 13px; font-size:13px;
   }
   .dist-row .name{color:var(--text); font-weight:600;}
-  .dist-row .pct{color:var(--muted); font-size:11px; margin-right:6px;}
+  .dist-row .pct{color:var(--muted); font-size:11px; margin-inline-end:6px;}
   .dist-row .amt{font-variant-numeric: tabular-nums; direction:ltr; color:var(--gold); font-weight:700;}
 
   /* ================= FILTERS ================= */
@@ -663,7 +665,7 @@
     text-align:center;
     transition: transform .15s var(--ease);
   }
-  .summary-card .l{font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; font-weight:600;}
+  .summary-card .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; font-weight:600;}
   .summary-card .v{font-size:15px; font-weight:700; font-variant-numeric: tabular-nums; direction:ltr;}
   .summary-card.in .v{color:var(--green);}
   .summary-card.out .v{color:var(--red);}

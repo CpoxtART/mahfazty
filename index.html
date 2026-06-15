@@ -6,6 +6,10 @@
 <meta name="theme-color" content="#15171c">
 <link rel="manifest" id="manifestLink">
 <title>محفظتيييي 🙂‍↔️</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;600;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;600;700&display=swap"></noscript>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -170,7 +174,7 @@ try{
         <span>حركة الرصيد</span>
         <span class="net-badge" id="chartNet"></span>
       </div>
-      <canvas id="chartCanvas"></canvas>
+      <canvas id="chartCanvas" role="img" aria-label="مخطط حركة الرصيد"></canvas>
       <div class="chart-empty" id="chartEmpty" style="display:none;">لا توجد بيانات كافية للرسم البياني</div>
     </div>
   </div>
@@ -513,7 +517,7 @@ try{
   <div class="modal">
     <div class="grabber"></div>
     <h3>🙂‍↔️ أهلاً بك في محفظتيييي</h3>
-    <div class="hint" style="margin-top:0; font-size:13px; line-height:2;">
+    <div class="hint" style="margin-top:0; font-size:13px; line-height:1.7;">
       <b style="color:var(--text)">📊 10 محافظ بنسب جاهزة</b> — موزّعة حسب نظامك المالي (50/10/10/10/10/5/5 + Uber + بانك كاردز + كاش).<br>
       <b style="color:var(--text)">🔄 توزيع تلقائي للدخل</b> — أي دخل تسجله، يتوزع على المحافظ حسب النسب فورًا.<br>
       <b style="color:var(--text)">🏷️ فئات + رسم بياني</b> — لمعرفة وين تروح فلوسك بالضبط.<br>

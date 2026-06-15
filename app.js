@@ -1441,7 +1441,7 @@ function renderPieChart(){
   }
 
   const size = 110, r = 50, cx = size/2, cy = size/2;
-  let html = `<canvas id="pieCanvas" width="${size}" height="${size}" style="width:${size}px;height:${size}px;"></canvas>`;
+  let html = `<canvas id="pieCanvas" width="${size}" height="${size}" style="width:${size}px;height:${size}px;" role="img" aria-label="مخطط دائري لتوزيع المصروفات حسب الفئة"></canvas>`;
   html += '<div class="pie-legend">';
   entries.forEach(([catId, amt]) => {
     const cat = getCategory(catId);
@@ -1784,6 +1784,11 @@ function renderAnalytics(){
   const grid = document.getElementById('analyticsGrid');
   grid.innerHTML = '';
 
+  if(!state.transactions.length){
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><span class="ic">📊</span>سجّل أول معاملة من ＋ لترى تحليلاتك هنا</div>`;
+    return;
+  }
+
   const [curStart, curEnd] = monthRange(0);
   const [prevStart, prevEnd] = monthRange(1);
 
@@ -2050,7 +2055,8 @@ function renderTxList(){
   if(filtered.length === 0){
     if(state.transactions.length === 0 && !searchQuery && currentFilter==='all'){
       list.innerHTML = `<div class="empty"><span class="ic">🗂</span>لا توجد معاملات بعد.<br><br>
-        <button class="btn-secondary" onclick="openModal('dataModal')" style="width:auto; padding:10px 20px; display:inline-block;">⬆ استيراد بيانات من ملف JSON</button>
+        <button class="btn-primary" onclick="document.querySelector('.fab-btn').click()" style="width:auto; padding:10px 20px; display:inline-block; margin-bottom:8px;">＋ أضف أول معاملة</button><br>
+        <button class="btn-secondary" onclick="openModal('dataModal')" style="width:auto; padding:8px 16px; display:inline-block; font-size:12px;">⬆ استيراد من JSON</button>
       </div>`;
     } else {
       list.innerHTML = `<div class="empty"><span class="ic">🗂</span>لا توجد معاملات${searchQuery ? ' مطابقة لبحثك' : ' في هذه الفترة'}</div>`;
