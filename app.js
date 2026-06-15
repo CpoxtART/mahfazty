@@ -989,7 +989,7 @@ function toggleTransferMenu(dir){
 let _doTransferBusy = false;
 async function doTransfer(){
   if(_doTransferBusy) return;
-  const amt = parseAmount(document.getElementById('transferAmount').value);
+  const amt = round2(parseAmount(document.getElementById('transferAmount').value)); // cent precision — match display, avoid sub-cent drift
   if(!isFinite(amt) || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
   if(!transferFrom || !transferTo){ toast('⚠ اختر المحفظتين أولاً', true); return; }
   if(transferFrom === transferTo){ toast('⚠ اختر محفظتين مختلفتين', true); return; }
@@ -1763,7 +1763,9 @@ async function addTx(type){
   try{
     const walletId = selectedWallet;
     const desc = document.getElementById('descInput').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
-    const amountVal = parseAmount(document.getElementById('amountInput').value);
+    // round to cents at entry so the stored amount matches what fmt() displays —
+    // otherwise sub-cent input (10.999) shows "11.00" but sums as 10.999 and drifts
+    const amountVal = round2(parseAmount(document.getElementById('amountInput').value));
     const dateVal = document.getElementById('dateInput').value || todayISO();
 
     if(!isFinite(amountVal) || amountVal <= 0){
@@ -2024,7 +2026,7 @@ async function saveEdit(){
     return;
   }
 
-  const newAmount = parseAmount(document.getElementById('editAmount').value);
+  const newAmount = round2(parseAmount(document.getElementById('editAmount').value)); // cent precision — match display, avoid sub-cent drift
   if(!isFinite(newAmount) || newAmount <= 0){
     toast('⚠ أدخل مبلغ صحيح', true);
     return;
@@ -3082,7 +3084,9 @@ function buildDailyReviewContent(){
 
   let yExpense = 0, yIncome = 0, yCount = 0;
   state.transactions.forEach(tx=>{
-    if(tx.ts >= yStart && tx.ts < yEnd && tx.category!=='transfer'){
+    // exclude transfers AND manual balance adjustments so "أمس" matches the
+    // income/expense totals shown everywhere else in the app
+    if(tx.ts >= yStart && tx.ts < yEnd && tx.category!=='transfer' && tx.category!=='adjustment'){
       if(tx.type==='expense'){ yExpense += tx.amount; yCount++; }
       else { yIncome += tx.amount; }
     }
@@ -3128,7 +3132,10 @@ function exportMonthlyReport(){
   let totalIncome=0, totalExpense=0;
   const catTotals = {};
   state.transactions.forEach(tx=>{
-    if(tx.ts < start || tx.ts >= end || tx.category==='transfer') return;
+    // skip transfers AND manual balance adjustments — otherwise an 'adjustment'
+    // tx would be bucketed under "أخرى" and the report totals would diverge from
+    // the in-app income/expense summary the user sees
+    if(tx.ts < start || tx.ts >= end || tx.category==='transfer' || tx.category==='adjustment') return;
     if(tx.type==='income') totalIncome += tx.amount;
     else {
       totalExpense += tx.amount;
