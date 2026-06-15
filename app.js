@@ -3448,25 +3448,27 @@ function applyManifest(isLight){
 /* ─── PWA Update Banner ─── */
 function showUpdateBanner(){
   const el = document.getElementById('updateBanner');
-  if(!el) return;
-  el.style.display = 'block';
-  // next frame so the transform transition actually runs
+  if(!el || el.classList.contains('show')) return;
+  // Wire buttons via JS — more reliable than inline onclick across all browsers
+  const laterBtn = document.getElementById('btnUpdateLater');
+  const nowBtn   = document.getElementById('btnUpdateNow');
+  if(laterBtn) laterBtn.onclick = dismissUpdate;
+  if(nowBtn)   nowBtn.onclick   = applyUpdate;
   requestAnimationFrame(()=> requestAnimationFrame(()=> el.classList.add('show')));
 }
 function dismissUpdate(){
   const el = document.getElementById('updateBanner');
-  if(!el) return;
-  el.classList.remove('show');
-  setTimeout(()=>{ el.style.display = 'none'; }, 350);
+  if(el) el.classList.remove('show');
 }
 function applyUpdate(){
-  dismissUpdate();
+  const btn = document.getElementById('btnUpdateNow');
+  if(btn){ btn.disabled = true; btn.textContent = '...جاري'; }
   _reloadOnControllerChange = true;
   if(_pendingWorker){
     try{ _pendingWorker.postMessage({type:'SKIP_WAITING'}); }catch(e){}
   }
-  // Guarantee reload within 4s even if controllerchange doesn't fire (some browsers/iOS)
-  setTimeout(() => window.location.reload(), 4000);
+  // Reload after 2s — covers browsers where controllerchange is unreliable
+  setTimeout(() => window.location.reload(), 2000);
 }
 
 function setupPWA(){

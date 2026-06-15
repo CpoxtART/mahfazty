@@ -1047,34 +1047,43 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 
 /* ─── Update Banner ─── */
 #updateBanner{
-  position:fixed; bottom:calc(64px + env(safe-area-inset-bottom));
-  left:0; right:0; z-index:850;
-  padding:0 12px; pointer-events:none;
-  transform:translateY(130%);
-  transition:transform .32s var(--ease);
+  position:fixed;
+  top:calc(env(safe-area-inset-top) + 10px);
+  left:12px; right:12px; z-index:1500;
+  pointer-events:none;
+  transform:translateY(calc(-100% - env(safe-area-inset-top) - 24px));
+  transition:transform .3s var(--ease), opacity .3s var(--ease);
+  opacity:0;
 }
-#updateBanner.show{ transform:translateY(0); pointer-events:auto; }
+#updateBanner.show{
+  transform:translateY(0);
+  opacity:1;
+  pointer-events:auto;
+}
 .update-banner-inner{
-  max-width:516px; margin:0 auto;
+  max-width:480px; margin:0 auto;
   background:var(--card2); border:1px solid var(--line);
-  border-radius:var(--radius); padding:11px 14px;
+  border-right:3px solid var(--gold);
+  border-radius:var(--radius); padding:10px 12px;
   display:flex; align-items:center; gap:10px;
-  box-shadow:0 6px 24px rgba(0,0,0,.4);
+  box-shadow:0 8px 32px rgba(0,0,0,.45);
 }
-.update-ic{ font-size:18px; flex-shrink:0; }
-.update-msg{ flex:1; font-size:13px; font-weight:600; color:var(--text); }
+.update-ic{ font-size:16px; flex-shrink:0; }
+.update-msg{ flex:1; font-size:12.5px; font-weight:600; color:var(--text); }
 .update-actions{ display:flex; gap:6px; flex-shrink:0; }
 .update-later{
-  padding:6px 12px; font-size:12px; font-weight:600; font-family:inherit;
+  padding:5px 10px; font-size:11.5px; font-weight:600; font-family:inherit;
   background:none; border:1px solid var(--line); color:var(--muted);
   border-radius:var(--radius-sm); cursor:pointer;
   transition:background .15s;
 }
 .update-later:active{ background:var(--bg-elev); }
 .update-now{
-  padding:6px 16px; font-size:12px; font-weight:700; font-family:inherit;
+  padding:5px 14px; font-size:11.5px; font-weight:700; font-family:inherit;
   background:var(--gold); color:#1b1a10;
   border:none; border-radius:var(--radius-sm); cursor:pointer;
   transition:opacity .15s, transform .12s var(--ease);
+  white-space:nowrap;
 }
 .update-now:active{ opacity:.82; transform:scale(.96); }
+.update-now:disabled{ opacity:.55; cursor:default; transform:none; }
