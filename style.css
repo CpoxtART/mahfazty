@@ -105,7 +105,7 @@
     padding-bottom:12px;
     border-bottom:1px solid var(--line-soft);
   }
-  header .brand{display:flex; align-items:center; gap:11px;}
+  header .brand{display:flex; align-items:center; gap:11px; flex:1; min-width:0;}
   header .brand .mark{
     width:42px; height:42px; border-radius:13px;
     background:linear-gradient(150deg, var(--gold), #b88c46);
@@ -126,7 +126,7 @@
     font-size:13px; line-height:1; display:block;
     opacity:.75; letter-spacing:.5px;
   }
-  header .actions{display:flex; gap:8px; align-items:center;}
+  header .actions{display:flex; gap:6px; align-items:center; flex-shrink:0;}
   .icon-btn{
     width:44px; height:44px;
     border-radius:13px;
@@ -875,6 +875,12 @@
     padding:12px 13px;border-radius:var(--radius-sm);margin-bottom:10px;font-size:14px;font-family:inherit;
     transition: border-color .15s;
   }
+  /* distribution editor inputs must stay fixed-width inside the flex row;
+     the generic .modal input[type=number] rule (higher specificity) would otherwise
+     force them to width:100% and break the layout */
+  .modal .dist-edit-row input[type=number]{
+    width:70px; margin-bottom:0; padding:8px; flex:0 0 70px;
+  }
   .modal input:focus{outline:none; border-color:var(--gold);}
   .modal input[type=date]{color-scheme: dark;}
   body.light .modal input[type=date]{color-scheme: light;}
@@ -905,7 +911,7 @@
     flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:12px 6px; gap:3px; text-align:center;
   }
-  .sett-stat-v{ font-size:13px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
+  .sett-stat-v{ font-size:12px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; line-height:1.3; }
   .sett-stat-l{ font-size:10px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
   .sett-stat-sep{ width:1px; background:var(--line); flex-shrink:0; margin:10px 0; }
 
@@ -1231,7 +1237,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 }
 .reorder-row{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
-  background:var(--card); border:1px solid var(--line);
+  background:var(--bg-elev); border:1px solid var(--line);
   border-radius:var(--radius-sm); padding:8px 12px; margin-bottom:6px;
 }
 .reorder-row:last-child{ margin-bottom:0; }

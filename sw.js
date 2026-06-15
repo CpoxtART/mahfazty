@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v10';
+const CACHE = 'mhfzty-v11';
 const PRECACHE = ['./index.html', './style.css', './app.js'];
 
 self.addEventListener('install', e => {
