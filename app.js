@@ -2234,8 +2234,8 @@ function renderChart(){
   // vertical centre instead of pinning it to the bottom (range fallback of 1)
   const flat = max === min;
   const range = flat ? 1 : (max - min);
-  const padX = 6, padY = 12;
-  const w = cssW - padX*2;
+  const padX = 6, padY = 14, padYAxisLabel = 44;
+  const w = cssW - padX*2 - padYAxisLabel;
   const h = cssH - padY*2;
   const yOf = p => flat ? (padY + h/2) : (padY + h - ((p - min) / range) * h);
 
@@ -2295,6 +2295,29 @@ function renderChart(){
   ctx.strokeStyle = lineColor + '55';
   ctx.lineWidth = 1.5;
   ctx.stroke();
+
+  // Y-axis labels on the inline-end side (right in LTR, but canvas ignores dir)
+  const labelX = padX + w + 6;
+  const labelColor = isLightTheme ? 'rgba(0,0,0,0.42)' : 'rgba(255,255,255,0.38)';
+  ctx.fillStyle = labelColor;
+  ctx.font = `600 9px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const fmtShort = n => {
+    const abs = Math.abs(n);
+    const s = n < 0 ? '-' : '';
+    if(abs >= 1e6) return s + (abs/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+    if(abs >= 1e3) return s + (abs/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+    return s + Math.round(abs);
+  };
+  if(!flat){
+    ctx.fillText(fmtShort(max), labelX, padY);
+    ctx.fillText(fmtShort(min), labelX, padY + h);
+  }
+  if(min < 0 && max > 0){
+    ctx.fillStyle = isLightTheme ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.25)';
+    ctx.fillText('0', labelX, yOf(0));
+  }
 
   const netBadge = document.getElementById('chartNet');
   netBadge.textContent = (finalNet>=0?'+':'') + fmt(finalNet);
@@ -3002,7 +3025,7 @@ function toastWithUndo(msg, undoFn){
   span.textContent = msg;
   const btn = document.createElement('button');
   btn.textContent = 'تراجع ↩️';
-  btn.style.cssText = 'background:var(--gold); color:#241d0d; border:none; border-radius:99px; padding:4px 12px; font-size:11.5px; font-weight:700; margin-right:8px; cursor:pointer;';
+  btn.style.cssText = 'background:var(--gold); color:#241d0d; border:none; border-radius:99px; padding:4px 12px; font-size:11.5px; font-weight:700; margin-inline-end:8px; cursor:pointer;';
   btn.onclick = () => {
     el.classList.remove('show');
     undoFn();
