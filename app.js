@@ -768,12 +768,13 @@ function renderRecentTx(){
   const list = document.getElementById('recentTxList');
   if(!list) return;
   list.innerHTML = '';
-  const recent = state.transactions
-    .slice()
-    .sort((a,b)=>b.ts-a.ts)
-    .slice(0,10);
+  // Full chronological log of every transaction (newest first), grouped by day.
+  const all = state.transactions.slice().sort((a,b)=>b.ts-a.ts);
 
-  if(recent.length === 0){
+  const countEl = document.getElementById('txLogCount');
+  if(countEl) countEl.textContent = all.length ? all.length : '';
+
+  if(all.length === 0){
     list.innerHTML = '<div class="empty"><span class="ic">🗂</span>لا توجد معاملات بعد — اضغط ＋ لإضافة أول معاملة</div>';
     return;
   }
@@ -782,17 +783,29 @@ function renderRecentTx(){
   const todayStr = new Date().toDateString();
   const yesterdayStr = _yest.toDateString();
 
-  // One grouped card with thin row dividers — far tidier than 10 floating cards.
-  const card = document.createElement('div');
-  card.className = 'recent-card';
-  card.setAttribute('role','list');
+  const visible = all.slice(0, _recentVisibleCount);
+  let lastDay = null;
+  let card = null;
 
-  recent.forEach(tx => {
+  visible.forEach(tx => {
     const wallet = WALLET_DEFS.find(w=>w.id===tx.wallet);
     const cat = getCategory(tx.category);
     const date = new Date(tx.ts);
     const dayStr = date.toDateString();
-    const dateLabel = dayStr===todayStr?'اليوم':dayStr===yesterdayStr?'أمس':date.toLocaleDateString('ar-EG',{day:'numeric',month:'short'});
+    // Start a new day-group (label + its own grouped card) whenever the day changes
+    if(dayStr !== lastDay){
+      lastDay = dayStr;
+      const lbl = document.createElement('div');
+      lbl.className = 'tx-day-label';
+      lbl.textContent = dayStr===todayStr ? 'اليوم'
+        : dayStr===yesterdayStr ? 'أمس'
+        : date.toLocaleDateString('ar-EG',{weekday:'long', day:'numeric', month:'long'});
+      list.appendChild(lbl);
+      card = document.createElement('div');
+      card.className = 'recent-card';
+      card.setAttribute('role','list');
+      list.appendChild(card);
+    }
     const timeStr = date.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
     const sign = tx.type==='expense'?'-':'+';
     const cls = tx.type==='expense'?'neg':'pos';
@@ -803,14 +816,32 @@ function renderRecentTx(){
       <div class="rtx-badge" style="background:${cat.color}22; color:${cat.color};">${cat.icon}</div>
       <div class="rtx-body">
         <div class="rtx-desc">${escHtml(tx.desc||(wallet?wallet.name:''))}</div>
-        <div class="rtx-sub"><span class="rtx-wallet">${escHtml(wallet?wallet.name:'')}</span><span class="rtx-dot">·</span>${dateLabel} ${timeStr}</div>
+        <div class="rtx-sub"><span class="rtx-wallet">${escHtml(wallet?wallet.name:'')}</span><span class="rtx-dot">·</span>${timeStr}</div>
       </div>
       <div class="rtx-amt ${cls}">${sign}${fmt(tx.amount)}</div>`;
     row.onclick = () => openEdit(tx.id);
     card.appendChild(row);
   });
 
-  list.appendChild(card);
+  // Paginate so a long history stays fast — reveal 40 more per tap
+  if(all.length > _recentVisibleCount){
+    const remaining = all.length - _recentVisibleCount;
+    const toShow = Math.min(remaining, 40);
+    const more = document.createElement('button');
+    more.className = 'btn-secondary';
+    more.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:13px;';
+    more.textContent = `⬇ عرض ${toShow} معاملة أقدم` + (remaining - toShow > 0 ? ` (${remaining - toShow} متبقية)` : '');
+    more.onclick = () => { _recentVisibleCount += 40; renderRecentTx(); };
+    list.appendChild(more);
+  } else if(all.length > 40){
+    // Already showing everything after expanding — offer a way to collapse back
+    const collapse = document.createElement('button');
+    collapse.className = 'btn-secondary';
+    collapse.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:13px;';
+    collapse.textContent = '⬆ طيّ القائمة';
+    collapse.onclick = () => { _recentVisibleCount = 40; renderRecentTx(); document.getElementById('tabTransactions')?.scrollIntoView({behavior:'smooth', block:'start'}); };
+    list.appendChild(collapse);
+  }
 }
 
 /* ============================================================
@@ -1735,6 +1766,7 @@ function inRange(ts){
 
 let _searchDebounce = null;
 let _txVisibleCount = 50;
+let _recentVisibleCount = 40; // transactions tab — full chronological log, paginated
 // Fold Arabic orthographic variants so search is forgiving: a user typing
 // "قهوه" should match "قهوة", "احمد" should match "أحمد", "مصطفى" ↔ "مصطفي".
 // Also strips tashkeel (diacritics) and tatweel, and lowercases Latin text.
