@@ -107,10 +107,10 @@
   }
   header .brand{display:flex; align-items:center; gap:10px;}
   header .brand .mark{
-    width:38px; height:38px; border-radius:11px;
+    width:44px; height:44px; border-radius:13px;
     background:linear-gradient(150deg, var(--gold), #b88c46);
     display:flex; align-items:center; justify-content:center;
-    font-size:18px; box-shadow:var(--shadow);
+    font-size:20px; box-shadow:var(--shadow);
     flex-shrink:0;
   }
   header .brand h1{
@@ -121,20 +121,28 @@
     color:var(--text);
   }
   header .brand .sub{color:var(--muted); font-size:11px; margin-top:1px; letter-spacing:.4px;}
-  header .actions{display:flex; gap:6px;}
+  header .actions{display:flex; gap:8px; align-items:center;}
   .icon-btn{
-    width:38px; height:38px;
-    border-radius:11px;
+    width:44px; height:44px;
+    border-radius:13px;
     border:1px solid var(--line);
     background:var(--card);
     color:var(--muted);
     display:flex; align-items:center; justify-content:center;
-    font-size:16px;
-    cursor:pointer;
-    transition:transform .12s var(--ease), background .15s, color .15s, border-color .15s;
+    font-size:18px; line-height:1;
+    cursor:pointer; touch-action:manipulation;
+    transition:transform .12s var(--ease), background .15s, color .15s, border-color .15s, box-shadow .15s;
   }
-  .icon-btn:active{transform:scale(.92);}
-  .icon-btn:hover{color:var(--gold); border-color:var(--gold-dim);}
+  .icon-btn:active{transform:scale(.90);}
+  .icon-btn:hover{color:var(--text); border-color:var(--line-soft); background:var(--card2);}
+  .icon-btn--primary{
+    background:var(--gold-soft);
+    border-color:var(--gold-dim);
+    color:var(--gold);
+    font-size:20px;
+  }
+  .icon-btn--primary:hover{background:var(--card2); border-color:var(--gold); color:var(--gold);}
+  .icon-btn--primary:active{transform:scale(.90); box-shadow:0 0 0 3px rgba(220,182,116,.14);}
 
   /* ================= HERO ================= */
   .hero{

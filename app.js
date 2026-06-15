@@ -194,7 +194,10 @@ function applyTheme(theme){
   _themeColorCache = {}; // theme switch — drop cached colors so charts re-read them
   document.body.classList.toggle('light', theme === 'light');
   const btn = document.getElementById('themeToggle');
-  if(btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+  if(btn){
+    btn.textContent = theme === 'light' ? '🌙' : '☀️';
+    btn.title = theme === 'light' ? 'التبديل للوضع الداكن' : 'التبديل للوضع الفاتح';
+  }
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', theme === 'light' ? '#f4f2ed' : '#15171c');
   // keep the installed PWA splash/chrome color in sync with the chosen theme
