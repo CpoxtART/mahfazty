@@ -68,7 +68,7 @@ try{
 <div class="form">
   <label>المحفظة</label>
   <div class="wallet-select-wrap">
-    <div class="custom-select" id="walletSelectBtn" onclick="toggleWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox">
+    <div class="custom-select" id="walletSelectBtn" onclick="toggleWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false">
       <span id="walletSelectLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
@@ -189,7 +189,7 @@ try{
       <button id="editTypeInc" class="inc" onclick="setEditType('income')">➕ دخل</button>
     </div>
     <label>المحفظة</label>
-    <div class="custom-select" id="editWalletBtn" onclick="toggleEditWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox">
+    <div class="custom-select" id="editWalletBtn" onclick="toggleEditWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false">
       <span id="editWalletLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
@@ -333,14 +333,14 @@ try{
     <div class="grabber"></div>
     <h3>🔁 تحويل بين المحافظ</h3>
     <label>من محفظة</label>
-    <div class="custom-select" id="transferFromBtn" onclick="toggleTransferMenu('from')" role="button" tabindex="0" aria-haspopup="listbox">
+    <div class="custom-select" id="transferFromBtn" onclick="toggleTransferMenu('from')" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false">
       <span id="transferFromLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
     <div class="wallet-menu" id="transferFromMenuWrap"><div id="transferFromMenu" role="listbox"></div></div>
 
     <label>إلى محفظة</label>
-    <div class="custom-select" id="transferToBtn" onclick="toggleTransferMenu('to')" role="button" tabindex="0" aria-haspopup="listbox">
+    <div class="custom-select" id="transferToBtn" onclick="toggleTransferMenu('to')" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false">
       <span id="transferToLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>

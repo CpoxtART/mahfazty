@@ -527,13 +527,18 @@ function renderWalletSelect(){
   document.getElementById('walletSelectLabel').textContent = wDef ? wDef.name : 'اختر محفظة';
 }
 function toggleWalletMenu(){
-  document.getElementById('walletMenuWrap').classList.toggle('open');
-  document.getElementById('walletSelectBtn').classList.toggle('open');
+  const wrap = document.getElementById('walletMenuWrap');
+  const btn = document.getElementById('walletSelectBtn');
+  const isOpen = wrap.classList.toggle('open');
+  btn.classList.toggle('open', isOpen);
+  btn.setAttribute('aria-expanded', isOpen);
 }
 function selectWallet(id){
   selectedWallet = id;
+  const btn = document.getElementById('walletSelectBtn');
   document.getElementById('walletMenuWrap').classList.remove('open');
-  document.getElementById('walletSelectBtn').classList.remove('open');
+  btn.classList.remove('open');
+  btn.setAttribute('aria-expanded', 'false');
   renderWalletSelect();
 }
 
@@ -557,15 +562,18 @@ function renderEditWalletSelect(){
     opt.tabIndex = 0;
     const val = state.wallets[w.id] ?? 0;
     opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
-    opt.onclick = () => { editWallet = w.id; document.getElementById('editWalletMenuWrap').classList.remove('open'); document.getElementById('editWalletBtn').classList.remove('open'); renderEditWalletSelect(); };
+    opt.onclick = () => { editWallet = w.id; document.getElementById('editWalletMenuWrap').classList.remove('open'); const eb = document.getElementById('editWalletBtn'); eb.classList.remove('open'); eb.setAttribute('aria-expanded','false'); renderEditWalletSelect(); };
     menu.appendChild(opt);
   });
   const wDef = WALLET_DEFS.find(w => w.id === editWallet);
   document.getElementById('editWalletLabel').textContent = wDef ? wDef.name : 'اختر محفظة';
 }
 function toggleEditWalletMenu(){
-  document.getElementById('editWalletMenuWrap').classList.toggle('open');
-  document.getElementById('editWalletBtn').classList.toggle('open');
+  const wrap = document.getElementById('editWalletMenuWrap');
+  const btn = document.getElementById('editWalletBtn');
+  const isOpen = wrap.classList.toggle('open');
+  btn.classList.toggle('open', isOpen);
+  btn.setAttribute('aria-expanded', isOpen);
 }
 function setEditType(type){
   editType = type;
@@ -949,8 +957,11 @@ function renderTransferMenus(){
       opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
       opt.onclick = () => {
         if(dir==='from') transferFrom = w.id; else transferTo = w.id;
-        document.getElementById('transfer'+(dir==='from'?'From':'To')+'MenuWrap').classList.remove('open');
-        document.getElementById('transfer'+(dir==='from'?'From':'To')+'Btn').classList.remove('open');
+        const k = dir==='from'?'From':'To';
+        document.getElementById('transfer'+k+'MenuWrap').classList.remove('open');
+        const tb = document.getElementById('transfer'+k+'Btn');
+        tb.classList.remove('open');
+        tb.setAttribute('aria-expanded','false');
         renderTransferMenus();
       };
       menu.appendChild(opt);
@@ -961,8 +972,11 @@ function renderTransferMenus(){
 }
 function toggleTransferMenu(dir){
   const key = dir==='from' ? 'From' : 'To';
-  document.getElementById('transfer'+key+'MenuWrap').classList.toggle('open');
-  document.getElementById('transfer'+key+'Btn').classList.toggle('open');
+  const wrap = document.getElementById('transfer'+key+'MenuWrap');
+  const btn = document.getElementById('transfer'+key+'Btn');
+  const isOpen = wrap.classList.toggle('open');
+  btn.classList.toggle('open', isOpen);
+  btn.setAttribute('aria-expanded', isOpen);
 }
 
 let _doTransferBusy = false;
@@ -1320,8 +1334,14 @@ function renderRecurring(){
     };
     card.querySelector('[data-remind]').onclick = () => {
       document.getElementById('descInput').value = s.desc;
-      document.getElementById('amountInput').value = round2(s.avg);
+      const amtEl = document.getElementById('amountInput');
+      amtEl.value = round2(s.avg);
+      amtEl.dispatchEvent(new Event('input')); // sync quick-amount highlight
       selectedWallet = s.wallet;
+      // recurring suggestions are always expenses — ensure form is in expense mode
+      // before setting category so the grid renders the correct type and the category
+      // chip is visible and highlighted
+      setAddFormType('expense');
       selectedCategory = s.category;
       renderWalletSelect();
       renderCategoryGrid();
@@ -1759,8 +1779,7 @@ async function addTx(type){
     document.getElementById('amountInput').value = '';
     document.getElementById('dateInput').value = todayISO();
     document.querySelectorAll('#quickAmounts button').forEach(b=>b.classList.remove('active'));
-    selectedCategory = 'other';
-    renderCategoryGrid();
+    // category intentionally kept so consecutive same-category entries don't need reselecting
 
     await saveBalances();
     await saveTx();
@@ -1970,6 +1989,9 @@ function openEdit(id){
   renderEditWalletSelect();
   renderEditCategoryGrid();
   document.getElementById('editWalletMenuWrap').classList.remove('open');
+  const _ewb = document.getElementById('editWalletBtn');
+  _ewb.classList.remove('open');
+  _ewb.setAttribute('aria-expanded','false');
   document.getElementById('editDesc').value = tx.desc || '';
   document.getElementById('editAmount').value = tx.amount;
   const d = new Date(tx.ts);
@@ -2053,8 +2075,12 @@ async function deleteFromEdit(){
 }
 
 function repeatLastTx(){
-  // last non-transfer transaction
-  const last = [...state.transactions].sort((a,b)=>b.ts-a.ts).find(t=>t.category!=='transfer');
+  // scan from end (O(k)) — most recently added non-system transaction
+  let last = null;
+  for(let i = state.transactions.length - 1; i >= 0; i--){
+    const t = state.transactions[i];
+    if(t.category !== 'transfer' && t.category !== 'adjustment'){ last = t; break; }
+  }
   if(!last){ toast('لا توجد معاملة سابقة لتكرارها'); return; }
   document.getElementById('descInput').value = last.desc || '';
   document.getElementById('amountInput').value = last.amount;
@@ -2150,7 +2176,14 @@ function closeModal(id){
   document.getElementById(id).classList.remove('open');
   // restore background scroll only once no modal remains open
   if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
-  if(id === 'editModal'){ editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id; }
+  if(id === 'editModal'){
+    editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id;
+    // ensure wallet dropdown is fully closed so stale 'open' state can't persist across edits
+    const ewWrap = document.getElementById('editWalletMenuWrap');
+    const ewBtn  = document.getElementById('editWalletBtn');
+    if(ewWrap) ewWrap.classList.remove('open');
+    if(ewBtn){ ewBtn.classList.remove('open'); ewBtn.setAttribute('aria-expanded','false'); }
+  }
   if(id === 'distributeModal') pendingIncomeTx = null;
   if(id === 'walletDetailModal') detailWalletId = null;
   // restore focus to whatever triggered the modal
@@ -2179,6 +2212,7 @@ document.addEventListener('click', function(e){
     if(btn && wrap && !btn.contains(e.target) && !wrap.contains(e.target)){
       wrap.classList.remove('open');
       btn.classList.remove('open');
+      btn.setAttribute('aria-expanded','false');
     }
   });
 });
@@ -2346,9 +2380,11 @@ async function wipeAll(){
   categoryFilter = null;
   searchQuery = '';
   _txVisibleCount = 50;
+  currentFilter = 'all';
   DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
   document.getElementById('walletFilterChip').classList.remove('show');
   document.getElementById('categoryFilterChip').classList.remove('show');
+  document.querySelectorAll('.filters button').forEach(b => b.classList.toggle('active', b.dataset.f === 'all'));
   const si = document.getElementById('searchInput');
   if(si){ si.value = ''; document.getElementById('searchBox').classList.remove('has-text'); }
   await saveBalances();
@@ -2820,7 +2856,7 @@ async function adoptCloudSnapshot(cloud){
   if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
   prevSpendable = null; // force fresh hero animation after loading a new data set
   await saveBalances(); await saveTx(); await saveConfig();
-  render();
+  render(true); // force: wallet object is mutated in-place so reference-equality sig check would miss balance changes
 }
 
 // isInitial: this is the first pull after (re)connecting.
@@ -3271,9 +3307,27 @@ document.addEventListener('keydown', e => {
     }
   }
   if(e.key === 'Escape'){
-    // Close the topmost open modal
-    const open = [...document.querySelectorAll('.modal-overlay.open')];
-    if(open.length) closeModal(open[open.length-1].id);
+    // Close open custom dropdowns first; if none, close the topmost modal
+    const dropdowns = [
+      ['walletMenuWrap','walletSelectBtn'],
+      ['editWalletMenuWrap','editWalletBtn'],
+      ['transferFromMenuWrap','transferFromBtn'],
+      ['transferToMenuWrap','transferToBtn'],
+    ];
+    let closedDropdown = false;
+    dropdowns.forEach(([wrapId, btnId])=>{
+      const wrap = document.getElementById(wrapId);
+      if(wrap && wrap.classList.contains('open')){
+        wrap.classList.remove('open');
+        const btn = document.getElementById(btnId);
+        if(btn){ btn.classList.remove('open'); btn.setAttribute('aria-expanded','false'); btn.focus({preventScroll:true}); }
+        closedDropdown = true;
+      }
+    });
+    if(!closedDropdown){
+      const open = [...document.querySelectorAll('.modal-overlay.open')];
+      if(open.length) closeModal(open[open.length-1].id);
+    }
   }
   if(e.key === 'Tab'){
     // Focus trap: keep Tab navigation inside the topmost open modal
