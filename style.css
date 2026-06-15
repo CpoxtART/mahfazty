@@ -1044,3 +1044,37 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   padding:6px; cursor:pointer; border-radius:8px; transition:color .15s, background .15s;
 }
 .sub-card .sub-edit:active{ color:var(--gold); background:var(--bg-elev); }
+
+/* ─── Update Banner ─── */
+#updateBanner{
+  position:fixed; bottom:calc(64px + env(safe-area-inset-bottom));
+  left:0; right:0; z-index:850;
+  padding:0 12px; pointer-events:none;
+  transform:translateY(130%);
+  transition:transform .32s var(--ease);
+}
+#updateBanner.show{ transform:translateY(0); pointer-events:auto; }
+.update-banner-inner{
+  max-width:516px; margin:0 auto;
+  background:var(--card2); border:1px solid var(--line);
+  border-radius:var(--radius); padding:11px 14px;
+  display:flex; align-items:center; gap:10px;
+  box-shadow:0 6px 24px rgba(0,0,0,.4);
+}
+.update-ic{ font-size:18px; flex-shrink:0; }
+.update-msg{ flex:1; font-size:13px; font-weight:600; color:var(--text); }
+.update-actions{ display:flex; gap:6px; flex-shrink:0; }
+.update-later{
+  padding:6px 12px; font-size:12px; font-weight:600; font-family:inherit;
+  background:none; border:1px solid var(--line); color:var(--muted);
+  border-radius:var(--radius-sm); cursor:pointer;
+  transition:background .15s;
+}
+.update-later:active{ background:var(--bg-elev); }
+.update-now{
+  padding:6px 16px; font-size:12px; font-weight:700; font-family:inherit;
+  background:var(--gold); color:#1b1a10;
+  border:none; border-radius:var(--radius-sm); cursor:pointer;
+  transition:opacity .15s, transform .12s var(--ease);
+}
+.update-now:active{ opacity:.82; transform:scale(.96); }

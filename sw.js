@@ -1,14 +1,15 @@
-const CACHE = 'mhfzty-v4';
+const CACHE = 'mhfzty-v5';
 const PRECACHE = ['./index.html', './style.css', './app.js'];
 
 self.addEventListener('install', e => {
-  // Pre-cache core files so the app works offline from the very first visit
+  // Pre-cache core files so the app works offline from the very first visit.
+  // No skipWaiting() here — the app shows an in-page update banner and posts
+  // SKIP_WAITING when the user approves, giving them control over the timing.
   e.waitUntil(
-    caches.open(CACHE)
-      .then(c => c.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE).then(c => c.addAll(PRECACHE))
   );
 });
+
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -17,6 +18,12 @@ self.addEventListener('activate', e => {
   );
   self.clients.claim();
 });
+
+// The app posts this message when the user taps "تحديث الآن"
+self.addEventListener('message', e => {
+  if(e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 self.addEventListener('fetch', e => {
   if(e.request.method !== 'GET') return;
   const url = new URL(e.request.url);

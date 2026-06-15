@@ -536,6 +536,18 @@ try{
   </div>
 </div>
 
+<!-- ===== UPDATE BANNER ===== -->
+<div id="updateBanner" role="alert" aria-live="assertive">
+  <div class="update-banner-inner">
+    <span class="update-ic">📲</span>
+    <span class="update-msg">تحديث جديد متاح</span>
+    <div class="update-actions">
+      <button class="update-later" onclick="dismissUpdate()">لاحقاً</button>
+      <button class="update-now" onclick="applyUpdate()">تحديث الآن</button>
+    </div>
+  </div>
+</div>
+
 <div id="saveStatus" role="status" aria-live="polite"></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>

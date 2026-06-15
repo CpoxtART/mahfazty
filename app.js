@@ -70,6 +70,11 @@ let drawerTab = 0;
 let subscriptions = []; // [{id, name, amount, billingDay, active}]
 let editingSubId = null;
 
+/* SW update flow */
+let _swRegistration = null;
+let _pendingWorker = null;
+let _reloadOnControllerChange = false;
+
 /* ============================================================
    FORMAT HELPERS
 ============================================================ */
@@ -3440,19 +3445,65 @@ function applyManifest(isLight){
     link.setAttribute('href', URL.createObjectURL(buildManifestBlob(isLight)));
   }catch(e){}
 }
+/* ─── PWA Update Banner ─── */
+function showUpdateBanner(){
+  const el = document.getElementById('updateBanner');
+  if(!el) return;
+  el.style.display = 'block';
+  // next frame so the transform transition actually runs
+  requestAnimationFrame(()=> requestAnimationFrame(()=> el.classList.add('show')));
+}
+function dismissUpdate(){
+  const el = document.getElementById('updateBanner');
+  if(!el) return;
+  el.classList.remove('show');
+  setTimeout(()=>{ el.style.display = 'none'; }, 350);
+}
+function applyUpdate(){
+  dismissUpdate();
+  if(!_pendingWorker) return;
+  _reloadOnControllerChange = true;
+  _pendingWorker.postMessage({type:'SKIP_WAITING'});
+}
+
 function setupPWA(){
   applyManifest(document.body.classList.contains('light'));
 
-  if('serviceWorker' in navigator){
-    try{
-      navigator.serviceWorker.register('./sw.js')
-        .catch(e => console.warn('SW registration failed:', e));
-      // When a new SW takes control, prompt user to reload for the latest version
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        toast('📲 يتوفر تحديث جديد — أعد فتح التطبيق للحصول عليه');
-      });
-    }catch(e){}
-  }
+  if(!('serviceWorker' in navigator)) return;
+  try{
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => {
+        _swRegistration = reg;
+
+        // A new SW was already waiting when the page loaded (user had the app open
+        // during a previous deploy and just came back — banner fires immediately)
+        if(reg.waiting){
+          _pendingWorker = reg.waiting;
+          showUpdateBanner();
+        }
+
+        // A new SW begins installing during this session
+        reg.addEventListener('updatefound', () => {
+          const worker = reg.installing;
+          if(!worker) return;
+          worker.addEventListener('statechange', () => {
+            // 'installed' + controller present = new SW waiting, old one still active
+            if(worker.state === 'installed' && navigator.serviceWorker.controller){
+              _pendingWorker = worker;
+              showUpdateBanner();
+            }
+          });
+        });
+      })
+      .catch(e => console.warn('SW registration failed:', e));
+
+    // When the new SW takes control (after SKIP_WAITING), reload to get fresh files.
+    // _reloadOnControllerChange guards against reloading on the very first activation
+    // of a fresh install where controllerchange fires without a user-triggered update.
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if(_reloadOnControllerChange) window.location.reload();
+    });
+  }catch(e){}
 }
 
 /* Cheap signature of everything that affects visual output.
