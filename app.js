@@ -3461,34 +3461,39 @@ function dismissUpdate(){
 }
 function applyUpdate(){
   dismissUpdate();
-  if(!_pendingWorker) return;
   _reloadOnControllerChange = true;
-  _pendingWorker.postMessage({type:'SKIP_WAITING'});
+  if(_pendingWorker){
+    try{ _pendingWorker.postMessage({type:'SKIP_WAITING'}); }catch(e){}
+  }
+  // Guarantee reload within 4s even if controllerchange doesn't fire (some browsers/iOS)
+  setTimeout(() => window.location.reload(), 4000);
 }
 
 function setupPWA(){
   applyManifest(document.body.classList.contains('light'));
 
   if(!('serviceWorker' in navigator)) return;
+
+  // Suppress the banner on the load immediately after a user-triggered update
+  // to avoid showing it again for the same SW version.
+  const justUpdated = !!sessionStorage.getItem('_swJustUpdated');
+  sessionStorage.removeItem('_swJustUpdated');
+
   try{
     navigator.serviceWorker.register('./sw.js')
       .then(reg => {
         _swRegistration = reg;
 
-        // A new SW was already waiting when the page loaded (user had the app open
-        // during a previous deploy and just came back — banner fires immediately)
-        if(reg.waiting){
+        if(reg.waiting && !justUpdated){
           _pendingWorker = reg.waiting;
           showUpdateBanner();
         }
 
-        // A new SW begins installing during this session
         reg.addEventListener('updatefound', () => {
           const worker = reg.installing;
           if(!worker) return;
           worker.addEventListener('statechange', () => {
-            // 'installed' + controller present = new SW waiting, old one still active
-            if(worker.state === 'installed' && navigator.serviceWorker.controller){
+            if(worker.state === 'installed' && navigator.serviceWorker.controller && !justUpdated){
               _pendingWorker = worker;
               showUpdateBanner();
             }
@@ -3497,11 +3502,11 @@ function setupPWA(){
       })
       .catch(e => console.warn('SW registration failed:', e));
 
-    // When the new SW takes control (after SKIP_WAITING), reload to get fresh files.
-    // _reloadOnControllerChange guards against reloading on the very first activation
-    // of a fresh install where controllerchange fires without a user-triggered update.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if(_reloadOnControllerChange) window.location.reload();
+      if(_reloadOnControllerChange){
+        sessionStorage.setItem('_swJustUpdated', '1');
+        window.location.reload();
+      }
     });
   }catch(e){}
 }
