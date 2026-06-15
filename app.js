@@ -533,7 +533,7 @@ function renderWallets(){
       const budget = budgets[w.id];
       const ratio = Math.min(1, spent/budget);
       const over = spent > budget;
-      const color = over ? 'var(--red)' : ratio > 0.8 ? '#e0c074' : 'var(--green)';
+      const color = over ? 'var(--red)' : ratio > 0.8 ? 'var(--gold)' : 'var(--green)';
       budgetHtml = `
         <div class="budget-row">
           <div class="bar" style="margin-top:6px;"><i style="transform:scaleX(${ratio.toFixed(4)}); background:${color};"></i></div>
@@ -2155,8 +2155,8 @@ function attachSwipe(el, wrap, txId){
     const dx = e.touches[0].clientX - startX;
     const dy = e.touches[0].clientY - startY;
     if(!swipeMode){
-      if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 5){ swipeMode = true; }
-      else if(Math.abs(dy) > 5){ dragging = false; return; }
+      if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10){ swipeMode = true; }
+      else if(Math.abs(dy) > 10){ dragging = false; return; }
       else return;
     }
     e.preventDefault(); // stop pull-to-refresh and scroll during confirmed horizontal swipe
