@@ -412,6 +412,29 @@
     right:0; left:0;
     z-index:50;
     box-shadow:var(--shadow);
+    /* This picker is position:absolute, so its height never affects page layout.
+       Reveal it with a GPU-composited transform+opacity instead of animating
+       max-height — the latter forces a layout recalc every frame and janked when
+       opened right after saving a transaction (main thread busy re-rendering the
+       list/chart). transform/opacity run on the compositor thread and stay smooth
+       regardless of main-thread load. */
+    max-height:340px;
+    margin-bottom:0;
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+    transform: translateY(-6px);
+    transform-origin: top center;
+    transition: opacity .15s var(--ease), transform .15s var(--ease), visibility 0s linear .15s;
+  }
+  .wallet-select-wrap .wallet-menu.open{
+    max-height:340px;
+    margin-bottom:0;
+    opacity:1;
+    visibility:visible;
+    pointer-events:auto;
+    transform: translateY(0);
+    transition: opacity .15s var(--ease), transform .15s var(--ease);
   }
 
   .wallet-menu{

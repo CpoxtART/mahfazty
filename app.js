@@ -282,7 +282,14 @@ async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(
 async function saveTx(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
 function _pruneRecurringDismissals(){
   if(dismissedRecurring.size < 40) return;
-  const live = new Set(state.transactions.map(tx=>(tx.desc||'').trim().toLowerCase()).filter(Boolean));
+  // dismissal keys are "desc\x00walletId" (see detectRecurring) — build the live
+  // set with the SAME shape, otherwise NONE of the keys ever match and we wipe
+  // every dismissal at once, making dismissed suggestions reappear.
+  const live = new Set(
+    state.transactions
+      .map(tx => (tx.desc||'').trim().toLowerCase() + '\x00' + tx.wallet)
+      .filter(k => k.charAt(0) !== '\x00') // drop empty-description keys
+  );
   for(const k of dismissedRecurring){ if(!live.has(k)) dismissedRecurring.delete(k); }
 }
 async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(ts); }
@@ -1444,6 +1451,12 @@ function getFilteredTx(){
       const hay = normalizeSearch((tx.desc||'') + ' ' + (wallet?wallet.name:'') + ' ' + (cat?cat.name:''));
       return hay.includes(searchQuery);
     });
+  // sort once here (newest-first) and cache — the tx list and the chart both
+  // consumed this and each re-sorted the whole array on EVERY render(). Doing it
+  // inside the cached builder means an unchanged filter costs zero sorts on
+  // subsequent renders (theme toggle, balance edits, etc.), and a data change
+  // costs one sort instead of two. The chart just reverses this for ascending.
+  _filteredTxCache.sort((a,b)=> b.ts - a.ts);
   return _filteredTxCache;
 }
 
@@ -1454,7 +1467,9 @@ function renderTxList(){
   const list = document.getElementById('txList');
   list.setAttribute('role','list');
   list.innerHTML = '';
-  const filtered = getFilteredTx().slice().sort((a,b)=>b.ts-a.ts);
+  // getFilteredTx() is already cached AND sorted newest-first — use it directly
+  // (read-only here; the visible slice below makes its own copy)
+  const filtered = getFilteredTx();
 
   let income = 0, expense = 0;
   filtered.forEach(tx => {
@@ -1645,7 +1660,9 @@ function renderChart(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,cssW,cssH);
 
-  const filtered = getFilteredTx().slice().sort((a,b)=>a.ts-b.ts);
+  // cached list is newest-first; chart needs oldest-first — reverse a copy (O(n),
+  // cheaper than the full re-sort this used to do on every render)
+  const filtered = getFilteredTx().slice().reverse();
   if(filtered.length < 2){
     emptyEl.style.display = 'block';
     canvas.style.display = 'none';
