@@ -71,6 +71,7 @@ let subscriptions = []; // [{id, name, amount, billingDay, active}]
 let editingSubId = null;
 
 /* v9.4 — customizable layout (tab + section order) */
+let _layoutEditorTab = 'tab'; // which sub-tab is active in the layout editor
 const TAB_DEFS = {
   home:         {icon:'🏠', label:'الرئيسي',   panel:'tabHome'},
   transactions: {icon:'🧾', label:'المعاملات', panel:'tabTransactions'},
@@ -796,37 +797,67 @@ function applySectionOrder(){
     });
   });
 }
+// Tabs inside the layout editor (one for each reorderable group)
+const LAYOUT_EDITOR_TABS = [
+  { id:'tab',       icon:'🗂',  label:'التبويبات' },
+  { id:'sec:home',  icon:'🏠',  label:'الرئيسي'   },
+  { id:'sec:analytics', icon:'📊', label:'تحليلات' },
+  { id:'sec:reports',   icon:'📋', label:'تقارير'  },
+  { id:'txlimit',   icon:'🧾',  label:'المعاملات'  },
+];
+
 function renderLayoutEditor(){
   const host = document.getElementById('layoutEditor');
   if(!host) return;
+
   const row = (scope, key, label, idx, len) =>
     `<div class="reorder-row">
       <span class="reorder-label">${label}</span>
       <div class="reorder-btns">
-        <button onclick="moveLayout('${scope}','${key}',-1)" ${idx === 0 ? 'disabled' : ''} aria-label="تحريك لأعلى">▲</button>
-        <button onclick="moveLayout('${scope}','${key}',1)" ${idx === len - 1 ? 'disabled' : ''} aria-label="تحريك لأسفل">▼</button>
+        <button onclick="moveLayout('${scope}','${key}',-1)" ${idx===0?'disabled':''} aria-label="تحريك لأعلى">▲</button>
+        <button onclick="moveLayout('${scope}','${key}',1)" ${idx===len-1?'disabled':''} aria-label="تحريك لأسفل">▼</button>
       </div>
     </div>`;
-  // Page-size control for the transactions log (capped at RECENT_TX_LIMIT_MAX)
-  const opts = [...new Set([10,15,20,25,30,40,50, recentTxLimit])].sort((a,b)=> a-b);
-  const optHtml = opts.map(n => `<option value="${n}"${n===recentTxLimit?' selected':''}>${n} معاملة</option>`).join('');
-  let html = '<div class="reorder-group"><div class="reorder-gtitle">عدد المعاملات المعروضة في سجل المعاملات</div>'
-    + '<div class="reorder-row"><span class="reorder-label">🧾 لكل دفعة (حد أقصى ' + RECENT_TX_LIMIT_MAX + ')</span>'
-    + '<select class="recent-limit-select" aria-label="عدد المعاملات المعروضة" onchange="setRecentTxLimit(parseInt(this.value,10))">' + optHtml + '</select></div></div>';
 
-  html += '<div class="reorder-group"><div class="reorder-gtitle">تبويبات الشريط السفلي</div>';
-  tabOrder.forEach((k, i) => { html += row('tab', k, TAB_DEFS[k].icon + ' ' + TAB_DEFS[k].label, i, tabOrder.length); });
-  html += '</div>';
-  Object.keys(SECTION_DEFS).forEach(tab => {
-    const arr = sectionOrder[tab];
-    html += '<div class="reorder-group"><div class="reorder-gtitle">أقسام: ' + TAB_DEFS[tab].label + '</div>';
-    arr.forEach((k, i) => {
-      const def = SECTION_DEFS[tab].find(s => s.key === k);
-      html += row('sec:' + tab, k, def ? def.label : k, i, arr.length);
+  // Build the segmented tab strip
+  const tabs = LAYOUT_EDITOR_TABS.map(t =>
+    `<button class="le-tab${_layoutEditorTab===t.id?' active':''}" onclick="switchLayoutEditorTab('${t.id}')" aria-label="${t.label}">${t.icon} <span>${t.label}</span></button>`
+  ).join('');
+  let html = `<div class="le-tabs">${tabs}</div>`;
+
+  // Build the active panel
+  if(_layoutEditorTab === 'tab'){
+    html += '<div class="reorder-group">';
+    tabOrder.forEach((k,i) => { html += row('tab', k, TAB_DEFS[k].icon+' '+TAB_DEFS[k].label, i, tabOrder.length); });
+    html += '</div>';
+
+  } else if(_layoutEditorTab.startsWith('sec:')){
+    const tabKey = _layoutEditorTab.split(':')[1];
+    const arr = sectionOrder[tabKey] || [];
+    html += '<div class="reorder-group">';
+    arr.forEach((k,i) => {
+      const def = SECTION_DEFS[tabKey] && SECTION_DEFS[tabKey].find(s=>s.key===k);
+      html += row(_layoutEditorTab, k, def ? def.label : k, i, arr.length);
     });
     html += '</div>';
-  });
+
+  } else if(_layoutEditorTab === 'txlimit'){
+    const opts = [...new Set([10,15,20,25,30,40,50, recentTxLimit])].sort((a,b)=>a-b);
+    const optHtml = opts.map(n => `<option value="${n}"${n===recentTxLimit?' selected':''}>${n} معاملة</option>`).join('');
+    html += `<div class="reorder-group">
+      <div class="reorder-row">
+        <span class="reorder-label">🧾 معاملات لكل دفعة (حد أقصى ${RECENT_TX_LIMIT_MAX})</span>
+        <select class="recent-limit-select" aria-label="عدد المعاملات المعروضة" onchange="setRecentTxLimit(parseInt(this.value,10))">${optHtml}</select>
+      </div>
+    </div>`;
+  }
+
   host.innerHTML = html;
+}
+
+function switchLayoutEditorTab(id){
+  _layoutEditorTab = id;
+  renderLayoutEditor();
 }
 function moveLayout(scope, key, dir){
   const arr = scope === 'tab' ? tabOrder : sectionOrder[scope.split(':')[1]];
@@ -3858,18 +3889,20 @@ function setupPWA(){
 /* Cheap signature of everything that affects visual output.
    Used to skip expensive re-renders when nothing changed. */
 let _renderSig = '';
-// Cached JSON strings for objects that change infrequently — avoids serializing
-// the entire object graph on every render() call (which fires on each interaction).
-let _sigWallets = '', _sigBudgets = '', _sigDist = '';
-let _sigWalletsObj = null, _sigBudgetsObj = null, _sigDistObj = null;
+// budgets and DISTRIBUTION get new object references when changed, so reference
+// equality is a valid cheap check. state.wallets is ALWAYS the same reference
+// (mutated in-place), so it must be JSON-serialised fresh every call — the old
+// reference-equality optimisation caused resetBalancesOnly() to silently skip
+// the render because the wallet object ref never changed.
+let _sigBudgets = '', _sigDist = '';
+let _sigBudgetsObj = null, _sigDistObj = null;
 function computeRenderSig(){
-  if(state.wallets !== _sigWalletsObj){ _sigWalletsObj = state.wallets; _sigWallets = JSON.stringify(state.wallets); }
   if(budgets !== _sigBudgetsObj){ _sigBudgetsObj = budgets; _sigBudgets = JSON.stringify(budgets); }
   if(DISTRIBUTION !== _sigDistObj){ _sigDistObj = DISTRIBUTION; _sigDist = JSON.stringify(DISTRIBUTION); }
   return [
     state.transactions.length,
     state.transactions.length ? state.transactions[state.transactions.length-1].id : '',
-    _sigWallets,
+    JSON.stringify(state.wallets),
     currentFilter, walletFilter, categoryFilter, searchQuery,
     state.crisisMode, _sigBudgets,
     _sigDist, autoDistribute,

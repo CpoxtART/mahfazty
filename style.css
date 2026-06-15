@@ -1181,3 +1181,24 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   font-family:inherit; cursor:pointer; font-variant-numeric:tabular-nums;
 }
 .recent-limit-select:focus{ outline:none; border-color:var(--gold); }
+.le-tabs{
+  display:flex; gap:4px; padding:4px;
+  background:var(--bg); border:1px solid var(--line);
+  border-radius:var(--radius-sm); overflow-x:auto; margin-bottom:14px;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none;
+}
+.le-tabs::-webkit-scrollbar{ display:none; }
+.le-tab{
+  flex-shrink:0; display:flex; align-items:center; gap:5px;
+  padding:7px 12px; font-size:12.5px; font-weight:600;
+  background:none; border:none; color:var(--muted);
+  border-radius:calc(var(--radius-sm) - 2px); cursor:pointer;
+  font-family:inherit; white-space:nowrap;
+  transition:background .15s, color .15s, box-shadow .15s;
+  touch-action:manipulation;
+}
+.le-tab span{ font-size:11px; }
+.le-tab.active{
+  background:var(--card); color:var(--gold);
+  box-shadow:0 1px 4px rgba(0,0,0,.18);
+}
