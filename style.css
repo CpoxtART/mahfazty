@@ -1173,3 +1173,9 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 }
 .reorder-btns button:not(:disabled):active{ background:var(--card2); color:var(--gold); border-color:var(--gold-dim); }
 .reorder-btns button:disabled{ opacity:.28; cursor:default; }
+.recent-limit-select{
+  flex-shrink:0; background:var(--bg-elev); border:1px solid var(--line);
+  color:var(--text); border-radius:8px; padding:6px 10px; font-size:13px;
+  font-family:inherit; cursor:pointer; font-variant-numeric:tabular-nums;
+}
+.recent-limit-select:focus{ outline:none; border-color:var(--gold); }

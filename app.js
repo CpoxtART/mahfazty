@@ -99,6 +99,9 @@ const SECTION_DEFS = {
 };
 let tabOrder = DEFAULT_TAB_ORDER.slice();
 let sectionOrder = {}; // {home:[...], analytics:[...], reports:[...]}
+const RECENT_TX_LIMIT_MAX = 50;
+const RECENT_TX_LIMIT_DEFAULT = 25;
+let recentTxLimit = RECENT_TX_LIMIT_DEFAULT; // how many tx the log shows per page (user-set, capped at 50)
 
 /* SW update flow */
 let _swRegistration = null;
@@ -320,6 +323,12 @@ async function loadState(){
   const _backupStamp = Math.max(_lsLastEdit, (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0);
   idbBackup(_backupStamp || Date.now());
 
+  // A restored snapshot may contain a half-surviving linked group (one leg of a
+  // transfer/distribution dropped by the validity filter). Clear the dangling
+  // link so a later delete doesn't try to cascade to a partner that isn't there.
+  stripOrphanLinks(state.transactions);
+  _allTxSortedCache = null; // freshly replaced array — drop the sorted cache
+
   document.getElementById('dateInput').value = todayISO();
   capDateInputsToToday();
   loadSubs();
@@ -327,7 +336,7 @@ async function loadState(){
 }
 
 async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
-async function saveTx(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
+async function saveTx(){ _allTxSortedCache = null; const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } scheduleDriveSync(); idbBackup(ts); }
 function _pruneRecurringDismissals(){
   if(dismissedRecurring.size < 40) return;
   // dismissal keys are "desc\x00walletId" (see detectRecurring) — build the live
@@ -404,6 +413,9 @@ function toggleCrisis(){
     walletFilter = null;
   }
   document.getElementById('crisisToggle').setAttribute('aria-checked', state.crisisMode);
+  // crisis flips the spendable total by the reserve amount — that's not a real
+  // money movement, so snap to the new value instead of count-up animating across it
+  prevSpendable = null;
   saveConfig();
   render();
   toast(state.crisisMode ? '🚨 تم تفعيل وضع الطوارئ' : '✓ تم إيقاف وضع الطوارئ');
@@ -625,10 +637,17 @@ function switchTab(tab){
       btn.setAttribute('aria-current', on ? 'page' : 'false');
     }
   });
-  // Re-render canvas charts that missed draws while their tab was hidden
+  // Build the target tab's content fresh (render() skips hidden tabs to stay
+  // fast at scale, so each tab is (re)rendered the moment it becomes visible).
   if(tab === 'transactions') renderRecentTx();
-  if(tab === 'analytics') requestAnimationFrame(()=> renderPieChart());
-  if(tab === 'reports')   requestAnimationFrame(()=> renderChart());
+  if(tab === 'analytics'){
+    renderAnalytics(); renderRecurring(); renderSubscriptions();
+    requestAnimationFrame(()=> renderPieChart());
+  }
+  if(tab === 'reports'){
+    renderTxList();
+    requestAnimationFrame(()=> renderChart());
+  }
 }
 
 /* ============================================================
@@ -652,6 +671,16 @@ function loadLayoutPrefs(){
     try{ saved = JSON.parse(localStorage.getItem(LS_PREFIX + 'secOrder_' + tab) || 'null'); }catch(e){}
     sectionOrder[tab] = sanitizeOrder(saved, def);
   });
+  try{
+    const n = parseInt(localStorage.getItem(LS_PREFIX + 'recentTxLimit'), 10);
+    recentTxLimit = clampRecentLimit(n);
+  }catch(e){ recentTxLimit = RECENT_TX_LIMIT_DEFAULT; }
+  _recentVisibleCount = recentTxLimit;
+}
+// Keep the page size sane: 5..50, default when missing/invalid
+function clampRecentLimit(n){
+  if(!isFinite(n) || n < 5) return RECENT_TX_LIMIT_DEFAULT;
+  return Math.min(Math.round(n), RECENT_TX_LIMIT_MAX);
 }
 function saveLayoutPrefs(){
   try{
@@ -659,7 +688,38 @@ function saveLayoutPrefs(){
     Object.keys(sectionOrder).forEach(tab => {
       localStorage.setItem(LS_PREFIX + 'secOrder_' + tab, JSON.stringify(sectionOrder[tab]));
     });
+    localStorage.setItem(LS_PREFIX + 'recentTxLimit', String(recentTxLimit));
   }catch(e){}
+}
+function setRecentTxLimit(n){
+  recentTxLimit = clampRecentLimit(n);
+  _recentVisibleCount = recentTxLimit;
+  saveLayoutPrefs();
+  scheduleDriveSync();
+  renderRecentTx();
+}
+
+// UI/layout preferences travel with backups and Drive sync so a user's chosen
+// tab order, section order and page size follow them across devices.
+function collectUiPrefs(){
+  return { tabOrder: tabOrder, sectionOrder: sectionOrder, recentTxLimit: recentTxLimit };
+}
+function applyUiPrefs(p){
+  if(!p || typeof p !== 'object') return;
+  if(Array.isArray(p.tabOrder)) tabOrder = sanitizeOrder(p.tabOrder, DEFAULT_TAB_ORDER);
+  if(p.sectionOrder && typeof p.sectionOrder === 'object'){
+    Object.keys(SECTION_DEFS).forEach(tab => {
+      const def = SECTION_DEFS[tab].map(s => s.key);
+      sectionOrder[tab] = sanitizeOrder(p.sectionOrder[tab], def);
+    });
+  }
+  if(p.recentTxLimit !== undefined){
+    recentTxLimit = clampRecentLimit(parseInt(p.recentTxLimit, 10));
+    _recentVisibleCount = recentTxLimit;
+  }
+  saveLayoutPrefs();
+  renderBottomNav();
+  applySectionOrder();
 }
 function renderBottomNav(){
   const inner = document.querySelector('.bottom-nav-inner');
@@ -697,7 +757,14 @@ function renderLayoutEditor(){
         <button onclick="moveLayout('${scope}','${key}',1)" ${idx === len - 1 ? 'disabled' : ''} aria-label="تحريك لأسفل">▼</button>
       </div>
     </div>`;
-  let html = '<div class="reorder-group"><div class="reorder-gtitle">تبويبات الشريط السفلي</div>';
+  // Page-size control for the transactions log (capped at RECENT_TX_LIMIT_MAX)
+  const opts = [...new Set([10,15,20,25,30,40,50, recentTxLimit])].sort((a,b)=> a-b);
+  const optHtml = opts.map(n => `<option value="${n}"${n===recentTxLimit?' selected':''}>${n} معاملة</option>`).join('');
+  let html = '<div class="reorder-group"><div class="reorder-gtitle">عدد المعاملات المعروضة في سجل المعاملات</div>'
+    + '<div class="reorder-row"><span class="reorder-label">🧾 لكل دفعة (حد أقصى ' + RECENT_TX_LIMIT_MAX + ')</span>'
+    + '<select class="recent-limit-select" aria-label="عدد المعاملات المعروضة" onchange="setRecentTxLimit(parseInt(this.value,10))">' + optHtml + '</select></div></div>';
+
+  html += '<div class="reorder-group"><div class="reorder-gtitle">تبويبات الشريط السفلي</div>';
   tabOrder.forEach((k, i) => { html += row('tab', k, TAB_DEFS[k].icon + ' ' + TAB_DEFS[k].label, i, tabOrder.length); });
   html += '</div>';
   Object.keys(SECTION_DEFS).forEach(tab => {
@@ -718,15 +785,20 @@ function moveLayout(scope, key, dir){
   if(i < 0 || j < 0 || j >= arr.length) return;
   [arr[i], arr[j]] = [arr[j], arr[i]];
   saveLayoutPrefs();
+  scheduleDriveSync();
   if(scope === 'tab') renderBottomNav(); else applySectionOrder();
   renderLayoutEditor();
 }
 function resetLayout(){
   tabOrder = DEFAULT_TAB_ORDER.slice();
   Object.keys(SECTION_DEFS).forEach(tab => { sectionOrder[tab] = SECTION_DEFS[tab].map(s => s.key); });
+  recentTxLimit = RECENT_TX_LIMIT_DEFAULT;
+  _recentVisibleCount = recentTxLimit;
   saveLayoutPrefs();
+  scheduleDriveSync();
   renderBottomNav();
   applySectionOrder();
+  renderRecentTx();
   renderLayoutEditor();
   toast('↺ تم استعادة الترتيب الافتراضي');
 }
@@ -764,12 +836,47 @@ function switchDrawerTab(idx){
 /* ============================================================
    V9.3: RECENT TRANSACTIONS (home tab — last 10, no filters)
 ============================================================ */
+// Newest-first copy of ALL transactions, cached so paginating a 10k+ history
+// (and repeated renders) doesn't re-sort the whole array every time. Invalidated
+// by saveTx() whenever the transaction set changes.
+function getAllTxSorted(){
+  if(_allTxSortedCache) return _allTxSortedCache;
+  // newest-first; id tiebreaker keeps same-second entries (and transfer legs)
+  // in a stable, deterministic order so the list/chart never flicker-reorder
+  _allTxSortedCache = state.transactions.slice().sort((a,b)=> (b.ts - a.ts) || String(b.id).localeCompare(String(a.id)));
+  return _allTxSortedCache;
+}
+
+// Hero "income/expense this month" — lives on the home tab, so it must refresh
+// on every render regardless of which tab is active. Cached (scans all tx once).
+function updateHeroStats(){
+  const now = new Date();
+  const last = state.transactions[state.transactions.length-1];
+  const _hSig = state.transactions.length + '|' + (last ? last.id : '') + '|' + now.getMonth() + '|' + now.getFullYear() + '|' + state.crisisMode;
+  if(_hSig !== _heroStatsSig || !_heroStatsCache){
+    let mIncome=0, mExpense=0;
+    state.transactions.forEach(tx=>{
+      if(tx.category === 'transfer' || tx.category === 'adjustment') return;
+      const d = new Date(tx.ts);
+      if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
+        if(tx.type==='income') mIncome+=tx.amount; else mExpense+=tx.amount;
+      }
+    });
+    _heroStatsCache = {mIncome: round2(mIncome), mExpense: round2(mExpense)};
+    _heroStatsSig = _hSig;
+  }
+  const hi = document.getElementById('heroIncome');
+  const he = document.getElementById('heroExpense');
+  if(hi) hi.textContent = fmt(_heroStatsCache.mIncome);
+  if(he) he.textContent = fmt(_heroStatsCache.mExpense);
+}
+
 function renderRecentTx(){
   const list = document.getElementById('recentTxList');
   if(!list) return;
   list.innerHTML = '';
   // Full chronological log of every transaction (newest first), grouped by day.
-  const all = state.transactions.slice().sort((a,b)=>b.ts-a.ts);
+  const all = getAllTxSorted();
 
   const countEl = document.getElementById('txLogCount');
   if(countEl) countEl.textContent = all.length ? all.length : '';
@@ -823,23 +930,23 @@ function renderRecentTx(){
     card.appendChild(row);
   });
 
-  // Paginate so a long history stays fast — reveal 40 more per tap
+  // Paginate so a long history stays fast — reveal one more page (recentTxLimit) per tap
   if(all.length > _recentVisibleCount){
     const remaining = all.length - _recentVisibleCount;
-    const toShow = Math.min(remaining, 40);
+    const toShow = Math.min(remaining, recentTxLimit);
     const more = document.createElement('button');
     more.className = 'btn-secondary';
     more.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:13px;';
     more.textContent = `⬇ عرض ${toShow} معاملة أقدم` + (remaining - toShow > 0 ? ` (${remaining - toShow} متبقية)` : '');
-    more.onclick = () => { _recentVisibleCount += 40; renderRecentTx(); };
+    more.onclick = () => { _recentVisibleCount += recentTxLimit; renderRecentTx(); };
     list.appendChild(more);
-  } else if(all.length > 40){
-    // Already showing everything after expanding — offer a way to collapse back
+  } else if(_recentVisibleCount > recentTxLimit && all.length > recentTxLimit){
+    // Already expanded beyond the first page — offer a way to collapse back
     const collapse = document.createElement('button');
     collapse.className = 'btn-secondary';
     collapse.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:13px;';
     collapse.textContent = '⬆ طيّ القائمة';
-    collapse.onclick = () => { _recentVisibleCount = 40; renderRecentTx(); document.getElementById('tabTransactions')?.scrollIntoView({behavior:'smooth', block:'start'}); };
+    collapse.onclick = () => { _recentVisibleCount = recentTxLimit; renderRecentTx(); document.getElementById('tabTransactions')?.scrollIntoView({behavior:'smooth', block:'start'}); };
     list.appendChild(collapse);
   }
 }
@@ -1766,7 +1873,8 @@ function inRange(ts){
 
 let _searchDebounce = null;
 let _txVisibleCount = 50;
-let _recentVisibleCount = 40; // transactions tab — full chronological log, paginated
+let _recentVisibleCount = RECENT_TX_LIMIT_DEFAULT; // transactions tab — full chronological log, paginated (page size = recentTxLimit)
+let _allTxSortedCache = null; // cached newest-first copy of all tx (see getAllTxSorted)
 // Fold Arabic orthographic variants so search is forgiving: a user typing
 // "قهوه" should match "قهوة", "احمد" should match "أحمد", "مصطفى" ↔ "مصطفي".
 // Also strips tashkeel (diacritics) and tatweel, and lowercases Latin text.
@@ -1827,7 +1935,7 @@ function getFilteredTx(){
   // inside the cached builder means an unchanged filter costs zero sorts on
   // subsequent renders (theme toggle, balance edits, etc.), and a data change
   // costs one sort instead of two. The chart just reverses this for ascending.
-  _filteredTxCache.sort((a,b)=> b.ts - a.ts);
+  _filteredTxCache.sort((a,b)=> (b.ts - a.ts) || String(b.id).localeCompare(String(a.id)));
   return _filteredTxCache;
 }
 
@@ -1855,25 +1963,6 @@ function renderTxList(){
   document.getElementById('sumExpense').textContent = fmt(expense);
   document.getElementById('sumNet').textContent = fmt(income - expense);
   document.getElementById('sumNet').style.color = (income-expense) >= 0 ? 'var(--green)' : 'var(--red)';
-
-  // hero monthly stats — cached to avoid rescanning all txs on every render
-  const now = new Date();
-  const _hSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + now.getMonth() + '|' + now.getFullYear() + '|' + state.crisisMode;
-  if(_hSig !== _heroStatsSig || !_heroStatsCache){
-    let mIncome=0, mExpense=0;
-    state.transactions.forEach(tx=>{
-      // exclude inter-wallet moves and manual adjustments from hero totals
-      if(tx.category === 'transfer' || tx.category === 'adjustment') return;
-      const d = new Date(tx.ts);
-      if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
-        if(tx.type==='income') mIncome+=tx.amount; else mExpense+=tx.amount;
-      }
-    });
-    _heroStatsCache = {mIncome: round2(mIncome), mExpense: round2(mExpense)};
-    _heroStatsSig = _hSig;
-  }
-  document.getElementById('heroIncome').textContent = fmt(_heroStatsCache.mIncome);
-  document.getElementById('heroExpense').textContent = fmt(_heroStatsCache.mExpense);
 
   if(filtered.length === 0){
     if(state.transactions.length === 0 && !searchQuery && currentFilter==='all'){
@@ -2642,7 +2731,8 @@ function exportData(){
     autoDistribute: autoDistribute,
     distribution: DISTRIBUTION,
     dismissedRecurring: Array.from(dismissedRecurring),
-    subscriptions: subscriptions
+    subscriptions: subscriptions,
+    uiPrefs: collectUiPrefs()
   };
   const json = JSON.stringify(payload, null, 2);
   document.getElementById('jsonArea').value = json;
@@ -2733,6 +2823,7 @@ async function applyImport(text){
   if(Array.isArray(data.subscriptions)){
     subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
   }
+  if(data.uiPrefs) applyUiPrefs(data.uiPrefs);
   prevSpendable = null; // reset animation baseline after full data replacement
 
   await saveBalances();
@@ -3163,7 +3254,8 @@ async function driveSyncToCloud(){
       budgets: budgets,
       distribution: DISTRIBUTION,
       dismissedRecurring: Array.from(dismissedRecurring),
-      subscriptions: subscriptions
+      subscriptions: subscriptions,
+      uiPrefs: collectUiPrefs()
     });
 
     await driveFindFile();
@@ -3259,6 +3351,7 @@ async function adoptCloudSnapshot(cloud){
   if(Array.isArray(cloud.subscriptions)){
     subscriptions = cloud.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
   }
+  if(cloud.uiPrefs) applyUiPrefs(cloud.uiPrefs);
   prevSpendable = null; // force fresh hero animation after loading a new data set
   await saveBalances(); await saveTx(); await saveConfig(); await saveSubs();
   render(true); // force: wallet object is mutated in-place so reference-equality sig check would miss balance changes
@@ -3720,15 +3813,16 @@ function render(force){
   _filteredTxSig = '';
   _analyticsSig = '';
   _heroStatsSig = '';
+  // Always-visible / cheap essentials (home hero + wallets + form dropdowns)
   renderWallets();
   renderWalletSelect();
-  renderRecentTx();
-  renderTxList();
-  renderChart();
-  renderPieChart();
-  renderAnalytics();
-  renderRecurring();
-  renderSubscriptions();
+  updateHeroStats();
+  // Heavy, tab-specific content — only build what's on screen. Switching tabs
+  // rebuilds the target tab via switchTab(), so hidden tabs don't pay the cost
+  // on every interaction (critical with 10k+ transactions).
+  if(currentTab === 'transactions') renderRecentTx();
+  if(currentTab === 'reports'){ renderTxList(); renderChart(); }
+  if(currentTab === 'analytics'){ renderAnalytics(); renderRecurring(); renderSubscriptions(); renderPieChart(); }
 }
 
 let _resizeTimer;
@@ -3869,10 +3963,11 @@ function scheduleNextMidnightRefresh(){
 scheduleNextMidnightRefresh();
 
 // Multi-tab sync: reload state if another tab saves data
-// Skip if an edit/transfer modal is open to avoid wiping unsaved form input
+// Skip if a modal OR the add drawer is open, to avoid wiping unsaved form input
+// (the add drawer isn't a .modal-overlay, so it needs its own guard)
 window.addEventListener('storage', (e) => {
   if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit'){
-    if(!document.querySelector('.modal-overlay.open')) loadState();
+    if(!document.querySelector('.modal-overlay.open') && !addDrawerOpen) loadState();
   }
 });
 
