@@ -99,6 +99,19 @@ function openDistributionModal(amount){
       warn.style.cssText = 'color:var(--red); margin:8px 0 0; font-size:13px;';
       warn.textContent = `⚠ مجموع النسب ${totalPct}% — يتجاوز 100%، راجع الإعدادات`;
       wrap.appendChild(warn);
+    } else if(totalPct < 100){
+      // surface where the un-distributed remainder goes — it stays in the wallet
+      // the income landed in, which is otherwise invisible to the user
+      const srcId = pendingIncomeTx && pendingIncomeTx.wallet;
+      const srcW = WALLET_DEFS.find(x => x.id === srcId);
+      const remainder = round2(amount * (100 - totalPct) / 100);
+      if(remainder > 0){
+        const note = document.createElement('div');
+        note.className = 'dist-row';
+        note.style.cssText = 'border-style:dashed; opacity:.85; margin-top:4px;';
+        note.innerHTML = `<span class="name">يبقى في ${srcW ? srcW.name : 'المحفظة'} <span class="pct">${round2(100-totalPct)}%</span></span><span class="amt">${fmt(remainder)}</span>`;
+        wrap.appendChild(note);
+      }
     }
   }
   document.getElementById('autoDistributeCheck').checked = autoDistribute;
