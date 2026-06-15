@@ -67,11 +67,13 @@ try{
 <div class="section-title">إضافة معاملة</div>
 <div class="form">
   <label>المحفظة</label>
-  <div class="custom-select" id="walletSelectBtn" onclick="toggleWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox">
-    <span id="walletSelectLabel">اختر محفظة</span>
-    <span class="arrow">▾</span>
+  <div class="wallet-select-wrap">
+    <div class="custom-select" id="walletSelectBtn" onclick="toggleWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox">
+      <span id="walletSelectLabel">اختر محفظة</span>
+      <span class="arrow">▾</span>
+    </div>
+    <div class="wallet-menu" id="walletMenuWrap"><div id="walletMenu" role="listbox"></div></div>
   </div>
-  <div class="wallet-menu" id="walletMenuWrap"><div id="walletMenu" role="listbox"></div></div>
 
   <label>الوصف</label>
   <div class="voice-input-row">

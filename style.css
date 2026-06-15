@@ -398,6 +398,22 @@
   .custom-select.open{border-color:var(--gold);}
   .custom-select .arrow{color:var(--muted); transition:transform .2s var(--ease); font-size:11px;}
   .custom-select.open .arrow{transform:rotate(180deg);}
+
+  /* Main form wallet picker overlays content (position:absolute) so opening it
+     doesn't trigger a full-page layout reflow. Modal pickers stay in-flow. */
+  .wallet-select-wrap{
+    position:relative;
+    margin-bottom:12px;
+  }
+  .wallet-select-wrap .custom-select{ margin-bottom:0; }
+  .wallet-select-wrap .wallet-menu{
+    position:absolute;
+    top:100%;
+    right:0; left:0;
+    z-index:50;
+    box-shadow:var(--shadow);
+  }
+
   .wallet-menu{
     background:var(--bg-elev);
     border:1px solid transparent;

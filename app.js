@@ -482,7 +482,7 @@ function clearWalletFilter(){
   renderTxList();
   renderChart();
   renderPieChart();
-  scrollToTxList();
+  // no scrollToTxList — user is already near the tx list (tapped the chip above it)
 }
 
 function toggleCategoryFilter(catId){
@@ -506,7 +506,11 @@ function toggleCategoryFilter(catId){
 /* ============================================================
    WALLET SELECT (add form)
 ============================================================ */
+let _walletSelectSig = '';
 function renderWalletSelect(){
+  const sig = selectedWallet + '|' + SELECTABLE_WALLETS.map(w => w.id + ':' + (state.wallets[w.id]??0)).join(',');
+  if(sig === _walletSelectSig) return;
+  _walletSelectSig = sig;
   const menu = document.getElementById('walletMenu');
   menu.innerHTML = '';
   SELECTABLE_WALLETS.forEach(w => {
@@ -536,14 +540,16 @@ function selectWallet(id){
 /* ============================================================
    WALLET SELECT (edit modal)
 ============================================================ */
+let _editWalletSelectSig = '';
 function renderEditWalletSelect(){
-  const menu = document.getElementById('editWalletMenu');
-  menu.innerHTML = '';
   let list = SELECTABLE_WALLETS;
   const currentDef = WALLET_DEFS.find(w=>w.id===editWallet);
-  if(currentDef && currentDef.track){
-    list = [currentDef, ...SELECTABLE_WALLETS];
-  }
+  if(currentDef && currentDef.track) list = [currentDef, ...SELECTABLE_WALLETS];
+  const sig = editWallet + '|' + list.map(w => w.id + ':' + (state.wallets[w.id]??0)).join(',');
+  if(sig === _editWalletSelectSig) return;
+  _editWalletSelectSig = sig;
+  const menu = document.getElementById('editWalletMenu');
+  menu.innerHTML = '';
   list.forEach(w => {
     const opt = document.createElement('div');
     opt.className = 'opt' + (w.id === editWallet ? ' selected' : '');
@@ -1588,6 +1594,17 @@ function attachSwipe(el, wrap, txId){
     }
     currentX = 0;
   });
+
+  // Cancel (incoming call, system interrupt) — snap back without triggering delete
+  el.addEventListener('touchcancel', ()=>{
+    if(!dragging) return;
+    dragging = false;
+    swipeMode = false;
+    el.style.transition = 'transform .25s var(--ease)';
+    el.style.transform = 'translateX(0)';
+    el.style.opacity = '';
+    currentX = 0;
+  });
 }
 
 /* ============================================================
@@ -2521,8 +2538,7 @@ function setDriveIndicator(state_){
   };
   const cfg = map[state_] || map.idle;
   const clickable = (state_ === 'idle' || state_ === 'error'); // tap to sign in when disconnected
-  el.style.display = 'flex';
-  el.style.cssText += ';gap:4px; align-items:center; font-size:11px; font-weight:600; background:var(--card); border:1px solid var(--line); border-radius:99px; padding:4px 10px;';
+  el.style.cssText = 'display:flex; gap:4px; align-items:center; font-size:11px; font-weight:600; background:var(--card); border:1px solid var(--line); border-radius:99px; padding:4px 10px;';
   el.style.color = cfg.color;
   el.style.cursor = clickable ? 'pointer' : 'default';
   el.onclick = clickable ? driveSignIn : null;
