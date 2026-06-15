@@ -28,6 +28,18 @@ self.addEventListener('fetch', e => {
   if(e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if(url.origin !== self.location.origin) return;
+
+  // Navigation requests (e.g. root path "/mahfazty/" without the filename) may
+  // miss the cache because the stored key is "index.html", not the bare directory
+  // path. Serve the cached shell explicitly so the app loads offline regardless
+  // of how the URL was typed.
+  if(e.request.mode === 'navigate'){
+    e.respondWith(
+      caches.match('./index.html').then(r => r || fetch(e.request))
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(e.request).then(cached => {
       const fresh = fetch(e.request).then(res => {

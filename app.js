@@ -405,7 +405,10 @@ function idbOpen(){
       req.result.createObjectStore('backup');
     };
     req.onsuccess = () => { _idbInstance = req.result; _idbAvailable = true; resolve(_idbInstance); };
-    req.onerror = () => reject(req.error);
+    req.onerror   = () => reject(req.error);
+    // Fires when another tab holds the DB at an older version and hasn't closed
+    // it — without this the open request hangs indefinitely.
+    req.onblocked = () => reject(new Error('idb blocked'));
   });
 }
 // Writes the full snapshot to IndexedDB — the PRIMARY store for transactions
@@ -1187,9 +1190,12 @@ function startVoiceInput(){
     return;
   }
 
-  // single idempotent teardown — guarantees the mic button never gets stuck in
-  // the "listening" state and the recognition object is always released
+  // Capture the instance so a late onend/onerror fired by an aborted recognition
+  // can't null out a NEWER recognition that was started in the meantime (race:
+  // abort() fires, user taps mic again before onend arrives, old onend fires).
+  const thisRecognition = voiceRecognition;
   const cleanup = () => {
+    if(voiceRecognition !== thisRecognition) return; // a newer instance took over — leave it alone
     clearTimeout(_voiceTimer); _voiceTimer = null;
     btn.classList.remove('listening');
     voiceRecognition = null;
@@ -2102,6 +2108,9 @@ function attachSwipe(el, wrap, txId){
     dragging = true;
     swipeMode = false;
     el.style.transition = 'none';
+    // Promote to compositor layer only for the duration of the gesture — avoids
+    // permanently allocating a GPU layer for every row (memory anti-pattern).
+    el.style.willChange = 'transform';
   }, {passive:true});
 
   el.addEventListener('touchmove', e=>{
@@ -2133,6 +2142,7 @@ function attachSwipe(el, wrap, txId){
       el.style.transform = 'translateX(0)';
       el.style.opacity = ''; // restore if a previous swipe started fading it
     }
+    el.style.willChange = ''; // release compositor layer — gesture is over
     currentX = 0;
   });
 
@@ -2144,6 +2154,7 @@ function attachSwipe(el, wrap, txId){
     el.style.transition = 'transform .25s var(--ease)';
     el.style.transform = 'translateX(0)';
     el.style.opacity = '';
+    el.style.willChange = ''; // release compositor layer
     currentX = 0;
   });
 }
@@ -2581,8 +2592,12 @@ async function saveEdit(){
   const dateVal = document.getElementById('editDate').value || todayISO();
   const oldDate = new Date(tx.ts);
   const newTs = new Date(dateVal + 'T' + oldDate.toTimeString().slice(0,8)).getTime();
-  // cap to now — prevents future-dated transactions from corrupting time filters
-  tx.ts = isFinite(newTs) ? Math.min(newTs, Date.now()) : (isFinite(tx.ts) ? tx.ts : Date.now());
+  // cap to now — prevents future-dated transactions from corrupting time filters.
+  // Preserve the original sub-second offset (% 1000) so same-second transactions
+  // keep their original order even after a date edit (toTimeString gives HH:MM:SS
+  // which loses milliseconds — we add them back from the original ts).
+  const msPart = isFinite(tx.ts) ? (tx.ts % 1000) : 0;
+  tx.ts = isFinite(newTs) ? Math.min(newTs + msPart, Date.now()) : (isFinite(tx.ts) ? tx.ts : Date.now());
 
   applyTxToBalance(tx, +1);
 
@@ -2936,8 +2951,9 @@ async function wipeAll(){
    TOAST
 ============================================================ */
 function toast(msg, isError){
-  // Non-error toasts must not overwrite an active undo-delete button; error toasts always show
-  if(_lastDeleted && !isError) return;
+  // A new notification means the user moved on — clear the undo window so the
+  // new toast is always visible (previously non-error toasts were silently
+  // dropped for 5s after a delete, so "تم تسجيل المصروف" could vanish).
   if(_lastDeleted){ clearTimeout(_undoTimer); _lastDeleted = null; }
   const el = document.getElementById('saveStatus');
   el.textContent = msg;
@@ -3640,6 +3656,15 @@ function buildDailyReviewContent(){
       lines.push(`🟡 محفظة <b style="color:var(--text)">${escHtml(w.name)}</b> قاربت حد ميزانيتها (${fmt(spent)} / ${fmt(budget)}).`);
     }
   });
+
+  // subscriptions due today (billing day matches today's date)
+  const todayDay = now.getDate();
+  const dueSubs = subscriptions.filter(s => s.active !== false && s.billingDay === todayDay);
+  if(dueSubs.length > 0){
+    const dueTotal = round2(dueSubs.reduce((s,x) => s + x.amount, 0));
+    const dueNames = dueSubs.map(s => escHtml(s.name)).join('، ');
+    lines.push(`📆 اشتراكات تُحسم اليوم: <b style="color:var(--text)">${dueNames}</b> · إجمالي: <b style="color:var(--red)">${fmt(dueTotal)}</b>`);
+  }
 
   // pending recurring suggestions
   const recurring = detectRecurring();
