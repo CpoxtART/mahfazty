@@ -31,10 +31,7 @@ try{
 <header>
   <div class="brand">
     <div class="mark">💰</div>
-    <div>
-      <h1>محفظتيييي 🙂‍↔️</h1>
-      <div class="sub">نظام المحافظ والتقارير المالية</div>
-    </div>
+    <h1>محفظتيييي</h1>
   </div>
   <div class="actions">
     <span id="driveIndicator" style="display:none; align-items:center; font-size:13px;" title="حالة المزامنة"></span>
@@ -339,97 +336,114 @@ try{
 <div class="modal-overlay" role="dialog" aria-modal="true" id="settingsModal">
   <div class="modal">
     <div class="grabber"></div>
-    <h3>⚙ الإعدادات</h3>
-    <div class="settings-row">
-      <div>عدد المعاملات<div class="meta" id="statTxCount">—</div></div>
-    </div>
-    <div class="settings-row">
-      <div>منذ أول معاملة<div class="meta" id="statFirstTx">—</div></div>
-    </div>
-    <div class="settings-row">
-      <div>آخر تعديل<div class="meta" id="statLastEdit">—</div></div>
-    </div>
-    <div class="settings-row">
-      <div>إصدار الكاش<div class="meta" id="statCacheVer">—</div></div>
-      <button class="btn-cache-refresh" onclick="forceClearAndUpdate()" aria-label="مسح الكاش وتحديث التطبيق">🔄 تحديث قسري</button>
-    </div>
+    <h3>الإعدادات</h3>
 
-    <div class="section-title" style="margin-top:18px;">🔀 ترتيب الواجهة</div>
-    <div class="hint" style="margin-top:0;">رتّب تبويبات الشريط السفلي والأقسام داخل كل تبويب حسب ما يناسبك. التغيير فوري.</div>
-    <div id="layoutEditor"></div>
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="resetLayout()">↺ استعادة الترتيب الافتراضي</button>
-    </div>
-
-    <div class="section-title" style="margin-top:18px;">📐 نسب التوزيع التلقائي</div>
-    <div class="hint" style="margin-top:0;">عدّل نسبة كل محفظة من الدخل (المجموع يجب أن يساوي 100%).</div>
-    <div id="distributionEditor"></div>
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="saveDistribution()">حفظ النسب</button>
-      <button class="btn-secondary" onclick="resetDistribution()">استعادة الافتراضي</button>
-    </div>
-
-    <div class="section-title" style="margin-top:18px;">☁️ الحفظ التلقائي بجوجل درايف</div>
-    <div class="hint" style="margin-top:0;" id="driveStatusText">غير مفعّل. أدخل Client ID الخاص بك للبدء.</div>
-
-    <div id="driveSetup">
-      <label>Google Client ID</label>
-      <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
-      <div class="modal-actions" style="margin-top:8px;">
-        <button class="btn-secondary" onclick="saveDriveClientId()">حفظ Client ID</button>
+    <!-- Stats strip -->
+    <div class="sett-stats">
+      <div class="sett-stat">
+        <div class="sett-stat-v" id="statTxCount">—</div>
+        <div class="sett-stat-l">معاملة</div>
+      </div>
+      <div class="sett-stat-sep"></div>
+      <div class="sett-stat">
+        <div class="sett-stat-v" id="statFirstTx">—</div>
+        <div class="sett-stat-l">أول معاملة</div>
+      </div>
+      <div class="sett-stat-sep"></div>
+      <div class="sett-stat">
+        <div class="sett-stat-v" id="statLastEdit">—</div>
+        <div class="sett-stat-l">آخر تعديل</div>
       </div>
     </div>
 
-    <div id="driveActions" style="display:none;">
-      <div class="hint" id="driveEmbeddedWarn" style="display:none; margin-top:0; border:1px solid var(--gold); border-radius:8px; padding:8px 10px; color:var(--text);">
-        ⚠️ يبدو أنك تفتح التطبيق داخل تطبيق آخر أو كاختصار على الشاشة. قد تعلق صفحة تسجيل دخول جوجل فارغة. إن حدث ذلك، ارجع للخلف ثم افتح التطبيق في متصفح <b>Chrome</b> أو <b>Safari</b> مباشرةً وسجّل الدخول من هناك.
-      </div>
-      <div id="driveReconnectRow" style="display:none; padding:10px 4px; font-size:13px; color:var(--blue); display:flex; align-items:center; gap:8px;">
-        <span style="font-size:16px;">🔄</span>
-        <span>جارٍ الاتصال بـ Google Drive تلقائياً…</span>
-      </div>
-      <div class="modal-actions" style="margin-top:8px;">
-        <button class="btn-primary" id="driveSignInBtn" onclick="driveSignIn()">🔐 تسجيل الدخول بجوجل</button>
-      </div>
-      <div class="modal-actions" id="driveSignedInActions" style="display:none;">
-        <button class="btn-secondary" onclick="driveManualSync()">⬆ مزامنة الآن</button>
-        <button class="btn-secondary" onclick="driveSignOut()">تسجيل الخروج</button>
-      </div>
-      <div id="driveAutoSignInPrompt" style="display:none; margin-top:12px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:10px;">
-        <div style="font-size:13px; font-weight:600; margin-bottom:6px;">🔐 الاتصال التلقائي</div>
-        <div style="font-size:12px; color:var(--muted); margin-bottom:10px; line-height:1.6;">
-          هل تريد أن يتصل التطبيق بـ Google Drive تلقائياً في كل مرة تفتحه؟<br>
-          لن تحتاج لتسجيل الدخول طالما جلستك في Google نشطة.
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn-primary" style="font-size:12px; padding:6px 16px;" onclick="enableDriveAutoSignIn()">✓ نعم، دائماً</button>
-          <button class="btn-secondary" style="font-size:12px; padding:6px 14px;" onclick="dismissDriveAutoSignInPrompt()">ليس الآن</button>
+    <!-- Cache / version row -->
+    <div class="sett-cache-row">
+      <span class="sett-cache-label">الإصدار: <span id="statCacheVer">...</span></span>
+      <button class="btn-cache-refresh" onclick="forceClearAndUpdate()">🔄 تحديث قسري</button>
+    </div>
+
+    <!-- ─── Layout order ─── -->
+    <div class="sett-section">
+      <div class="sett-section-head">🔀 ترتيب الواجهة</div>
+      <div class="sett-section-body">
+        <div class="hint" style="margin:0 0 10px;">رتّب التبويبات والأقسام كما يناسبك. التغيير فوري.</div>
+        <div id="layoutEditor"></div>
+        <div class="modal-actions" style="margin-top:8px;">
+          <button class="btn-secondary" onclick="resetLayout()">↺ استعادة الافتراضي</button>
         </div>
       </div>
-      <div id="driveAutoSignInRow" style="display:none; margin-top:10px; padding:8px 10px; background:var(--card2); border-radius:8px;">
-        <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-          <input type="checkbox" id="driveAutoSignInChk" onchange="setDriveAutoSignIn(this.checked)" style="width:16px; height:16px; accent-color:var(--gold); cursor:pointer;">
-          <div>
-            <div style="font-size:12px; font-weight:600;">الاتصال التلقائي عند الفتح</div>
-            <div style="font-size:11px; color:var(--muted); margin-top:2px;">يتصل بـ Drive تلقائياً ما دامت جلسة Google نشطة</div>
+    </div>
+
+    <!-- ─── Distribution ─── -->
+    <div class="sett-section">
+      <div class="sett-section-head">📐 نسب التوزيع التلقائي</div>
+      <div class="sett-section-body">
+        <div class="hint" style="margin:0 0 10px;">عدّل نسبة كل محفظة من الدخل (المجموع = 100%).</div>
+        <div id="distributionEditor"></div>
+        <div class="modal-actions" style="margin-top:8px;">
+          <button class="btn-secondary" onclick="saveDistribution()">حفظ النسب</button>
+          <button class="btn-secondary" onclick="resetDistribution()">استعادة الافتراضي</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Google Drive ─── -->
+    <div class="sett-section">
+      <div class="sett-section-head">☁️ Google Drive</div>
+      <div class="sett-section-body">
+        <div class="hint" style="margin:0 0 10px;" id="driveStatusText">غير مفعّل — أدخل Client ID للبدء.</div>
+        <div id="driveSetup">
+          <label>Google Client ID</label>
+          <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
+          <div class="modal-actions" style="margin-top:8px;">
+            <button class="btn-secondary" onclick="saveDriveClientId()">حفظ Client ID</button>
           </div>
-        </label>
-      </div>
-      <div class="modal-actions">
-        <button class="btn-secondary" onclick="changeDriveClientId()" style="font-size:11px;">تغيير Client ID</button>
+        </div>
+        <div id="driveActions" style="display:none;">
+          <div class="hint" id="driveEmbeddedWarn" style="display:none; margin:0 0 8px; border:1px solid var(--gold); border-radius:8px; padding:8px 10px; color:var(--text);">
+            ⚠️ افتح التطبيق في Chrome أو Safari مباشرةً لتسجيل الدخول.
+          </div>
+          <div id="driveReconnectRow" style="display:none; padding:8px 0; font-size:13px; color:var(--blue); align-items:center; gap:8px;">
+            🔄 جارٍ الاتصال بـ Google Drive…
+          </div>
+          <div class="modal-actions" style="margin-top:4px;">
+            <button class="btn-primary" id="driveSignInBtn" onclick="driveSignIn()">🔐 تسجيل الدخول بجوجل</button>
+          </div>
+          <div class="modal-actions" id="driveSignedInActions" style="display:none;">
+            <button class="btn-secondary" onclick="driveManualSync()">⬆ مزامنة الآن</button>
+            <button class="btn-secondary" onclick="driveSignOut()">خروج</button>
+          </div>
+          <div id="driveAutoSignInPrompt" style="display:none; margin-top:10px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:10px;">
+            <div style="font-size:13px; font-weight:600; margin-bottom:6px;">🔐 الاتصال التلقائي</div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:10px; line-height:1.6;">هل تريد الاتصال بـ Drive تلقائياً؟ لن تحتاج لتسجيل الدخول في كل مرة.</div>
+            <div class="modal-actions">
+              <button class="btn-primary" onclick="enableDriveAutoSignIn()">✓ دائماً</button>
+              <button class="btn-secondary" onclick="dismissDriveAutoSignInPrompt()">ليس الآن</button>
+            </div>
+          </div>
+          <div id="driveAutoSignInRow" style="display:none; margin-top:10px; padding:10px 12px; background:var(--card2); border-radius:10px;">
+            <label style="display:flex; align-items:center; gap:12px; cursor:pointer;">
+              <input type="checkbox" id="driveAutoSignInChk" onchange="setDriveAutoSignIn(this.checked)" style="width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0;">
+              <div>
+                <div style="font-size:13px; font-weight:600;">الاتصال التلقائي عند الفتح</div>
+                <div style="font-size:11px; color:var(--muted); margin-top:3px;">يتصل تلقائياً ما دامت جلسة Google نشطة</div>
+              </div>
+            </label>
+          </div>
+          <div class="modal-actions" style="margin-top:8px;">
+            <button class="btn-secondary" onclick="changeDriveClientId()" style="font-size:12px;">تغيير Client ID</button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="modal-actions" style="margin-top:18px;">
-      <button class="btn-secondary" onclick="resetBalancesOnly()">↺ إعادة الأرصدة للقيم الأولية</button>
-    </div>
-    <div class="modal-actions">
+    <!-- ─── Bottom actions ─── -->
+    <div class="sett-actions">
+      <button class="btn-secondary" onclick="resetBalancesOnly()">↺ إعادة الأرصدة</button>
       <button class="btn-secondary" onclick="closeModal('settingsModal')">إغلاق</button>
     </div>
-    <div style="border-top:1px solid var(--line); margin:10px -4px 0; padding-top:10px;">
-      <div class="modal-actions">
-        <button class="btn-danger" onclick="wipeAll()">🗑 حذف كل البيانات</button>
-      </div>
+    <div class="sett-danger">
+      <button class="btn-danger" onclick="wipeAll()">🗑 حذف كل البيانات</button>
     </div>
   </div>
 </div>

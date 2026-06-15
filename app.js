@@ -2838,17 +2838,17 @@ document.addEventListener('click', function(e){
 });
 
 function updateSettingsStats(){
-  document.getElementById('statTxCount').textContent = state.transactions.length + ' معاملة';
+  document.getElementById('statTxCount').textContent = state.transactions.length.toLocaleString('ar-EG');
   if(state.transactions.length){
     const first = state.transactions.reduce((min,t)=> t.ts<min.ts ? t : min, state.transactions[0]);
-    document.getElementById('statFirstTx').textContent = new Date(first.ts).toLocaleDateString('ar-EG', {day:'numeric', month:'long', year:'numeric'});
+    document.getElementById('statFirstTx').textContent = new Date(first.ts).toLocaleDateString('ar-EG', {day:'numeric', month:'short', year:'2-digit'});
   } else {
     document.getElementById('statFirstTx').textContent = '—';
   }
   try{
     const last = localStorage.getItem(LS_PREFIX + 'lastEdit');
     document.getElementById('statLastEdit').textContent = last
-      ? new Date(parseInt(last)).toLocaleString('ar-EG', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})
+      ? new Date(parseInt(last)).toLocaleString('ar-EG', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', hour12:false})
       : '—';
   }catch(e){
     document.getElementById('statLastEdit').textContent = '—';
