@@ -252,28 +252,18 @@ async function loadState(){
   state.transactions = [];
   state.crisisMode = false;
 
+  let _lsHadBalances = false;
   try{
     const bal = localStorage.getItem(LS_PREFIX + 'balances');
     if(bal){
       const saved = JSON.parse(bal);
       // only restore known wallet ids — prevents orphaned keys from corrupted imports
       WALLET_DEFS.forEach(w => { if(saved[w.id] !== undefined) state.wallets[w.id] = saved[w.id]; });
+      _lsHadBalances = true;
     }
   }catch(e){}
 
-  try{
-    const tx = localStorage.getItem(LS_PREFIX + 'transactions');
-    if(tx){
-      const parsed = JSON.parse(tx);
-      state.transactions = Array.isArray(parsed) ? parsed.filter(t =>
-        t && (t.type === 'income' || t.type === 'expense') &&
-        typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
-        typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 &&
-        WALLET_DEFS.find(w => w.id === t.wallet)
-      ) : [];
-    }
-  }catch(e){}
-
+  let _lsHadConfig = false;
   try{
     const cfg = localStorage.getItem(LS_PREFIX + 'config');
     if(cfg){
@@ -292,52 +282,64 @@ async function loadState(){
         if(!DISTRIBUTION.length) DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
       }
       dismissedRecurring = new Set(c.dismissedRecurring || []);
+      _lsHadConfig = true;
     }
   }catch(e){}
 
-  // IDB fallback: restore when localStorage was never written (browser cleared
-  // storage) OR when the IndexedDB snapshot is strictly newer than the last
-  // successful localStorage write. The latter covers the case where a quota
-  // error blocked the localStorage save but idbBackup still captured the change
-  // (idbBackup runs outside the save try/catch), which would otherwise lose the
-  // most recent transactions on reload.
+  const _validTx = arr => (Array.isArray(arr) ? arr : []).filter(t =>
+    t && (t.type === 'income' || t.type === 'expense') &&
+    typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
+    typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 &&
+    WALLET_DEFS.find(w => w.id === t.wallet));
+
+  // ── Transactions: IndexedDB is the PRIMARY store (scales far past localStorage's
+  //    ~5MB cap). localStorage may still hold a legacy copy from older versions or
+  //    an IDB-unavailable fallback — used only when newer than the IDB snapshot. ──
   const _lsLastEdit = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0;
-  const _idb = await idbRestore();
-  const _idbNewer = _idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt) && _idb.savedAt > _lsLastEdit;
-  if((!_lsLastEdit || _idbNewer)){
-    if(_idb && Array.isArray(_idb.transactions) && _idb.transactions.length){
-      // apply same guards as the main load path — known wallets only, valid transactions
-      if(_idb.wallets) WALLET_DEFS.forEach(w => { if(_idb.wallets[w.id] !== undefined) state.wallets[w.id] = _idb.wallets[w.id]; });
-      state.transactions = _idb.transactions.filter(tx =>
-        tx && typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
-        typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
-        (tx.type === 'income' || tx.type === 'expense') &&
-        WALLET_DEFS.find(w => w.id === tx.wallet)
-      );
+  const _idb = await idbRestore(); // also opens the DB, setting _idbAvailable
+  const _idbTime = (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0;
+  let _lsTx = null;
+  try{ const raw = localStorage.getItem(LS_PREFIX + 'transactions'); if(raw) _lsTx = JSON.parse(raw); }catch(e){}
+  const _idbHasTx = _idb && Array.isArray(_idb.transactions);
+  const _lsTxNewer = Array.isArray(_lsTx) && _lsLastEdit > _idbTime;
+
+  if(_idbHasTx && !_lsTxNewer){
+    // IndexedDB snapshot is the source of truth
+    state.transactions = _validTx(_idb.transactions);
+    // If localStorage was wiped (cleared storage), recover the small data too
+    if(!_lsHadBalances && _idb.wallets){
+      WALLET_DEFS.forEach(w => { if(_idb.wallets[w.id] !== undefined) state.wallets[w.id] = _idb.wallets[w.id]; });
+    }
+    if(!_lsHadConfig){
       if(typeof _idb.crisisMode === 'boolean') state.crisisMode = _idb.crisisMode;
       if(typeof _idb.autoDistribute === 'boolean') autoDistribute = _idb.autoDistribute;
       if(_idb.budgets && typeof _idb.budgets === 'object') budgets = sanitizeBudgets(_idb.budgets);
       if(Array.isArray(_idb.dismissedRecurring)) dismissedRecurring = new Set(_idb.dismissedRecurring);
       if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = sanitizeDistribution(_idb.distribution);
-      // restore subscriptions from IDB into localStorage so loadSubs() below reads them
-      if(Array.isArray(_idb.subscriptions)){
-        try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(_idb.subscriptions)); }catch(e){}
-      }
-      toast('✓ تمت استعادة البيانات من النسخ الاحتياطي');
     }
+    if(Array.isArray(_idb.subscriptions)){
+      try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(_idb.subscriptions)); }catch(e){}
+    }
+    if(!_lsHadBalances && state.transactions.length) toast('✓ تمت استعادة البيانات من النسخ الاحتياطي');
+  } else if(Array.isArray(_lsTx)){
+    // Legacy localStorage copy (older version) or IDB unavailable — adopt it; the
+    // idbBackup below migrates it into IndexedDB.
+    state.transactions = _validTx(_lsTx);
   }
-
-  // IndexedDB backup (best-effort, non-blocking). Stamp with the freshest known
-  // time so we never downgrade a snapshot that is still newer than localStorage
-  // (otherwise a quota-recovery marker would be lost before the next save).
-  const _backupStamp = Math.max(_lsLastEdit, (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0);
-  idbBackup(_backupStamp || Date.now());
 
   // A restored snapshot may contain a half-surviving linked group (one leg of a
   // transfer/distribution dropped by the validity filter). Clear the dangling
   // link so a later delete doesn't try to cascade to a partner that isn't there.
   stripOrphanLinks(state.transactions);
   _allTxSortedCache = null; // freshly replaced array — drop the sorted cache
+
+  // Persist the consistent state into IndexedDB, then (only once confirmed) drop the
+  // big legacy localStorage transactions key to free the ~5MB quota for small data.
+  const _backupStamp = Math.max(_lsLastEdit, _idbTime) || Date.now();
+  const _idbOk = await idbBackup(_backupStamp);
+  if(_idbOk && _lsTx !== null){
+    try{ localStorage.removeItem(LS_PREFIX + 'transactions'); }catch(e){}
+  }
 
   document.getElementById('dateInput').value = todayISO();
   capDateInputsToToday();
@@ -351,7 +353,17 @@ async function loadState(){
 // make a stale local copy "win" over fresher cloud transaction data.
 function stampDataEdit(ts){ try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(ts)); }catch(e){} }
 async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } stampDataEdit(ts); scheduleDriveSync(); idbBackup(ts); }
-async function saveTx(){ _allTxSortedCache = null; const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } stampDataEdit(ts); scheduleDriveSync(); idbBackup(ts); }
+async function saveTx(){
+  _allTxSortedCache = null;
+  const ts = Date.now();
+  // Transactions are stored in IndexedDB (idbBackup below) so they scale far past
+  // the ~5MB localStorage cap. Here we only stamp the small timestamps. If IDB is
+  // unavailable, idbBackup() mirrors the array to localStorage as a fallback.
+  try{ localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){}
+  stampDataEdit(ts);
+  scheduleDriveSync();
+  idbBackup(ts);
+}
 function _pruneRecurringDismissals(){
   if(dismissedRecurring.size < 40) return;
   // dismissal keys are "desc\x00walletId" (see detectRecurring) — build the live
@@ -383,6 +395,7 @@ async function saveSubs(){
    INDEXEDDB BACKUP (extra resilience alongside localStorage)
 ============================================================ */
 let _idbInstance = null;
+let _idbAvailable = false; // becomes true once the DB opens — gates IDB-primary storage
 function idbOpen(){
   return new Promise((resolve, reject)=>{
     if(_idbInstance){ resolve(_idbInstance); return; }
@@ -391,25 +404,42 @@ function idbOpen(){
     req.onupgradeneeded = () => {
       req.result.createObjectStore('backup');
     };
-    req.onsuccess = () => { _idbInstance = req.result; resolve(_idbInstance); };
+    req.onsuccess = () => { _idbInstance = req.result; _idbAvailable = true; resolve(_idbInstance); };
     req.onerror = () => reject(req.error);
   });
 }
+// Writes the full snapshot to IndexedDB — the PRIMARY store for transactions
+// (localStorage only holds the small balances/config/prefs). Returns true on a
+// confirmed write so callers can safely migrate/free the legacy localStorage copy.
 async function idbBackup(savedAt){
   try{
     const db = await idbOpen();
-    const tx = db.transaction('backup','readwrite');
-    tx.objectStore('backup').put({
-      wallets: state.wallets,
-      transactions: state.transactions,
-      crisisMode: state.crisisMode,
-      autoDistribute, budgets,
-      distribution: DISTRIBUTION,
-      dismissedRecurring: Array.from(dismissedRecurring),
-      subscriptions: subscriptions,
-      savedAt: (typeof savedAt === 'number' && isFinite(savedAt)) ? savedAt : Date.now()
-    }, 'snapshot');
-  }catch(e){ /* non-fatal */ }
+    await new Promise((resolve, reject)=>{
+      const tx = db.transaction('backup','readwrite');
+      tx.objectStore('backup').put({
+        wallets: state.wallets,
+        transactions: state.transactions,
+        crisisMode: state.crisisMode,
+        autoDistribute, budgets,
+        distribution: DISTRIBUTION,
+        dismissedRecurring: Array.from(dismissedRecurring),
+        subscriptions: subscriptions,
+        savedAt: (typeof savedAt === 'number' && isFinite(savedAt)) ? savedAt : Date.now()
+      }, 'snapshot');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('idb abort'));
+    });
+    _idbAvailable = true;
+    return true;
+  }catch(e){
+    // IndexedDB unavailable/failed (e.g. private mode) — fall back to a localStorage
+    // mirror so transactions still persist (bounded by the ~5MB quota in that case).
+    _idbAvailable = false;
+    try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); }
+    catch(_){ /* quota — Drive sync / export remain the safety net */ }
+    return false;
+  }
 }
 async function idbRestore(){
   try{
@@ -3983,12 +4013,18 @@ function scheduleNextMidnightRefresh(){
 }
 scheduleNextMidnightRefresh();
 
-// Multi-tab sync: reload state if another tab saves data
+// Multi-tab sync: reload state if another tab saves data.
 // Skip if a modal OR the add drawer is open, to avoid wiping unsaved form input
-// (the add drawer isn't a .modal-overlay, so it needs its own guard)
+// (the add drawer isn't a .modal-overlay, so it needs its own guard).
+// Small delay lets the other tab's async IndexedDB write (the primary tx store)
+// settle before we re-read it — localStorage fires this event synchronously.
+let _storageSyncTimer = null;
 window.addEventListener('storage', (e) => {
   if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit'){
-    if(!document.querySelector('.modal-overlay.open') && !addDrawerOpen) loadState();
+    if(!document.querySelector('.modal-overlay.open') && !addDrawerOpen){
+      clearTimeout(_storageSyncTimer);
+      _storageSyncTimer = setTimeout(loadState, 200);
+    }
   }
 });
 
