@@ -586,11 +586,12 @@ function switchTab(tab){
   const panelId = 'tab' + tab.charAt(0).toUpperCase() + tab.slice(1);
   const panel = document.getElementById(panelId);
   if(panel) panel.classList.add('active');
-  ['Home','Analytics','Reports'].forEach(t => {
+  ['Home','Transactions','Analytics','Reports'].forEach(t => {
     const btn = document.getElementById('nav'+t);
     if(btn) btn.classList.toggle('active', t.toLowerCase() === tab);
   });
   // Re-render canvas charts that missed draws while their tab was hidden
+  if(tab === 'transactions') renderRecentTx();
   if(tab === 'analytics') requestAnimationFrame(()=> renderPieChart());
   if(tab === 'reports')   requestAnimationFrame(()=> renderChart());
 }
