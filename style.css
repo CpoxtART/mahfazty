@@ -890,12 +890,18 @@
 @keyframes tabIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
 
 /* ─── Add Drawer Overlay ─── */
+/* visibility+opacity instead of display:none so the transition actually runs
+   (display:none → display:block doesn't allow opacity to animate in the same frame) */
 .add-drawer-overlay{
-  display:none; position:fixed; inset:0; z-index:900;
+  position:fixed; inset:0; z-index:900;
   background:rgba(8,9,12,.55); backdrop-filter:blur(3px);
-  opacity:0; transition:opacity .22s var(--ease);
+  opacity:0; visibility:hidden; pointer-events:none;
+  transition:opacity .22s var(--ease), visibility 0s linear .22s;
 }
-.add-drawer-overlay.open{ display:block; opacity:1; }
+.add-drawer-overlay.open{
+  opacity:1; visibility:visible; pointer-events:auto;
+  transition:opacity .22s var(--ease);
+}
 
 /* ─── Add Drawer ─── */
 .add-drawer{

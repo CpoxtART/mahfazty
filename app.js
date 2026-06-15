@@ -271,6 +271,10 @@ async function loadState(){
       if(_idb.budgets && typeof _idb.budgets === 'object') budgets = sanitizeBudgets(_idb.budgets);
       if(Array.isArray(_idb.dismissedRecurring)) dismissedRecurring = new Set(_idb.dismissedRecurring);
       if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = sanitizeDistribution(_idb.distribution);
+      // restore subscriptions from IDB into localStorage so loadSubs() below reads them
+      if(Array.isArray(_idb.subscriptions)){
+        try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(_idb.subscriptions)); }catch(e){}
+      }
       toast('✓ تمت استعادة البيانات من النسخ الاحتياطي');
     }
   }
@@ -309,7 +313,9 @@ function loadSubs(){
   }catch(e){ subscriptions = []; }
 }
 async function saveSubs(){
+  const ts = Date.now();
   try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(subscriptions)); }catch(e){}
+  idbBackup(ts);
 }
 
 /* ============================================================
@@ -339,8 +345,7 @@ async function idbBackup(savedAt){
       autoDistribute, budgets,
       distribution: DISTRIBUTION,
       dismissedRecurring: Array.from(dismissedRecurring),
-      // stamp with the matching lastEdit time so freshness can be compared on
-      // load; falls back to now only when no explicit timestamp is supplied
+      subscriptions: subscriptions,
       savedAt: (typeof savedAt === 'number' && isFinite(savedAt)) ? savedAt : Date.now()
     }, 'snapshot');
   }catch(e){ /* non-fatal */ }
@@ -590,6 +595,7 @@ function switchTab(tab){
 ============================================================ */
 function openAddDrawer(){
   addDrawerOpen = true;
+  switchDrawerTab(0); // always open on Details tab so amount/date are immediately visible
   document.getElementById('addDrawer').classList.add('open');
   document.getElementById('addDrawerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -701,6 +707,8 @@ function openSubModal(id){
   document.getElementById('subName').value = sub ? sub.name : '';
   document.getElementById('subAmount').value = sub ? sub.amount : '';
   document.getElementById('subBillingDay').value = sub ? (sub.billingDay||'') : '';
+  const activeEl = document.getElementById('subActive');
+  if(activeEl) activeEl.checked = sub ? (sub.active !== false) : true;
   const del = document.getElementById('subDeleteBtn');
   if(del) del.style.display = sub ? 'block' : 'none';
   openModal('subModal');
@@ -709,15 +717,16 @@ async function saveSubModal(){
   const name = document.getElementById('subName').value.trim().slice(0,60);
   const amount = round2(parseAmount(document.getElementById('subAmount').value));
   const billingDay = parseInt(document.getElementById('subBillingDay').value, 10);
+  const active = document.getElementById('subActive')?.checked !== false;
   if(!name){ toast('⚠ أدخل اسم الاشتراك', true); return; }
   if(!isFinite(amount)||amount<=0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
   if(!isFinite(billingDay)||billingDay<1||billingDay>31){ toast('⚠ أدخل يوم صحيح (1-31)', true); return; }
 
   if(editingSubId){
     const sub = subscriptions.find(s=>s.id===editingSubId);
-    if(sub){ sub.name=name; sub.amount=amount; sub.billingDay=billingDay; }
+    if(sub){ sub.name=name; sub.amount=amount; sub.billingDay=billingDay; sub.active=active; }
   } else {
-    subscriptions.push({ id:'sub_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), name, amount, billingDay, active:true });
+    subscriptions.push({ id:'sub_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), name, amount, billingDay, active });
   }
   await saveSubs();
   renderSubscriptions();
@@ -934,7 +943,7 @@ function applyVoiceTranscript(text){
     toast('🎤 لم يتم العثور على رقم — اكتب المبلغ يدويًا', true);
     const amtEl = document.getElementById('amountInput');
     amtEl.focus(); // guide the user straight to the missing field
-    window.scrollTo({top:0, behavior:'smooth'});
+    amtEl.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
 }
 
@@ -2454,7 +2463,8 @@ function exportData(){
     budgets: budgets,
     autoDistribute: autoDistribute,
     distribution: DISTRIBUTION,
-    dismissedRecurring: Array.from(dismissedRecurring)
+    dismissedRecurring: Array.from(dismissedRecurring),
+    subscriptions: subscriptions
   };
   const json = JSON.stringify(payload, null, 2);
   document.getElementById('jsonArea').value = json;
@@ -2542,11 +2552,15 @@ async function applyImport(text){
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
   if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
   if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring);
+  if(Array.isArray(data.subscriptions)){
+    subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
+  }
   prevSpendable = null; // reset animation baseline after full data replacement
 
   await saveBalances();
   await saveTx();
   await saveConfig();
+  await saveSubs();
   closeModal('dataModal');
   render(true);
   if(_droppedTx > 0){
@@ -2970,7 +2984,8 @@ async function driveSyncToCloud(){
       autoDistribute: autoDistribute,
       budgets: budgets,
       distribution: DISTRIBUTION,
-      dismissedRecurring: Array.from(dismissedRecurring)
+      dismissedRecurring: Array.from(dismissedRecurring),
+      subscriptions: subscriptions
     });
 
     await driveFindFile();
@@ -3063,8 +3078,11 @@ async function adoptCloudSnapshot(cloud){
   if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
   if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
   if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
+  if(Array.isArray(cloud.subscriptions)){
+    subscriptions = cloud.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
+  }
   prevSpendable = null; // force fresh hero animation after loading a new data set
-  await saveBalances(); await saveTx(); await saveConfig();
+  await saveBalances(); await saveTx(); await saveConfig(); await saveSubs();
   render(true); // force: wallet object is mutated in-place so reference-equality sig check would miss balance changes
 }
 
@@ -3550,13 +3568,13 @@ document.addEventListener('keydown', e => {
     }
   }
   if(e.key === 'Tab'){
-    // Focus trap: keep Tab navigation inside the topmost open modal
-    const openModals = [...document.querySelectorAll('.modal-overlay.open')];
-    if(openModals.length){
-      const modal = openModals[openModals.length-1];
-      const focusable = [...modal.querySelectorAll(
+    const container = addDrawerOpen
+      ? document.getElementById('addDrawer')
+      : (()=>{ const m = [...document.querySelectorAll('.modal-overlay.open')]; return m.length ? m[m.length-1] : null; })();
+    if(container){
+      const focusable = [...container.querySelectorAll(
         'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )].filter(el => el.offsetParent !== null); // only visible elements
+      )].filter(el => el.offsetParent !== null);
       if(focusable.length === 0) return;
       const first = focusable[0], last = focusable[focusable.length-1];
       if(e.shiftKey){

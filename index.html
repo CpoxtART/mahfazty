@@ -524,6 +524,10 @@ try{
     <input type="number" id="subAmount" step="any" inputmode="decimal" placeholder="0">
     <label>يوم الاشتراك (1–31)</label>
     <input type="number" id="subBillingDay" min="1" max="31" step="1" inputmode="numeric" placeholder="15">
+    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:600; font-size:13px; color:var(--text); margin-bottom:4px;">
+      <input type="checkbox" id="subActive" style="width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0;" checked>
+      الاشتراك فعّال
+    </label>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('subModal')">إلغاء</button>
       <button class="btn-danger" id="subDeleteBtn" onclick="deleteSubModal()" style="display:none;">حذف</button>
