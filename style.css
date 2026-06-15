@@ -113,13 +113,18 @@
     font-size:20px; box-shadow:var(--shadow);
     flex-shrink:0;
   }
+  header .brand-text{ display:flex; flex-direction:column; gap:1px; }
   header .brand h1{
     font-family:var(--serif);
-    font-size:20px;
+    font-size:19px;
     font-weight:700;
     letter-spacing:.3px;
     color:var(--text);
     line-height:1;
+  }
+  header .brand-emoji{
+    font-size:13px; line-height:1; display:block;
+    opacity:.75; letter-spacing:.5px;
   }
   header .actions{display:flex; gap:8px; align-items:center;}
   .icon-btn{
@@ -859,10 +864,12 @@
   .modal-actions button{flex:1; padding:13px;}
   .btn-primary{background:var(--gold); color:#241d0d;}
   .btn-primary:active{background:#c9a563;}
-  .btn-secondary{background:var(--card); color:var(--text); border:1px solid var(--line);}
+  .btn-secondary{background:var(--bg-elev); color:var(--text); border:1.5px solid var(--line);}
   .btn-secondary:active{background:var(--card2);}
-  .btn-danger{background:var(--red-soft); color:var(--red); border:1px solid rgba(227,145,143,.22);}
-  .btn-danger:active{background:rgba(227,145,143,.18);}
+  .btn-secondary:hover{border-color:var(--line-soft); background:var(--card2);}
+  .btn-danger{background:var(--red-soft); color:var(--red); border:1.5px solid rgba(227,145,143,.4); font-weight:700;}
+  .btn-danger:active{background:rgba(227,145,143,.22);}
+  .btn-danger:hover{border-color:var(--red); background:rgba(227,145,143,.16);}
   .modal input[type=text], .modal input[type=number], .modal input[type=date]{
     width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);
     padding:12px 13px;border-radius:var(--radius-sm);margin-bottom:10px;font-size:14px;font-family:inherit;
