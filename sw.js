@@ -1,5 +1,5 @@
-const CACHE = 'mhfzty-v11';
-const PRECACHE = ['./index.html', './style.css', './app.js'];
+const CACHE = 'mhfzty-v12';
+const PRECACHE = ['./index.html', './style.css', './app.js', './sw.js'];
 
 self.addEventListener('install', e => {
   // Pre-cache core files so the app works offline from the very first visit.
@@ -36,6 +36,7 @@ self.addEventListener('fetch', e => {
   if(e.request.mode === 'navigate'){
     e.respondWith(
       caches.match('./index.html').then(r => r || fetch(e.request))
+        .catch(() => caches.match('./index.html'))
     );
     return;
   }
@@ -48,7 +49,8 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE).then(c => c.put(e.request, clone));
         }
         return res;
-      }).catch(() => cached);
+      }).catch(() => cached || new Response('', {status:503, statusText:'Offline'}));
+      // never resolve to null/undefined — that turns into a confusing network error
       return cached || fresh;
     })
   );

@@ -244,12 +244,12 @@
     transition:background .25s var(--ease);
   }
   .switch::after{
-    content:''; position:absolute; top:2.5px; right:2.5px; width:20px; height:20px; background:var(--text);
-    border-radius:50%; transition:transform .25s var(--ease), background .25s;
+    content:''; position:absolute; top:2.5px; inset-inline-end:2.5px; width:20px; height:20px; background:var(--text);
+    border-radius:50%; transition:inset-inline-end .25s var(--ease), background .25s;
     box-shadow:0 2px 4px rgba(0,0,0,.3);
   }
   .crisis-toggle.active .switch{background:var(--red);}
-  .crisis-toggle.active .switch::after{transform:translateX(-19px);}
+  .crisis-toggle.active .switch::after{inset-inline-end:calc(100% - 22.5px);}
 
   /* ================= SECTION TITLES ================= */
   .section-title{
@@ -262,7 +262,7 @@
   }
   .section-title::after{
     content:''; flex:1; height:1px;
-    background:linear-gradient(to inline-end, var(--line-soft), transparent);
+    background:linear-gradient(to left, var(--line-soft), transparent);
   }
   .section-title .count{
     background:var(--card2); color:var(--muted2); border-radius:99px;
@@ -293,7 +293,7 @@
   }
   .wallet.active-filter::before{
     content:'';
-    position:absolute; top:0; right:0; width:0; height:0;
+    position:absolute; top:0; inset-inline-start:0; width:0; height:0;
     border-style:solid; border-width:0 22px 22px 0;
     border-color:transparent var(--gold) transparent transparent;
   }
@@ -719,7 +719,8 @@
     transition:background .15s var(--ease);
   }
   .rtx:not(:last-child)::after{
-    content:''; position:absolute; bottom:0; left:13px; right:62px;
+    content:''; position:absolute; bottom:0;
+    inset-inline-start:13px; inset-inline-end:62px;
     height:1px; background:var(--line-soft);
   }
   .rtx:active{ background:var(--card2); }
@@ -788,7 +789,7 @@
   }
   .tx:active{background:var(--card2);}
   .tx.removing{
-    transform: translateX(120%);
+    transform: translateX(-120%); /* match the leftward swipe-to-delete direction */
     opacity:0;
     transition: transform .3s var(--ease), opacity .3s var(--ease);
   }
@@ -826,9 +827,9 @@
     background:var(--card2); color:var(--text); border:1px solid var(--line);
     padding:10px 20px; border-radius:999px; font-size:12.5px; z-index:1100;
     transition:opacity .25s var(--ease), transform .25s var(--ease); opacity:0; pointer-events:none;
-    display:flex; align-items:center; gap:7px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; gap:7px; font-weight:600;
     box-shadow:0 8px 28px rgba(0,0,0,.45);
-    white-space:nowrap;
+    max-width:calc(100vw - 32px); flex-wrap:wrap; text-align:center;
   }
   #saveStatus.show{opacity:1; transform:translateX(-50%) translateY(0);}
 
@@ -851,6 +852,7 @@
     width:100%;
     max-width:540px;
     max-height:85vh;
+    max-height:85dvh; /* dynamic vh: keep modal usable when the mobile keyboard shrinks the viewport */
     overflow-y:auto;
     transform:translateY(40px);
     transition: transform .3s var(--ease);
@@ -982,7 +984,7 @@
 
 /* ─── Bottom Nav ─── */
 .bottom-nav{
-  position:fixed; bottom:0; left:0; right:0; z-index:800;
+  position:fixed; bottom:0; inset-inline:0; z-index:800;
   background:var(--bg-elev);
   border-top:1px solid var(--line-soft);
   box-shadow:0 -2px 12px rgba(0,0,0,.18);
@@ -1041,7 +1043,7 @@
 
 /* ─── Add Drawer ─── */
 .add-drawer{
-  position:fixed; bottom:0; left:0; right:0; z-index:901;
+  position:fixed; bottom:0; inset-inline:0; z-index:901;
   background:var(--bg-elev); border:1px solid var(--line);
   border-radius:var(--radius-lg) var(--radius-lg) 0 0;
   max-width:540px; margin:0 auto;

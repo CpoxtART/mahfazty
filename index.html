@@ -245,7 +245,7 @@ try{
       </div>
 
       <label>مبالغ سريعة</label>
-      <div class="quick-amounts" id="quickAmounts"></div>
+      <div class="quick-amounts" id="quickAmounts" role="group" aria-label="مبالغ سريعة"></div>
 
       <div class="row2">
         <div>
@@ -632,8 +632,10 @@ try{
       var box = document.createElement('div');
       box.id = 'fatalErrorBox';
       box.style.cssText = 'position:fixed;top:12px;left:12px;right:12px;z-index:99999;background:#2f1f20;border:1px solid #e3918f;color:#e3918f;padding:14px;border-radius:12px;font-family:Tahoma,sans-serif;font-size:13px;line-height:1.7;direction:rtl;';
+      var safeMsg = String(msg == null ? '' : msg).slice(0,200)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       box.innerHTML = '<b>⚠ حدث خطأ منع التطبيق من الاكتمال</b><br>' +
-        (msg ? ('التفاصيل: <span style="direction:ltr;display:inline-block;font-family:monospace;font-size:11px;">'+String(msg).slice(0,200)+'</span><br>') : '') +
+        (msg ? ('التفاصيل: <span style="direction:ltr;display:inline-block;font-family:monospace;font-size:11px;">'+safeMsg+'</span><br>') : '') +
         'غالبًا الملف المرفوع ناقص أو تالف. أعد رفع index.html كاملًا (يفضَّل عبر Upload files بدل النسخ واللصق) وتأكد أن آخر سطر فيه هو &lt;/html&gt;.';
       document.body.appendChild(box);
     }catch(e){}
