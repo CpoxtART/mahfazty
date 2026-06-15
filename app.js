@@ -63,6 +63,13 @@ let autoDistribute = false;
 let budgets = {}; // walletId -> monthly budget limit (expenses)
 let dismissedRecurring = new Set();
 
+/* v9.3 */
+let currentTab = 'home';
+let addDrawerOpen = false;
+let drawerTab = 0;
+let subscriptions = []; // [{id, name, amount, billingDay, active}]
+let editingSubId = null;
+
 /* ============================================================
    FORMAT HELPERS
 ============================================================ */
@@ -139,6 +146,7 @@ function themeColor(name, fallback){
 // to the next frame stops the scroll animation from competing with layout/canvas
 // work, which caused visible stutter on filter/search changes)
 function scrollToTxList(){
+  switchTab('reports');
   const el = document.getElementById('txList');
   if(el) requestAnimationFrame(()=> el.scrollIntoView({behavior:'smooth', block:'start'}));
 }
@@ -275,6 +283,7 @@ async function loadState(){
 
   document.getElementById('dateInput').value = todayISO();
   capDateInputsToToday();
+  loadSubs();
   render(true);
 }
 
@@ -293,6 +302,15 @@ function _pruneRecurringDismissals(){
   for(const k of dismissedRecurring){ if(!live.has(k)) dismissedRecurring.delete(k); }
 }
 async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(ts); }
+function loadSubs(){
+  try{
+    const s = localStorage.getItem(LS_PREFIX + 'subs');
+    if(s) subscriptions = JSON.parse(s).filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
+  }catch(e){ subscriptions = []; }
+}
+async function saveSubs(){
+  try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(subscriptions)); }catch(e){}
+}
 
 /* ============================================================
    INDEXEDDB BACKUP (extra resilience alongside localStorage)
@@ -547,6 +565,172 @@ function selectWallet(id){
   btn.classList.remove('open');
   btn.setAttribute('aria-expanded', 'false');
   renderWalletSelect();
+}
+
+/* ============================================================
+   V9.3: TAB SWITCHING
+============================================================ */
+function switchTab(tab){
+  currentTab = tab;
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const panelId = 'tab' + tab.charAt(0).toUpperCase() + tab.slice(1);
+  const panel = document.getElementById(panelId);
+  if(panel) panel.classList.add('active');
+  ['Home','Analytics','Reports'].forEach(t => {
+    const btn = document.getElementById('nav'+t);
+    if(btn) btn.classList.toggle('active', t.toLowerCase() === tab);
+  });
+  // Re-render canvas charts that missed draws while their tab was hidden
+  if(tab === 'analytics') requestAnimationFrame(()=> renderPieChart());
+  if(tab === 'reports')   requestAnimationFrame(()=> renderChart());
+}
+
+/* ============================================================
+   V9.3: ADD DRAWER
+============================================================ */
+function openAddDrawer(){
+  addDrawerOpen = true;
+  document.getElementById('addDrawer').classList.add('open');
+  document.getElementById('addDrawerOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  capDateInputsToToday();
+}
+function closeAddDrawer(){
+  addDrawerOpen = false;
+  document.getElementById('addDrawer').classList.remove('open');
+  document.getElementById('addDrawerOverlay').classList.remove('open');
+  if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+}
+function toggleAddDrawer(){
+  if(addDrawerOpen) closeAddDrawer(); else openAddDrawer();
+}
+function switchDrawerTab(idx){
+  drawerTab = idx;
+  [0,1].forEach(i => {
+    const tb = document.getElementById('drawerTab'+i);
+    const sb = document.getElementById('drawerSub'+i);
+    if(tb) tb.classList.toggle('active', i===idx);
+    if(sb) sb.classList.toggle('active', i===idx);
+  });
+}
+
+/* ============================================================
+   V9.3: RECENT TRANSACTIONS (home tab — last 10, no filters)
+============================================================ */
+function renderRecentTx(){
+  const list = document.getElementById('recentTxList');
+  if(!list) return;
+  list.innerHTML = '';
+  const recent = state.transactions
+    .slice()
+    .sort((a,b)=>b.ts-a.ts)
+    .slice(0,10);
+
+  if(recent.length === 0){
+    list.innerHTML = '<div class="empty"><span class="ic">🗂</span>لا توجد معاملات بعد — اضغط ＋ لإضافة أول معاملة</div>';
+    return;
+  }
+
+  const _yest = new Date(); _yest.setDate(_yest.getDate()-1);
+  const todayStr = new Date().toDateString();
+  const yesterdayStr = _yest.toDateString();
+
+  recent.forEach(tx => {
+    const wallet = WALLET_DEFS.find(w=>w.id===tx.wallet);
+    const cat = getCategory(tx.category);
+    const date = new Date(tx.ts);
+    const dayStr = date.toDateString();
+    const dateLabel = dayStr===todayStr?'اليوم':dayStr===yesterdayStr?'أمس':date.toLocaleDateString('ar-EG',{day:'numeric',month:'short'});
+    const timeStr = date.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+    const sign = tx.type==='expense'?'-':'+';
+    const cls = tx.type==='expense'?'neg':'pos';
+    const div = document.createElement('div');
+    div.className = 'tx';
+    div.setAttribute('role','listitem');
+    div.innerHTML = `
+      <div class="info">
+        <div class="desc">${escHtml(tx.desc||(wallet?wallet.name:''))}</div>
+        <div class="meta"><span class="ctag">${cat.icon}</span><span class="wtag">${escHtml(wallet?wallet.name:'')}</span> ${dateLabel} ${timeStr}</div>
+      </div>
+      <div class="right">
+        <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
+        <button class="edit-btn" aria-label="تعديل">✎</button>
+      </div>`;
+    div.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); openEdit(tx.id); };
+    div.onclick = () => openEdit(tx.id);
+    list.appendChild(div);
+  });
+}
+
+/* ============================================================
+   V9.3: SUBSCRIPTIONS
+============================================================ */
+function renderSubscriptions(){
+  const list = document.getElementById('subsList');
+  const totalEl = document.getElementById('subsTotal');
+  if(!list||!totalEl) return;
+
+  if(subscriptions.length===0){
+    totalEl.innerHTML = '';
+    list.innerHTML = '<div class="empty" style="padding:18px 14px;"><span class="ic">📆</span>لا توجد اشتراكات — أضف اشتراكاتك الشهرية لتتبع تكاليفها</div>';
+    return;
+  }
+
+  const active = subscriptions.filter(s=>s.active!==false);
+  const monthlyTotal = round2(active.reduce((s,x)=>s+x.amount, 0));
+  totalEl.innerHTML = `إجمالي الاشتراكات الفعّالة: <b>${fmt(monthlyTotal)}</b> / شهر`;
+  list.innerHTML = '';
+  subscriptions.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'sub-card'+(s.active===false?' inactive':'');
+    card.innerHTML = `
+      <div class="sub-info">
+        <div class="sub-name">${escHtml(s.name)}</div>
+        <div class="sub-meta">يوم ${s.billingDay||'—'} من كل شهر${s.active===false?' · (متوقف)':''}</div>
+      </div>
+      <div class="sub-amt">-${fmt(s.amount)}</div>
+      <button class="sub-edit" aria-label="تعديل الاشتراك">✎</button>`;
+    card.querySelector('.sub-edit').onclick = () => openSubModal(s.id);
+    list.appendChild(card);
+  });
+}
+function openSubModal(id){
+  editingSubId = id;
+  const sub = id ? subscriptions.find(s=>s.id===id) : null;
+  document.getElementById('subModalTitle').textContent = sub ? '✎ تعديل الاشتراك' : '📆 اشتراك جديد';
+  document.getElementById('subName').value = sub ? sub.name : '';
+  document.getElementById('subAmount').value = sub ? sub.amount : '';
+  document.getElementById('subBillingDay').value = sub ? (sub.billingDay||'') : '';
+  const del = document.getElementById('subDeleteBtn');
+  if(del) del.style.display = sub ? 'block' : 'none';
+  openModal('subModal');
+}
+async function saveSubModal(){
+  const name = document.getElementById('subName').value.trim().slice(0,60);
+  const amount = round2(parseAmount(document.getElementById('subAmount').value));
+  const billingDay = parseInt(document.getElementById('subBillingDay').value, 10);
+  if(!name){ toast('⚠ أدخل اسم الاشتراك', true); return; }
+  if(!isFinite(amount)||amount<=0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
+  if(!isFinite(billingDay)||billingDay<1||billingDay>31){ toast('⚠ أدخل يوم صحيح (1-31)', true); return; }
+
+  if(editingSubId){
+    const sub = subscriptions.find(s=>s.id===editingSubId);
+    if(sub){ sub.name=name; sub.amount=amount; sub.billingDay=billingDay; }
+  } else {
+    subscriptions.push({ id:'sub_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), name, amount, billingDay, active:true });
+  }
+  await saveSubs();
+  renderSubscriptions();
+  closeModal('subModal');
+  toast('✓ تم حفظ الاشتراك');
+}
+async function deleteSubModal(){
+  if(!editingSubId) return;
+  subscriptions = subscriptions.filter(s=>s.id!==editingSubId);
+  await saveSubs();
+  renderSubscriptions();
+  closeModal('subModal');
+  toast('🗑 تم حذف الاشتراك');
 }
 
 /* ============================================================
@@ -1355,8 +1539,9 @@ function renderRecurring(){
       dismissedRecurring.add(s.key);
       saveConfig();
       renderRecurring();
+      openAddDrawer();
+      switchDrawerTab(0);
       toast('✓ تم تعبية النموذج — راجع وسجّل المعاملة');
-      window.scrollTo({top:0, behavior:'smooth'});
     };
     box.appendChild(card);
   });
@@ -1803,6 +1988,7 @@ async function addTx(type){
     await saveBalances();
     await saveTx();
     render();
+    closeAddDrawer();
     toast(type==='expense' ? '✓ تم تسجيل المصروف' : '✓ تم تسجيل الدخل');
 
     // auto-distribution flow for income
@@ -2113,8 +2299,9 @@ function repeatLastTx(){
   const lastCat = CATEGORIES.find(c=>c.id===(last.category||'other'));
   if(lastCat && lastCat.types.includes(last.type)) selectedCategory = last.category || 'other';
   renderCategoryGrid();
-  toast('✓ تم تعبية النموذج — راجع واضغط ' + (last.type==='expense'?'"مصروف"':'"دخل"'));
-  window.scrollTo({top:0, behavior:'smooth'});
+  openAddDrawer();
+  switchDrawerTab(0);
+  toast('✓ تم تعبية النموذج — راجع واضغط تسجيل');
 }
 
 let _lastDeleted = null;
@@ -2205,6 +2392,7 @@ function closeModal(id){
   }
   if(id === 'distributeModal') pendingIncomeTx = null;
   if(id === 'walletDetailModal') detailWalletId = null;
+  if(id === 'subModal') editingSubId = null;
   // restore focus to whatever triggered the modal
   if(_modalReturnFocus && typeof _modalReturnFocus.focus === 'function'){
     try{ _modalReturnFocus.focus({preventScroll:true}); }catch(_){}
@@ -2406,9 +2594,11 @@ async function wipeAll(){
   document.querySelectorAll('.filters button').forEach(b => b.classList.toggle('active', b.dataset.f === 'all'));
   const si = document.getElementById('searchInput');
   if(si){ si.value = ''; document.getElementById('searchBox').classList.remove('has-text'); }
+  subscriptions = [];
   await saveBalances();
   await saveTx();
   await saveConfig();
+  await saveSubs();
   closeModal('settingsModal');
   render();
   toast('🗑 تم حذف كل البيانات');
@@ -3114,7 +3304,7 @@ function buildDailyReviewContent(){
   // pending recurring suggestions
   const recurring = detectRecurring();
   if(recurring.length > 0){
-    lines.push(`🔁 لديك ${recurring.length} معاملة متكررة محتملة بانتظار مراجعتك (بأسفل صفحة التقارير).`);
+    lines.push(`🔁 لديك ${recurring.length} معاملة متكررة محتملة بانتظار مراجعتك (تبويب تحليلات).`);
   }
 
   if(lines.length === 1 && yCount===0 && yIncome===0) return null;
@@ -3283,11 +3473,13 @@ function render(force){
   _heroStatsSig = '';
   renderWallets();
   renderWalletSelect();
+  renderRecentTx();
   renderTxList();
   renderChart();
   renderPieChart();
   renderAnalytics();
   renderRecurring();
+  renderSubscriptions();
 }
 
 let _resizeTimer;
@@ -3349,8 +3541,12 @@ document.addEventListener('keydown', e => {
       }
     });
     if(!closedDropdown){
-      const open = [...document.querySelectorAll('.modal-overlay.open')];
-      if(open.length) closeModal(open[open.length-1].id);
+      if(addDrawerOpen){
+        closeAddDrawer();
+      } else {
+        const open = [...document.querySelectorAll('.modal-overlay.open')];
+        if(open.length) closeModal(open[open.length-1].id);
+      }
     }
   }
   if(e.key === 'Tab'){

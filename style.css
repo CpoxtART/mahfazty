@@ -839,3 +839,202 @@
   @media (prefers-reduced-motion: reduce){
     *{animation:none !important; transition:none !important;}
   }
+
+/* ============================================================
+   V9.3 — BOTTOM NAV · FAB · TAB PANELS · ADD DRAWER · SUBS
+============================================================ */
+
+/* ─── Bottom Nav ─── */
+.bottom-nav{
+  position:fixed; bottom:0; left:0; right:0; z-index:800;
+  background:var(--bg-elev);
+  border-top:1px solid var(--line-soft);
+  box-shadow:0 -2px 12px rgba(0,0,0,.18);
+}
+.bottom-nav-inner{
+  max-width:540px; margin:0 auto;
+  display:flex; align-items:stretch;
+  height:calc(58px + env(safe-area-inset-bottom));
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.nav-item{
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:2px; color:var(--muted2); font-size:10px; font-weight:600; cursor:pointer;
+  border:none; background:none; font-family:inherit;
+  transition: color .15s var(--ease); padding-bottom:2px; padding-top:2px;
+}
+.nav-item .nav-ic{ font-size:20px; line-height:1; }
+.nav-item.active{ color:var(--gold); }
+.nav-item:active{ opacity:.7; }
+.nav-fab{
+  flex:0 0 70px; display:flex; align-items:center; justify-content:center; position:relative;
+}
+.fab-btn{
+  width:52px; height:52px; border-radius:50%;
+  background:linear-gradient(150deg, var(--gold), #b88c46);
+  border:none; color:#1b1a10; font-size:28px; font-weight:400; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 4px 18px rgba(220,182,116,.42);
+  cursor:pointer; font-family:inherit;
+  transition: transform .15s var(--ease), box-shadow .15s;
+  position:absolute; top:-14px;
+}
+.fab-btn:active{ transform:scale(.91); box-shadow:0 2px 8px rgba(220,182,116,.28); }
+
+/* ─── Toast above nav ─── */
+#saveStatus{ bottom:calc(72px + env(safe-area-inset-bottom)); }
+
+/* ─── Tab Panels ─── */
+.tab-panel{ display:none; }
+.tab-panel.active{ display:block; animation: tabIn .16s ease; }
+@keyframes tabIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+/* ─── Add Drawer Overlay ─── */
+.add-drawer-overlay{
+  display:none; position:fixed; inset:0; z-index:900;
+  background:rgba(8,9,12,.55); backdrop-filter:blur(3px);
+  opacity:0; transition:opacity .22s var(--ease);
+}
+.add-drawer-overlay.open{ display:block; opacity:1; }
+
+/* ─── Add Drawer ─── */
+.add-drawer{
+  position:fixed; bottom:0; left:0; right:0; z-index:901;
+  background:var(--bg-elev); border:1px solid var(--line);
+  border-radius:20px 20px 0 0;
+  max-width:540px; margin:0 auto;
+  max-height:92vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  transform:translateY(100%);
+  transition:transform .28s var(--ease);
+  display:flex; flex-direction:column;
+}
+.add-drawer.open{ transform:translateY(0); }
+.add-drawer .grabber{
+  width:36px; height:4px; background:var(--line); border-radius:99px;
+  margin:12px auto 0; flex-shrink:0;
+}
+.add-drawer .drawer-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 18px 0; flex-shrink:0;
+}
+.add-drawer .drawer-head h3{
+  font-family:var(--serif); font-size:18px; color:var(--gold);
+  display:flex; align-items:center; gap:8px; margin:0;
+}
+.add-drawer .drawer-close{
+  background:none; border:none; color:var(--muted); font-size:20px;
+  cursor:pointer; padding:4px 6px; line-height:1; border-radius:8px;
+}
+.add-drawer .drawer-close:active{ background:var(--card); }
+.add-drawer .drawer-tabs{
+  display:flex; margin:12px 18px 0; flex-shrink:0;
+  background:var(--bg); border:1px solid var(--line);
+  border-radius:var(--radius-sm); padding:3px; gap:3px;
+}
+.add-drawer .drawer-tabs button{
+  flex:1; padding:9px; font-size:13px; font-weight:600;
+  background:none; border:none; color:var(--muted);
+  border-radius:calc(var(--radius-sm) - 2px); cursor:pointer;
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+.add-drawer .drawer-tabs button.active{
+  background:var(--card); color:var(--text);
+  box-shadow:0 1px 4px rgba(0,0,0,.18);
+}
+.add-drawer .drawer-body{ padding:14px 18px 0; overflow:visible; }
+.add-drawer .drawer-sub{ display:none; }
+.add-drawer .drawer-sub.active{ display:block; }
+
+/* Inputs/labels inside drawer body */
+.add-drawer .drawer-body label{
+  font-size:10.5px; color:var(--muted); display:block;
+  margin-bottom:6px; letter-spacing:1px; text-transform:uppercase; font-weight:600;
+}
+.add-drawer .drawer-body input[type=text],
+.add-drawer .drawer-body input[type=number],
+.add-drawer .drawer-body input[type=date]{
+  width:100%; background:var(--bg-elev); border:1px solid var(--line);
+  color:var(--text); padding:12px 13px; border-radius:var(--radius-sm);
+  font-size:14px; margin-bottom:12px; font-family:inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+.add-drawer .drawer-body input:focus{
+  outline:none; border-color:var(--gold);
+  box-shadow:0 0 0 3px rgba(220,182,116,.12);
+}
+.add-drawer .drawer-body input::placeholder{ color:var(--muted); opacity:.6; }
+.add-drawer .drawer-body input[type=number]{ font-variant-numeric:tabular-nums; }
+.add-drawer .drawer-body input[type=date]{ color-scheme:dark; }
+body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
+
+/* Sticky submit footer inside drawer */
+.drawer-submit{
+  position:sticky; bottom:0; z-index:2;
+  background:var(--bg-elev);
+  padding:12px 18px calc(env(safe-area-inset-bottom) + 12px);
+  border-top:1px solid var(--line-soft);
+  flex-shrink:0;
+}
+.drawer-submit .btn-row{ margin-bottom:0; }
+.drawer-submit .btn-row button{ padding:14px; }
+
+/* Override wallet-select inside drawer to in-flow max-height
+   (position:absolute gets clipped by the drawer's overflow-y:auto) */
+.add-drawer .wallet-select-wrap .wallet-menu{
+  position:static !important;
+  transform:none !important;
+  box-shadow:var(--shadow);
+  opacity:0; visibility:hidden; pointer-events:none;
+  max-height:0 !important; overflow:hidden; margin-bottom:0;
+  transition: max-height .22s var(--ease), margin-bottom .22s var(--ease),
+              opacity .16s var(--ease), visibility 0s linear .22s;
+}
+.add-drawer .wallet-select-wrap .wallet-menu.open{
+  opacity:1 !important; visibility:visible !important; pointer-events:auto !important;
+  max-height:260px !important; margin-bottom:12px;
+  transition: max-height .22s var(--ease), margin-bottom .22s var(--ease),
+              opacity .16s var(--ease);
+}
+.add-drawer .wallet-select-wrap .wallet-menu > div{ max-height:260px; overflow-y:auto; }
+
+/* ─── Subscriptions ─── */
+.subs-section-header{
+  display:flex; align-items:center; justify-content:space-between;
+  margin:22px 0 10px;
+}
+.subs-section-header .subs-label{
+  font-size:11.5px; color:var(--muted); text-transform:uppercase;
+  letter-spacing:2.5px; font-weight:600;
+}
+.sub-add-btn{
+  flex-shrink:0; padding:4px 13px; font-size:11.5px; font-weight:700;
+  font-family:inherit; background:var(--gold-soft); color:var(--gold);
+  border:1px solid var(--gold-dim); border-radius:99px; cursor:pointer;
+  transition:transform .1s var(--ease), background .15s;
+  letter-spacing:0; text-transform:none;
+}
+.sub-add-btn:active{ transform:scale(.95); }
+.subs-total{ font-size:12.5px; color:var(--muted); margin-bottom:10px; }
+.subs-total b{ color:var(--text); font-variant-numeric:tabular-nums; }
+.subs-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+.sub-card{
+  background:var(--card); border:1px solid var(--line); border-radius:var(--radius-sm);
+  padding:12px 14px; display:flex; align-items:center; gap:12px;
+  transition: opacity .2s;
+}
+.sub-card.inactive{ opacity:.45; }
+.sub-card .sub-info{ flex:1; min-width:0; }
+.sub-card .sub-name{
+  font-size:13.5px; font-weight:600;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.sub-card .sub-meta{ font-size:11px; color:var(--muted); margin-top:3px; }
+.sub-card .sub-amt{
+  font-size:14px; font-weight:700; color:var(--red);
+  font-variant-numeric:tabular-nums; direction:ltr; flex-shrink:0;
+}
+.sub-card .sub-edit{
+  background:none; border:none; color:var(--muted2); font-size:14px;
+  padding:6px; cursor:pointer; border-radius:8px; transition:color .15s, background .15s;
+}
+.sub-card .sub-edit:active{ color:var(--gold); background:var(--bg-elev); }
