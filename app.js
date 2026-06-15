@@ -2853,6 +2853,13 @@ function updateSettingsStats(){
   }catch(e){
     document.getElementById('statLastEdit').textContent = '—';
   }
+  // Show active cache version
+  const cacheEl = document.getElementById('statCacheVer');
+  if(cacheEl){
+    caches.keys().then(keys => {
+      cacheEl.textContent = keys.length ? keys.join(', ') : 'لا يوجد كاش';
+    }).catch(()=>{ cacheEl.textContent = '—'; });
+  }
 }
 
 /* ============================================================
@@ -3888,6 +3895,30 @@ function applyUpdate(){
   }
   // Reload after 2s — covers browsers where controllerchange is unreliable
   setTimeout(() => window.location.reload(), 2000);
+}
+
+async function forceClearAndUpdate(){
+  const btn = document.querySelector('.btn-cache-refresh');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري...'; }
+  try{
+    // Wipe every cache bucket the browser holds for this origin
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+    // If a new SW is already waiting, activate it immediately
+    const reg = await navigator.serviceWorker.getRegistration();
+    if(reg){
+      if(reg.waiting){
+        reg.waiting.postMessage({type:'SKIP_WAITING'});
+        await new Promise(r => setTimeout(r, 600));
+      } else {
+        // Force the browser to re-fetch sw.js and install a fresh SW
+        await reg.update();
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+  }catch(e){}
+  // Hard reload — cache is empty so browser fetches everything fresh
+  window.location.reload();
 }
 
 function setupPWA(){

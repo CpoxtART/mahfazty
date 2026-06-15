@@ -895,6 +895,16 @@
   }
   .settings-row:last-of-type{border-bottom:none;}
   .settings-row .meta{color:var(--muted); font-size:11px; margin-top:2px;}
+  .btn-cache-refresh{
+    flex-shrink:0; padding:6px 12px; font-size:12px; font-weight:700;
+    background:var(--bg-elev); border:1px solid var(--line); color:var(--muted);
+    border-radius:var(--radius-sm); cursor:pointer; touch-action:manipulation;
+    transition:background .15s, color .15s, border-color .15s;
+    font-family:inherit;
+  }
+  .btn-cache-refresh:hover{ border-color:var(--gold-dim); color:var(--gold); background:var(--gold-soft); }
+  .btn-cache-refresh:active{ transform:scale(.96); }
+  .btn-cache-refresh:disabled{ opacity:.5; cursor:default; }
 
   /* type mini toggle above category grid in add form */
   .type-mini-toggle{
