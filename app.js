@@ -1440,7 +1440,9 @@ function renderPieChart(){
     });
   }
 
-  const size = 110, r = 50, cx = size/2, cy = size/2;
+  const containerW = document.getElementById('pieContent')?.parentElement?.clientWidth || 320;
+  const size = Math.min(120, Math.max(80, Math.round(containerW * 0.3)));
+  const r = Math.round(size * 0.46), cx = size/2, cy = size/2;
   let html = `<canvas id="pieCanvas" width="${size}" height="${size}" style="width:${size}px;height:${size}px;" role="img" aria-label="مخطط دائري لتوزيع المصروفات حسب الفئة"></canvas>`;
   html += '<div class="pie-legend">';
   entries.forEach(([catId, amt]) => {
@@ -1492,6 +1494,18 @@ function renderPieChart(){
   ctx.arc(cx,cy,r*0.55,0,Math.PI*2);
   ctx.fillStyle = themeColor('--card', '#1e222a');
   ctx.fill();
+  // total label in center
+  const isLightPie = document.body.classList.contains('light');
+  const fmtPieShort = n => {
+    if(n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+    if(n >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+    return Math.round(n).toLocaleString('en-US');
+  };
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = isLightPie ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.45)';
+  ctx.font = `600 ${Math.round(size*0.09)}px system-ui,sans-serif`;
+  ctx.fillText(fmtPieShort(total), cx, cy + 1);
 }
 
 /* ============================================================

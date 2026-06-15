@@ -301,7 +301,7 @@
     display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;
   }
   .analytics-card{
-    background:var(--card); border:1px solid var(--line); border-radius:var(--radius-sm);
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
     padding:13px;
   }
   .analytics-card .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; font-weight:600;}
