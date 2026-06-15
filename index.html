@@ -43,32 +43,38 @@ try{
 <!-- ===== TAB 1: HOME ===== -->
 <div class="tab-panel active" id="tabHome">
 
-  <div class="hero">
-    <div class="label">إجمالي المتاح للصرف</div>
-    <div class="amount" id="totalSpendable">٠</div>
-    <div class="meta-row">
-      <div class="item">
-        <div class="ml"><span class="dot g"></span> دخل الشهر</div>
-        <b class="pos" id="heroIncome">٠</b>
-      </div>
-      <div class="item">
-        <div class="ml"><span class="dot r"></span> مصروف الشهر</div>
-        <b class="neg" id="heroExpense">٠</b>
+  <div class="ui-sec" data-sec="balance">
+    <div class="hero">
+      <div class="label">إجمالي المتاح للصرف</div>
+      <div class="amount" id="totalSpendable">٠</div>
+      <div class="meta-row">
+        <div class="item">
+          <div class="ml"><span class="dot g"></span> دخل الشهر</div>
+          <b class="pos" id="heroIncome">٠</b>
+        </div>
+        <div class="item">
+          <div class="ml"><span class="dot r"></span> مصروف الشهر</div>
+          <b class="neg" id="heroExpense">٠</b>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="crisis-toggle" id="crisisToggle" onclick="toggleCrisis()" role="switch" aria-checked="false" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCrisis();}">
-    <div class="label"><span class="ic">🚨</span>
-      <div>وضع الطوارئ
-        <small>تحويل الاحتياطي الثاني (٥٠٪) إلى احتياطي طوارئ موحّد</small>
+  <div class="ui-sec" data-sec="crisis">
+    <div class="crisis-toggle" id="crisisToggle" onclick="toggleCrisis()" role="switch" aria-checked="false" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCrisis();}">
+      <div class="label"><span class="ic">🚨</span>
+        <div>وضع الطوارئ
+          <small>تحويل الاحتياطي الثاني (٥٠٪) إلى احتياطي طوارئ موحّد</small>
+        </div>
       </div>
+      <div class="switch"></div>
     </div>
-    <div class="switch"></div>
   </div>
 
-  <div class="section-title">المحافظ <span class="count" id="walletCount"></span></div>
-  <div class="wallets" id="walletsGrid"></div>
+  <div class="ui-sec" data-sec="wallets">
+    <div class="section-title">المحافظ <span class="count" id="walletCount"></span></div>
+    <div class="wallets" id="walletsGrid"></div>
+  </div>
 
 </div>
 
@@ -81,23 +87,35 @@ try{
 <!-- ===== TAB 2: ANALYTICS ===== -->
 <div class="tab-panel" id="tabAnalytics">
 
-  <div class="section-title">📊 تحليلات الشهر</div>
-  <div class="analytics-grid" id="analyticsGrid"></div>
-  <div id="recurringBox"></div>
-  <div class="btn-row" style="margin-bottom:14px;">
-    <button class="btn-secondary" onclick="exportMonthlyReport()">📄 تصدير/مشاركة تقرير الشهر</button>
+  <div class="ui-sec" data-sec="stats">
+    <div class="section-title">📊 تحليلات الشهر</div>
+    <div class="analytics-grid" id="analyticsGrid"></div>
   </div>
 
-  <div class="subs-section-header">
-    <span class="subs-label">الاشتراكات الشهرية</span>
-    <button class="sub-add-btn" onclick="openSubModal(null)">＋ اشتراك</button>
+  <div class="ui-sec" data-sec="recurring">
+    <div id="recurringBox"></div>
   </div>
-  <div class="subs-total" id="subsTotal"></div>
-  <div class="subs-list" id="subsList"></div>
 
-  <div class="chart-wrap" id="pieWrap">
-    <div class="chart-title"><span>التوزيع حسب الفئة</span></div>
-    <div class="pie-wrap" id="pieContent"></div>
+  <div class="ui-sec" data-sec="export">
+    <div class="btn-row" style="margin-bottom:14px;">
+      <button class="btn-secondary" onclick="exportMonthlyReport()">📄 تصدير/مشاركة تقرير الشهر</button>
+    </div>
+  </div>
+
+  <div class="ui-sec" data-sec="subscriptions">
+    <div class="subs-section-header">
+      <span class="subs-label">الاشتراكات الشهرية</span>
+      <button class="sub-add-btn" onclick="openSubModal(null)">＋ اشتراك</button>
+    </div>
+    <div class="subs-total" id="subsTotal"></div>
+    <div class="subs-list" id="subsList"></div>
+  </div>
+
+  <div class="ui-sec" data-sec="chart">
+    <div class="chart-wrap" id="pieWrap">
+      <div class="chart-title"><span>التوزيع حسب الفئة</span></div>
+      <div class="pie-wrap" id="pieContent"></div>
+    </div>
   </div>
 
 </div>
@@ -129,31 +147,37 @@ try{
     <button class="clear" onclick="clearSearch()" aria-label="مسح البحث">✕</button>
   </div>
 
-  <div class="summary-grid">
-    <div class="summary-card in">
-      <div class="l">دخل</div>
-      <div class="v" id="sumIncome">٠</div>
-    </div>
-    <div class="summary-card out">
-      <div class="l">مصروف</div>
-      <div class="v" id="sumExpense">٠</div>
-    </div>
-    <div class="summary-card net">
-      <div class="l">الصافي</div>
-      <div class="v" id="sumNet">٠</div>
+  <div class="ui-sec" data-sec="summary">
+    <div class="summary-grid">
+      <div class="summary-card in">
+        <div class="l">دخل</div>
+        <div class="v" id="sumIncome">٠</div>
+      </div>
+      <div class="summary-card out">
+        <div class="l">مصروف</div>
+        <div class="v" id="sumExpense">٠</div>
+      </div>
+      <div class="summary-card net">
+        <div class="l">الصافي</div>
+        <div class="v" id="sumNet">٠</div>
+      </div>
     </div>
   </div>
 
-  <div class="chart-wrap">
-    <div class="chart-title">
-      <span>حركة الرصيد</span>
-      <span class="net-badge" id="chartNet"></span>
+  <div class="ui-sec" data-sec="chart">
+    <div class="chart-wrap">
+      <div class="chart-title">
+        <span>حركة الرصيد</span>
+        <span class="net-badge" id="chartNet"></span>
+      </div>
+      <canvas id="chartCanvas"></canvas>
+      <div class="chart-empty" id="chartEmpty" style="display:none;">لا توجد بيانات كافية للرسم البياني</div>
     </div>
-    <canvas id="chartCanvas"></canvas>
-    <div class="chart-empty" id="chartEmpty" style="display:none;">لا توجد بيانات كافية للرسم البياني</div>
   </div>
 
-  <div class="tx-list" id="txList" role="list"></div>
+  <div class="ui-sec" data-sec="list">
+    <div class="tx-list" id="txList" role="list"></div>
+  </div>
 
 </div>
 
@@ -320,6 +344,13 @@ try{
     </div>
     <div class="settings-row">
       <div>آخر تعديل<div class="meta" id="statLastEdit">—</div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:18px;">🔀 ترتيب الواجهة</div>
+    <div class="hint" style="margin-top:0;">رتّب تبويبات الشريط السفلي والأقسام داخل كل تبويب حسب ما يناسبك. التغيير فوري.</div>
+    <div id="layoutEditor"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="resetLayout()">↺ استعادة الترتيب الافتراضي</button>
     </div>
 
     <div class="section-title" style="margin-top:18px;">📐 نسب التوزيع التلقائي</div>

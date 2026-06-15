@@ -70,6 +70,36 @@ let drawerTab = 0;
 let subscriptions = []; // [{id, name, amount, billingDay, active}]
 let editingSubId = null;
 
+/* v9.4 — customizable layout (tab + section order) */
+const TAB_DEFS = {
+  home:         {icon:'🏠', label:'الرئيسي',   panel:'tabHome'},
+  transactions: {icon:'🧾', label:'المعاملات', panel:'tabTransactions'},
+  analytics:    {icon:'📊', label:'تحليلات',   panel:'tabAnalytics'},
+  reports:      {icon:'📋', label:'التقارير',  panel:'tabReports'}
+};
+const DEFAULT_TAB_ORDER = ['home','transactions','analytics','reports'];
+const SECTION_DEFS = {
+  home: [
+    {key:'balance', label:'💰 إجمالي المتاح'},
+    {key:'crisis',  label:'🚨 وضع الطوارئ'},
+    {key:'wallets', label:'👛 المحافظ'}
+  ],
+  analytics: [
+    {key:'stats',         label:'📊 تحليلات الشهر'},
+    {key:'recurring',     label:'🔔 تنبيهات متكررة'},
+    {key:'export',        label:'📄 تصدير التقرير'},
+    {key:'subscriptions', label:'📆 الاشتراكات'},
+    {key:'chart',         label:'🥧 التوزيع حسب الفئة'}
+  ],
+  reports: [
+    {key:'summary', label:'🧮 ملخص الدخل/المصروف'},
+    {key:'chart',   label:'📈 حركة الرصيد'},
+    {key:'list',    label:'🧾 قائمة المعاملات'}
+  ]
+};
+let tabOrder = DEFAULT_TAB_ORDER.slice();
+let sectionOrder = {}; // {home:[...], analytics:[...], reports:[...]}
+
 /* SW update flow */
 let _swRegistration = null;
 let _pendingWorker = null;
@@ -580,20 +610,125 @@ function selectWallet(id){
 /* ============================================================
    V9.3: TAB SWITCHING
 ============================================================ */
+function capTab(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+
 function switchTab(tab){
   currentTab = tab;
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  const panelId = 'tab' + tab.charAt(0).toUpperCase() + tab.slice(1);
-  const panel = document.getElementById(panelId);
+  const panel = document.getElementById('tab' + capTab(tab));
   if(panel) panel.classList.add('active');
-  ['Home','Transactions','Analytics','Reports'].forEach(t => {
-    const btn = document.getElementById('nav'+t);
-    if(btn) btn.classList.toggle('active', t.toLowerCase() === tab);
+  tabOrder.forEach(k => {
+    const btn = document.getElementById('nav' + capTab(k));
+    if(btn){
+      const on = k === tab;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-current', on ? 'page' : 'false');
+    }
   });
   // Re-render canvas charts that missed draws while their tab was hidden
   if(tab === 'transactions') renderRecentTx();
   if(tab === 'analytics') requestAnimationFrame(()=> renderPieChart());
   if(tab === 'reports')   requestAnimationFrame(()=> renderChart());
+}
+
+/* ============================================================
+   v9.4: CUSTOMIZABLE LAYOUT — tab order + section order
+============================================================ */
+// Keep only valid keys (in saved order), then append any defaults the save
+// didn't include — so adding/removing sections in a future version never breaks.
+function sanitizeOrder(arr, def){
+  const valid = (Array.isArray(arr) ? arr : []).filter(k => def.includes(k));
+  def.forEach(k => { if(!valid.includes(k)) valid.push(k); });
+  return [...new Set(valid)];
+}
+function loadLayoutPrefs(){
+  try{
+    const t = JSON.parse(localStorage.getItem(LS_PREFIX + 'tabOrder') || 'null');
+    tabOrder = sanitizeOrder(t, DEFAULT_TAB_ORDER);
+  }catch(e){ tabOrder = DEFAULT_TAB_ORDER.slice(); }
+  Object.keys(SECTION_DEFS).forEach(tab => {
+    const def = SECTION_DEFS[tab].map(s => s.key);
+    let saved = null;
+    try{ saved = JSON.parse(localStorage.getItem(LS_PREFIX + 'secOrder_' + tab) || 'null'); }catch(e){}
+    sectionOrder[tab] = sanitizeOrder(saved, def);
+  });
+}
+function saveLayoutPrefs(){
+  try{
+    localStorage.setItem(LS_PREFIX + 'tabOrder', JSON.stringify(tabOrder));
+    Object.keys(sectionOrder).forEach(tab => {
+      localStorage.setItem(LS_PREFIX + 'secOrder_' + tab, JSON.stringify(sectionOrder[tab]));
+    });
+  }catch(e){}
+}
+function renderBottomNav(){
+  const inner = document.querySelector('.bottom-nav-inner');
+  if(!inner) return;
+  const half = Math.ceil(tabOrder.length / 2); // 4 tabs -> 2 each side of the FAB
+  const item = key => {
+    const d = TAB_DEFS[key];
+    if(!d) return '';
+    const on = key === currentTab;
+    return `<button class="nav-item${on ? ' active' : ''}" id="nav${capTab(key)}" onclick="switchTab('${key}')" aria-label="${d.label}" aria-current="${on ? 'page' : 'false'}"><span class="nav-ic">${d.icon}</span><span>${d.label}</span></button>`;
+  };
+  inner.innerHTML =
+    tabOrder.slice(0, half).map(item).join('') +
+    '<div class="nav-fab"><button class="fab-btn" onclick="toggleAddDrawer()" aria-label="إضافة معاملة" title="إضافة معاملة">＋</button></div>' +
+    tabOrder.slice(half).map(item).join('');
+}
+function applySectionOrder(){
+  Object.keys(sectionOrder).forEach(tab => {
+    const panel = document.getElementById('tab' + capTab(tab));
+    if(!panel) return;
+    sectionOrder[tab].forEach(key => {
+      const el = panel.querySelector(':scope > .ui-sec[data-sec="' + key + '"]');
+      if(el) panel.appendChild(el); // re-appending in order reorders the section
+    });
+  });
+}
+function renderLayoutEditor(){
+  const host = document.getElementById('layoutEditor');
+  if(!host) return;
+  const row = (scope, key, label, idx, len) =>
+    `<div class="reorder-row">
+      <span class="reorder-label">${label}</span>
+      <div class="reorder-btns">
+        <button onclick="moveLayout('${scope}','${key}',-1)" ${idx === 0 ? 'disabled' : ''} aria-label="تحريك لأعلى">▲</button>
+        <button onclick="moveLayout('${scope}','${key}',1)" ${idx === len - 1 ? 'disabled' : ''} aria-label="تحريك لأسفل">▼</button>
+      </div>
+    </div>`;
+  let html = '<div class="reorder-group"><div class="reorder-gtitle">تبويبات الشريط السفلي</div>';
+  tabOrder.forEach((k, i) => { html += row('tab', k, TAB_DEFS[k].icon + ' ' + TAB_DEFS[k].label, i, tabOrder.length); });
+  html += '</div>';
+  Object.keys(SECTION_DEFS).forEach(tab => {
+    const arr = sectionOrder[tab];
+    html += '<div class="reorder-group"><div class="reorder-gtitle">أقسام: ' + TAB_DEFS[tab].label + '</div>';
+    arr.forEach((k, i) => {
+      const def = SECTION_DEFS[tab].find(s => s.key === k);
+      html += row('sec:' + tab, k, def ? def.label : k, i, arr.length);
+    });
+    html += '</div>';
+  });
+  host.innerHTML = html;
+}
+function moveLayout(scope, key, dir){
+  const arr = scope === 'tab' ? tabOrder : sectionOrder[scope.split(':')[1]];
+  if(!arr) return;
+  const i = arr.indexOf(key), j = i + dir;
+  if(i < 0 || j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  saveLayoutPrefs();
+  if(scope === 'tab') renderBottomNav(); else applySectionOrder();
+  renderLayoutEditor();
+}
+function resetLayout(){
+  tabOrder = DEFAULT_TAB_ORDER.slice();
+  Object.keys(SECTION_DEFS).forEach(tab => { sectionOrder[tab] = SECTION_DEFS[tab].map(s => s.key); });
+  saveLayoutPrefs();
+  renderBottomNav();
+  applySectionOrder();
+  renderLayoutEditor();
+  toast('↺ تم استعادة الترتيب الافتراضي');
 }
 
 /* ============================================================
@@ -2389,6 +2524,7 @@ function openModal(id){
     document.getElementById('driveClientId').value = driveClientId;
     refreshDriveSettingsUI();
     renderDistributionEditor();
+    renderLayoutEditor();
   }
   // move focus into the modal so keyboard/screen-reader users land in context.
   // target a button (not a text input) so the mobile keyboard doesn't pop open.
@@ -3650,6 +3786,9 @@ document.addEventListener('keydown', e => {
 });
 
 initTheme();
+loadLayoutPrefs();
+renderBottomNav();
+applySectionOrder();
 setupPWA();
 loadState().then(()=>{
   hideSplash();
