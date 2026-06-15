@@ -102,10 +102,10 @@
     align-items:center;
     justify-content:space-between;
     margin-bottom:16px;
-    padding-bottom:12px;
+    padding:4px 0 14px;
     border-bottom:1px solid var(--line-soft);
   }
-  header .brand{display:flex; align-items:center; gap:11px; flex:1; min-width:0;}
+  header .brand{display:flex; align-items:center; gap:14px; flex:1; min-width:0;}
   header .brand .mark{
     width:42px; height:42px; border-radius:13px;
     background:linear-gradient(150deg, var(--gold), #b88c46);
@@ -113,7 +113,7 @@
     font-size:20px; box-shadow:var(--shadow);
     flex-shrink:0;
   }
-  header .brand-text{ display:flex; flex-direction:column; gap:1px; }
+  header .brand-text{ display:flex; flex-direction:column; gap:4px; }
   header .brand h1{
     font-family:var(--serif);
     font-size:19px;
