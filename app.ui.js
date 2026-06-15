@@ -729,7 +729,7 @@ function guessCategory(text){
 }
 
 function guessType(text){
-  const incomeWords = ['استلمت','استقبلت','دخل','راتب','ربحت','كسبت','حولوا لي','حول لي','حولني','وصلني','وصل لي','جاني','هدية','مكافأة','بونص','عائد','فائدة','أرسلوا لي'];
+  const incomeWords = ['استلمت','استقبلت','دخل','راتب','ربحت','كسبت','حولوا لي','حول لي','حولني','حولولي','وصلني','وصل لي','وصلتني','جاني','جاتني','جانا','هدية','مكافأة','بونص','عائد','فائدة','أرسلوا لي','ارسلولي'];
   return incomeWords.some(w => text.includes(w)) ? 'income' : 'expense';
 }
 
@@ -1658,6 +1658,10 @@ function renderTxList(){
         <button class="edit-btn" aria-label="تعديل">✎</button>
       </div>
     `;
+    // Accessible name for the whole row so a screen reader announces what this
+    // transaction is, not just the bare amount + an isolated "تعديل" button.
+    div.setAttribute('aria-label',
+      `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${tx.desc || (wallet?wallet.name:'')}، ${cat.name}، ${date.toLocaleDateString('ar-EG',{day:'numeric',month:'long'})} ${timeStr}`);
     div.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); if(!div._swipeDeleting) openEdit(tx.id); };
     div.onclick = () => { if(!div._swipeDeleting) openEdit(tx.id); };
 

@@ -286,7 +286,7 @@ try{
   <div class="modal">
     <div class="grabber"></div>
     <h3>✎ تعديل المعاملة</h3>
-    <div class="hint" id="editTransferHint" style="display:none; margin-top:0;">🔁 هذه حركة تحويل بين محفظتين — يمكنك تعديل المبلغ والمحفظة والتاريخ فقط (يُحدَّث الطرفان معًا).</div>
+    <div class="hint" id="editTransferHint" style="display:none; margin-top:0;">🔁 هذه حركة تحويل بين محفظتين — يمكنك تعديل المبلغ والتاريخ فقط (يُحدَّث الطرفان معًا). المحفظة مقفلة للحفاظ على توازن التحويل.</div>
     <div class="type-toggle" id="editTypeToggle">
       <button id="editTypeExp" class="exp" onclick="setEditType('expense')">➖ مصروف</button>
       <button id="editTypeInc" class="inc" onclick="setEditType('income')">➕ دخل</button>
@@ -437,6 +437,15 @@ try{
             <button class="btn-secondary" onclick="changeDriveClientId()" style="font-size:12px;">تغيير Client ID</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ─── Maintenance ─── -->
+    <div class="sett-section">
+      <div class="sett-section-head">🔧 صيانة الأرصدة</div>
+      <div class="sett-section-body">
+        <div class="hint" style="margin:0 0 10px;">إذا شككت أن الأرصدة لا تطابق سجل معاملاتك، أعد حسابها من السجل (صفر + مجموع المعاملات).</div>
+        <button class="btn-secondary" style="width:100%; padding:13px;" onclick="repairBalancesFromLedger()">🔧 إصلاح الأرصدة من السجل</button>
       </div>
     </div>
 

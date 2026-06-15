@@ -5,6 +5,7 @@ let _addTxBusy = false;
 async function addTx(type){
   if(_addTxBusy) return;
   _addTxBusy = true;
+  _opInFlight++;
   _txMutationStamp++;
   try{
     const walletId = selectedWallet;
@@ -64,6 +65,7 @@ async function addTx(type){
     }
   } finally {
     _addTxBusy = false;
+    _opInFlight--;
   }
 }
 
@@ -203,6 +205,21 @@ async function runDistribution(sourceTx, amount){
     applyTxToBalance(txIn, +1);
   });
 
+  // Money-conservation reconcile: per-leg rounding can make the deposits sum to a
+  // hair more/less than the pre-computed intendedTotal that was withdrawn. Snap the
+  // withdrawal to the ACTUAL total deposited so the operation neither creates nor
+  // destroys cents. If nothing was deposited, drop the withdrawal leg entirely.
+  if(round2(allocated) !== txOut.amount){
+    applyTxToBalance(txOut, -1);          // undo the original withdrawal effect
+    txOut.amount = round2(allocated);     // match what was really distributed
+    if(txOut.amount > 0){
+      applyTxToBalance(txOut, +1);        // re-apply the corrected withdrawal
+    } else {
+      const i = state.transactions.indexOf(txOut);
+      if(i !== -1) state.transactions.splice(i, 1); // nothing distributed — remove it
+    }
+  }
+
   await saveBalances();
   await saveTx();
 }
@@ -259,6 +276,10 @@ function openEdit(id){
   const _ewb = document.getElementById('editWalletBtn');
   _ewb.classList.remove('open');
   _ewb.setAttribute('aria-expanded','false');
+  // Lock the wallet on a transfer leg: changing it would credit/debit a wallet
+  // different from the partner leg and silently desync the pair's balances.
+  _ewb.style.pointerEvents = _editingTransferLeg ? 'none' : '';
+  _ewb.style.opacity = _editingTransferLeg ? '.55' : '';
   document.getElementById('editDesc').value = tx.desc || '';
   document.getElementById('editAmount').value = (Number(tx.amount) || 0).toFixed(2); // match the 2-decimal display used everywhere else
   const d = new Date(tx.ts);
@@ -266,7 +287,12 @@ function openEdit(id){
   openModal('editModal');
 }
 
+let _saveEditBusy = false;
 async function saveEdit(){
+  if(_saveEditBusy) return; // double-tap guard: a second tap before the first
+  _saveEditBusy = true;     // completes would reverse+reapply the balance twice
+  _opInFlight++;
+  try{
   _txMutationStamp++;
   const tx = state.transactions.find(t=>t.id===editingTxId);
   if(!tx){
@@ -338,6 +364,10 @@ async function saveEdit(){
   closeModal('editModal');
   render(true); // force: desc/date-only edits don't change the render signature
   toast('✓ تم التحديث');
+  } finally {
+    _saveEditBusy = false;
+    _opInFlight--;
+  }
 }
 
 async function deleteFromEdit(){
@@ -377,33 +407,38 @@ let _lastDeleted = null;
 let _undoTimer = null;
 
 async function deleteTx(id){
-  _txMutationStamp++;
   const target = state.transactions.find(t => t.id === id);
   if(!target) return;
-  // a transfer / income-distribution is one logical operation spread across
-  // several linked legs — remove them all together to keep balances consistent
-  const group = target.link
-    ? state.transactions.filter(t => t.link === target.link)
-    : [target];
+  _txMutationStamp++;
+  _opInFlight++;
+  try{
+    // a transfer / income-distribution is one logical operation spread across
+    // several linked legs — remove them all together to keep balances consistent
+    const group = target.link
+      ? state.transactions.filter(t => t.link === target.link)
+      : [target];
 
-  const removed = [];
-  group.forEach(tx => {
-    const idx = state.transactions.indexOf(tx);
-    if(idx === -1) return;
-    applyTxToBalance(tx, -1);
-    state.transactions.splice(idx, 1);
-    removed.push(tx);
-  });
-  if(!removed.length) return;
+    const removed = [];
+    group.forEach(tx => {
+      const idx = state.transactions.indexOf(tx);
+      if(idx === -1) return;
+      applyTxToBalance(tx, -1);
+      state.transactions.splice(idx, 1);
+      removed.push(tx);
+    });
+    if(!removed.length) return;
 
-  await saveBalances();
-  await saveTx();
-  render();
+    await saveBalances();
+    await saveTx();
+    render();
 
-  _lastDeleted = removed;
-  clearTimeout(_undoTimer);
-  _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
-  toastWithUndo(removed.length > 1 ? `🗑 تم حذف ${removed.length} حركات مرتبطة` : '🗑 تم الحذف', undoDelete);
+    _lastDeleted = removed;
+    clearTimeout(_undoTimer);
+    _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
+    toastWithUndo(removed.length > 1 ? `🗑 تم حذف ${removed.length} حركات مرتبطة` : '🗑 تم الحذف', undoDelete);
+  } finally {
+    _opInFlight--;
+  }
 }
 
 async function undoDelete(){
@@ -536,6 +571,10 @@ function updateSettingsStats(){
 function exportData(){
   const payload = {
     exportedAt: new Date().toISOString(),
+    // carry the data-edit timestamp + theme so a restore on another device orders
+    // Drive conflicts correctly and keeps the user's chosen appearance
+    dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
+    theme: (document.body.classList.contains('light') ? 'light' : 'dark'),
     wallets: state.wallets,
     transactions: state.transactions,
     crisisMode: state.crisisMode,
@@ -572,8 +611,13 @@ function importFromFile(event){
   }
   const reader = new FileReader();
   reader.onload = e => {
-    document.getElementById('jsonArea').value = e.target.result;
-    applyImport(e.target.result);
+    const result = e.target.result;
+    // Only mirror small payloads into the <textarea> — dumping multi-MB JSON
+    // into it freezes the main thread while the browser lays out the text.
+    const jsonArea = document.getElementById('jsonArea');
+    if(jsonArea) jsonArea.value = (typeof result === 'string' && result.length <= 256 * 1024)
+      ? result : '/* تم تحميل ملف كبير — يُستورَد مباشرةً دون معاينة */';
+    applyImport(result);
   };
   reader.onerror = () => toast('⚠ تعذّر قراءة الملف', true);
   reader.readAsText(file);
@@ -608,7 +652,12 @@ async function applyImport(text){
     // are omitted from the imported file don't keep stale values that would
     // mismatch the freshly-replaced transaction list
     WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
-    WALLET_DEFS.forEach(w => { if(data.wallets[w.id] !== undefined) state.wallets[w.id] = data.wallets[w.id]; });
+    WALLET_DEFS.forEach(w => {
+      if(data.wallets[w.id] !== undefined){
+        const v = parseFloat(data.wallets[w.id]);
+        if(isFinite(v)) state.wallets[w.id] = round2(v); // reject NaN/Infinity from crafted files
+      }
+    });
   }
   let _droppedTx = 0;
   if(data.transactions){
@@ -637,6 +686,13 @@ async function applyImport(text){
     subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
   }
   if(data.uiPrefs) applyUiPrefs(data.uiPrefs);
+  // restore appearance + data-edit time if the backup carried them (lossless round-trip)
+  if(data.theme === 'light' || data.theme === 'dark'){
+    try{ applyTheme(data.theme); localStorage.setItem(LS_PREFIX + 'theme', data.theme); }catch(_){ }
+  }
+  if(typeof data.dataEditedAt === 'number' && data.dataEditedAt > 0){
+    try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(data.dataEditedAt)); }catch(_){ }
+  }
   prevSpendable = null; // reset animation baseline after full data replacement
 
   await saveBalances();
@@ -661,9 +717,46 @@ async function resetBalancesOnly(){
   toast('✓ تمت استعادة الأرصدة الابتدائية');
 }
 
+// Self-healing repair: recompute balances from the transaction ledger (0 + Σ).
+// Shows the detected drift first so the user knows exactly what will change.
+async function repairBalancesFromLedger(){
+  // dry run on a snapshot to preview the diff without committing
+  const before = {};
+  WALLET_DEFS.forEach(w => before[w.id] = parseFloat(state.wallets[w.id]) || 0);
+  const diff = reconcileBalances();
+  const keys = Object.keys(diff);
+  if(!keys.length){
+    // nothing changed — restore (reconcile already set identical values) and inform
+    toast('✓ الأرصدة مطابقة لسجل المعاملات — لا حاجة للإصلاح');
+    render(true);
+    return;
+  }
+  // build a human-readable summary, then confirm before persisting
+  const lines = keys.map(id => {
+    const w = WALLET_DEFS.find(x => x.id === id);
+    const d = diff[id];
+    return `• ${w ? w.name : id}: ${d > 0 ? '+' : ''}${fmt(d)}`;
+  }).join('\n');
+  // revert to pre-reconcile values so cancelling leaves nothing changed
+  WALLET_DEFS.forEach(w => state.wallets[w.id] = before[w.id]);
+  if(!confirm(`🔧 سيُعاد حساب الأرصدة من سجل معاملاتك (صفر + مجموع المعاملات).\n\nالفروقات المكتشفة:\n${lines}\n\nتطبيق الإصلاح؟`)){
+    render(true);
+    return;
+  }
+  reconcileBalances(); // apply for real
+  await saveBalances();
+  closeModal('settingsModal');
+  render(true);
+  toast('🔧 تم إصلاح الأرصدة من السجل');
+}
+
 async function wipeAll(){
-  if(!confirm('سيتم حذف جميع الأرصدة والمعاملات نهائياً. هذا الإجراء لا يمكن التراجع عنه. متابعة؟')) return;
-  if(!confirm('تأكيد أخير: هل أنت متأكد تماماً؟')) return;
+  // Typed-word confirmation instead of two consecutive confirm() dialogs — on
+  // mobile a fast double-tap could dismiss both confirms and wipe data by
+  // accident. Requiring the user to type "حذف" makes it a deliberate action.
+  const answer = prompt('⚠️ سيتم حذف جميع الأرصدة والمعاملات نهائياً ولا يمكن التراجع.\n\nاكتب كلمة "حذف" للتأكيد:');
+  if(answer === null) return; // cancelled
+  if(answer.trim() !== 'حذف'){ toast('أُلغي الحذف — لم تُكتب كلمة التأكيد بشكل صحيح'); return; }
   clearTimeout(_undoTimer); _lastDeleted = null;
   WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
   state.transactions = [];
@@ -1155,7 +1248,12 @@ async function driveSyncToCloud(){
 async function adoptCloudSnapshot(cloud){
   if(cloud.wallets){
     WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
-    WALLET_DEFS.forEach(w => { if(cloud.wallets[w.id] !== undefined) state.wallets[w.id] = cloud.wallets[w.id]; });
+    WALLET_DEFS.forEach(w => {
+      if(cloud.wallets[w.id] !== undefined){
+        const v = parseFloat(cloud.wallets[w.id]);
+        if(isFinite(v)) state.wallets[w.id] = round2(v); // reject NaN/Infinity from a corrupt cloud snapshot
+      }
+    });
   }
   if(cloud.transactions){
     state.transactions = cloud.transactions.filter(tx =>
@@ -1228,8 +1326,19 @@ async function driveSyncFromCloud(isInitial, interactive){
       || (parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0);
 
     if(!interactive){
-      // automatic reconnect — never interrupt; keep whichever copy is newer
-      if(cloudTime > localTime){
+      // automatic reconnect — never interrupt. Use a clock-skew tolerance so a
+      // device clock that's a second ahead of Google's can't make a STALE cloud
+      // snapshot silently overwrite genuinely newer local data. Within the skew
+      // window we tie-break by transaction count (prefer the copy with MORE data
+      // so an automatic merge never silently drops transactions).
+      const SKEW_MS = 5000;
+      const cloudCnt = (cloud.transactions || []).length;
+      const localCnt = state.transactions.length;
+      let adopt;
+      if(cloudTime > localTime + SKEW_MS)      adopt = true;
+      else if(localTime > cloudTime + SKEW_MS) adopt = false;
+      else                                     adopt = cloudCnt > localCnt; // near-tie: more data wins
+      if(adopt){
         await adoptCloudSnapshot(cloud);
         toast('☁️ حُدّثت بياناتك من Drive');
       } else {
@@ -1474,7 +1583,7 @@ function exportMonthlyReport(){
 
   report += `\nأرصدة المحافظ:\n`;
   WALLET_DEFS.forEach(w=>{
-    report += `  ${w.track?'🏦':'💳'} ${w.name}: ${fmt(state.wallets[w.id] ?? 0)}\n`;
+    report += `  ${w.track?'🏦':'💰'} ${w.name}: ${fmt(state.wallets[w.id] ?? 0)}\n`;
   });
 
   report += `\n📱 محفظتيييي 🙂‍↔️`;
@@ -1564,6 +1673,19 @@ function dismissUpdate(){
   if(el) el.classList.remove('show');
 }
 function applyUpdate(){
+  // Don't silently discard a half-typed transaction on reload.
+  if(addDrawerOpen){
+    const amt = document.getElementById('amountInput');
+    const desc = document.getElementById('descInput');
+    if((amt && amt.value) || (desc && desc.value)){
+      if(!confirm('لديك معاملة غير محفوظة في نموذج الإضافة — التحديث الآن سيتجاهلها. متابعة؟')) return;
+    }
+  }
+  // Flush any pending Drive sync before the reload interrupts it.
+  if(typeof driveSyncTimer !== 'undefined' && driveSyncTimer){
+    clearTimeout(driveSyncTimer); driveSyncTimer = null;
+    if(driveAccessToken){ try{ driveSyncToCloud(); }catch(_){} }
+  }
   const btn = document.getElementById('btnUpdateNow');
   if(btn){ btn.disabled = true; btn.textContent = '...جاري'; }
   _reloadOnControllerChange = true;
@@ -1836,7 +1958,15 @@ window.addEventListener('storage', (e) => {
   if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit'){
     if(!document.querySelector('.modal-overlay.open') && !addDrawerOpen){
       clearTimeout(_storageSyncTimer);
-      _storageSyncTimer = setTimeout(loadState, 200);
+      // If a mutation is in flight, wait and re-check rather than reloading on
+      // top of it (would reset `state` mid-write and corrupt balances).
+      const _trySync = () => {
+        // wait out both an in-flight mutation AND an uncommitted IDB write so we
+        // never reload a half-written snapshot on top of live state
+        if(_opInFlight > 0 || _idbWriteInFlight > 0){ _storageSyncTimer = setTimeout(_trySync, 250); return; }
+        loadState();
+      };
+      _storageSyncTimer = setTimeout(_trySync, 200);
     }
   }
 });

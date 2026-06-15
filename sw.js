@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v13';
+const CACHE = 'mhfzty-v14';
 const PRECACHE = ['./index.html', './style.css', './app.core.js', './app.ui.js', './app.logic.js', './sw.js'];
 
 self.addEventListener('install', e => {
@@ -38,6 +38,12 @@ self.addEventListener('fetch', e => {
       caches.match('./index.html').then(r => r || fetch(e.request))
         .catch(() => caches.match('./index.html'))
     );
+    return;
+  }
+
+  // Only cache-manage known static asset types. Anything else (e.g. a future API
+  // call) passes straight to the network instead of being silently cached.
+  if(!/\.(html|css|js|json|png|svg|ico|webmanifest|woff2?)(\?|$)/i.test(url.pathname)){
     return;
   }
 

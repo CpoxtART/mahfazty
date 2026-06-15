@@ -113,7 +113,10 @@
     font-size:20px; box-shadow:var(--shadow);
     flex-shrink:0;
   }
-  header .brand-text{ display:flex; flex-direction:column; gap:4px; }
+  /* min-width:0 + overflow lets the TITLE truncate under pressure while the logo
+     (flex-shrink:0 .mark) always stays visible — the brand can never collapse to
+     nothing behind the actions group, even if the Drive indicator is showing. */
+  header .brand-text{ display:flex; flex-direction:column; gap:4px; min-width:0; overflow:hidden; }
   header .brand h1{
     font-family:var(--serif);
     font-size:19px;
@@ -121,6 +124,7 @@
     letter-spacing:.3px;
     color:var(--text);
     line-height:1;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   header .brand-emoji{
     font-size:13px; line-height:1; display:block;

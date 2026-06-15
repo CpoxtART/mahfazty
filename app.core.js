@@ -45,6 +45,10 @@ let DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
 
 let state = { wallets:{}, transactions:[], crisisMode:false };
 let _txMutationStamp = 0;
+// >0 while a multi-step async mutation is running (add/delete/distribute). The
+// cross-tab storage listener checks this so another tab's save can't trigger a
+// loadState() that resets `state` mid-mutation and corrupts balances.
+let _opInFlight = 0;
 let currentFilter = 'all';
 let walletFilter = null;
 let categoryFilter = null;
@@ -262,8 +266,15 @@ async function loadState(){
     const bal = localStorage.getItem(LS_PREFIX + 'balances');
     if(bal){
       const saved = JSON.parse(bal);
-      // only restore known wallet ids — prevents orphaned keys from corrupted imports
-      WALLET_DEFS.forEach(w => { if(saved[w.id] !== undefined) state.wallets[w.id] = saved[w.id]; });
+      // only restore known wallet ids — prevents orphaned keys from corrupted imports.
+      // coerce to a finite number so a tampered/corrupt backup ("abc", null, 1e999→Infinity)
+      // can't poison balances with NaN/Infinity that then propagates through all math.
+      WALLET_DEFS.forEach(w => {
+        if(saved[w.id] !== undefined){
+          const v = parseFloat(saved[w.id]);
+          if(isFinite(v)) state.wallets[w.id] = Math.round(v*100)/100;
+        }
+      });
       _lsHadBalances = true;
     }
   }catch(e){}
@@ -313,7 +324,12 @@ async function loadState(){
     state.transactions = _validTx(_idb.transactions);
     // If localStorage was wiped (cleared storage), recover the small data too
     if(!_lsHadBalances && _idb.wallets){
-      WALLET_DEFS.forEach(w => { if(_idb.wallets[w.id] !== undefined) state.wallets[w.id] = _idb.wallets[w.id]; });
+      WALLET_DEFS.forEach(w => {
+        if(_idb.wallets[w.id] !== undefined){
+          const v = parseFloat(_idb.wallets[w.id]);
+          if(isFinite(v)) state.wallets[w.id] = Math.round(v*100)/100;
+        }
+      });
     }
     if(!_lsHadConfig){
       if(typeof _idb.crisisMode === 'boolean') state.crisisMode = _idb.crisisMode;
@@ -352,6 +368,30 @@ async function loadState(){
   capDateInputsToToday();
   loadSubs();
   render(true);
+}
+
+// Recompute every wallet balance purely from the transaction ledger
+// (model: balance = 0 + Σ ledger; an expense subtracts, income/adjustment adds).
+// Source of truth is the ledger, so this self-heals any drift between the stored
+// balances and the transactions (from a crash mid-write, a tampered backup, or a
+// rounding bug). Returns a {id: delta} diff of what changed, applies nothing
+// destructive on its own beyond setting state.wallets — caller decides to persist.
+function reconcileBalances(){
+  const computed = {}, diff = {};
+  WALLET_DEFS.forEach(w => computed[w.id] = 0); // baseline 0 per the app's model
+  state.transactions.forEach(tx => {
+    if(computed[tx.wallet] === undefined) return; // skip unknown wallet ids
+    const amt = parseFloat(tx.amount);
+    if(!isFinite(amt)) return;
+    computed[tx.wallet] = Math.round((computed[tx.wallet] + (tx.type === 'expense' ? -amt : amt)) * 100) / 100;
+  });
+  WALLET_DEFS.forEach(w => {
+    const before = parseFloat(state.wallets[w.id]) || 0;
+    const after = computed[w.id];
+    if(Math.abs(after - before) >= 0.005) diff[w.id] = Math.round((after - before) * 100) / 100;
+    state.wallets[w.id] = after;
+  });
+  return diff;
 }
 
 // dataEdit marks the last change to actual user DATA (balances/transactions/subs),
@@ -421,7 +461,9 @@ function idbOpen(){
 // Writes the full snapshot to IndexedDB — the PRIMARY store for transactions
 // (localStorage only holds the small balances/config/prefs). Returns true on a
 // confirmed write so callers can safely migrate/free the legacy localStorage copy.
+let _idbWriteInFlight = 0; // >0 while an IDB snapshot write is committing
 async function idbBackup(savedAt){
+  _idbWriteInFlight++;
   try{
     const db = await idbOpen();
     await new Promise((resolve, reject)=>{
@@ -449,6 +491,8 @@ async function idbBackup(savedAt){
     try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); }
     catch(_){ /* quota — Drive sync / export remain the safety net */ }
     return false;
+  }finally{
+    _idbWriteInFlight--;
   }
 }
 async function idbRestore(){
