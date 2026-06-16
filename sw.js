@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v29';
+const CACHE = 'mhfzty-v30';
 // Note: sw.js itself is intentionally NOT precached — the browser fetches and
 // byte-compares it directly to drive updates; caching it via the Cache API is a
 // no-op at best and can interfere with that update check.

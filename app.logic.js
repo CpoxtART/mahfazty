@@ -1033,7 +1033,8 @@ let _driveTokenRefreshTimer = null; // proactive refresh 5 min before token expi
 // embedded / installed-PWA contexts it can redirect the top frame to
 // accounts.google.com/gsi/transfer and hang on a blank page. So only attempt the
 // no-tap silent path in safe contexts; elsewhere we use the one-tap banner (whose
-// tap then does a silent, consent-free grant because the gesture is present).
+// tap drives a gesture-backed interactive request that still tends to skip the
+// account-chooser for an already-consented user, see driveReconnectInteractive()).
 function _driveSilentSafe(){
   try{
     if(isEmbeddedOrStandalone()) return false;
@@ -1170,8 +1171,9 @@ function showDriveBanner(){
   if(yes) yes.onclick = () => {
     setDriveAutoSignIn(!!(chk && chk.checked)); // remember the choice for next launch
     hideDriveBanner();
-    // try a silent, consent-free grant first (this tap is the gesture GIS needs);
-    // only fall back to the account picker if the session truly needs interaction
+    // desktop: try a silent grant first, only escalate to the picker if needed.
+    // mobile: use the gesture-backed interactive request (this tap is the gesture
+    // GIS needs) — it still tends to skip the picker for an already-consented user.
     driveReconnectFromBanner();
   };
   if(later) later.onclick = () => {
@@ -1193,7 +1195,8 @@ function maybePromptDriveConnect(){
     // Auto-sign-in user. On desktop/safe contexts reconnect SILENTLY on open — no
     // banner, no tap, no re-consent (the whole point of "always connect"). On mobile
     // we can't do a gesture-free silent grant safely, so show the fast one-tap banner
-    // (its tap then does the consent-free silent grant).
+    // (its tap drives a gesture-backed interactive request — see driveReconnectInteractive()
+    // — which still tends to skip the picker for an already-consented user).
     if(_driveSilentSafe()){ setTimeout(driveAutoSilent, 300); }
     else { setTimeout(showDriveBanner, 200); }
     return;
@@ -1375,6 +1378,33 @@ function driveSignIn(){
   }catch(e){ toast('⚠ تعذّر بدء تسجيل الدخول بجوجل', true); }
 }
 
+// Banner reconnect on mobile: an interactive (gesture-backed) request like driveSignIn,
+// but WITHOUT forcing prompt:'select_account'. Leaving prompt unset is GIS's documented
+// default — with an active Google session and prior consent it typically grants the
+// token straight away (no account-chooser screen), while still using the same reliable
+// popup/redirect path that's proven not to hang on mobile (unlike prompt:'' below).
+function driveReconnectInteractive(){
+  if(!gisTokenClient){ initGisClient(); }
+  if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
+  _driveSilentMode = null; // interactive
+  try{
+    gisTokenClient.requestAccessToken({
+      error_callback: (err) => {
+        _driveSilentMode = null;
+        setDriveIndicator('error');
+        const t = (err && err.type) || '';
+        if(t === 'popup_failed_to_open'){
+          toast('⚠ تعذّر فتح نافذة جوجل — افتح التطبيق في متصفح Chrome/Safari', true);
+        } else if(t === 'popup_closed'){
+          toast('أُغلقت نافذة تسجيل الدخول قبل اكتمالها', true);
+        } else {
+          toast('⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', true);
+        }
+      }
+    });
+  }catch(e){ toast('⚠ تعذّر بدء تسجيل الدخول بجوجل', true); }
+}
+
 // Silent (no-UI) token request. With an active Google session AND consent already
 // granted, prompt:'' returns a token WITHOUT any account picker/consent — so a
 // returning auto-sign-in user reconnects with zero friction. `mode` tells the
@@ -1406,13 +1436,14 @@ function driveAutoSilent(){ driveRequestSilent('launch'); }
 // needs interaction. On mobile, skip the silent prompt:'' request entirely — in
 // practice it can hang on a blank accounts.google.com/gsi/transfer page even when
 // fired from a tap, leaving the user stuck with no token and the banner reappearing
-// next launch. The interactive picker always completes reliably there.
+// next launch. Use the gesture-backed interactive request instead — it still tends to
+// skip the account-chooser for a returning, already-consented user, but always completes.
 function driveReconnectFromBanner(){
   if(_driveBannerEscalate){ _driveBannerEscalate = false; driveSignIn(); return; }
   if(_driveSilentSafe()){
     if(!driveRequestSilent('banner')) driveSignIn();
   } else {
-    driveSignIn();
+    driveReconnectInteractive();
   }
 }
 
@@ -1752,10 +1783,10 @@ function initDrive(){
         } else {
           // disconnected — reconnect. maybePromptDriveConnect() decides how:
           // desktop auto-sign-in users reconnect SILENTLY (prompt:'' — no UI, no
-          // re-consent); mobile/embedded users get a one-tap banner (whose tap then
-          // does the same silent grant). A gesture-free silent call is only used in
-          // safe desktop contexts, since on mobile it can redirect to gsi/transfer
-          // and hang on a blank page.
+          // re-consent); mobile/embedded users get a one-tap banner (whose tap drives
+          // a gesture-backed interactive request instead, see driveReconnectInteractive()).
+          // A gesture-free silent call is only used in safe desktop contexts, since on
+          // mobile it can redirect to gsi/transfer and hang on a blank page.
           maybePromptDriveConnect();
         }
       } else if(_gisRetries++ < 25){ // ~7.5s max wait
