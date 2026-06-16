@@ -616,6 +616,24 @@ try{
   </div>
 </div>
 
+<!-- ===== DRIVE CONNECT BANNER (launch prompt to reconnect Drive) ===== -->
+<div id="driveBanner" role="dialog" aria-label="الاتصال بـ Google Drive">
+  <div class="drive-banner-inner">
+    <div class="drive-banner-head">
+      <span class="drive-banner-ic">☁️</span>
+      <span class="drive-banner-msg">احفظ بياناتك تلقائياً على Google Drive؟</span>
+    </div>
+    <label class="drive-banner-remember">
+      <input type="checkbox" id="driveBannerAuto" checked>
+      <span>اتصل تلقائياً عند فتح التطبيق (لا تسألني مجدداً)</span>
+    </label>
+    <div class="drive-banner-actions">
+      <button class="drive-banner-later" id="btnDriveLater" type="button">لاحقاً</button>
+      <button class="drive-banner-yes" id="btnDriveYes" type="button">نعم، اتصل</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== UPDATE BANNER ===== -->
 <div id="updateBanner" role="alert" aria-live="assertive">
   <div class="update-banner-inner">

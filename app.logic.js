@@ -997,6 +997,46 @@ function dismissDriveAutoSignInPrompt(){
   try{ sessionStorage.setItem(LS_PREFIX + 'autoSignInAsked', '1'); }catch(_){}
 }
 
+/* ─── Launch Drive-connect banner ───
+   Shown on app open when a Drive Client ID is configured but the session is
+   disconnected (token expired). Brings the reconnect action to the user as a
+   one-tap banner instead of making them hunt for the ☁️ button, and remembers
+   their "always connect" choice. NOTE: we deliberately do NOT attempt a silent
+   requestAccessToken({prompt:''}) — on mobile that can redirect the top frame to
+   accounts.google.com/gsi/transfer and hang on a blank page. Re-auth needs a real
+   tap, so even an "auto" user gets a frictionless one-tap banner on token expiry. */
+function showDriveBanner(){
+  const b = document.getElementById('driveBanner');
+  if(!b || b.classList.contains('show')) return;
+  const chk = document.getElementById('driveBannerAuto');
+  if(chk) chk.checked = true; // default to "remember me"
+  const yes = document.getElementById('btnDriveYes');
+  const later = document.getElementById('btnDriveLater');
+  if(yes) yes.onclick = () => {
+    setDriveAutoSignIn(!!(chk && chk.checked)); // remember the choice for next launch
+    hideDriveBanner();
+    driveSignIn(); // this click is the user gesture GIS needs to open the token popup
+  };
+  if(later) later.onclick = () => {
+    hideDriveBanner();
+    try{ sessionStorage.setItem(LS_PREFIX + 'driveBannerDismissed', '1'); }catch(_){}
+  };
+  requestAnimationFrame(()=> b.classList.add('show'));
+}
+function hideDriveBanner(){
+  const b = document.getElementById('driveBanner');
+  if(b) b.classList.remove('show');
+}
+function maybePromptDriveConnect(){
+  if(!driveClientId || driveTokenValid()) return; // nothing to prompt
+  let dismissed = false;
+  try{ dismissed = sessionStorage.getItem(LS_PREFIX + 'driveBannerDismissed') === '1'; }catch(_){}
+  if(dismissed) return;
+  // opted-in users get the banner instantly (fast one-tap reconnect); first-timers
+  // get it after a short beat so it doesn't fight the splash/first paint
+  setTimeout(showDriveBanner, loadDriveAutoSignIn() ? 200 : 1400);
+}
+
 function setDriveIndicator(state_){
   // state_: 'idle' | 'syncing' | 'ok' | 'error' | 'off'
   const el = document.getElementById('driveIndicator');
@@ -1473,6 +1513,9 @@ function initDrive(){
         if(driveTokenValid()){
           // still have a live token — pull quietly (auto-resolve, no modal)
           driveSyncFromCloud(true, false);
+        } else {
+          // disconnected — offer a one-tap reconnect banner on launch
+          maybePromptDriveConnect();
         }
         // No live token: show the sign-in button.
         // We intentionally do NOT call requestAccessToken({prompt:''}) here
