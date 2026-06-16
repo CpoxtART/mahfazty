@@ -632,7 +632,9 @@ function openSubModal(id){
   if(del) del.style.display = sub ? 'block' : 'none';
   openModal('subModal');
 }
+let _saveSubBusy = false;
 async function saveSubModal(){
+  if(_saveSubBusy) return;
   const name = document.getElementById('subName').value.trim().slice(0,60);
   const amount = round2(parseAmount(document.getElementById('subAmount').value));
   const billingDay = parseInt(document.getElementById('subBillingDay').value, 10);
@@ -641,25 +643,39 @@ async function saveSubModal(){
   if(!isFinite(amount)||amount<=0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
   if(!isFinite(billingDay)||billingDay<1||billingDay>31){ toast('⚠ أدخل يوم صحيح (1-31)', true); return; }
 
-  if(editingSubId){
-    const sub = subscriptions.find(s=>s.id===editingSubId);
-    if(sub){ sub.name=name; sub.amount=amount; sub.billingDay=billingDay; sub.active=active; }
-  } else {
-    subscriptions.push({ id:'sub_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), name, amount, billingDay, active });
+  _saveSubBusy = true;
+  _opInFlight++;
+  try{
+    if(editingSubId){
+      const sub = subscriptions.find(s=>s.id===editingSubId);
+      if(sub){ sub.name=name; sub.amount=amount; sub.billingDay=billingDay; sub.active=active; }
+    } else {
+      subscriptions.push({ id:'sub_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), name, amount, billingDay, active });
+    }
+    await saveSubs();
+    renderSubscriptions();
+    closeModal('subModal');
+    toast('✓ تم حفظ الاشتراك');
+  } finally {
+    _saveSubBusy = false;
+    _opInFlight--;
   }
-  await saveSubs();
-  renderSubscriptions();
-  closeModal('subModal');
-  toast('✓ تم حفظ الاشتراك');
 }
 async function deleteSubModal(){
-  if(!editingSubId) return;
+  if(_saveSubBusy || !editingSubId) return;
   if(!confirm('حذف هذا الاشتراك نهائياً؟')) return;
-  subscriptions = subscriptions.filter(s=>s.id!==editingSubId);
-  await saveSubs();
-  renderSubscriptions();
-  closeModal('subModal');
-  toast('🗑 تم حذف الاشتراك');
+  _saveSubBusy = true;
+  _opInFlight++;
+  try{
+    subscriptions = subscriptions.filter(s=>s.id!==editingSubId);
+    await saveSubs();
+    renderSubscriptions();
+    closeModal('subModal');
+    toast('🗑 تم حذف الاشتراك');
+  } finally {
+    _saveSubBusy = false;
+    _opInFlight--;
+  }
 }
 
 /* ============================================================
