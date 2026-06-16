@@ -229,16 +229,16 @@ try{
 
     <!-- Sub-tab 0: Details -->
     <div class="drawer-sub active" id="drawerSub0">
-      <label>المحفظة</label>
+      <label id="walletSelectLbl">المحفظة</label>
       <div class="wallet-select-wrap">
-        <div class="custom-select" id="walletSelectBtn" onclick="toggleWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false">
+        <div class="custom-select" id="walletSelectBtn" onclick="toggleWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="walletSelectLbl">
           <span id="walletSelectLabel">اختر محفظة</span>
           <span class="arrow">▾</span>
         </div>
         <div class="wallet-menu" id="walletMenuWrap"><div id="walletMenu" role="listbox"></div></div>
       </div>
 
-      <label>الوصف</label>
+      <label for="descInput">الوصف</label>
       <div class="voice-input-row">
         <input type="text" id="descInput" maxlength="120" placeholder="مثال: عشاء، راتب، مواصلات...">
         <button type="button" class="voice-btn" id="voiceBtn" onclick="startVoiceInput()" title="إدخال صوتي" aria-label="إدخال صوتي">🎤</button>
@@ -249,11 +249,11 @@ try{
 
       <div class="row2">
         <div>
-          <label>المبلغ</label>
+          <label for="amountInput">المبلغ</label>
           <input type="number" id="amountInput" placeholder="0" step="any" min="0" inputmode="decimal" autocomplete="off">
         </div>
         <div>
-          <label>التاريخ</label>
+          <label for="dateInput">التاريخ</label>
           <input type="date" id="dateInput">
         </div>
       </div>
@@ -265,8 +265,8 @@ try{
         <button class="exp active" id="addTypeExp" onclick="setAddFormType('expense')">➖ مصروف</button>
         <button class="inc" id="addTypeInc" onclick="setAddFormType('income')">➕ دخل</button>
       </div>
-      <label>الفئة</label>
-      <div class="category-grid" id="categoryGrid"></div>
+      <label id="categoryGridLbl">الفئة</label>
+      <div class="category-grid" id="categoryGrid" role="group" aria-labelledby="categoryGridLbl"></div>
       <button class="btn-transfer" style="margin-bottom:8px; width:100%;" onclick="closeAddDrawer(); openTransferModal()">🔁 تحويل بين المحافظ</button>
       <button class="btn-secondary" style="width:100%; padding:11px; font-size:13px; border:1px solid var(--line);" onclick="repeatLastTx()">⏪ تكرار آخر معاملة</button>
     </div>
@@ -291,21 +291,21 @@ try{
       <button id="editTypeExp" class="exp" onclick="setEditType('expense')">➖ مصروف</button>
       <button id="editTypeInc" class="inc" onclick="setEditType('income')">➕ دخل</button>
     </div>
-    <label>المحفظة</label>
-    <div class="custom-select" id="editWalletBtn" onclick="toggleEditWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false">
+    <label id="editWalletLbl">المحفظة</label>
+    <div class="custom-select" id="editWalletBtn" onclick="toggleEditWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="editWalletLbl">
       <span id="editWalletLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
     <div class="wallet-menu" id="editWalletMenuWrap"><div id="editWalletMenu" role="listbox"></div></div>
-    <label>الوصف</label>
+    <label for="editDesc">الوصف</label>
     <input type="text" id="editDesc" maxlength="120" placeholder="الوصف">
-    <label>المبلغ</label>
+    <label for="editAmount">المبلغ</label>
     <input type="number" id="editAmount" step="any" inputmode="decimal" autocomplete="off">
-    <label>التاريخ</label>
+    <label for="editDate">التاريخ</label>
     <input type="date" id="editDate">
     <div id="editCategorySection">
-      <label>الفئة</label>
-      <div class="category-grid" id="editCategoryGrid"></div>
+      <label id="editCategoryGridLbl">الفئة</label>
+      <div class="category-grid" id="editCategoryGrid" role="group" aria-labelledby="editCategoryGridLbl"></div>
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('editModal')">إلغاء</button>
@@ -327,7 +327,7 @@ try{
       <button class="btn-primary" onclick="document.getElementById('importFile').click()">⬆ استيراد ملف</button>
     </div>
     <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importFromFile(event)">
-    <label>أو الصق/انسخ JSON هنا</label>
+    <label for="jsonArea">أو الصق/انسخ JSON هنا</label>
     <textarea class="json-area" id="jsonArea"></textarea>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('dataModal')">إغلاق</button>
@@ -398,7 +398,7 @@ try{
       <div class="sett-section-body">
         <div class="hint" style="margin:0 0 10px;" id="driveStatusText">غير مفعّل — أدخل Client ID للبدء.</div>
         <div id="driveSetup">
-          <label>Google Client ID</label>
+          <label for="driveClientId">Google Client ID</label>
           <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
           <div class="modal-actions" style="margin-top:8px;">
             <button class="btn-secondary" onclick="saveDriveClientId()">حفظ Client ID</button>
@@ -513,23 +513,23 @@ try{
   <div class="modal">
     <div class="grabber"></div>
     <h3>🔁 تحويل بين المحافظ</h3>
-    <label>من محفظة</label>
-    <div class="custom-select" id="transferFromBtn" onclick="toggleTransferMenu('from')" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false">
+    <label id="transferFromLbl">من محفظة</label>
+    <div class="custom-select" id="transferFromBtn" onclick="toggleTransferMenu('from')" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferFromLbl">
       <span id="transferFromLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
     <div class="wallet-menu" id="transferFromMenuWrap"><div id="transferFromMenu" role="listbox"></div></div>
 
-    <label>إلى محفظة</label>
-    <div class="custom-select" id="transferToBtn" onclick="toggleTransferMenu('to')" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false">
+    <label id="transferToLbl">إلى محفظة</label>
+    <div class="custom-select" id="transferToBtn" onclick="toggleTransferMenu('to')" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferToLbl">
       <span id="transferToLabel">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
     <div class="wallet-menu" id="transferToMenuWrap"><div id="transferToMenu" role="listbox"></div></div>
 
-    <label>المبلغ</label>
+    <label for="transferAmount">المبلغ</label>
     <input type="number" id="transferAmount" step="any" min="0" inputmode="decimal" placeholder="0" autocomplete="off">
-    <label>التاريخ</label>
+    <label for="transferDate">التاريخ</label>
     <input type="date" id="transferDate">
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('transferModal')">إلغاء</button>
@@ -550,7 +550,7 @@ try{
       <div class="detail-stat"><div class="l">إجمالي المصروف</div><div class="v" id="detailExpense" style="color:var(--red)">٠</div></div>
     </div>
     <div id="detailBudgetSetting" style="display:none; margin-bottom:14px;">
-      <label>الميزانية الشهرية (مصروفات)</label>
+      <label for="detailBudgetInput">الميزانية الشهرية (مصروفات)</label>
       <div class="row2">
         <input type="number" id="detailBudgetInput" min="0" step="any" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)" autocomplete="off">
         <button class="btn-secondary" style="flex:0 0 auto; padding:0 18px;" onclick="saveWalletBudget()">حفظ</button>
@@ -558,7 +558,7 @@ try{
       <div class="hint" style="margin-top:0;">عند الوصول إليها سيتلون شريط التقدم بالأحمر وتظهر علامة تحذير ⚠ على بطاقة المحفظة.</div>
     </div>
     <div id="detailUpdateBalance" style="display:none; margin-bottom:14px;">
-      <label>تحديث الرصيد الفعلي</label>
+      <label for="detailNewBalance">تحديث الرصيد الفعلي</label>
       <div class="row2">
         <input type="number" id="detailNewBalance" step="any" inputmode="decimal" placeholder="الرصيد الجديد" autocomplete="off">
         <button class="btn-primary" style="flex:0 0 auto; padding:0 18px;" onclick="updateTrackedBalance()">تحديث</button>
@@ -697,11 +697,11 @@ try{
   <div class="modal">
     <div class="grabber"></div>
     <h3 id="subModalTitle">📆 اشتراك جديد</h3>
-    <label>اسم الاشتراك</label>
+    <label for="subName">اسم الاشتراك</label>
     <input type="text" id="subName" maxlength="60" placeholder="مثال: نتفليكس، شاهد، Spotify...">
-    <label>المبلغ الشهري</label>
+    <label for="subAmount">المبلغ الشهري</label>
     <input type="number" id="subAmount" step="any" inputmode="decimal" placeholder="0" autocomplete="off">
-    <label>يوم الاشتراك (1–31)</label>
+    <label for="subBillingDay">يوم الاشتراك (1–31)</label>
     <input type="number" id="subBillingDay" min="1" max="31" step="1" inputmode="numeric" placeholder="15">
     <label style="display:flex; align-items:center; gap:10px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:600; font-size:13px; color:var(--text); margin-bottom:4px;">
       <input type="checkbox" id="subActive" style="width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0;" checked>

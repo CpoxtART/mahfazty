@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v26';
+const CACHE = 'mhfzty-v27';
 // Note: sw.js itself is intentionally NOT precached — the browser fetches and
 // byte-compares it directly to drive updates; caching it via the Cache API is a
 // no-op at best and can interfere with that update check.
@@ -8,8 +8,13 @@ self.addEventListener('install', e => {
   // Pre-cache core files so the app works offline from the very first visit.
   // No skipWaiting() here — the app shows an in-page update banner and posts
   // SKIP_WAITING when the user approves, giving them control over the timing.
+  // addAll() is all-or-nothing — one transient 404/network blip on a single asset
+  // would otherwise sink offline support for every other file too. Cache each file
+  // independently so a single failure doesn't cost the rest.
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(PRECACHE))
+    caches.open(CACHE).then(c =>
+      Promise.all(PRECACHE.map(url => c.add(url).catch(() => {})))
+    )
   );
 });
 

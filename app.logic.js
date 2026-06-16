@@ -220,7 +220,7 @@ async function runDistribution(sourceTx, amount){
     const txIn = {
       id: 'tx_'+Date.now()+'_d'+(i+1)+Math.random().toString(36).slice(2,4),
       wallet: d.id,
-      desc: `حصة ${w.name} (${d.pct}%) من دخل`,
+      desc: `حصة ${w.name} (⁦${d.pct}%⁩) من دخل`,
       amount: share,
       type: 'income',
       category: 'transfer',
@@ -879,6 +879,34 @@ async function repairBalancesFromLedger(){
   toast('🔧 تم إصلاح الأرصدة من السجل');
 }
 
+// Lightweight, non-mutating drift check restricted to ledger-derived wallets (excludes
+// "track" wallets, whose balance is intentionally maintained manually and can
+// legitimately diverge from logged transactions — e.g. real-world fees/interest never
+// entered as a transaction). Run once at launch to catch the rare case where a
+// crash/force-close committed a balance write but not the matching transaction write
+// (or vice versa), offering a one-tap link to the existing manual repair tool instead
+// of nagging on every launch for a drift the user already saw.
+function checkBalanceDrift(){
+  const computed = {};
+  WALLET_DEFS.forEach(w => { if(!w.track) computed[w.id] = 0; });
+  state.transactions.forEach(tx => {
+    if(computed[tx.wallet] === undefined) return;
+    const amt = parseFloat(tx.amount);
+    if(!isFinite(amt)) return;
+    computed[tx.wallet] = Math.round((computed[tx.wallet] + (tx.type === 'expense' ? -amt : amt)) * 100) / 100;
+  });
+  let totalDrift = 0;
+  Object.keys(computed).forEach(id => {
+    const before = parseFloat(state.wallets[id]) || 0;
+    if(Math.abs(computed[id] - before) >= 0.01) totalDrift = Math.round((totalDrift + Math.abs(computed[id] - before)) * 100) / 100;
+  });
+  if(totalDrift === 0) return;
+  const sig = String(totalDrift);
+  if(localStorage.getItem(LS_PREFIX + 'driftNotified') === sig) return; // already offered for this exact drift
+  try{ localStorage.setItem(LS_PREFIX + 'driftNotified', sig); }catch(e){}
+  toastWithAction('⚠ رصيد إحدى محافظك لا يطابق سجل معاملاتها', 'إصلاح', () => { openModal('settingsModal'); repairBalancesFromLedger(); });
+}
+
 async function wipeAll(){
   // Typed-word confirmation instead of two consecutive confirm() dialogs — on
   // mobile a fast double-tap could dismiss both confirms and wipe data by
@@ -947,16 +975,19 @@ function toast(msg, isError){
 }
 
 function toastWithUndo(msg, undoFn){
+  toastWithAction(msg, 'تراجع ↩️', undoFn);
+}
+function toastWithAction(msg, actionLabel, fn){
   const el = document.getElementById('saveStatus');
   el.innerHTML = '';
   const span = document.createElement('span');
   span.textContent = msg;
   const btn = document.createElement('button');
-  btn.textContent = 'تراجع ↩️';
+  btn.textContent = actionLabel;
   btn.style.cssText = 'background:var(--gold-btn); color:var(--on-gold); border:none; border-radius:var(--radius-pill); padding:5px 13px; font-size:12px; font-weight:700; margin-inline-end:8px; cursor:pointer;';
   btn.onclick = () => {
     el.classList.remove('show');
-    undoFn();
+    fn();
   };
   el.appendChild(span);
   el.appendChild(btn);
@@ -1975,7 +2006,10 @@ function buildManifestBlob(isLight){
         ),
         sizes: '192x192 512x512',
         type: 'image/svg+xml',
-        purpose: 'any maskable'
+        // 'maskable' would tell Android it can crop to the inner 80% safe-zone circle —
+        // this icon's emoji isn't padded for that and would clip at the edges. 'any'
+        // only, so the OS applies its own shape mask without assuming safe-zone padding.
+        purpose: 'any'
       }
     ]
   };
@@ -2273,6 +2307,7 @@ loadState().then(()=>{
     try{ localStorage.setItem(LS_PREFIX + 'lastReviewDate', todayISO()); }catch(e){}
   } else {
     setTimeout(checkDailyReview, 400);
+    setTimeout(checkBalanceDrift, 900);
   }
 });
 initDrive();
