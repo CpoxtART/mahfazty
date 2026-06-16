@@ -206,7 +206,10 @@ async function runDistribution(sourceTx, amount){
     const remaining = round2(intendedTotal - allocated);
     let share = (i === active.length - 1)
       ? remaining                          // last leg absorbs the rounding residual
-      : round2(amount * d.pct / 100);
+      // proportional to intendedTotal (not the raw amount) so a >100% misconfig
+      // scales every wallet down fairly instead of letting earlier legs claim
+      // their full pct and starving the later ones
+      : round2(intendedTotal * d.pct / totalPct);
     // never allocate more than what's left of intendedTotal — guards a >100%
     // misconfiguration from producing a negative final share (which would push a
     // bogus negative-amount tx AND create money out of nothing as later legs
@@ -970,7 +973,11 @@ function toastWithUndo(msg, undoFn){
    Drive appDataFolder (a hidden app-specific space, not visible
    in the user's normal Drive UI, but fully owned by the user's account).
 ============================================================ */
-const DRIVE_FILE_NAME = 'محفظتيييي-data.json';
+const DRIVE_FILE_NAME = 'mahfazty-data.json';
+// Older versions stored the file under an Arabic name with a repeated-letter typo.
+// driveFindFile() looks for both and silently renames the legacy file on first
+// sight so existing synced data isn't orphaned by the rename.
+const DRIVE_FILE_NAME_LEGACY = 'محفظتيييي-data.json';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 
 let gisTokenClient = null;
@@ -1384,16 +1391,30 @@ function driveSignOut(){
   toast('تم تسجيل الخروج من Drive');
 }
 
-// Find (or remember) the app data file on Drive
+// Find (or remember) the app data file on Drive. Matches the current filename OR
+// the legacy Arabic one, so users who synced before the rename keep their data.
 async function driveFindFile(){
   if(driveFileId) return driveFileId;
-  const res = await fetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q=' + encodeURIComponent(`name='${DRIVE_FILE_NAME}'`), {
+  const q = `name='${DRIVE_FILE_NAME}' or name='${DRIVE_FILE_NAME_LEGACY}'`;
+  const res = await fetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q=' + encodeURIComponent(q), {
     headers: { 'Authorization': 'Bearer ' + driveAccessToken }
   });
   if(!res.ok) throw new Error('drive list failed: ' + res.status);
   const data = await res.json();
   if(data.files && data.files.length > 0){
-    driveFileId = data.files[0].id;
+    const match = data.files.find(f => f.name === DRIVE_FILE_NAME) || data.files[0];
+    driveFileId = match.id;
+    if(match.name !== DRIVE_FILE_NAME){
+      // migrate the legacy filename quietly; non-fatal if it fails (still works
+      // next launch since driveFindFile matches both names)
+      try{
+        await fetch(`https://www.googleapis.com/drive/v3/files/${match.id}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': 'Bearer ' + driveAccessToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: DRIVE_FILE_NAME })
+        });
+      }catch(_){}
+    }
   }
   return driveFileId;
 }
