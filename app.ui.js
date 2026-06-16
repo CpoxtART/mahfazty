@@ -1552,8 +1552,8 @@ function renderRecurring(){
       <div class="title">🔁 معاملة متكررة محتملة</div>
       <div class="desc">${cat.icon} "${escHtml(s.desc)}" — تكررت ${s.count} مرات بمتوسط ${fmt(s.avg)} (${escHtml(wallet?wallet.name:'')})</div>
       <div class="actions">
-        <button class="btn-secondary" data-dismiss="${s.key}">تجاهل</button>
-        <button class="btn-primary" data-remind="${s.key}">⏰ سجّلها الآن</button>
+        <button class="btn-secondary" data-dismiss="${escHtml(s.key)}">تجاهل</button>
+        <button class="btn-primary" data-remind="${escHtml(s.key)}">⏰ سجّلها الآن</button>
       </div>
     `;
     card.querySelector('[data-dismiss]').onclick = () => {

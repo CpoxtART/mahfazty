@@ -127,14 +127,14 @@ try{
 <!-- ===== TAB 3: REPORTS ===== -->
 <div class="tab-panel" id="tabReports">
 
-  <div class="wallet-filter-chip" id="walletFilterChip" onclick="clearWalletFilter()">
+  <div class="wallet-filter-chip" id="walletFilterChip" onclick="clearWalletFilter()" role="button" tabindex="0" aria-label="إلغاء تصفية المحفظة" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();clearWalletFilter();}">
     <span id="walletFilterLabel"></span>
-    <span>✕</span>
+    <span aria-hidden="true">✕</span>
   </div>
 
-  <div class="wallet-filter-chip" id="categoryFilterChip" onclick="toggleCategoryFilter(null)" style="background:var(--blue-soft); border-color:var(--blue);">
+  <div class="wallet-filter-chip" id="categoryFilterChip" onclick="toggleCategoryFilter(null)" style="background:var(--blue-soft); border-color:var(--blue);" role="button" tabindex="0" aria-label="إلغاء تصفية الفئة" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCategoryFilter(null);}">
     <span id="categoryFilterLabel" style="color:var(--blue);"></span>
-    <span style="color:var(--blue);">✕</span>
+    <span style="color:var(--blue);" aria-hidden="true">✕</span>
   </div>
 
   <div class="filters">

@@ -36,7 +36,7 @@
     --line-soft:#262b34;
     --text:#f1f3f6;
     --muted:#8d94a3;
-    --muted2:#7b8190;
+    --muted2:#8d93a2; /* lightened from #7b8190 — that shade fell as low as 4.09:1 against --card, under WCAG AA's 4.5:1 for normal text */
     --gold:#dcb674;
     --gold-dim:#9c844f;
     --gold-soft:#332a18;
@@ -74,7 +74,7 @@
     --line-soft:#e8e4da;
     --text:#26211a;
     --muted:#6f6a5f;
-    --muted2:#7a756a;
+    --muted2:#706b60; /* darkened from #7a756a — that shade fell as low as 4.10:1 against --bg, under WCAG AA's 4.5:1 for normal text */
     --gold:#a87f3a;
     --gold-dim:#c4a061;
     --gold-soft:#f3ead8;
