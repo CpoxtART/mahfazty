@@ -100,7 +100,7 @@ const DEFAULT_TAB_ORDER = ['home','transactions','analytics','reports'];
 const SECTION_DEFS = {
   home: [
     {key:'balance', label:'💰 إجمالي المتاح'},
-    {key:'crisis',  label:'🚨 وضع الطوارئ'},
+    {key:'crisis',  label:'🔄 الوضع البديل'},
     {key:'wallets', label:'👛 المحافظ'}
   ],
   analytics: [
@@ -623,6 +623,6 @@ function toggleCrisis(){
   prevSpendable = null;
   saveConfig();
   render();
-  toast(state.crisisMode ? '🚨 تم تفعيل وضع الطوارئ' : '✓ تم إيقاف وضع الطوارئ');
+  toast(state.crisisMode ? '🔄 تم تفعيل الوضع البديل' : '✓ تم إيقاف الوضع البديل');
 }
 

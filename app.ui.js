@@ -96,7 +96,7 @@ function renderWallets(){
     div.className = 'wallet crisis-combined';
     div.innerHTML = `
       <div class="top">
-        <div class="name">احتياطي الطوارئ (مدمج)</div>
+        <div class="name">الاحتياطي البديل (مدمج)</div>
         <div class="pct">٪${crisisPct}</div>
       </div>
       <div class="val">${fmt(crisisTotal)}</div>
@@ -690,12 +690,33 @@ function setEditType(type){
    and tries to match a category by keyword.
 ============================================================ */
 const VOICE_NUMBER_WORDS = {
-  'صفر':0,'واحد':1,'وحدة':1,'اثنين':2,'إثنين':2,'تنين':2,'ثلاثة':3,'ثلاثه':3,
-  'اربعة':4,'أربعة':4,'اربعه':4,'خمسة':5,'خمسه':5,'ستة':6,'سته':6,'سبعة':7,'سبعه':7,
-  'ثمانية':8,'ثمانيه':8,'تسعة':9,'تسعه':9,'عشرة':10,'عشره':10,
+  'صفر':0,'واحد':1,'وحده':1,'وحدة':1,'اثنين':2,'إثنين':2,'تنين':2,'اثنان':2,'ثلاثة':3,'ثلاثه':3,'ثلاث':3,
+  'اربعة':4,'أربعة':4,'اربعه':4,'اربع':4,'خمسة':5,'خمسه':5,'خمس':5,'ستة':6,'سته':6,'ست':6,'سبعة':7,'سبعه':7,'سبع':7,
+  'ثمانية':8,'ثمانيه':8,'ثمان':8,'ثماني':8,'تسعة':9,'تسعه':9,'تسع':9,'عشرة':10,'عشره':10,'عشر':10,
+  'احد عشر':11,'اثنا عشر':12,'اثني عشر':12,
   'عشرين':20,'ثلاثين':30,'اربعين':40,'أربعين':40,'خمسين':50,'ستين':60,'سبعين':70,
-  'ثمانين':80,'تسعين':90,'مية':100,'مائة':100,'الف':1000,'ألف':1000,'مليون':1000000
+  'ثمانين':80,'تسعين':90,
+  // hundreds (standalone + common compound single-words heard from speech)
+  'مية':100,'مئة':100,'مائة':100,'ميتين':200,'مئتين':200,'مئتان':200,'مايتين':200,
+  'ثلاثمية':300,'ثلاثمئة':300,'اربعمية':400,'اربعمئة':400,'خمسمية':500,'خمسمئة':500,
+  'ستمية':600,'ستمئة':600,'سبعمية':700,'سبعمئة':700,'ثمنمية':800,'ثمانمئة':800,'تسعمية':900,'تسعمئة':900,
+  // thousands / millions (incl. plurals + duals heard from speech)
+  'الف':1000,'ألف':1000,'آلاف':1000,'الاف':1000,'ألفين':2000,'الفين':2000,
+  'مليون':1000000,'ملايين':1000000,'مليونين':2000000
 };
+
+// Combine an ordered list of numeric values using Arabic scale semantics
+// (hundred/thousand/million multiply, smaller values add): [5,1000]→5000,
+// [100,1000]→100000, [1000,500]→1500, [5,20]→25.
+function _combineNumberValues(values){
+  let total = 0, current = 0;
+  for(const v of values){
+    if(v === 100){ current = (current === 0 ? 1 : current) * 100; }
+    else if(v >= 1000){ total += (current === 0 ? 1 : current) * v; current = 0; }
+    else { current += v; }
+  }
+  return total + current;
+}
 
 const CATEGORY_KEYWORDS = {
   food: ['عشاء','غداء','فطور','اكل','أكل','مطعم','قهوة','كافيه','مأكولات'],
@@ -708,23 +729,32 @@ const CATEGORY_KEYWORDS = {
 };
 
 function parseArabicNumber(text){
-  // try digits first (handles "50", "٥٠")
-  const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
-  let normalized = text.replace(/[٠-٩]/g, d => arabicDigits.indexOf(d));
-  const digitMatch = normalized.match(/\d+(\.\d+)?/);
-  if(digitMatch) return parseFloat(digitMatch[0]);
-
-  // fallback: word-based numbers (simple sum of recognized tokens)
-  const words = text.split(/\s+/);
-  let total = 0, found = false;
-  words.forEach(w=>{
-    const clean = w.replace(/[^ء-ي]/g,'');
-    if(VOICE_NUMBER_WORDS[clean] !== undefined){
-      total += VOICE_NUMBER_WORDS[clean];
-      found = true;
+  // Normalize Arabic-Indic/Persian digits and strip thousands separators so a
+  // mix of digits and words ("٥ آلاف", "5,000", "خمسة آلاف") is handled uniformly.
+  const norm = normalizeDigits(text);
+  const tokens = norm.split(/\s+/);
+  const values = [];            // ordered numeric values pulled from digits AND words
+  let sawAny = false;
+  for(let raw of tokens){
+    if(!raw) continue;
+    // a token may be a digit group, possibly stuck to a scale word ("5آلاف")
+    if(/^\d/.test(raw)){
+      const dm = raw.match(/\d+(\.\d+)?/);
+      if(dm){ values.push(parseFloat(dm[0])); sawAny = true; raw = raw.slice(dm[0].length); }
+      if(!raw) continue;
     }
-  });
-  return found ? total : null;
+    const clean = raw.replace(/[^ء-ي]/g,'');
+    if(!clean) continue;
+    if(VOICE_NUMBER_WORDS[clean] !== undefined){ values.push(VOICE_NUMBER_WORDS[clean]); sawAny = true; continue; }
+    // strip a leading connective و ("وعشرين" → "عشرين") and retry — but only when
+    // the remainder is itself a number word, so real words like "واحد" stay intact
+    if(clean.length > 2 && clean[0] === 'و' && VOICE_NUMBER_WORDS[clean.slice(1)] !== undefined){
+      values.push(VOICE_NUMBER_WORDS[clean.slice(1)]); sawAny = true;
+    }
+  }
+  if(!sawAny) return null;
+  const result = _combineNumberValues(values);
+  return isFinite(result) ? result : null;
 }
 
 function guessCategory(text){
