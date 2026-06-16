@@ -1079,6 +1079,12 @@
     display:flex; gap:10px; margin-bottom:14px;
   }
   .sett-actions button{ flex:1; padding:14px; }
+  .sett-legal{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    margin:14px 0 2px; font-size:12px; color:var(--muted);
+  }
+  .sett-legal a{ color:var(--muted); text-decoration:none; }
+  .sett-legal a:hover{ color:var(--gold); text-decoration:underline; }
 
   /* ─── Deletion & Reset section ─── */
   .sett-section--danger .sett-section-head{ color:var(--red); }

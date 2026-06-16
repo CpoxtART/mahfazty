@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سياسة الخصوصية · محفظتيييي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;500;700&display=swap">
+<style>
+  :root{ --bg:#121419; --card:#1e222a; --line:#323844; --text:#f1f3f6; --muted:#8d94a3; --gold:#dcb674; }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f4f2ed; --card:#fff; --line:#ddd8cd; --text:#26211a; --muted:#6f6a5f; --gold:#a87f3a; }
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ font-family:'Tajawal','Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var(--text);
+    line-height:1.9; padding:28px 18px calc(40px + env(safe-area-inset-bottom)); max-width:760px; margin:0 auto; }
+  .brand{ display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+  .brand .mark{ width:40px; height:40px; border-radius:11px; background:linear-gradient(150deg,#dcb674,#b88c46);
+    display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .brand h1{ font-family:'Amiri','Georgia',serif; font-size:22px; color:var(--gold); }
+  h2{ font-family:'Amiri','Georgia',serif; font-size:18px; color:var(--gold); margin:26px 0 8px; }
+  p, li{ font-size:14.5px; color:var(--text); }
+  .muted{ color:var(--muted); font-size:13px; }
+  ul{ padding-inline-start:22px; margin:6px 0; }
+  li{ margin:5px 0; }
+  a{ color:var(--gold); }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-top:14px; }
+  .updated{ font-size:12px; color:var(--muted); margin-top:6px; }
+  .back{ display:inline-block; margin-top:28px; color:var(--gold); font-weight:700; text-decoration:none; }
+  hr{ border:none; border-top:1px solid var(--line); margin:24px 0; }
+</style>
+</head>
+<body>
+  <div class="brand"><div class="mark">💰</div><h1>محفظتيييي</h1></div>
+  <h1 style="font-size:24px; font-family:'Amiri',serif;">سياسة الخصوصية</h1>
+  <p class="updated">آخر تحديث: يونيو ٢٠٢٦</p>
+
+  <div class="card">
+    <p>«محفظتيييي» تطبيق شخصي لإدارة الميزانية يعمل داخل متصفّحك (تطبيق ويب تقدمي - PWA). نحترم خصوصيتك، وهذه الصفحة تشرح بوضوح ما البيانات التي يتعامل معها التطبيق وأين تُخزَّن.</p>
+  </div>
+
+  <h2>١) البيانات التي نتعامل معها</h2>
+  <ul>
+    <li><b>بيانات ميزانيتك</b>: المعاملات، أرصدة المحافظ، الفئات، الاشتراكات، والإعدادات التي تُدخلها أنت.</li>
+    <li><b>بيانات تسجيل الدخول بجوجل</b> (إن استخدمتها): بريدك الإلكتروني واسمك المعروف ومُعرّفك لدى Google — للتعريف فقط.</li>
+    <li>لا نجمع أي بيانات تتبّع أو تحليلات أو إعلانات، ولا نستخدم ملفات تعريف خارجية للتتبّع.</li>
+  </ul>
+
+  <h2>٢) أين تُخزَّن بياناتك</h2>
+  <ul>
+    <li><b>على جهازك أولًا</b>: تُحفظ بيانات ميزانيتك محليًا في متصفّحك (localStorage / IndexedDB) ولا تغادر جهازك افتراضيًا.</li>
+    <li><b>Google Drive (اختياري)</b>: إذا فعّلت المزامنة، تُحفظ نسخة في مجلد التطبيقات الخاص بحسابك على Drive (appDataFolder). هذا المجلد <b>خاص بحسابك أنت</b>، ولا يستطيع المطوّر الوصول إليه.</li>
+  </ul>
+
+  <h2>٣) نطاق الوصول لـ Google</h2>
+  <p>عند استخدام مزامنة Drive، يطلب التطبيق صلاحية <code>drive.appdata</code> فقط — وهي محدودة بمجلد التطبيق المخفي، ولا تتيح الوصول لبقية ملفاتك في Drive. وعند الاكتفاء بتسجيل الدخول للتعريف، نستخدم فقط <code>email</code> و<code>profile</code> و<code>openid</code>.</p>
+
+  <h2>٤) عدم المشاركة</h2>
+  <p>لا نبيع بياناتك ولا نشاركها مع أي طرف ثالث. تبقى بياناتك ملكك، ضمن جهازك أو حساب Drive الخاص بك.</p>
+
+  <h2>٥) التحكّم والحذف</h2>
+  <ul>
+    <li>تقدر تصدير بياناتك (JSON) أو حذفها كليًا في أي وقت من داخل ⚙ الإعدادات.</li>
+    <li>تقدر فصل Google Drive أو سحب الصلاحية من <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">إعدادات حساب Google</a>.</li>
+  </ul>
+
+  <h2>٦) أمان البيانات</h2>
+  <p>الاتصال بـ Google يتم عبر قنوات مُعمّاة (HTTPS). البيانات المحلية محميّة بحدود متصفّحك ونظام تشغيل جهازك. ننصح بعدم استخدام التطبيق على جهاز مشترك دون حماية.</p>
+
+  <h2>٧) التغييرات على هذه السياسة</h2>
+  <p>قد نحدّث هذه السياسة عند إضافة ميزات جديدة (مثل المزامنة عبر خادم خاص مستقبلًا)، وسننشر النسخة المحدّثة على هذه الصفحة مع تاريخها.</p>
+
+  <h2>٨) التواصل</h2>
+  <p>لأي استفسار حول الخصوصية: <a href="mailto:CONTACT_EMAIL_PLACEHOLDER">CONTACT_EMAIL_PLACEHOLDER</a></p>
+
+  <hr>
+  <a class="back" href="./index.html">→ العودة للتطبيق</a>
+</body>
+</html>
