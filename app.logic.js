@@ -91,7 +91,7 @@ function openDistributionModal(amount){
       const share = round2(amount * d.pct / 100);
       const row = document.createElement('div');
       row.className = 'dist-row';
-      row.innerHTML = `<span class="name">${w.name} <span class="pct">${d.pct}%</span></span><span class="amt">${fmt(share)}</span>`;
+      row.innerHTML = `<span class="name">${escHtml(w.name)} <span class="pct">${escHtml(String(d.pct))}%</span></span><span class="amt">${escHtml(fmt(share))}</span>`;
       wrap.appendChild(row);
     });
     if(totalPct > 100){
@@ -503,6 +503,7 @@ async function undoDelete(){
 const _focusStack = [];
 function openModal(id){
   const modal = document.getElementById(id);
+  if(!modal) return;
   // remember what had focus so we can restore it when the modal closes (a11y) —
   // but only on the FIRST open. Re-opening an already-open modal (e.g. wallet
   // detail refreshing itself after a tracked-balance edit) must NOT push a
@@ -1359,12 +1360,19 @@ function driveRequestSilent(mode){
 // no consent. Falls back to the one-tap banner if the session can't grant silently.
 function driveAutoSilent(){ driveRequestSilent('launch'); }
 
-// Banner "نعم" tap. First try a silent grant (consent-free for returning users);
-// only escalate to the account picker if the session genuinely needs interaction.
-// Both calls happen inside the tap's user gesture, so neither can hang.
+// Banner "نعم" tap. On desktop/safe contexts, try a silent grant first (consent-free
+// for returning users) and only escalate to the account picker if the session truly
+// needs interaction. On mobile, skip the silent prompt:'' request entirely — in
+// practice it can hang on a blank accounts.google.com/gsi/transfer page even when
+// fired from a tap, leaving the user stuck with no token and the banner reappearing
+// next launch. The interactive picker always completes reliably there.
 function driveReconnectFromBanner(){
   if(_driveBannerEscalate){ _driveBannerEscalate = false; driveSignIn(); return; }
-  if(!driveRequestSilent('banner')) driveSignIn();
+  if(_driveSilentSafe()){
+    if(!driveRequestSilent('banner')) driveSignIn();
+  } else {
+    driveSignIn();
+  }
 }
 
 function driveSignOut(){

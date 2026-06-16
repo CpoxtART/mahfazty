@@ -250,7 +250,7 @@ try{
       <div class="row2">
         <div>
           <label>المبلغ</label>
-          <input type="number" id="amountInput" placeholder="0" step="any" inputmode="decimal">
+          <input type="number" id="amountInput" placeholder="0" step="any" min="0" inputmode="decimal">
         </div>
         <div>
           <label>التاريخ</label>
@@ -528,7 +528,7 @@ try{
     <div class="wallet-menu" id="transferToMenuWrap"><div id="transferToMenu" role="listbox"></div></div>
 
     <label>المبلغ</label>
-    <input type="number" id="transferAmount" step="any" inputmode="decimal" placeholder="0">
+    <input type="number" id="transferAmount" step="any" min="0" inputmode="decimal" placeholder="0">
     <label>التاريخ</label>
     <input type="date" id="transferDate">
     <div class="modal-actions">
@@ -724,7 +724,7 @@ try{
     </div>
     <label class="drive-banner-remember">
       <input type="checkbox" id="driveBannerAuto" checked>
-      <span>اتصل تلقائياً عند فتح التطبيق (لا تسألني مجدداً)</span>
+      <span>تذكّرني — اتصال بضغطة واحدة فقط في كل مرة (بدون كتابة بيانات تسجيل الدخول)</span>
     </label>
     <div class="drive-banner-actions">
       <button class="drive-banner-later" id="btnDriveLater" type="button">لاحقاً</button>
