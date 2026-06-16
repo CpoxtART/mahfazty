@@ -250,7 +250,7 @@ try{
       <div class="row2">
         <div>
           <label>المبلغ</label>
-          <input type="number" id="amountInput" placeholder="0" step="any" min="0" inputmode="decimal">
+          <input type="number" id="amountInput" placeholder="0" step="any" min="0" inputmode="decimal" autocomplete="off">
         </div>
         <div>
           <label>التاريخ</label>
@@ -300,7 +300,7 @@ try{
     <label>الوصف</label>
     <input type="text" id="editDesc" maxlength="120" placeholder="الوصف">
     <label>المبلغ</label>
-    <input type="number" id="editAmount" step="any" inputmode="decimal">
+    <input type="number" id="editAmount" step="any" inputmode="decimal" autocomplete="off">
     <label>التاريخ</label>
     <input type="date" id="editDate">
     <div id="editCategorySection">
@@ -528,7 +528,7 @@ try{
     <div class="wallet-menu" id="transferToMenuWrap"><div id="transferToMenu" role="listbox"></div></div>
 
     <label>المبلغ</label>
-    <input type="number" id="transferAmount" step="any" min="0" inputmode="decimal" placeholder="0">
+    <input type="number" id="transferAmount" step="any" min="0" inputmode="decimal" placeholder="0" autocomplete="off">
     <label>التاريخ</label>
     <input type="date" id="transferDate">
     <div class="modal-actions">
@@ -552,7 +552,7 @@ try{
     <div id="detailBudgetSetting" style="display:none; margin-bottom:14px;">
       <label>الميزانية الشهرية (مصروفات)</label>
       <div class="row2">
-        <input type="number" id="detailBudgetInput" min="0" step="any" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)">
+        <input type="number" id="detailBudgetInput" min="0" step="any" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)" autocomplete="off">
         <button class="btn-secondary" style="flex:0 0 auto; padding:0 18px;" onclick="saveWalletBudget()">حفظ</button>
       </div>
       <div class="hint" style="margin-top:0;">عند الوصول إليها سيتلون شريط التقدم بالأحمر وتظهر علامة تحذير ⚠ على بطاقة المحفظة.</div>
@@ -560,7 +560,7 @@ try{
     <div id="detailUpdateBalance" style="display:none; margin-bottom:14px;">
       <label>تحديث الرصيد الفعلي</label>
       <div class="row2">
-        <input type="number" id="detailNewBalance" step="any" inputmode="decimal" placeholder="الرصيد الجديد">
+        <input type="number" id="detailNewBalance" step="any" inputmode="decimal" placeholder="الرصيد الجديد" autocomplete="off">
         <button class="btn-primary" style="flex:0 0 auto; padding:0 18px;" onclick="updateTrackedBalance()">تحديث</button>
       </div>
       <div class="hint" style="margin-top:0;">هذه محفظة تتبع — أدخل رصيدك الفعلي الحالي (من تطبيق بنكك أو نقدًا) وسيتم تسجيل الفرق كمعاملة تلقائيًا.</div>
@@ -700,7 +700,7 @@ try{
     <label>اسم الاشتراك</label>
     <input type="text" id="subName" maxlength="60" placeholder="مثال: نتفليكس، شاهد، Spotify...">
     <label>المبلغ الشهري</label>
-    <input type="number" id="subAmount" step="any" inputmode="decimal" placeholder="0">
+    <input type="number" id="subAmount" step="any" inputmode="decimal" placeholder="0" autocomplete="off">
     <label>يوم الاشتراك (1–31)</label>
     <input type="number" id="subBillingDay" min="1" max="31" step="1" inputmode="numeric" placeholder="15">
     <label style="display:flex; align-items:center; gap:10px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:600; font-size:13px; color:var(--text); margin-bottom:4px;">

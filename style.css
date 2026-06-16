@@ -855,6 +855,7 @@
     position:relative;
     transition: transform .25s var(--ease), background .15s;
     touch-action: pan-y;
+    user-select:none; -webkit-touch-callout:none; /* a slow/uncertain swipe shouldn't trigger iOS text-selection */
     /* will-change is set in JS only for the duration of the swipe gesture so
        thousands of compositor layers are never simultaneously promoted (memory
        anti-pattern with 10k+ transactions). */
@@ -926,6 +927,7 @@
     max-width:540px;
     max-height:85vh;
     max-height:85dvh; /* dynamic vh: keep modal usable when the mobile keyboard shrinks the viewport */
+    overscroll-behavior:contain;
     overflow-y:auto;
     transform:translateY(40px);
     transition: transform .3s var(--ease);
@@ -1205,6 +1207,8 @@
   border-radius:var(--radius-lg) var(--radius-lg) 0 0;
   max-width:540px; margin:0 auto;
   max-height:92vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  max-height:92dvh; /* dynamic vh: keep the save button reachable above the on-screen keyboard */
+  overscroll-behavior:contain; /* don't let a rubber-band scroll inside the drawer bleed into the page behind it */
   transform:translateY(100%);
   transition:transform .28s var(--ease);
   display:flex; flex-direction:column;

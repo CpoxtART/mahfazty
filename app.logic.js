@@ -1613,6 +1613,13 @@ async function driveSyncFromCloud(isInitial, interactive){
       // transaction-level UNION merge so nothing added on either device is lost, and
       // honor tombstones from both sides so deletions still propagate (no resurrected
       // rows). Config is taken from whichever side edited last.
+      // Defer the swap while the user has a modal/the add-drawer open — same guard
+      // the cross-tab storage listener uses — so an in-progress edit isn't yanked out
+      // from under editingTxId/pendingIncomeTx by the array being replaced mid-flow.
+      // Capped so a forgotten open modal can't stall sync forever.
+      for(let waited=0; waited<10000 && (document.querySelector('.modal-overlay.open') || addDrawerOpen); waited+=250){
+        await new Promise(r => setTimeout(r, 250));
+      }
       _opInFlight++;
       try{
         const cloudNewer = cloudTime > localTime;
