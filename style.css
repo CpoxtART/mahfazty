@@ -985,10 +985,34 @@
     display:flex; gap:10px; margin-bottom:14px;
   }
   .sett-actions button{ flex:1; padding:14px; }
-  .sett-danger{
-    border-top:1px solid var(--line); padding-top:14px; margin-bottom:4px;
+
+  /* ─── Deletion & Reset section ─── */
+  .sett-section--danger .sett-section-head{ color:var(--red); }
+  .reset-list{ display:flex; flex-direction:column; gap:10px; }
+  .reset-item{
+    display:flex; align-items:center; gap:12px; width:100%; text-align:start;
+    background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-sm);
+    padding:13px 14px; cursor:pointer; font-family:inherit; color:var(--text);
+    transition:border-color .15s, background .15s, transform .08s;
+    touch-action:manipulation;
   }
-  .sett-danger button{ width:100%; padding:14px; }
+  .reset-item:hover{ border-color:var(--line-soft); background:var(--card2); }
+  .reset-item:active{ transform:scale(.985); }
+  .reset-item-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+  .reset-item-title{ font-size:13.5px; font-weight:700; line-height:1.35; }
+  .reset-item-sub{ font-size:11px; color:var(--muted); line-height:1.6; }
+  .reset-item-ic{
+    flex-shrink:0; width:34px; height:34px; display:flex; align-items:center; justify-content:center;
+    border-radius:50%; background:var(--card2); color:var(--muted2); font-size:15px;
+  }
+  .reset-item--warn{ border-color:rgba(199,165,99,.32); }
+  .reset-item--warn .reset-item-title{ color:var(--gold); }
+  .reset-item--warn .reset-item-ic{ background:var(--gold-soft); color:var(--gold); }
+  .reset-item--warn:hover{ border-color:var(--gold-dim); background:var(--gold-soft); }
+  .reset-item--danger{ border-color:rgba(227,145,143,.32); }
+  .reset-item--danger .reset-item-title{ color:var(--red); }
+  .reset-item--danger .reset-item-ic{ background:var(--red-soft); color:var(--red); }
+  .reset-item--danger:hover{ border-color:var(--red); background:var(--red-soft); }
 
   /* type mini toggle above category grid in add form */
   .type-mini-toggle{

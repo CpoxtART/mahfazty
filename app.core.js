@@ -3,18 +3,29 @@
    CONFIG
 ============================================================ */
 const WALLET_DEFS = [
-  {id:'core',        name:'Core Expenses',  initial:3830,    track:false, pct:'50%'},
-  {id:'wishlist',    name:'Wishlist',       initial:783,     track:false, pct:'10%'},
-  {id:'growth',      name:'Growth',         initial:783,     track:false, pct:'10%'},
-  {id:'investments', name:'Investments',    initial:783,     track:false, pct:'10%'},
-  {id:'joy',         name:'Joy of Life',    initial:783,     track:false, pct:'10%'},
-  {id:'giving',      name:'Giving',         initial:391.5,   track:false, pct:'5%'},
-  {id:'reserve',     name:'Reserve',        initial:391.5,   track:false, pct:'5%'},
-  {id:'uber',        name:'Uber',           initial:1984.23, track:true,  pct:'تتبع'},
-  {id:'cards',       name:'Bank Cards',     initial:296477,  track:true,  pct:'تتبع'},
-  {id:'cash',        name:'Cash',           initial:8000,    track:true,  pct:'تتبع'},
+  {id:'core',        name:'Core Expenses',  initial:0, track:false, pct:'50%'},
+  {id:'wishlist',    name:'Wishlist',       initial:0, track:false, pct:'10%'},
+  {id:'growth',      name:'Growth',         initial:0, track:false, pct:'10%'},
+  {id:'investments', name:'Investments',    initial:0, track:false, pct:'10%'},
+  {id:'joy',         name:'Joy of Life',    initial:0, track:false, pct:'10%'},
+  {id:'giving',      name:'Giving',         initial:0, track:false, pct:'5%'},
+  {id:'reserve',     name:'Reserve',        initial:0, track:false, pct:'5%'},
+  {id:'uber',        name:'Uber',           initial:0, track:true,  pct:'تتبع'},
+  {id:'cards',       name:'Bank Cards',     initial:0, track:true,  pct:'تتبع'},
+  {id:'cash',        name:'Cash',           initial:0, track:true,  pct:'تتبع'},
 ];
-const MAX_WALLET_VAL = WALLET_DEFS.filter(w=>!w.track).reduce((m,w)=>Math.max(m,w.initial),1);
+// Bar width baseline. Initials are all 0 (fresh app), so a static max is useless;
+// derive the scale from the largest current non-track balance at render time so
+// the bars stay proportional as real balances grow. Floor of 1 avoids /0.
+function maxWalletVal(){
+  let m = 1;
+  WALLET_DEFS.forEach(w => {
+    if(w.track) return;
+    const v = parseFloat(state.wallets[w.id]) || 0;
+    if(v > m) m = v;
+  });
+  return m;
+}
 // In emergency mode the whole "second half" (everything except Core Expenses,
 // i.e. the non-track 50%: wishlist+growth+investments+joy+giving+reserve) merges
 // into one unified emergency reserve. Wishlist was previously missing here, so it

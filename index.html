@@ -449,13 +449,54 @@ try{
       </div>
     </div>
 
+    <!-- ─── Deletion & Reset ─── -->
+    <div class="sett-section sett-section--danger">
+      <div class="sett-section-head">🗑 الحذف والتصفير</div>
+      <div class="sett-section-body">
+        <div class="hint" style="margin:0 0 12px;">خيارات تصفير منفصلة. كل خيار يفعل ما يصفه اسمه فقط. الإجراءات التالية لا يمكن التراجع عنها.</div>
+        <div class="reset-list">
+          <button class="reset-item" onclick="zeroTrackedWallets()">
+            <div class="reset-item-txt">
+              <span class="reset-item-title">تصفير محافظ التتبع</span>
+              <span class="reset-item-sub">أوبر، البطاقات، الكاش → صفر. المعاملات لا تتأثر.</span>
+            </div>
+            <span class="reset-item-ic">↺</span>
+          </button>
+          <button class="reset-item" onclick="zeroRegularWallets()">
+            <div class="reset-item-txt">
+              <span class="reset-item-title">تصفير المحافظ العادية</span>
+              <span class="reset-item-sub">الأرصدة → صفر مع بقاء المعاملات (قد لا تتطابق).</span>
+            </div>
+            <span class="reset-item-ic">↺</span>
+          </button>
+          <button class="reset-item" onclick="clearAllSubscriptions()">
+            <div class="reset-item-txt">
+              <span class="reset-item-title">تصفير الاشتراكات</span>
+              <span class="reset-item-sub">حذف كل الاشتراكات المسجّلة.</span>
+            </div>
+            <span class="reset-item-ic">↺</span>
+          </button>
+          <button class="reset-item reset-item--warn" onclick="clearBalancesAndTx()">
+            <div class="reset-item-txt">
+              <span class="reset-item-title">تصفير الرصيد والمعاملات</span>
+              <span class="reset-item-sub">الأرصدة → صفر وحذف كل المعاملات. الإعدادات تبقى.</span>
+            </div>
+            <span class="reset-item-ic">⚠</span>
+          </button>
+          <button class="reset-item reset-item--danger" onclick="wipeAll()">
+            <div class="reset-item-txt">
+              <span class="reset-item-title">حذف كل البيانات</span>
+              <span class="reset-item-sub">مسح كامل: الأرصدة والمعاملات والاشتراكات والإعدادات.</span>
+            </div>
+            <span class="reset-item-ic">🗑</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── Bottom actions ─── -->
     <div class="sett-actions">
-      <button class="btn-secondary" onclick="resetBalancesOnly()">↺ إعادة الأرصدة</button>
       <button class="btn-secondary" onclick="closeModal('settingsModal')">إغلاق</button>
-    </div>
-    <div class="sett-danger">
-      <button class="btn-danger" onclick="wipeAll()">🗑 حذف كل البيانات</button>
     </div>
   </div>
 </div>

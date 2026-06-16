@@ -43,6 +43,8 @@ function renderWallets(){
     defs = WALLET_DEFS.filter(w => !CRISIS_WALLET_IDS.includes(w.id));
   }
 
+  const barMax = maxWalletVal();
+
   defs.forEach(w => {
     const val = state.wallets[w.id] ?? 0;
     if(!w.track) spendable += val;
@@ -51,7 +53,7 @@ function renderWallets(){
     div.setAttribute('role','button');
     div.setAttribute('tabindex','0');
     div.setAttribute('aria-pressed', walletFilter===w.id);
-    const pctWidth = w.track ? 100 : Math.min(100, Math.max(2, (val/MAX_WALLET_VAL)*100));
+    const pctWidth = w.track ? 100 : Math.min(100, Math.max(2, (val/barMax)*100));
 
     let budgetHtml = '';
     if(!w.track && budgets[w.id] > 0){

@@ -754,13 +754,83 @@ async function applyImport(text){
   }
 }
 
-async function resetBalancesOnly(){
-  if(!confirm('⚠️ تنبيه مهم:\n\nسيتم إرجاع الأرصدة إلى القيم الافتراضية، بينما تبقى كل معاملاتك كما هي.\n\nهذا يعني أن الأرصدة لن تعود مطابقة لسجل معاملاتك (قد تظهر أرقام غير منطقية في الإحصائيات).\n\nالأفضل عادةً هو الاستيراد من نسخة احتياطية. هل أنت متأكد من المتابعة؟')) return;
-  WALLET_DEFS.forEach(w => state.wallets[w.id] = w.initial);
-  await saveBalances();
-  closeModal('settingsModal');
-  render();
-  toast('✓ تمت استعادة الأرصدة الابتدائية');
+// ── Granular reset/clear actions (Deletion & Reset section) ──────────────
+// Each does exactly what its label says. Tracked wallets carry no ledger, so
+// zeroing them is clean. Regular wallets are derived from transactions, so
+// zeroing them without clearing the ledger creates a mismatch the repair tool
+// would undo — we warn about that explicitly.
+
+// Zero the manually-tracked wallets (Uber, Bank Cards, Cash). No transactions
+// are involved, so this is always consistent.
+async function zeroTrackedWallets(){
+  if(!confirm('سيتم تصفير أرصدة محافظ التتبع (أوبر، البطاقات، الكاش) إلى صفر.\n\nالمعاملات لا تتأثر. هل تريد المتابعة؟')) return;
+  _txMutationStamp++;
+  _opInFlight++;
+  try{
+    WALLET_DEFS.forEach(w => { if(w.track) state.wallets[w.id] = 0; });
+    prevSpendable = null;
+    await saveBalances();
+    render(true);
+    toast('✓ تم تصفير محافظ التتبع');
+  } finally { _opInFlight--; }
+}
+
+// Zero the regular (non-tracked) wallets while keeping the ledger. This makes
+// balances diverge from the transaction history on purpose.
+async function zeroRegularWallets(){
+  if(!confirm('⚠️ سيتم تصفير أرصدة المحافظ العادية إلى صفر مع بقاء كل المعاملات.\n\nهذا يجعل الأرصدة لا تطابق سجل المعاملات (قد تظهر أرقام غير متوقعة في الإحصائيات).\n\nهل تريد المتابعة؟')) return;
+  _txMutationStamp++;
+  _opInFlight++;
+  try{
+    WALLET_DEFS.forEach(w => { if(!w.track) state.wallets[w.id] = 0; });
+    prevSpendable = null;
+    await saveBalances();
+    render(true);
+    toast('✓ تم تصفير المحافظ العادية');
+  } finally { _opInFlight--; }
+}
+
+// Remove every subscription. Balances and transactions are untouched.
+async function clearAllSubscriptions(){
+  if(!subscriptions.length){ toast('لا توجد اشتراكات للحذف'); return; }
+  if(!confirm(`سيتم حذف جميع الاشتراكات (${subscriptions.length}). لا يمكن التراجع.\n\nهل تريد المتابعة؟`)) return;
+  _opInFlight++;
+  try{
+    subscriptions = [];
+    await saveSubs();
+    render(true);
+    toast('✓ تم حذف كل الاشتراكات');
+  } finally { _opInFlight--; }
+}
+
+// Zero all balances AND clear the whole transaction ledger — a consistent fresh
+// start that keeps subscriptions, distribution and layout. Transactions are
+// tombstoned so the deletion propagates on multi-device merge sync (otherwise a
+// cloud copy would resurrect them on the next merge).
+async function clearBalancesAndTx(){
+  const answer = prompt('⚠️ سيتم تصفير كل الأرصدة وحذف كل المعاملات نهائياً.\nالاشتراكات والإعدادات تبقى كما هي.\n\nاكتب كلمة "تصفير" للتأكيد:');
+  if(answer === null) return;
+  if(answer.trim() !== 'تصفير'){ toast('أُلغي — لم تُكتب كلمة التأكيد بشكل صحيح'); return; }
+  _txMutationStamp++;
+  _opInFlight++;
+  try{
+    clearTimeout(_undoTimer); _lastDeleted = null;
+    const now = Date.now();
+    state.transactions.forEach(t => { if(t && t.id) deletedTxIds[t.id] = now; });
+    state.transactions = [];
+    WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
+    state.crisisMode = false;
+    walletFilter = null;
+    categoryFilter = null;
+    _txVisibleCount = 50;
+    prevSpendable = null;
+    await saveBalances();
+    await saveTx();
+    await saveConfig(); // persist tombstones (they live in config)
+    closeModal('settingsModal');
+    render(true);
+    toast('✓ تم تصفير الرصيد والمعاملات');
+  } finally { _opInFlight--; }
 }
 
 // Self-healing repair: recompute balances from the transaction ledger (0 + Σ).
@@ -804,13 +874,17 @@ async function wipeAll(){
   if(answer === null) return; // cancelled
   if(answer.trim() !== 'حذف'){ toast('أُلغي الحذف — لم تُكتب كلمة التأكيد بشكل صحيح'); return; }
   clearTimeout(_undoTimer); _lastDeleted = null;
+  // Tombstone every existing transaction BEFORE clearing the array, so the
+  // deletion propagates on the next merge sync. Clearing tombstones outright
+  // (the old behaviour) let a cloud/other-device copy resurrect everything.
+  const _wipeNow = Date.now();
+  state.transactions.forEach(t => { if(t && t.id) deletedTxIds[t.id] = _wipeNow; });
   WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
   state.transactions = [];
   state.crisisMode = false;
   budgets = {};
   autoDistribute = false;
   dismissedRecurring.clear();
-  deletedTxIds = {}; // wipe tombstones too — fresh start
   selectedWallet = WALLET_DEFS[0].id;
   selectedCategory = 'other';
   editingTxId = null;
@@ -1867,7 +1941,7 @@ let _renderSig = '';
 // budgets and DISTRIBUTION get new object references when changed, so reference
 // equality is a valid cheap check. state.wallets is ALWAYS the same reference
 // (mutated in-place), so it must be JSON-serialised fresh every call — the old
-// reference-equality optimisation caused resetBalancesOnly() to silently skip
+// reference-equality optimisation caused balance resets to silently skip
 // the render because the wallet object ref never changed.
 let _sigBudgets = '', _sigDist = '';
 let _sigBudgetsObj = null, _sigDistObj = null;
