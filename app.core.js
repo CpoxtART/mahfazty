@@ -71,6 +71,15 @@ let pendingIncomeTx = null;
 let autoDistribute = false;
 let budgets = {}; // walletId -> monthly budget limit (expenses)
 let dismissedRecurring = new Set();
+// Tombstones for delete propagation in multi-device merge sync: {txId: deletedAtMs}.
+// Without these, a union merge would resurrect a transaction deleted on another
+// device. Pruned to the last 90 days so the set stays bounded.
+let deletedTxIds = {};
+const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+function pruneTombstones(){
+  const cutoff = Date.now() - TOMBSTONE_TTL_MS;
+  for(const id in deletedTxIds){ if(!(deletedTxIds[id] > cutoff)) delete deletedTxIds[id]; }
+}
 
 /* v9.3 */
 let currentTab = 'home';
@@ -307,6 +316,7 @@ async function loadState(){
         DISTRIBUTION = sanitizeDistribution(c.distribution);
       }
       dismissedRecurring = new Set(Array.isArray(c.dismissedRecurring) ? c.dismissedRecurring : []);
+      if(c.deletedTxIds && typeof c.deletedTxIds === 'object') deletedTxIds = c.deletedTxIds;
       _lsHadConfig = true;
     }
   }catch(e){}
@@ -351,6 +361,7 @@ async function loadState(){
       if(Array.isArray(_idb.dismissedRecurring)) dismissedRecurring = new Set(_idb.dismissedRecurring);
       if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = sanitizeDistribution(_idb.distribution);
     }
+    if(_idb.deletedTxIds && typeof _idb.deletedTxIds === 'object' && !Object.keys(deletedTxIds).length) deletedTxIds = _idb.deletedTxIds;
     if(Array.isArray(_idb.subscriptions)){
       try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(_idb.subscriptions)); }catch(e){}
     }
@@ -359,6 +370,13 @@ async function loadState(){
     // Legacy localStorage copy (older version) or IDB unavailable — adopt it; the
     // idbBackup below migrates it into IndexedDB.
     state.transactions = _validTx(_lsTx);
+  }
+
+  // Drop any tx that's tombstoned (deleted on another device that synced its
+  // delete) and prune expired tombstones so the set stays bounded.
+  pruneTombstones();
+  if(Object.keys(deletedTxIds).length){
+    state.transactions = state.transactions.filter(t => !deletedTxIds[t.id]);
   }
 
   // A restored snapshot may contain a half-surviving linked group (one leg of a
@@ -381,6 +399,67 @@ async function loadState(){
   capDateInputsToToday();
   loadSubs();
   render(true);
+}
+
+// Multi-device union merge: combine local + cloud transactions/subscriptions by id
+// (so a transaction added on either device is never lost), honor tombstones from
+// BOTH sides (so a deletion on either device propagates instead of resurrecting),
+// then recompute balances from the merged ledger (0 + Σ — the app's model). Config
+// (crisis/budgets/distribution/prefs) is taken from whichever side edited last.
+// Returns {added, removed} counts for an informative toast.
+function mergeCloudData(cloud, cloudNewer){
+  const validTx = t => t && (t.type === 'income' || t.type === 'expense') &&
+    typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
+    typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 &&
+    WALLET_DEFS.find(w => w.id === t.wallet);
+
+  // 1) union tombstones from both sides
+  if(cloud.deletedTxIds && typeof cloud.deletedTxIds === 'object'){
+    for(const id in cloud.deletedTxIds){
+      const t = cloud.deletedTxIds[id];
+      if(typeof t === 'number' && (!deletedTxIds[id] || t > deletedTxIds[id])) deletedTxIds[id] = t;
+    }
+  }
+  pruneTombstones();
+
+  // 2) union transactions by id (local first, then cloud fills in the rest),
+  //    skipping anything tombstoned on either side so deletes win over a stale copy
+  const localCount = state.transactions.length;
+  const byId = new Map();
+  state.transactions.forEach(t => { if(validTx(t) && !deletedTxIds[t.id]) byId.set(t.id, t); });
+  let removed = state.transactions.filter(t => deletedTxIds[t.id]).length; // local rows a remote delete removes
+  let added = 0;
+  (Array.isArray(cloud.transactions) ? cloud.transactions : []).forEach(t => {
+    if(validTx(t) && !deletedTxIds[t.id] && !byId.has(t.id)){ byId.set(t.id, t); added++; }
+  });
+  state.transactions = [...byId.values()];
+  stripOrphanLinks(state.transactions);
+  _allTxSortedCache = null;
+
+  // 4) merge subscriptions by id (union; cloud wins on a true id clash)
+  const subById = new Map();
+  subscriptions.forEach(s => subById.set(s.id, s));
+  (Array.isArray(cloud.subscriptions) ? cloud.subscriptions : []).forEach(s => {
+    if(s && s.id && s.name && isFinite(s.amount) && s.amount > 0) subById.set(s.id, _normalizeSub(s));
+  });
+  subscriptions = [...subById.values()];
+
+  // 5) config from the side that edited most recently
+  if(cloudNewer){
+    if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
+    if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
+    if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
+    if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
+    if(cloud.uiPrefs && typeof applyUiPrefs === 'function') applyUiPrefs(cloud.uiPrefs);
+  }
+  // dismissedRecurring: union both sides (a dismissal on either device sticks)
+  if(Array.isArray(cloud.dismissedRecurring)) cloud.dismissedRecurring.forEach(k => dismissedRecurring.add(k));
+
+  // 6) rebuild balances from the merged ledger so they're provably consistent
+  reconcileBalances();
+  _txMutationStamp++;
+  prevSpendable = null;
+  return { added, removed, hadLocal: localCount };
 }
 
 // Recompute every wallet balance purely from the transaction ledger
@@ -436,7 +515,7 @@ function _pruneRecurringDismissals(){
   );
   for(const k of dismissedRecurring){ if(!live.has(k)) dismissedRecurring.delete(k); }
 }
-async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(ts); }
+async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); pruneTombstones(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION, deletedTxIds: deletedTxIds})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(ts); }
 // clamp a subscription's billing day into 1–31 so corrupt data can't produce
 // "يوم 99" that never matches the daily-review check
 function _normalizeSub(x){
@@ -498,6 +577,7 @@ async function idbBackup(savedAt){
         autoDistribute, budgets,
         distribution: DISTRIBUTION,
         dismissedRecurring: Array.from(dismissedRecurring),
+        deletedTxIds: deletedTxIds,
         subscriptions: subscriptions,
         savedAt: (typeof savedAt === 'number' && isFinite(savedAt)) ? savedAt : Date.now()
       }, 'snapshot');

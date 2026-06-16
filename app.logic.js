@@ -450,8 +450,13 @@ async function deleteTx(id){
     });
     if(!removed.length) return;
 
+    // record tombstones so the deletion propagates on multi-device merge sync
+    const now = Date.now();
+    removed.forEach(tx => { deletedTxIds[tx.id] = now; });
+
     await saveBalances();
     await saveTx();
+    await saveConfig(); // persist the new tombstones (they live in config)
     render();
 
     _lastDeleted = removed;
@@ -475,9 +480,11 @@ async function undoDelete(){
     removed.forEach(tx => {
       state.transactions.push(tx);
       applyTxToBalance(tx, +1);
+      delete deletedTxIds[tx.id]; // un-tombstone: the delete was undone
     });
     await saveBalances();
     await saveTx();
+    await saveConfig(); // persist tombstone removal
     render();
     toast(removed.length > 1 ? '↩️ تم استرجاع الحركات' : '↩️ تم استرجاع المعاملة');
   } finally {
@@ -619,6 +626,7 @@ function exportData(){
     autoDistribute: autoDistribute,
     distribution: DISTRIBUTION,
     dismissedRecurring: Array.from(dismissedRecurring),
+    deletedTxIds: deletedTxIds,
     subscriptions: subscriptions,
     uiPrefs: collectUiPrefs()
   };
@@ -719,6 +727,7 @@ async function applyImport(text){
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
   if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
   if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring);
+  if(data.deletedTxIds && typeof data.deletedTxIds === 'object') deletedTxIds = data.deletedTxIds;
   if(Array.isArray(data.subscriptions)){
     subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
@@ -801,6 +810,7 @@ async function wipeAll(){
   budgets = {};
   autoDistribute = false;
   dismissedRecurring.clear();
+  deletedTxIds = {}; // wipe tombstones too — fresh start
   selectedWallet = WALLET_DEFS[0].id;
   selectedCategory = 'other';
   editingTxId = null;
@@ -1247,6 +1257,7 @@ async function driveSyncToCloud(){
       budgets: budgets,
       distribution: DISTRIBUTION,
       dismissedRecurring: Array.from(dismissedRecurring),
+      deletedTxIds: deletedTxIds,
       subscriptions: subscriptions,
       uiPrefs: collectUiPrefs()
     });
@@ -1350,6 +1361,7 @@ async function adoptCloudSnapshot(cloud){
   if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
   if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
   if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
+  if(cloud.deletedTxIds && typeof cloud.deletedTxIds === 'object') deletedTxIds = cloud.deletedTxIds;
   if(Array.isArray(cloud.subscriptions)){
     subscriptions = cloud.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
@@ -1411,24 +1423,21 @@ async function driveSyncFromCloud(isInitial, interactive){
       || (parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0);
 
     if(!interactive){
-      // automatic reconnect — never interrupt. Use a clock-skew tolerance so a
-      // device clock that's a second ahead of Google's can't make a STALE cloud
-      // snapshot silently overwrite genuinely newer local data. Within the skew
-      // window we tie-break by transaction count (prefer the copy with MORE data
-      // so an automatic merge never silently drops transactions).
-      const SKEW_MS = 5000;
-      const cloudCnt = (cloud.transactions || []).length;
-      const localCnt = state.transactions.length;
-      let adopt;
-      if(cloudTime > localTime + SKEW_MS)      adopt = true;
-      else if(localTime > cloudTime + SKEW_MS) adopt = false;
-      else                                     adopt = cloudCnt > localCnt; // near-tie: more data wins
-      if(adopt){
-        await adoptCloudSnapshot(cloud);
-        toast('☁️ حُدّثت بياناتك من Drive');
-      } else {
-        await driveSyncToCloud(); // local is newer/equal — push it up
-      }
+      // automatic reconnect — never interrupt. Instead of clobbering one side, do a
+      // transaction-level UNION merge so nothing added on either device is lost, and
+      // honor tombstones from both sides so deletions still propagate (no resurrected
+      // rows). Config is taken from whichever side edited last.
+      _opInFlight++;
+      try{
+        const cloudNewer = cloudTime > localTime;
+        const { added, removed } = mergeCloudData(cloud, cloudNewer);
+        await saveBalances(); await saveTx(); await saveConfig(); await saveSubs();
+        render(true);
+        await driveSyncToCloud(); // push the merged result so the cloud converges too
+        if(added || removed){
+          toast(`☁️ تمت المزامنة — ${added ? `أُضيف ${added} ` : ''}${removed ? `حُذف ${removed} ` : ''}من جهاز آخر`);
+        }
+      } finally { _opInFlight--; }
       setDriveIndicator('ok');
       return;
     }
