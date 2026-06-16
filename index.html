@@ -403,7 +403,7 @@ try{
           </div>
         </div>
         <div id="driveActions" style="display:none;">
-          <div class="hint" id="driveEmbeddedWarn" style="display:none; margin:0 0 8px; border:1px solid var(--gold); border-radius:8px; padding:8px 10px; color:var(--text);">
+          <div class="hint" id="driveEmbeddedWarn" style="display:none; margin:0 0 8px; border:1px solid var(--gold); border-radius:var(--radius-sm); padding:8px 10px; color:var(--text);">
             ⚠️ افتح التطبيق في Chrome أو Safari مباشرةً لتسجيل الدخول.
           </div>
           <div id="driveReconnectRow" style="display:none; padding:8px 0; font-size:13px; color:var(--blue); align-items:center; gap:8px;">
@@ -416,7 +416,7 @@ try{
             <button class="btn-secondary" onclick="driveManualSync()">⬆ مزامنة الآن</button>
             <button class="btn-secondary" onclick="driveSignOut()">خروج</button>
           </div>
-          <div id="driveAutoSignInPrompt" style="display:none; margin-top:10px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:10px;">
+          <div id="driveAutoSignInPrompt" style="display:none; margin-top:10px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:var(--radius-sm);">
             <div style="font-size:13px; font-weight:600; margin-bottom:6px;">🔐 الاتصال التلقائي</div>
             <div style="font-size:12px; color:var(--muted); margin-bottom:10px; line-height:1.6;">هل تريد الاتصال بـ Drive تلقائياً؟ لن تحتاج لتسجيل الدخول في كل مرة.</div>
             <div class="modal-actions">
@@ -424,7 +424,7 @@ try{
               <button class="btn-secondary" onclick="dismissDriveAutoSignInPrompt()">ليس الآن</button>
             </div>
           </div>
-          <div id="driveAutoSignInRow" style="display:none; margin-top:10px; padding:10px 12px; background:var(--card2); border-radius:10px;">
+          <div id="driveAutoSignInRow" style="display:none; margin-top:10px; padding:10px 12px; background:var(--card2); border-radius:var(--radius-sm);">
             <label style="display:flex; align-items:center; gap:12px; cursor:pointer;">
               <input type="checkbox" id="driveAutoSignInChk" onchange="setDriveAutoSignIn(this.checked)" style="width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0;">
               <div>
@@ -626,7 +626,7 @@ try{
       وجدنا بيانات محفوظة على Drive <b style="color:var(--text)">وأيضًا</b> بيانات محلية على هذا الجهاز.<br>
       أيٌّ منهما تريد الاحتفاظ به؟
     </div>
-    <div id="conflictInfo" style="margin-top:12px; font-size:12.5px; line-height:1.9;"></div>
+    <div id="conflictInfo" style="margin-top:12px; font-size:12px; line-height:1.9;"></div>
     <div style="display:flex; flex-direction:column; gap:10px; margin:16px 0;">
       <button class="btn-primary" onclick="resolveConflict(true)">☁️ استخدم نسخة Drive (تستبدل المحلية)</button>
       <button class="btn-secondary" onclick="resolveConflict(false)">📱 احتفظ بالمحلية (ارفعها إلى Drive)</button>
