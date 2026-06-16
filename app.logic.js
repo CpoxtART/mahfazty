@@ -2018,6 +2018,25 @@ async function forceClearAndUpdate(){
   window.location.reload();
 }
 
+// Ask the browser to re-check sw.js for a new version. `force` skips the 30s
+// throttle (used for the initial check). The throttle stops rapid tab-switching
+// from hammering the network while still letting a return-after-hours check run.
+let _lastSWUpdateCheck = 0;
+function checkForSWUpdate(force){
+  const reg = _swRegistration;
+  if(!reg) return;
+  const now = Date.now();
+  if(!force && now - _lastSWUpdateCheck < 30000) return;
+  _lastSWUpdateCheck = now;
+  // a SW may already be installed and waiting (detected on a previous check) —
+  // surface its banner immediately instead of waiting for another updatefound
+  if(reg.waiting && !_pendingWorker){
+    _pendingWorker = reg.waiting;
+    showUpdateBanner();
+  }
+  try{ reg.update(); }catch(_){}
+}
+
 function setupPWA(){
   applyManifest(document.body.classList.contains('light'));
 
@@ -2029,7 +2048,11 @@ function setupPWA(){
   sessionStorage.removeItem('_swJustUpdated');
 
   try{
-    navigator.serviceWorker.register('./sw.js')
+    // updateViaCache:'none' → the browser always re-fetches sw.js from the network
+    // (never the HTTP cache) when checking for updates, so a new version is detected
+    // reliably instead of being masked by a stale cached sw.js. This is the main fix
+    // for the "update banner shows up late" problem.
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
       .then(reg => {
         _swRegistration = reg;
 
@@ -2048,6 +2071,11 @@ function setupPWA(){
             }
           });
         });
+
+        // Trigger an explicit check right away, then poll every 15 min while the app
+        // stays open, so long-running sessions pick up a new version promptly.
+        checkForSWUpdate(true);
+        setInterval(checkForSWUpdate, 15 * 60 * 1000);
       })
       .catch(e => console.warn('SW registration failed:', e));
 
@@ -2219,6 +2247,7 @@ document.addEventListener('visibilitychange', () => {
     _monthlyExpenseCache = null;
     _monthlyExpenseCacheKey = '';
     capDateInputsToToday(); // "today" may have rolled over while tab was hidden
+    checkForSWUpdate(); // returning to the app is the prime moment to catch a new version
     render(true);
   } else {
     // flush pending Drive sync immediately — the 1500ms debounce may never fire if tab is discarded
