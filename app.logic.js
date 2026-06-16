@@ -949,7 +949,7 @@ function toastWithUndo(msg, undoFn){
   span.textContent = msg;
   const btn = document.createElement('button');
   btn.textContent = 'تراجع ↩️';
-  btn.style.cssText = 'background:var(--gold); color:#241d0d; border:none; border-radius:99px; padding:4px 12px; font-size:11.5px; font-weight:700; margin-inline-end:8px; cursor:pointer;';
+  btn.style.cssText = 'background:var(--gold-btn); color:var(--on-gold); border:none; border-radius:var(--radius-pill); padding:5px 13px; font-size:12px; font-weight:700; margin-inline-end:8px; cursor:pointer;';
   btn.onclick = () => {
     el.classList.remove('show');
     undoFn();

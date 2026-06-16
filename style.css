@@ -40,6 +40,8 @@
     --gold:#dcb674;
     --gold-dim:#9c844f;
     --gold-soft:#332a18;
+    --gold-btn:#dcb674;   /* filled-button gold (split from accent --gold) */
+    --on-gold:#241d0d;    /* text/icon color on a gold button */
     --green:#86c39a;
     --green-soft:#1b2a21;
     --red:#e3918f;
@@ -76,6 +78,8 @@
     --gold:#a87f3a;
     --gold-dim:#c4a061;
     --gold-soft:#f3ead8;
+    --gold-btn:#cfa54e;   /* lighter than accent gold so near-black text hits AAA (~7.5:1) */
+    --on-gold:#231a07;
     --green:#3e8d59;
     --green-soft:#e3f0e7;
     --red:#c05a57;
@@ -102,7 +106,7 @@
     min-height:100vh;
     min-height:100dvh; /* iOS Safari: exclude collapsing address bar */
   }
-  ::selection{background:var(--gold); color:#1b1d23;}
+  ::selection{background:var(--gold-btn); color:var(--on-gold);}
   .visually-hidden{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);}
   :focus-visible{outline:2px solid var(--gold); outline-offset:2px; border-radius:var(--radius-xs);}
 
@@ -118,7 +122,7 @@
   header .brand{display:flex; align-items:center; gap:14px; flex:1; min-width:0;}
   header .brand .mark{
     width:42px; height:42px; border-radius:13px;
-    background:linear-gradient(150deg, var(--gold), #b88c46);
+    background:linear-gradient(150deg, var(--gold-btn), #b88c46);
     display:flex; align-items:center; justify-content:center;
     font-size:20px; box-shadow:var(--shadow);
     flex-shrink:0;
@@ -367,7 +371,7 @@
   .wallet-cta-title{font-family:var(--serif); font-size:17px; color:var(--gold); font-weight:700;}
   .wallet-cta-sub{font-size:12px; color:var(--muted); line-height:1.7; max-width:300px;}
   .wallet-cta-btn{
-    margin-top:4px; padding:11px 22px; background:var(--gold); color:#241d0d;
+    margin-top:4px; padding:11px 22px; background:var(--gold-btn); color:var(--on-gold);
     border:none; border-radius:var(--radius-pill); font-weight:700; font-size:13px;
     font-family:inherit; cursor:pointer; transition:transform var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease);
     touch-action:manipulation;
@@ -676,8 +680,8 @@
     transition: background .2s var(--ease), color .2s, border-color .2s;
   }
   .filters button.active{
-    background:var(--gold);
-    color:#241d0d;
+    background:var(--gold-btn);
+    color:var(--on-gold);
     border-color:var(--gold);
   }
 
@@ -932,7 +936,7 @@
   .modal h3{font-family:var(--serif); font-size:19px; color:var(--gold); margin-bottom:14px; display:flex; align-items:center; gap:8px;}
   .modal-actions{display:flex; gap:8px; margin-top:14px;}
   .modal-actions button{flex:1; padding:13px;}
-  .btn-primary{background:var(--gold); color:#241d0d;}
+  .btn-primary{background:var(--gold-btn); color:var(--on-gold);}
   .btn-primary:active{background:#c9a563;}
   .btn-secondary{background:var(--bg-elev); color:var(--text); border:1.5px solid var(--line);}
   .btn-secondary:active{background:var(--card2);}
@@ -1153,8 +1157,8 @@
 }
 .fab-btn{
   width:52px; height:52px; border-radius:50%;
-  background:linear-gradient(150deg, var(--gold), #b88c46);
-  border:none; color:#1b1a10; font-size:28px; font-weight:400; line-height:1;
+  background:linear-gradient(150deg, var(--gold-btn), #b88c46);
+  border:none; color:var(--on-gold); font-size:28px; font-weight:400; line-height:1;
   display:flex; align-items:center; justify-content:center;
   box-shadow:0 4px 18px rgba(220,182,116,.42);
   cursor:pointer; font-family:inherit;
@@ -1363,7 +1367,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 .update-later:active{ background:var(--bg-elev); }
 .update-now{
   padding:5px 14px; font-size:12px; font-weight:700; font-family:inherit;
-  background:var(--gold); color:#1b1a10;
+  background:var(--gold-btn); color:var(--on-gold);
   border:none; border-radius:var(--radius-sm); cursor:pointer;
   transition:opacity .15s, transform var(--dur-fast) var(--ease);
   white-space:nowrap;
@@ -1404,7 +1408,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 .drive-banner-actions button{ flex:1; padding:12px; font-size:13px; font-weight:700; font-family:inherit; border-radius:var(--radius-sm); cursor:pointer; touch-action:manipulation; }
 .drive-banner-later{ background:var(--bg-elev); color:var(--muted); border:1px solid var(--line); }
 .drive-banner-later:active{ background:var(--card); }
-.drive-banner-yes{ background:var(--gold); color:#241d0d; border:none; }
+.drive-banner-yes{ background:var(--gold-btn); color:var(--on-gold); border:none; }
 .drive-banner-yes:active{ opacity:.85; transform:scale(.95); }
 
 /* ─── UI section wrappers (reorderable; no own box so margins stay intact) ─── */

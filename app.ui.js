@@ -1300,14 +1300,35 @@ function updateDistTotal(){
   el.className = 'dist-total ' + (parseFloat(display) === 100 ? 'ok' : 'warn');
 }
 
+// Scale every share proportionally so the set sums to EXACTLY 100, then push any
+// rounding residue onto the largest share. Keeps the income split honest so the
+// distribution breakdown can never show shares that exceed (or fall short of) the
+// income — the old "save anyway at 95%/120%" path misled that preview.
+function normalizeDistribution(){
+  const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
+  if(!(total > 0)) return false;
+  DISTRIBUTION.forEach(d=>{ d.pct = Math.round(((d.pct||0)/total)*1000)/10; }); // one decimal
+  const acc = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
+  const residual = Math.round((100 - acc) * 10) / 10;
+  if(residual !== 0){
+    let maxIdx = 0;
+    DISTRIBUTION.forEach((d,i)=>{ if((d.pct||0) > (DISTRIBUTION[maxIdx].pct||0)) maxIdx = i; });
+    DISTRIBUTION[maxIdx].pct = Math.round((DISTRIBUTION[maxIdx].pct + residual) * 10) / 10;
+  }
+  return true;
+}
+
 async function saveDistribution(){
   const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
   if(parseFloat(total.toFixed(1)) !== 100){
-    if(!confirm(`الإجمالي الحالي ${total.toFixed(1)}% وليس 100%. حفظ مع ذلك؟`)) return;
+    if(!(total > 0)){ toast('⚠ أدخل نِسبًا صحيحة أولاً', true); return; }
+    if(!confirm(`الإجمالي ${total.toFixed(1)}% وليس 100%.\n\nسيتم تعديل النسب تلقائيًا لتصبح 100% مع الحفاظ على تناسبها. متابعة؟`)) return;
+    normalizeDistribution();
+    renderDistributionEditor(); // reflect the normalized values back into the inputs
   }
   await saveConfig();
   renderWallets();
-  toast('✓ تم حفظ النسب');
+  toast('✓ تم حفظ النسب (المجموع 100٪)');
 }
 
 function resetDistribution(){
