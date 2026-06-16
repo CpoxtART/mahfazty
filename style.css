@@ -1250,9 +1250,10 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 .reorder-label{ font-size:13px; color:var(--text); display:flex; align-items:center; gap:7px; }
 .reorder-btns{ display:flex; gap:6px; flex-shrink:0; }
 .reorder-btns button{
-  width:40px; height:40px; background:var(--bg-elev); border:1px solid var(--line);
+  width:44px; height:44px; background:var(--bg-elev); border:1px solid var(--line);
   color:var(--muted); border-radius:8px; cursor:pointer; font-size:12px;
   font-family:inherit; display:flex; align-items:center; justify-content:center;
+  touch-action:manipulation;
   transition:color .15s, background .15s, border-color .15s;
 }
 .reorder-btns button:not(:disabled):active{ background:var(--card2); color:var(--gold); border-color:var(--gold-dim); }

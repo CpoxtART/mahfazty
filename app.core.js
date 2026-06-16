@@ -144,7 +144,7 @@ function escHtml(str){
     // strip Unicode bidi embedding/override/isolate controls — a pasted or voiced
     // description containing e.g. U+202E can otherwise visually scramble the whole
     // RTL layout of surrounding UI text ("Trojan Source"-style display corruption)
-    .replace(/[‪-‮⁦-⁩]/g,'')
+    .replace(/[‪-‮⁦-⁩]/g,'') // explicit escapes: immune to source-editor normalization stripping literal control chars
     .replace(/&/g,'&amp;')
     .replace(/</g,'&lt;')
     .replace(/>/g,'&gt;')
@@ -159,16 +159,20 @@ function animateNumber(el, from, to, duration){
     el.textContent = fmt(to);
     return;
   }
-  if(_animFrames[el.id]) cancelAnimationFrame(_animFrames[el.id]);
+  // key by id, falling back to a stable per-element key so two id-less elements
+  // can't share the "" slot and cancel each other's frames
+  const key = el.id || (el._animKey || (el._animKey = 'anon_' + Math.random().toString(36).slice(2)));
+  const dur = (typeof duration === 'number' && duration > 0) ? duration : 450;
+  if(_animFrames[key]) cancelAnimationFrame(_animFrames[key]);
   const start = performance.now();
   function frame(now){
-    const t = Math.min(1, (now - start) / duration);
+    const t = Math.min(1, (now - start) / dur);
     const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
     el.textContent = fmt(from + (to - from) * eased);
-    if(t < 1) _animFrames[el.id] = requestAnimationFrame(frame);
-    else delete _animFrames[el.id];
+    if(t < 1) _animFrames[key] = requestAnimationFrame(frame);
+    else delete _animFrames[key];
   }
-  _animFrames[el.id] = requestAnimationFrame(frame);
+  _animFrames[key] = requestAnimationFrame(frame);
 }
 /* ============================================================
    THEME (dark / light)
@@ -294,10 +298,11 @@ async function loadState(){
         });
       }
       if(c.distribution && Array.isArray(c.distribution) && c.distribution.length){
-        DISTRIBUTION = c.distribution.filter(d => WALLET_DEFS.find(w=>w.id===d.id));
-        if(!DISTRIBUTION.length) DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
+        // sanitizeDistribution also clamps/validates each pct (a raw filter would
+        // let a NaN/negative/string pct from a tampered config into the money math)
+        DISTRIBUTION = sanitizeDistribution(c.distribution);
       }
-      dismissedRecurring = new Set(c.dismissedRecurring || []);
+      dismissedRecurring = new Set(Array.isArray(c.dismissedRecurring) ? c.dismissedRecurring : []);
       _lsHadConfig = true;
     }
   }catch(e){}
@@ -312,12 +317,16 @@ async function loadState(){
   //    ~5MB cap). localStorage may still hold a legacy copy from older versions or
   //    an IDB-unavailable fallback — used only when newer than the IDB snapshot. ──
   const _lsLastEdit = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0;
+  // Prefer dataEdit (bumped only by real DATA changes) so a pref-only save that
+  // bumped lastEdit can't make a stale localStorage tx blob win over fresher IDB.
+  // Fall back to lastEdit only when dataEdit is absent (legacy migration path).
+  const _lsDataEdit = parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0;
   const _idb = await idbRestore(); // also opens the DB, setting _idbAvailable
   const _idbTime = (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0;
   let _lsTx = null;
   try{ const raw = localStorage.getItem(LS_PREFIX + 'transactions'); if(raw) _lsTx = JSON.parse(raw); }catch(e){}
   const _idbHasTx = _idb && Array.isArray(_idb.transactions);
-  const _lsTxNewer = Array.isArray(_lsTx) && _lsLastEdit > _idbTime;
+  const _lsTxNewer = Array.isArray(_lsTx) && (_lsDataEdit || _lsLastEdit) > _idbTime;
 
   if(_idbHasTx && !_lsTxNewer){
     // IndexedDB snapshot is the source of truth
@@ -424,10 +433,20 @@ function _pruneRecurringDismissals(){
   for(const k of dismissedRecurring){ if(!live.has(k)) dismissedRecurring.delete(k); }
 }
 async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(ts); }
+// clamp a subscription's billing day into 1–31 so corrupt data can't produce
+// "يوم 99" that never matches the daily-review check
+function _normalizeSub(x){
+  let d = parseInt(x.billingDay, 10);
+  if(!isFinite(d)) d = 1;
+  x.billingDay = Math.min(31, Math.max(1, d));
+  return x;
+}
 function loadSubs(){
   try{
     const s = localStorage.getItem(LS_PREFIX + 'subs');
-    if(s) subscriptions = JSON.parse(s).filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
+    if(s) subscriptions = JSON.parse(s)
+      .filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0)
+      .map(_normalizeSub);
   }catch(e){ subscriptions = []; }
 }
 async function saveSubs(){
@@ -513,7 +532,8 @@ function toggleCrisis(){
   if(state.crisisMode && walletFilter && CRISIS_WALLET_IDS.includes(walletFilter)){
     walletFilter = null;
   }
-  document.getElementById('crisisToggle').setAttribute('aria-checked', state.crisisMode);
+  const _ct = document.getElementById('crisisToggle');
+  if(_ct) _ct.setAttribute('aria-checked', state.crisisMode ? 'true' : 'false'); // may be hidden via layout editor
   // crisis flips the spendable total by the reserve amount — that's not a real
   // money movement, so snap to the new value instead of count-up animating across it
   prevSpendable = null;

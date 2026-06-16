@@ -135,10 +135,19 @@ async function confirmDistribution(){
   }
   const txToDistribute = pendingIncomeTx;
   pendingIncomeTx = null; // clear early so double-tap cannot trigger a second distribution
-  await runDistribution(txToDistribute, txToDistribute.amount);
-  closeModal('distributeModal');
-  render();
-  toast('✓ تم توزيع الدخل على المحافظ');
+  // re-find by id: a cross-tab reload could have replaced state.transactions, leaving
+  // txToDistribute detached (its link mutation + legs would target a stale object)
+  const live = state.transactions.find(t => t.id === txToDistribute.id);
+  if(!live){ closeModal('distributeModal'); toast('⚠ تعذّر التوزيع — لم تعد المعاملة موجودة', true); return; }
+  _opInFlight++; // guard the multi-await distribution against a mid-flight reload
+  try{
+    await runDistribution(live, live.amount);
+    closeModal('distributeModal');
+    render();
+    toast('✓ تم توزيع الدخل على المحافظ');
+  } finally {
+    _opInFlight--;
+  }
 }
 
 function saveAutoDistributePref(){
@@ -459,15 +468,21 @@ async function undoDelete(){
   const removed = _lastDeleted;
   _lastDeleted = null;
   clearTimeout(_undoTimer);
-  // position in the array is irrelevant (the list is always sorted by ts)
-  removed.forEach(tx => {
-    state.transactions.push(tx);
-    applyTxToBalance(tx, +1);
-  });
-  await saveBalances();
-  await saveTx();
-  render();
-  toast(removed.length > 1 ? '↩️ تم استرجاع الحركات' : '↩️ تم استرجاع المعاملة');
+  _opInFlight++;        // block the cross-tab storage reload mid-restore
+  _txMutationStamp++;   // invalidate stamp-keyed caches (first-tx scan, render sig)
+  try{
+    // position in the array is irrelevant (the list is always sorted by ts)
+    removed.forEach(tx => {
+      state.transactions.push(tx);
+      applyTxToBalance(tx, +1);
+    });
+    await saveBalances();
+    await saveTx();
+    render();
+    toast(removed.length > 1 ? '↩️ تم استرجاع الحركات' : '↩️ تم استرجاع المعاملة');
+  } finally {
+    _opInFlight--;
+  }
 }
 
 /* ============================================================
@@ -481,6 +496,15 @@ function openModal(id){
   // remember what had focus so we can restore it when the modal closes (a11y)
   _focusStack.push(document.activeElement);
   const modal = document.getElementById(id);
+  // give the dialog an accessible name from its heading (so SR doesn't announce an
+  // unnamed dialog) — done here once instead of hand-wiring aria-labelledby on all 11
+  if(!modal.hasAttribute('aria-label') && !modal.hasAttribute('aria-labelledby')){
+    const h = modal.querySelector('h3');
+    if(h){
+      if(!h.id) h.id = id + '_title';
+      modal.setAttribute('aria-labelledby', h.id);
+    }
+  }
   modal.classList.add('open');
   // lock background scroll so the page behind the sheet doesn't move while a
   // modal (and the on-screen keyboard) is open on mobile
@@ -696,7 +720,7 @@ async function applyImport(text){
   if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
   if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring);
   if(Array.isArray(data.subscriptions)){
-    subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
+    subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
   if(data.uiPrefs) applyUiPrefs(data.uiPrefs);
   // restore appearance + data-edit time if the backup carried them (lossless round-trip)
@@ -1165,10 +1189,10 @@ async function driveFindFile(){
 let _driveSyncBusy = false;
 let _driveResyncPending = false; // a change arrived mid-sync — re-sync afterwards
 async function driveSyncToCloud(){
-  if(!driveAccessToken) return;
+  if(!driveAccessToken) return false;
   // if a sync is already running, remember that newer changes need flushing
   // afterwards instead of dropping them silently
-  if(_driveSyncBusy){ _driveResyncPending = true; return; }
+  if(_driveSyncBusy){ _driveResyncPending = true; return false; }
   _driveSyncBusy = true;
   setDriveIndicator('syncing');
   try{
@@ -1225,6 +1249,7 @@ async function driveSyncToCloud(){
       driveFileId = data.id;
     }
     setDriveIndicator('ok');
+    return true;
   }catch(e){
     console.error(e);
     setDriveIndicator('error');
@@ -1242,6 +1267,7 @@ async function driveSyncToCloud(){
     } else {
       toast('⚠ تعذر الاتصال بـ Drive، سيُعاد المحاولة لاحقًا', true);
     }
+    return false;
   } finally {
     _driveSyncBusy = false;
     // flush a change that arrived while this sync was in flight, or recreate a
@@ -1259,6 +1285,8 @@ async function driveSyncToCloud(){
 // import/Drive/conflict paths can't drift apart). Clears balances first so wallets
 // omitted from the snapshot don't keep stale values.
 async function adoptCloudSnapshot(cloud){
+  _opInFlight++; // wholesale state replacement across awaits — block cross-tab reload race
+  try{
   if(cloud.wallets){
     WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
     WALLET_DEFS.forEach(w => {
@@ -1268,7 +1296,7 @@ async function adoptCloudSnapshot(cloud){
       }
     });
   }
-  if(cloud.transactions){
+  if(Array.isArray(cloud.transactions)){ // harden against a crafted non-array value
     state.transactions = cloud.transactions.filter(tx =>
       tx && (tx.type === 'income' || tx.type === 'expense') &&
       typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
@@ -1282,13 +1310,16 @@ async function adoptCloudSnapshot(cloud){
   if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
   if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
   if(Array.isArray(cloud.subscriptions)){
-    subscriptions = cloud.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
+    subscriptions = cloud.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
   if(cloud.uiPrefs) applyUiPrefs(cloud.uiPrefs);
   _txMutationStamp++; // adopted a new cloud data set — invalidate derived caches
   prevSpendable = null; // force fresh hero animation after loading a new data set
   await saveBalances(); await saveTx(); await saveConfig(); await saveSubs();
   render(true); // force: wallet object is mutated in-place so reference-equality sig check would miss balance changes
+  } finally {
+    _opInFlight--;
+  }
 }
 
 // isInitial: this is the first pull after (re)connecting.
@@ -1399,7 +1430,9 @@ async function resolveConflict(useCloud){
 }
 
 function driveManualSync(){
-  driveSyncToCloud().then(()=> toast('✓ تمت المزامنة مع Drive'));
+  // only toast success when the upload actually succeeded — driveSyncToCloud
+  // catches its own errors (and toasts them), returning false on failure/queue
+  driveSyncToCloud().then(ok => { if(ok) toast('✓ تمت المزامنة مع Drive'); });
 }
 
 // Debounced auto-sync: called after every local save
@@ -1544,7 +1577,7 @@ function buildDailyReviewContent(){
   const todayDay = now.getDate();
   const dueSubs = subscriptions.filter(s => s.active !== false && s.billingDay === todayDay);
   if(dueSubs.length > 0){
-    const dueTotal = round2(dueSubs.reduce((s,x) => s + x.amount, 0));
+    const dueTotal = round2(dueSubs.reduce((s,x) => s + (Number(x.amount) || 0), 0));
     const dueNames = dueSubs.map(s => escHtml(s.name)).join('، ');
     lines.push(`📆 اشتراكات تُحسم اليوم: <b style="color:var(--text)">${dueNames}</b> · إجمالي: <b style="color:var(--red)">${fmt(dueTotal)}</b>`);
   }

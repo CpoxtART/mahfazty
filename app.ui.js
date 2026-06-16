@@ -811,9 +811,12 @@ function applyVoiceTranscript(text){
     .trim();
   Object.keys(VOICE_NUMBER_WORDS).forEach(w => { desc = desc.replace(new RegExp(w,'g'), ''); });
   desc = desc.replace(/\s{2,}/g,' ').trim();
-  // remove common verbs
-  ['صرفت','دفعت','اشتريت','استلمت','استقبلت','على','ريال','دينار','ل','من'].forEach(w=>{
-    desc = desc.replace(new RegExp('\\b'+w+'\\b','g'), '');
+  // remove common verbs/particles. JS \b is ASCII-only so it never matches around
+  // Arabic letters — use whitespace anchors instead so these are actually stripped.
+  // (bare single-letter particles like "ل" are intentionally omitted — too risky to
+  // strip without butchering real words.)
+  ['صرفت','دفعت','اشتريت','استلمت','استقبلت','على','ريال','دينار','من'].forEach(w=>{
+    desc = desc.replace(new RegExp('(^|\\s)'+w+'(?=\\s|$)','g'), ' ');
   });
   desc = desc.replace(/\s{2,}/g,' ').trim();
 
@@ -942,6 +945,12 @@ function renderPieChart(){
     totals[cat] = (totals[cat]||0) + tx.amount;
   });
   const total = Object.values(totals).reduce((a,b)=>a+b,0);
+  // guard against an all-zero-amount set (e.g. crafted import) — every downstream
+  // amt/total below would be NaN/Infinity and the donut + legend would render broken
+  if(!(total > 0)){
+    wrap.innerHTML = '<div class="chart-empty" style="flex:1;">لا توجد مصروفات في هذه الفترة</div>';
+    return;
+  }
   const entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
 
   // largest-remainder rounding so the displayed integer percentages always sum
@@ -1097,12 +1106,13 @@ function toggleTransferMenu(dir){
 let _doTransferBusy = false;
 async function doTransfer(){
   if(_doTransferBusy) return;
-  _txMutationStamp++;
   const amt = round2(parseAmount(document.getElementById('transferAmount').value)); // cent precision — match display, avoid sub-cent drift
   if(!isFinite(amt) || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
   if(!transferFrom || !transferTo){ toast('⚠ اختر المحفظتين أولاً', true); return; }
   if(transferFrom === transferTo){ toast('⚠ اختر محفظتين مختلفتين', true); return; }
   _doTransferBusy = true;
+  _txMutationStamp++; // only once committed past validation — invalid taps shouldn't bump it
+  _opInFlight++;
   try{
     const dateVal = document.getElementById('transferDate').value || todayISO();
     let ts = buildTxTs(dateVal);
@@ -1139,6 +1149,7 @@ async function doTransfer(){
     toast('✓ تم التحويل بنجاح');
   } finally {
     _doTransferBusy = false;
+    _opInFlight--;
   }
 }
 
@@ -1149,6 +1160,7 @@ let _updateBalanceBusy = false;
 async function updateTrackedBalance(){
   if(_updateBalanceBusy || !detailWalletId) return;
   const w = WALLET_DEFS.find(x=>x.id===detailWalletId);
+  if(!w){ toast('⚠ المحفظة غير موجودة', true); return; } // detailWalletId could be stale
   const newVal = parseAmount(document.getElementById('detailNewBalance').value);
   if(isNaN(newVal)){ toast('⚠ أدخل رصيد صحيح', true); return; }
 
@@ -1157,6 +1169,8 @@ async function updateTrackedBalance(){
   if(diff === 0){ toast('لا يوجد تغيير بالرصيد'); return; }
 
   _updateBalanceBusy = true;
+  _opInFlight++;
+  _txMutationStamp++; // adds an adjustment tx — invalidate stamp-keyed caches
   try{
     const tx = {
       id: 'tx_'+Date.now()+'_adj'+Math.random().toString(36).slice(2,4),
@@ -1177,6 +1191,7 @@ async function updateTrackedBalance(){
     toast('✓ تم تحديث الرصيد');
   } finally {
     _updateBalanceBusy = false;
+    _opInFlight--;
   }
 }
 

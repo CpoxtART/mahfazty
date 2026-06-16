@@ -1,5 +1,8 @@
-const CACHE = 'mhfzty-v14';
-const PRECACHE = ['./index.html', './style.css', './app.core.js', './app.ui.js', './app.logic.js', './sw.js'];
+const CACHE = 'mhfzty-v15';
+// Note: sw.js itself is intentionally NOT precached — the browser fetches and
+// byte-compares it directly to drive updates; caching it via the Cache API is a
+// no-op at best and can interfere with that update check.
+const PRECACHE = ['./index.html', './style.css', './app.core.js', './app.ui.js', './app.logic.js'];
 
 self.addEventListener('install', e => {
   // Pre-cache core files so the app works offline from the very first visit.
