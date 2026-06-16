@@ -1643,13 +1643,50 @@ function hideSplash(){
 /* ============================================================
    FIRST-RUN WELCOME MODAL
 ============================================================ */
+let _welcomeStep = 0;
+const _WELCOME_STEPS = 4;
 function checkFirstRun(){
   try{
     const seen = localStorage.getItem(LS_PREFIX + 'welcomeSeen');
     if(!seen){
+      _welcomeStep = 0;
+      _renderWelcomeStep();
       openModal('welcomeModal');
     }
   }catch(e){}
+}
+// Build the progress dots once, then sync slide/dots/buttons to the current step.
+function _renderWelcomeStep(){
+  const dots = document.getElementById('onbDots');
+  if(dots && dots.childElementCount !== _WELCOME_STEPS){
+    dots.innerHTML = '';
+    for(let i=0;i<_WELCOME_STEPS;i++){
+      const d = document.createElement('span');
+      d.className = 'onb-dot';
+      d.onclick = () => { _welcomeStep = i; _renderWelcomeStep(); };
+      dots.appendChild(d);
+    }
+  }
+  document.querySelectorAll('#welcomeModal .onb-slide').forEach(s => {
+    s.classList.toggle('active', Number(s.dataset.step) === _welcomeStep);
+  });
+  if(dots) Array.from(dots.children).forEach((d,i)=> d.classList.toggle('active', i === _welcomeStep));
+  const isLast = _welcomeStep === _WELCOME_STEPS - 1;
+  const back = document.getElementById('onbBack');
+  const nav = document.querySelector('#welcomeModal .onb-nav');
+  const start = document.getElementById('onbStart');
+  if(back) back.style.visibility = _welcomeStep === 0 ? 'hidden' : 'visible';
+  if(nav) nav.style.display = isLast ? 'none' : 'flex';
+  if(start) start.style.display = isLast ? 'flex' : 'none';
+}
+function welcomeNav(dir){
+  _welcomeStep = Math.min(_WELCOME_STEPS - 1, Math.max(0, _welcomeStep + dir));
+  _renderWelcomeStep();
+  haptic(8);
+}
+function welcomeStart(recordIncome){
+  closeWelcome();
+  if(recordIncome){ openAddDrawer(); setAddFormType('income'); }
 }
 function closeWelcome(){
   closeModal('welcomeModal');

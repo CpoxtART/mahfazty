@@ -964,6 +964,58 @@
   textarea.json-area:focus{outline:none; border-color:var(--gold); box-shadow:var(--focus-ring);}
   .modal .hint{font-size:12px; color:var(--muted); margin-top:10px; line-height:1.7;}
 
+  /* ─── First-run onboarding ─── */
+  #welcomeModal .modal{ position:relative; }
+  .onb-skip{
+    position:absolute; top:14px; inset-inline-end:16px;
+    background:none; border:none; color:var(--muted); font-family:inherit;
+    font-size:12px; font-weight:600; cursor:pointer; padding:6px 8px; z-index:2;
+    touch-action:manipulation;
+  }
+  .onb-skip:hover{ color:var(--text); }
+  .onb{ position:relative; min-height:286px; }
+  .onb-slide{
+    display:none; flex-direction:column; align-items:center; text-align:center;
+    padding:8px 4px 0;
+  }
+  .onb-slide.active{ display:flex; animation: chipIn .28s var(--ease); }
+  .onb-ic{
+    width:72px; height:72px; border-radius:var(--radius-lg);
+    background:linear-gradient(135deg, var(--gold-soft), var(--card));
+    border:1px solid var(--gold-dim);
+    display:flex; align-items:center; justify-content:center;
+    font-size:36px; margin-bottom:16px;
+  }
+  .onb-title{
+    font-family:var(--serif); font-size:20px; color:var(--gold);
+    margin-bottom:10px; display:block;
+  }
+  .onb-body{ font-size:13px; color:var(--text); line-height:1.8; max-width:340px; }
+  .onb-note{
+    font-size:12px; color:var(--muted); line-height:1.7; margin-top:14px;
+    max-width:340px;
+  }
+  .onb-pills{ display:flex; flex-wrap:wrap; justify-content:center; gap:7px; margin-top:14px; }
+  .onb-pill{
+    font-size:12px; font-weight:600; color:var(--gold);
+    background:var(--gold-soft); border:1px solid var(--gold-dim);
+    border-radius:var(--radius-pill); padding:5px 12px;
+  }
+  .onb-list{
+    list-style:none; text-align:start; margin-top:6px; width:100%; max-width:360px;
+    display:flex; flex-direction:column; gap:11px;
+  }
+  .onb-list li{ font-size:13px; color:var(--muted); line-height:1.6; }
+  .onb-list li b{ color:var(--text); font-weight:600; }
+  .onb-dots{ display:flex; justify-content:center; gap:8px; margin-top:18px; }
+  .onb-dot{
+    width:8px; height:8px; border-radius:50%; background:var(--line);
+    cursor:pointer; transition: background var(--dur) var(--ease), width var(--dur) var(--ease);
+  }
+  .onb-dot.active{ width:22px; border-radius:var(--radius-pill); background:var(--gold); }
+  .onb-start{ display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+  .onb-start button{ width:100%; padding:14px; }
+
   /* type toggle in edit modal */
   .type-toggle{display:flex; gap:8px; margin-bottom:12px;}
   .type-toggle button{flex:1; padding:11px; background:var(--bg); border:1px solid var(--line); color:var(--muted); font-size:13px;}

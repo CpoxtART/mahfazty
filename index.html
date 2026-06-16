@@ -588,21 +588,72 @@ try{
 </div>
 
 <!-- ===== WELCOME MODAL (first run) ===== -->
-<div class="modal-overlay" role="dialog" aria-modal="true" id="welcomeModal">
+<div class="modal-overlay" role="dialog" aria-modal="true" id="welcomeModal" aria-labelledby="welcomeTitle">
   <div class="modal">
     <div class="grabber"></div>
-    <h3>🙂‍↔️ أهلاً بك في محفظتيييي</h3>
-    <div class="hint" style="margin-top:0; font-size:13px; line-height:1.7;">
-      <b style="color:var(--text)">📊 10 محافظ بنسب جاهزة</b> — موزّعة حسب نظامك المالي (50/10/10/10/10/5/5 + Uber + بانك كاردز + كاش).<br>
-      <b style="color:var(--text)">🔄 توزيع تلقائي للدخل</b> — أي دخل تسجله، يتوزع على المحافظ حسب النسب فورًا.<br>
-      <b style="color:var(--text)">🏷️ فئات + رسم بياني</b> — لمعرفة وين تروح فلوسك بالضبط.<br>
-      <b style="color:var(--text)">🔁 تحويل بين المحافظ</b> — وتسجيل بالتاريخ والوقت اللي تبيه.<br>
-      <b style="color:var(--text)">🔄 الوضع البديل</b> — يدمج محافظ الادخار في احتياطي واحد وقت الحاجة.<br>
-      <b style="color:var(--text)">☁️ مزامنة Google Drive</b> — احفظ بياناتك بحسابك الخاص (اختياري، من ⚙ الإعدادات).<br><br>
-      <span style="color:var(--blue)">💡 ملاحظة: محفظتي "بانك كاردز" و"Cash" هي أرقام تتبع فقط (رصيد بطاقاتك/كاشك الفعلي) ولا تُحتسب ضمن "الإجمالي المتاح للصرف" بالأعلى.</span>
+    <button class="onb-skip" type="button" onclick="closeWelcome()">تخطّي</button>
+
+    <div class="onb">
+      <!-- Slide 1: what it is -->
+      <div class="onb-slide active" data-step="0">
+        <div class="onb-ic">💰</div>
+        <h3 id="welcomeTitle" class="onb-title">أهلاً بك في محفظتيييي</h3>
+        <p class="onb-body">مدير ميزانيتك الشخصي — يقسّم دخلك تلقائيًا على محافظ مدروسة، ويتتبّع كل ريال يدخل ويطلع.</p>
+        <p class="onb-note">🔒 بياناتك تبقى على جهازك بالكامل، ولا تُرفع لأي خادم.</p>
+      </div>
+
+      <!-- Slide 2: auto-distribution (core magic) -->
+      <div class="onb-slide" data-step="1">
+        <div class="onb-ic">🔄</div>
+        <h3 class="onb-title">وزّع دخلك بذكاء</h3>
+        <p class="onb-body">كل دخل تسجّله يتوزّع فورًا على ١٠ محافظ بنِسب جاهزة:</p>
+        <div class="onb-pills">
+          <span class="onb-pill">٥٠٪ أساسي</span>
+          <span class="onb-pill">١٠٪ رغبات</span>
+          <span class="onb-pill">١٠٪ نمو</span>
+          <span class="onb-pill">١٠٪ استثمار</span>
+          <span class="onb-pill">١٠٪ متعة</span>
+          <span class="onb-pill">٥٪ عطاء</span>
+          <span class="onb-pill">٥٪ احتياطي</span>
+        </div>
+        <p class="onb-note">تقدر تعدّل النسب في أي وقت من ⚙ الإعدادات.</p>
+      </div>
+
+      <!-- Slide 3: track & analyze -->
+      <div class="onb-slide" data-step="2">
+        <div class="onb-ic">📊</div>
+        <h3 class="onb-title">اعرف وين تروح فلوسك</h3>
+        <ul class="onb-list">
+          <li><b>🏷️ فئات ورسوم بيانية</b> — توزيع مصروفك وحركة رصيدك بصريًّا.</li>
+          <li><b>🔁 تحويل بين المحافظ</b> — وتسجيل بأي تاريخ ووقت.</li>
+          <li><b>🎯 ميزانيات شهرية</b> — لكل محفظة، مع تنبيه عند الاقتراب.</li>
+          <li><b>📆 الاشتراكات</b> — تابِع تكاليفك المتكررة وتذكيراتها.</li>
+        </ul>
+      </div>
+
+      <!-- Slide 4: extras + privacy + start -->
+      <div class="onb-slide" data-step="3">
+        <div class="onb-ic">✨</div>
+        <h3 class="onb-title">مرن وجاهز معك دائمًا</h3>
+        <ul class="onb-list">
+          <li><b>🔄 الوضع البديل</b> — يدمج مدّخراتك في احتياطي واحد وقت الحاجة.</li>
+          <li><b>🎙️ إدخال صوتي</b> — سجّل المبلغ والوصف بصوتك.</li>
+          <li><b>☁️ مزامنة Google Drive</b> — اختيارية، بحسابك الخاص.</li>
+          <li><b>📴 يعمل بدون إنترنت</b> — ثبّته كتطبيق على جهازك.</li>
+        </ul>
+        <p class="onb-note">💡 "بانك كاردز" و"كاش" أرقام تتبّع فقط — غير محتسبة بالإجمالي المتاح للصرف.</p>
+      </div>
     </div>
-    <div class="modal-actions">
-      <button class="btn-primary" onclick="closeWelcome()">يلا نبدأ ✨</button>
+
+    <div class="onb-dots" id="onbDots" aria-hidden="true"></div>
+
+    <div class="modal-actions onb-nav">
+      <button class="btn-secondary" id="onbBack" type="button" onclick="welcomeNav(-1)">رجوع</button>
+      <button class="btn-primary" id="onbNext" type="button" onclick="welcomeNav(1)">التالي</button>
+    </div>
+    <div class="onb-start" id="onbStart" style="display:none;">
+      <button class="btn-primary" type="button" onclick="welcomeStart(true)">＋ سجّل أول دخل</button>
+      <button class="btn-secondary" type="button" onclick="welcomeStart(false)">أتصفّح أولاً</button>
     </div>
   </div>
 </div>
