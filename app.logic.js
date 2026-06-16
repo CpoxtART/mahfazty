@@ -50,6 +50,7 @@ async function addTx(type){
     await saveTx();
     render();
     closeAddDrawer();
+    haptic(15); // brief confirm pulse on a successful entry
     toast(type==='expense' ? '✓ تم تسجيل المصروف' : '✓ تم تسجيل الدخل');
 
     // auto-distribution flow for income
@@ -462,6 +463,7 @@ async function deleteTx(id){
     _lastDeleted = removed;
     clearTimeout(_undoTimer);
     _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
+    haptic([12, 40, 12]); // double-tap pulse signals a destructive commit
     toastWithUndo(removed.length > 1 ? `🗑 تم حذف ${removed.length} حركات مرتبطة` : '🗑 تم الحذف', undoDelete);
   } finally {
     _opInFlight--;
@@ -500,9 +502,12 @@ async function undoDelete(){
 // outer modal's opener when the inner modal overwrote it.
 const _focusStack = [];
 function openModal(id){
-  // remember what had focus so we can restore it when the modal closes (a11y)
-  _focusStack.push(document.activeElement);
   const modal = document.getElementById(id);
+  // remember what had focus so we can restore it when the modal closes (a11y) —
+  // but only on the FIRST open. Re-opening an already-open modal (e.g. wallet
+  // detail refreshing itself after a tracked-balance edit) must NOT push a
+  // duplicate, or it would bury the real opener and break focus return.
+  if(modal && !modal.classList.contains('open')) _focusStack.push(document.activeElement);
   // give the dialog an accessible name from its heading (so SR doesn't announce an
   // unnamed dialog) — done here once instead of hand-wiring aria-labelledby on all 11
   if(!modal.hasAttribute('aria-label') && !modal.hasAttribute('aria-labelledby')){
@@ -824,6 +829,10 @@ async function clearBalancesAndTx(){
     categoryFilter = null;
     _txVisibleCount = 50;
     prevSpendable = null;
+    // clear any in-flight selection/edit pointers that now reference deleted txs
+    editingTxId = null;
+    pendingIncomeTx = null;
+    detailWalletId = null;
     await saveBalances();
     await saveTx();
     await saveConfig(); // persist tombstones (they live in config)
@@ -1455,6 +1464,9 @@ async function adoptCloudSnapshot(cloud){
 //   silently by timestamp so the user is never nagged on every visit.
 async function driveSyncFromCloud(isInitial, interactive){
   if(!driveAccessToken) return;
+  // A debounced local push may be armed from a save in the last 1.5s. Cancel it so
+  // it can't fire mid-pull and clobber the cloud before we've merged it in.
+  clearTimeout(driveSyncTimer); driveSyncTimer = null;
   setDriveIndicator('syncing');
   try{
     await driveFindFile();
@@ -1700,9 +1712,16 @@ function buildDailyReviewContent(){
     }
   });
 
-  // subscriptions due today (billing day matches today's date)
+  // subscriptions due today (billing day matches today's date). For a billing day
+  // beyond the current month's length (e.g. 31 in Feb/Apr), treat the last day of
+  // the month as the due day so a "31st" sub still fires on the 28th/30th.
   const todayDay = now.getDate();
-  const dueSubs = subscriptions.filter(s => s.active !== false && s.billingDay === todayDay);
+  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const dueSubs = subscriptions.filter(s => {
+    if(s.active === false) return false;
+    const effectiveDay = Math.min(s.billingDay, lastDayOfMonth);
+    return effectiveDay === todayDay;
+  });
   if(dueSubs.length > 0){
     const dueTotal = round2(dueSubs.reduce((s,x) => s + (Number(x.amount) || 0), 0));
     const dueNames = dueSubs.map(s => escHtml(s.name)).join('، ');

@@ -38,6 +38,20 @@ function renderWallets(){
   grid.innerHTML = '';
   let spendable = 0;
 
+  // First-run guidance: a brand-new app has every balance at 0, which reads as
+  // "broken" rather than "empty". Show a friendly CTA that points at the natural
+  // first action — recording income (which then auto-distributes into the wallets).
+  if(state.transactions.length === 0 && !state.crisisMode){
+    const cta = document.createElement('div');
+    cta.className = 'wallet-cta';
+    cta.innerHTML = `
+      <div class="wallet-cta-title">👋 ابدأ رحلتك</div>
+      <div class="wallet-cta-sub">سجّل أول دخل ليتوزّع تلقائياً على محافظك حسب النِّسب.</div>
+      <button class="wallet-cta-btn" type="button" onclick="openAddDrawer(); setAddFormType('income');">＋ سجّل أول دخل</button>
+    `;
+    grid.appendChild(cta);
+  }
+
   let defs = WALLET_DEFS;
   if(state.crisisMode){
     defs = WALLET_DEFS.filter(w => !CRISIS_WALLET_IDS.includes(w.id));
@@ -69,13 +83,18 @@ function renderWallets(){
         </div>`;
     }
 
+    // track wallets are not counted in spendable — say so persistently on the card
+    // (the hover title never shows on touch), so users stop wondering why the total
+    // doesn't include Cards/Cash.
+    const trackTag = w.track ? `<div class="track-tag">تتبع · غير محتسب</div>` : '';
     div.innerHTML = `
       <div class="top">
-        <div class="name">${w.name}</div>
-        <div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" title="التفاصيل">ⓘ ${getWalletPctLabel(w)}</div>
+        <div class="name">${escHtml(w.name)}</div>
+        <div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="تفاصيل ${escHtml(w.name)}" title="التفاصيل">ⓘ ${escHtml(getWalletPctLabel(w))}</div>
       </div>
       <div class="val">${fmt(val)}</div>
       <div class="bar"><i style="transform:scaleX(${(pctWidth/100).toFixed(4)})"></i></div>
+      ${trackTag}
       ${budgetHtml}
     `;
     div.title = w.track ? (w.name + ' — رقم تتبع فقط، غير مُحتسب بالإجمالي المتاح للصرف') : '';
@@ -973,7 +992,7 @@ function renderPieChart(){
     .filter(tx => tx.type==='expense' && tx.category !== 'transfer' && tx.category !== 'adjustment');
 
   if(filtered.length === 0){
-    wrap.innerHTML = '<div class="chart-empty" style="flex:1;">لا توجد مصروفات في هذه الفترة</div>';
+    wrap.innerHTML = '<div class="empty" style="flex:1;"><span class="ic">🍰</span>أول مصروف يظهر هنا موزّعاً حسب الفئة</div>';
     return;
   }
 
@@ -986,7 +1005,7 @@ function renderPieChart(){
   // guard against an all-zero-amount set (e.g. crafted import) — every downstream
   // amt/total below would be NaN/Infinity and the donut + legend would render broken
   if(!(total > 0)){
-    wrap.innerHTML = '<div class="chart-empty" style="flex:1;">لا توجد مصروفات في هذه الفترة</div>';
+    wrap.innerHTML = '<div class="empty" style="flex:1;"><span class="ic">🍰</span>أول مصروف يظهر هنا موزّعاً حسب الفئة</div>';
     return;
   }
   const entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
@@ -1376,7 +1395,7 @@ function sumExpenses(start, end, categoryId){
     if(categoryId && tx.category !== categoryId) return;
     total += tx.amount;
   });
-  return total;
+  return round2(total); // collapse float-accumulation residue before it feeds projections
 }
 
 let _analyticsCache = null;

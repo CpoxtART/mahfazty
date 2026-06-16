@@ -159,21 +159,43 @@ function normalizeDigits(str){
     .replace(/[٬,]/g, '');  // Arabic + Latin thousands separators
 }
 // Parse a user-entered money string robustly (Arabic numerals, separators).
+// Rejects parseFloat quirks that silently create absurd balances: scientific/
+// hex notation ("1e9", "0x10") and values beyond a sane money ceiling. Returns
+// NaN on any rejection so every caller's existing isFinite/isNaN guard catches it.
+const MAX_AMOUNT = 1e12; // one trillion — well above any realistic single entry
 function parseAmount(str){
-  return parseFloat(normalizeDigits(str));
+  const norm = normalizeDigits(str);
+  if(/[a-zA-Z]/.test(norm)) return NaN; // block 1e9 / 0x10 / Infinity / NaN-style strings
+  const v = parseFloat(norm);
+  if(!isFinite(v) || Math.abs(v) > MAX_AMOUNT) return NaN;
+  return v;
 }
 
 function escHtml(str){
   return String(str||'')
-    // strip Unicode bidi embedding/override/isolate controls — a pasted or voiced
-    // description containing e.g. U+202E can otherwise visually scramble the whole
-    // RTL layout of surrounding UI text ("Trojan Source"-style display corruption)
-    .replace(/[‪-‮⁦-⁩]/g,'') // explicit escapes: immune to source-editor normalization stripping literal control chars
+    // strip Unicode bidi controls + zero-width chars — a pasted or voiced
+    // description containing e.g. U+202E or U+200F can otherwise visually scramble
+    // the whole RTL layout of surrounding UI text ("Trojan Source"-style display
+    // corruption). Covers: zero-width (200B-200D, FEFF), LRM/RLM (200E-200F),
+    // Arabic letter mark (061C), embeddings/overrides (202A-202E), isolates (2066-2069).
+    // Explicit \u escapes are immune to source-editor stripping of literal controls.
+    .replace(/[\u200B-\u200F\u061C\u202A-\u202E\u2066-\u2069\uFEFF]/g,'')
     .replace(/&/g,'&amp;')
     .replace(/</g,'&lt;')
     .replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;')
     .replace(/'/g,'&#x27;');
+}
+
+// Short tactile pulse on meaningful actions (add/delete/toggle) — makes the app
+// feel native. Silently no-ops where unsupported, and respects reduced-motion.
+function haptic(pattern){
+  try{
+    if(typeof navigator !== 'undefined' && navigator.vibrate &&
+       !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)){
+      navigator.vibrate(pattern);
+    }
+  }catch(_){}
 }
 
 const _animFrames = {}; // track active animation frames per element id to allow cancellation
@@ -190,6 +212,9 @@ function animateNumber(el, from, to, duration){
   if(_animFrames[key]) cancelAnimationFrame(_animFrames[key]);
   const start = performance.now();
   function frame(now){
+    // stop animating a node that was removed mid-flight (avoids writing to a
+    // detached element and leaking the rAF chain)
+    if(el.isConnected === false){ delete _animFrames[key]; return; }
     const t = Math.min(1, (now - start) / dur);
     const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
     el.textContent = fmt(from + (to - from) * eased);
@@ -266,7 +291,9 @@ function buildTxTs(dateVal){
   const now = new Date();
   const ts = new Date(dateVal + 'T' + now.toTimeString().slice(0,8)).getTime();
   if(!isFinite(ts)) return Date.now(); // guard against an invalid date string
-  return ts + now.getMilliseconds();
+  // never allow a future ts (clock skew / DST edge) — it would sort above
+  // everything and corrupt "this month" filters. Edit path already caps; do it here too.
+  return Math.min(ts + now.getMilliseconds(), now.getTime());
 }
 
 // Cap all date pickers at today so a transaction can't be accidentally future-dated
@@ -396,10 +423,20 @@ async function loadState(){
   stripOrphanLinks(state.transactions);
   _allTxSortedCache = null; // freshly replaced array — drop the sorted cache
 
+  // If the DB couldn't be opened (blocked by another tab / corrupt) and we ended up
+  // with NO transactions despite having used the app before, the data is intact in
+  // IDB but unreachable. Warn the user and DO NOT run idbBackup — writing our empty
+  // in-memory state could clobber the real snapshot if the DB becomes writable.
+  const _hadPriorData = _lsLastEdit > 0 || _lsDataEdit > 0 || _lsHadBalances;
+  const _idbLockedOut = _idbOpenFailed && state.transactions.length === 0 && _hadPriorData;
+  if(_idbLockedOut){
+    try{ toast('⚠ تعذّر فتح قاعدة البيانات — أغلق نسخ التطبيق الأخرى المفتوحة ثم أعد التحميل', true); }catch(e){}
+  }
+
   // Persist the consistent state into IndexedDB, then (only once confirmed) drop the
   // big legacy localStorage transactions key to free the ~5MB quota for small data.
   const _backupStamp = Math.max(_lsLastEdit, _idbTime) || Date.now();
-  const _idbOk = await idbBackup(_backupStamp);
+  const _idbOk = _idbLockedOut ? false : await idbBackup(_backupStamp);
   if(_idbOk && _lsTx !== null){
     try{ localStorage.removeItem(LS_PREFIX + 'transactions'); }catch(e){}
   }
@@ -602,13 +639,24 @@ async function idbBackup(savedAt){
     // IndexedDB unavailable/failed (e.g. private mode) — fall back to a localStorage
     // mirror so transactions still persist (bounded by the ~5MB quota in that case).
     _idbAvailable = false;
-    try{ localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions)); }
-    catch(_){ /* quota — Drive sync / export remain the safety net */ }
+    try{
+      localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions));
+    }catch(_){
+      // BOTH IndexedDB and the localStorage fallback failed — the latest change is
+      // memory-only and will be lost on reload. Warn the user instead of silently
+      // dropping their data behind a success toast. Once per session to avoid spam.
+      if(!_persistFailWarned){
+        _persistFailWarned = true;
+        try{ toast('⚠ تعذّر حفظ البيانات على هذا الجهاز — صدّر نسخة احتياطية أو فعّل المزامنة', true); }catch(__){}
+      }
+    }
     return false;
   }finally{
     _idbWriteInFlight--;
   }
 }
+let _persistFailWarned = false; // gate the "could not persist" warning to once/session
+let _idbOpenFailed = false; // true when the DB exists but couldn't be opened (blocked/corrupt)
 async function idbRestore(){
   try{
     const db = await idbOpen();
@@ -618,7 +666,14 @@ async function idbRestore(){
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => resolve(null);
     });
-  }catch(e){ return null; }
+  }catch(e){
+    // Distinguish "IndexedDB unsupported" (expected → LS fallback) from a real open
+    // failure such as onblocked (another tab holds an older version) or corruption.
+    // The latter means the user's data is SAFE in IDB but unreachable right now —
+    // loadState must warn rather than present an empty app and must NOT overwrite it.
+    if(e !== 'no idb') _idbOpenFailed = true;
+    return null;
+  }
 }
 
 
@@ -634,6 +689,7 @@ function toggleCrisis(){
   prevSpendable = null;
   saveConfig();
   render();
+  haptic(15);
   toast(state.crisisMode ? '🔄 تم تفعيل الوضع البديل' : '✓ تم إيقاف الوضع البديل');
 }
 

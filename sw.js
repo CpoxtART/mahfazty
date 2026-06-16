@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v17';
+const CACHE = 'mhfzty-v18';
 // Note: sw.js itself is intentionally NOT precached — the browser fetches and
 // byte-compares it directly to drive updates; caching it via the Cache API is a
 // no-op at best and can interfere with that update check.
@@ -32,14 +32,20 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if(url.origin !== self.location.origin) return;
 
-  // Navigation requests (e.g. root path "/mahfazty/" without the filename) may
-  // miss the cache because the stored key is "index.html", not the bare directory
-  // path. Serve the cached shell explicitly so the app loads offline regardless
-  // of how the URL was typed.
+  // Navigation requests: NETWORK-FIRST so a returning online user always gets the
+  // current app shell (cache-first here was the classic "stuck on an old version"
+  // trap). On success we refresh the cached shell so the next OFFLINE load is also
+  // current; offline, we fall back to the cached shell (keyed as "index.html"
+  // because the bare directory path "/mahfazty/" isn't a stored key).
   if(e.request.mode === 'navigate'){
     e.respondWith(
-      caches.match('./index.html').then(r => r || fetch(e.request))
-        .catch(() => caches.match('./index.html'))
+      fetch(e.request).then(res => {
+        if(res && res.ok){
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put('./index.html', clone));
+        }
+        return res;
+      }).catch(() => caches.match('./index.html').then(r => r || caches.match(e.request)))
     );
     return;
   }

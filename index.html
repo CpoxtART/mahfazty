@@ -175,7 +175,7 @@ try{
         <span class="net-badge" id="chartNet"></span>
       </div>
       <canvas id="chartCanvas" role="img" aria-label="مخطط حركة الرصيد"></canvas>
-      <div class="chart-empty" id="chartEmpty" style="display:none;">لا توجد بيانات كافية للرسم البياني</div>
+      <div class="chart-empty" id="chartEmpty" style="display:none;"><span class="ic">📈</span>سجّل معاملتين لترى حركة رصيدك هنا</div>
     </div>
   </div>
 
@@ -309,8 +309,10 @@ try{
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('editModal')">إلغاء</button>
-      <button class="btn-danger" onclick="deleteFromEdit()">حذف</button>
       <button class="btn-primary" onclick="saveEdit()">حفظ</button>
+    </div>
+    <div class="modal-actions edit-delete-row">
+      <button class="btn-danger" onclick="deleteFromEdit()">🗑 حذف المعاملة</button>
     </div>
   </div>
 </div>
