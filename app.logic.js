@@ -2407,7 +2407,13 @@ scheduleNextMidnightRefresh();
 // settle before we re-read it — localStorage fires this event synchronously.
 let _storageSyncTimer = null;
 window.addEventListener('storage', (e) => {
-  if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit'){
+  // Layout prefs (tab/section order, recent-tx page size) are cosmetic-only and
+  // never touch dataEdit/lastEdit — reloading the full ledger for them would
+  // flash/scroll-jump every other open tab over a change that doesn't affect
+  // their money data at all.
+  const _isLayoutPrefKey = e.key === LS_PREFIX+'tabOrder' || e.key === LS_PREFIX+'recentTxLimit' ||
+    (e.key && e.key.indexOf(LS_PREFIX+'secOrder_') === 0);
+  if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit' && !_isLayoutPrefKey){
     if(!document.querySelector('.modal-overlay.open') && !addDrawerOpen){
       clearTimeout(_storageSyncTimer);
       // If a mutation is in flight, wait and re-check rather than reloading on
