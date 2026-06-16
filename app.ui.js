@@ -1713,15 +1713,18 @@ function renderTxList(){
     // transaction is, not just the bare amount + an isolated "تعديل" button.
     div.setAttribute('aria-label',
       `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${tx.desc || (wallet?wallet.name:'')}، ${cat.name}، ${date.toLocaleDateString('ar-EG',{day:'numeric',month:'long'})} ${timeStr}`);
+    div.dataset.txid = tx.id; // delegated swipe handler reads the id from here
     div.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); if(!div._swipeDeleting) openEdit(tx.id); };
     div.onclick = () => { if(!div._swipeDeleting) openEdit(tx.id); };
-
-    attachSwipe(div, wrap, tx.id);
 
     wrap.appendChild(bg);
     wrap.appendChild(div);
     list.appendChild(wrap);
   });
+
+  // One set of delegated touch listeners on the list container (bound once),
+  // instead of 4 listeners per row that accumulated on every re-render.
+  bindSwipeDelegation(list);
 
   if(filtered.length > _txVisibleCount){
     const remaining = filtered.length - _txVisibleCount;
@@ -1739,26 +1742,37 @@ function renderTxList(){
 }
 
 /* ============================================================
-   SWIPE TO DELETE (touch)
+   SWIPE TO DELETE (touch) — event delegation
 ============================================================ */
-function attachSwipe(el, wrap, txId){
-  let startX = 0, startY = 0, currentX = 0, dragging = false, swipeMode = false;
+// Bind ONCE on the list container (#txList). Rows are recreated on every render
+// via innerHTML='', so per-row listeners used to accumulate (4 × rows × every
+// re-render) until GC. Delegation keeps exactly 4 listeners for the whole list
+// regardless of how many transactions or re-renders occur.
+function bindSwipeDelegation(list){
+  if(!list || list._swipeBound) return;
+  list._swipeBound = true;
   const threshold = 90;
+  let el = null, txId = null, startX = 0, startY = 0, currentX = 0, dragging = false, swipeMode = false;
 
-  el.addEventListener('touchstart', e=>{
-    if(el._swipeDeleting) return; // card is mid-delete — ignore new touches
+  const reset = () => { el = null; dragging = false; swipeMode = false; currentX = 0; };
+
+  list.addEventListener('touchstart', e=>{
+    const row = e.target.closest && e.target.closest('.tx');
+    if(!row || row._swipeDeleting){ reset(); return; } // not on a row / mid-delete
+    el = row;
+    txId = row.dataset.txid;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
     dragging = true;
     swipeMode = false;
     el.style.transition = 'none';
-    // Promote to compositor layer only for the duration of the gesture — avoids
-    // permanently allocating a GPU layer for every row (memory anti-pattern).
+    // Promote to a compositor layer only for the gesture — avoids permanently
+    // allocating a GPU layer for every row (memory anti-pattern).
     el.style.willChange = 'transform';
   }, {passive:true});
 
-  el.addEventListener('touchmove', e=>{
-    if(!dragging) return;
+  list.addEventListener('touchmove', e=>{
+    if(!dragging || !el) return;
     const dx = e.touches[0].clientX - startX;
     const dy = e.touches[0].clientY - startY;
     if(!swipeMode){
@@ -1772,35 +1786,25 @@ function attachSwipe(el, wrap, txId){
     el.style.transform = `translateX(${currentX}px)`;
   }, {passive:false});
 
-  el.addEventListener('touchend', ()=>{
-    if(!dragging) return;
-    dragging = false;
-    swipeMode = false;
-    el.style.transition = 'transform .25s var(--ease)';
-    if(Math.abs(currentX) > threshold){
-      el.style.transform = 'translateX(-100%)';
-      el.style.opacity = '0';
-      el._swipeDeleting = true;
-      setTimeout(()=> deleteTx(txId), 220);
+  const finish = (cancelled)=>{
+    if(!dragging || !el){ reset(); return; }
+    const node = el, id = txId, dist = currentX;
+    dragging = false; swipeMode = false;
+    node.style.transition = 'transform .25s var(--ease)';
+    if(!cancelled && Math.abs(dist) > threshold){
+      node.style.transform = 'translateX(-100%)';
+      node.style.opacity = '0';
+      node._swipeDeleting = true;
+      setTimeout(()=> deleteTx(id), 220);
     } else {
-      el.style.transform = 'translateX(0)';
-      el.style.opacity = ''; // restore if a previous swipe started fading it
+      node.style.transform = 'translateX(0)';
+      node.style.opacity = ''; // restore if a previous swipe started fading it
     }
-    el.style.willChange = ''; // release compositor layer — gesture is over
-    currentX = 0;
-  });
-
-  // Cancel (incoming call, system interrupt) — snap back without triggering delete
-  el.addEventListener('touchcancel', ()=>{
-    if(!dragging) return;
-    dragging = false;
-    swipeMode = false;
-    el.style.transition = 'transform .25s var(--ease)';
-    el.style.transform = 'translateX(0)';
-    el.style.opacity = '';
-    el.style.willChange = ''; // release compositor layer
-    currentX = 0;
-  });
+    node.style.willChange = ''; // release compositor layer — gesture is over
+    el = null; currentX = 0;
+  };
+  list.addEventListener('touchend', ()=> finish(false));
+  list.addEventListener('touchcancel', ()=> finish(true)); // call/interrupt — snap back, no delete
 }
 
 /* ============================================================
