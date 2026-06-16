@@ -591,7 +591,10 @@ document.addEventListener('click', function(e){
 // on any add/edit/delete.
 let _firstTxStamp = -1, _firstTxMs = null;
 function updateSettingsStats(){
-  document.getElementById('statTxCount').textContent = state.transactions.length.toLocaleString('ar-EG');
+  // numberingSystem:'latn' forces Western digits — Arabic-Indic numerals here looked
+  // out of place against the rest of the UI's number formatting (fmt() etc. all use
+  // Western digits), while keeping the 'ar-EG' locale's date/separator conventions.
+  document.getElementById('statTxCount').textContent = state.transactions.length.toLocaleString('ar-EG', {numberingSystem:'latn'});
   if(_firstTxStamp !== _txMutationStamp){
     _firstTxStamp = _txMutationStamp;
     _firstTxMs = state.transactions.length
@@ -599,12 +602,12 @@ function updateSettingsStats(){
       : null;
   }
   document.getElementById('statFirstTx').textContent = _firstTxMs !== null
-    ? new Date(_firstTxMs).toLocaleDateString('ar-EG', {day:'numeric', month:'numeric', year:'2-digit'})
+    ? new Date(_firstTxMs).toLocaleDateString('ar-EG', {day:'numeric', month:'numeric', year:'2-digit', numberingSystem:'latn'})
     : '—';
   try{
     const last = localStorage.getItem(LS_PREFIX + 'lastEdit');
     document.getElementById('statLastEdit').textContent = last
-      ? new Date(parseInt(last)).toLocaleString('ar-EG', {day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit', hour12:false})
+      ? new Date(parseInt(last)).toLocaleString('ar-EG', {day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit', hour12:false, numberingSystem:'latn'})
       : '—';
   }catch(e){
     document.getElementById('statLastEdit').textContent = '—';
