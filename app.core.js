@@ -15,7 +15,11 @@ const WALLET_DEFS = [
   {id:'cash',        name:'Cash',           initial:8000,    track:true,  pct:'تتبع'},
 ];
 const MAX_WALLET_VAL = WALLET_DEFS.filter(w=>!w.track).reduce((m,w)=>Math.max(m,w.initial),1);
-const CRISIS_WALLET_IDS = ['growth','investments','joy','giving','reserve'];
+// In emergency mode the whole "second half" (everything except Core Expenses,
+// i.e. the non-track 50%: wishlist+growth+investments+joy+giving+reserve) merges
+// into one unified emergency reserve. Wishlist was previously missing here, so it
+// wrongly stayed visible at 10% beside Core while the combined card claimed 50%.
+const CRISIS_WALLET_IDS = ['wishlist','growth','investments','joy','giving','reserve'];
 
 const CATEGORIES = [
   {id:'food',          types:['expense'],          name:'طعام وشراب',   icon:'🍽️', color:'#e3a07a'},

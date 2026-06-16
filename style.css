@@ -113,21 +113,24 @@
     font-size:20px; box-shadow:var(--shadow);
     flex-shrink:0;
   }
-  /* min-width:0 + overflow lets the TITLE truncate under pressure while the logo
+  /* min-width:0 lets the TITLE truncate under pressure while the logo
      (flex-shrink:0 .mark) always stays visible — the brand can never collapse to
-     nothing behind the actions group, even if the Drive indicator is showing. */
-  header .brand-text{ display:flex; flex-direction:column; gap:4px; min-width:0; overflow:hidden; }
+     nothing behind the actions group. NOTE: no vertical overflow:hidden here, and
+     a roomy line-height on h1, so the dots of the repeated ي (Amiri serif) aren't
+     clipped. Horizontal truncation lives on h1 itself. */
+  header .brand-text{ display:flex; flex-direction:column; gap:3px; min-width:0; }
   header .brand h1{
     font-family:var(--serif);
     font-size:19px;
     font-weight:700;
     letter-spacing:.3px;
     color:var(--text);
-    line-height:1;
+    line-height:1.4;
+    padding-block:1px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   header .brand-emoji{
-    font-size:13px; line-height:1; display:block;
+    font-size:13px; line-height:1.2; display:block;
     opacity:.75; letter-spacing:.5px;
   }
   header .actions{display:flex; gap:6px; align-items:center; flex-shrink:0;}
@@ -152,6 +155,31 @@
   }
   .icon-btn--primary:hover{background:var(--card2); border-color:var(--gold); color:var(--gold);}
   .icon-btn--primary:active{transform:scale(.90); box-shadow:0 0 0 3px rgba(220,182,116,.14);}
+
+  /* Drive sync button — same footprint as the other header buttons, with a small
+     state badge in the corner and a state-driven tint so it's obviously a control. */
+  .drive-ind{ position:relative; font-size:18px; }
+  .drive-ind .drive-ind-ic{ line-height:1; }
+  .drive-ind .drive-ind-badge{
+    position:absolute; top:3px; inset-inline-end:3px;
+    min-width:15px; height:15px; padding:0 3px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:9px; font-weight:800; line-height:1;
+    border-radius:999px; color:#fff;
+  }
+  /* disconnected → invite a tap (gold "tap me" look) */
+  .drive-ind--idle{ background:var(--gold-soft); border-color:var(--gold-dim); }
+  .drive-ind--idle:active{ transform:scale(.90); }
+  /* syncing → calm blue */
+  .drive-ind--syncing{ background:var(--blue-soft); border-color:var(--blue); }
+  .drive-ind--syncing .drive-ind-badge{ background:var(--blue); animation:driveSpin 1s linear infinite; }
+  /* connected → subtle green check */
+  .drive-ind--ok{ background:var(--green-soft); border-color:rgba(134,195,154,.5); }
+  .drive-ind--ok .drive-ind-badge{ background:var(--green); }
+  /* error → red, invites a re-tap */
+  .drive-ind--error{ background:var(--red-soft); border-color:var(--red); }
+  .drive-ind--error .drive-ind-badge{ background:var(--red); }
+  @keyframes driveSpin{ from{transform:rotate(0)} to{transform:rotate(360deg)} }
 
   /* ================= HERO ================= */
   .hero{

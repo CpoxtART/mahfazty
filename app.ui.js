@@ -86,12 +86,18 @@ function renderWallets(){
     let crisisTotal = 0;
     CRISIS_WALLET_IDS.forEach(id => crisisTotal += (state.wallets[id] ?? 0));
     spendable += crisisTotal; // crisis reserve is part of total liquidity in emergency mode
+    // derive the combined percentage from the merged wallets' own pct labels so it
+    // can never drift from CRISIS_WALLET_IDS again (was hardcoded "٪50")
+    const crisisPct = CRISIS_WALLET_IDS.reduce((s,id)=>{
+      const w = WALLET_DEFS.find(x=>x.id===id);
+      return s + (w ? (parseFloat(w.pct) || 0) : 0);
+    }, 0);
     const div = document.createElement('div');
     div.className = 'wallet crisis-combined';
     div.innerHTML = `
       <div class="top">
         <div class="name">احتياطي الطوارئ (مدمج)</div>
-        <div class="pct">٪50</div>
+        <div class="pct">٪${crisisPct}</div>
       </div>
       <div class="val">${fmt(crisisTotal)}</div>
     `;

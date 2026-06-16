@@ -1012,20 +1012,21 @@ function setDriveIndicator(state_){
   };
   const cfg = map[state_] || map.idle;
   const clickable = (state_ === 'idle' || state_ === 'error'); // tap to sign in when disconnected
-  // Icon-only pill: a text label here ("جاهز — اضغط للدخول") used to widen the
-  // actions group enough to squeeze the brand (min-width:0) down to nothing,
-  // hiding the logo + app name on launch. The full status lives in the tooltip.
-  el.style.cssText = 'display:flex; align-items:center; justify-content:center; flex-shrink:0; width:34px; height:34px; font-size:15px; background:var(--card); border:1px solid var(--line); border-radius:50%;';
-  el.style.color = cfg.color;
-  el.style.cursor = clickable ? 'pointer' : 'default';
+  // Render as a real header button (same 44px rounded-square as the others) so it
+  // reads as a control, not a mystery glyph. Always show the cloud ☁️ (universally
+  // "sync/cloud") plus a small state badge, and tint the disconnected state with
+  // the gold "tap me" look so a new user notices it's actionable. Full status in title.
+  el.className = 'icon-btn drive-ind drive-ind--' + state_;
+  el.style.display = 'flex';
   el.onclick = clickable ? driveSignIn : null;
   el.setAttribute('role', clickable ? 'button' : 'img');
-  el.innerHTML = `<span>${cfg.icon}</span>`;
+  const badge = { idle:'', syncing:'🔄', ok:'✓', error:'!' }[state_] || '';
+  el.innerHTML = `<span class="drive-ind-ic">☁️</span>${badge ? `<span class="drive-ind-badge">${badge}</span>` : ''}`;
   const fullLabel = {
-    idle: 'Drive: جاهز — اضغط لتسجيل الدخول',
-    syncing: 'Drive: جاري المزامنة...',
-    ok: 'Drive: متزامن',
-    error: 'Drive: خطأ — اضغط لتسجيل الدخول مجدداً'
+    idle: 'مزامنة Drive: جاهز — اضغط لتسجيل الدخول',
+    syncing: 'مزامنة Drive: جاري المزامنة...',
+    ok: 'مزامنة Drive: متزامن ✓',
+    error: 'مزامنة Drive: خطأ — اضغط لتسجيل الدخول مجدداً'
   }[state_] || cfg.label;
   el.title = fullLabel;
   el.setAttribute('aria-label', fullLabel);
