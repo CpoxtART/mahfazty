@@ -703,6 +703,8 @@ async function applyImport(text){
   }
   if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
   _txMutationStamp++; // wholesale data replacement — invalidate derived caches
+  _opInFlight++; // block the cross-tab storage reload mid-import, same as other wholesale replacements
+  try{
 
   if(data.wallets){
     // a backup is a complete snapshot — clear all balances first so wallets that
@@ -744,6 +746,10 @@ async function applyImport(text){
     subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
   if(data.uiPrefs) applyUiPrefs(data.uiPrefs);
+  // clear any in-flight selection/edit pointers that now reference replaced/deleted txs
+  editingTxId = null;
+  pendingIncomeTx = null;
+  detailWalletId = null;
   // restore appearance + data-edit time if the backup carried them (lossless round-trip)
   if(data.theme === 'light' || data.theme === 'dark'){
     try{ applyTheme(data.theme); localStorage.setItem(LS_PREFIX + 'theme', data.theme); }catch(_){ }
@@ -763,6 +769,9 @@ async function applyImport(text){
     toast(`✓ تم الاستيراد — لكن تم تجاهل ${_droppedTx} معاملة غير صالحة (محفظة مجهولة أو بيانات تالفة)`, true);
   } else {
     toast('✓ تم الاستيراد بنجاح');
+  }
+  } finally {
+    _opInFlight--;
   }
 }
 
@@ -1456,12 +1465,23 @@ function driveSignOut(){
   toast('تم تسجيل الخروج من Drive');
 }
 
+// Plain fetch() has no built-in timeout — a stalled (not failed) connection on a
+// flaky mobile network leaves the request neither resolved nor rejected forever,
+// which would permanently wedge _driveSyncBusy and leave the indicator stuck on
+// "syncing" with no recovery short of a page reload. Abort after timeoutMs so
+// every Drive call's try/finally always gets a chance to run.
+function driveFetch(url, opts, timeoutMs){
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs || 20000);
+  return fetch(url, Object.assign({}, opts, { signal: ctrl.signal })).finally(() => clearTimeout(timer));
+}
+
 // Find (or remember) the app data file on Drive. Matches the current filename OR
 // the legacy Arabic one, so users who synced before the rename keep their data.
 async function driveFindFile(){
   if(driveFileId) return driveFileId;
   const q = `name='${DRIVE_FILE_NAME}' or name='${DRIVE_FILE_NAME_LEGACY}'`;
-  const res = await fetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q=' + encodeURIComponent(q), {
+  const res = await driveFetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q=' + encodeURIComponent(q), {
     headers: { 'Authorization': 'Bearer ' + driveAccessToken }
   });
   if(!res.ok) throw new Error('drive list failed: ' + res.status);
@@ -1473,7 +1493,7 @@ async function driveFindFile(){
       // migrate the legacy filename quietly; non-fatal if it fails (still works
       // next launch since driveFindFile matches both names)
       try{
-        await fetch(`https://www.googleapis.com/drive/v3/files/${match.id}`, {
+        await driveFetch(`https://www.googleapis.com/drive/v3/files/${match.id}`, {
           method: 'PATCH',
           headers: { 'Authorization': 'Bearer ' + driveAccessToken, 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: DRIVE_FILE_NAME })
@@ -1513,7 +1533,7 @@ async function driveSyncToCloud(){
     await driveFindFile();
 
     if(driveFileId){
-      const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+      const res = await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
         method: 'PATCH',
         headers: {
           'Authorization': 'Bearer ' + driveAccessToken,
@@ -1536,7 +1556,7 @@ async function driveSyncToCloud(){
         `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
         `--${boundary}\r\nContent-Type: application/json\r\n\r\n${payload}\r\n` +
         `--${boundary}--`;
-      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      const res = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + driveAccessToken,
@@ -1640,7 +1660,7 @@ async function driveSyncFromCloud(isInitial, interactive){
       await driveSyncToCloud();
       return;
     }
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {
+    const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {
       headers: { 'Authorization': 'Bearer ' + driveAccessToken }
     });
     if(!res.ok) throw new Error('drive download failed: ' + res.status);
