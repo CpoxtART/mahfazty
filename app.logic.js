@@ -1063,7 +1063,27 @@ async function wipeAll(){
 /* ============================================================
    TOAST
 ============================================================ */
+// Saves run optimistically: state/render/the success toast all happen before
+// the background IndexedDB write (idbBackup, called un-awaited from
+// saveTx/saveBalances/etc) actually confirms. If that write later fails, the
+// "could not persist" warning below fires asynchronously, well after a routine
+// toast — possibly several routine toasts (e.g. addTx's own success toast,
+// then a second toast from the auto-distribution flow) — already started/ended
+// their own short timers on the SAME #saveStatus element. Without _criticalToastUntil,
+// any of those routine toast() calls would silently overwrite the warning's text
+// before the user ever reads it. While a critical toast's window is active, routine
+// toast()/toastWithAction() calls are queued and replayed once it expires instead
+// of clobbering it.
+let _criticalToastUntil = 0;
+let _queuedToast = null; // {fn, args} of the most recent routine toast deferred during a critical window
+function _runQueuedToastIfAny(){
+  if(_queuedToast && Date.now() >= _criticalToastUntil){
+    const q = _queuedToast; _queuedToast = null;
+    q.fn(...q.args);
+  }
+}
 function toast(msg, isError){
+  if(Date.now() < _criticalToastUntil){ _queuedToast = {fn: toast, args:[msg, isError]}; return; }
   // A new notification means the user moved on — clear the undo timer so the
   // new toast is always visible (previously non-error toasts were silently
   // dropped for 5s after a delete, so "تم تسجيل المصروف" could vanish).
@@ -1082,13 +1102,17 @@ function toast(msg, isError){
   el.style.color = isError ? 'var(--red)' : 'var(--text)';
   el.classList.add('show');
   clearTimeout(window._saveTimeout);
-  window._saveTimeout = setTimeout(()=> el.classList.remove('show'), 2200);
+  window._saveTimeout = setTimeout(()=> { el.classList.remove('show'); _runQueuedToastIfAny(); }, 2200);
 }
 
 function toastWithUndo(msg, undoFn){
   toastWithAction(msg, 'تراجع ↩️', undoFn);
 }
-function toastWithAction(msg, actionLabel, fn){
+// critical=true marks a severe, rare warning (e.g. local persistence totally failed)
+// that must not be silently overwritten by/lost a race with a routine toast that
+// fires moments later from an in-flight optimistic save flow — see _criticalToastUntil.
+function toastWithAction(msg, actionLabel, fn, critical){
+  if(!critical && Date.now() < _criticalToastUntil){ _queuedToast = {fn: toastWithAction, args:[msg, actionLabel, fn, critical]}; return; }
   const el = document.getElementById('saveStatus');
   el.innerHTML = '';
   const span = document.createElement('span');
@@ -1106,7 +1130,9 @@ function toastWithAction(msg, actionLabel, fn){
   el.style.color = 'var(--text)';
   el.classList.add('show');
   clearTimeout(window._saveTimeout);
-  window._saveTimeout = setTimeout(()=> el.classList.remove('show'), 5000);
+  const dur = critical ? 7000 : 5000;
+  if(critical) _criticalToastUntil = Date.now() + dur;
+  window._saveTimeout = setTimeout(()=> { el.classList.remove('show'); _runQueuedToastIfAny(); }, dur);
 }
 
 /* ============================================================
@@ -2142,7 +2168,14 @@ function exportMonthlyReport(){
 
   const shareData = { title: `تقرير محفظتيييي — ${monthName}`, text: report };
   if(navigator.share && (!navigator.canShare || navigator.canShare(shareData))){
-    navigator.share(shareData).catch(()=>{ copyReportToClipboard(report); });
+    navigator.share(shareData).catch(e=>{
+      // AbortError = user dismissed the native share sheet without picking a
+      // target app — that's normal, frequent, expected behavior, not a failure,
+      // so don't fall back to clipboard copy (which would show a confusing
+      // "copied!" toast right after the user chose to cancel, not copy).
+      if(e && e.name === 'AbortError') return;
+      copyReportToClipboard(report);
+    });
   } else {
     copyReportToClipboard(report);
   }

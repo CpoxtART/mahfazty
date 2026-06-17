@@ -1144,8 +1144,17 @@ function renderPieChart(){
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = isLightPie ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.45)';
-  ctx.font = `600 ${Math.round(size*0.09)}px system-ui,sans-serif`;
-  ctx.fillText(fmtPieShort(total), cx, cy + 1);
+  const totalLabel = fmtPieShort(total);
+  // auto-shrink to fit the donut hole — very large totals (e.g. corrupted/huge
+  // imports) can otherwise overflow fillText past the inner circle into the ring
+  let pieFontPx = Math.round(size*0.09);
+  const innerW = r*0.55*2*0.86; // small margin so text doesn't touch the ring edge
+  ctx.font = `600 ${pieFontPx}px system-ui,sans-serif`;
+  while(pieFontPx > 7 && ctx.measureText(totalLabel).width > innerW){
+    pieFontPx--;
+    ctx.font = `600 ${pieFontPx}px system-ui,sans-serif`;
+  }
+  ctx.fillText(totalLabel, cx, cy + 1);
 }
 
 /* ============================================================

@@ -661,11 +661,19 @@ async function idbBackup(savedAt){
       localStorage.setItem(LS_PREFIX + 'transactions', JSON.stringify(state.transactions));
     }catch(_){
       // BOTH IndexedDB and the localStorage fallback failed — the latest change is
-      // memory-only and will be lost on reload. Warn the user instead of silently
-      // dropping their data behind a success toast. Once per session to avoid spam.
+      // memory-only and will be lost on reload. This fires AFTER the optimistic
+      // success toast (idbBackup runs unawaited in the background from
+      // saveTx/saveBalances/etc, so render()+toast('✓ ...') already happened).
+      // A plain toast() here would just overwrite/be overwritten by whatever
+      // routine toast fires next (e.g. the distribution-flow toast in addTx) and
+      // vanish in 2.2s — easy to miss for a once-per-session, data-loss-grade
+      // warning. Use toastWithAction: longer-lived (5s), gives a real recovery
+      // step, and is visually distinct from a routine success/error toast.
       if(!_persistFailWarned){
         _persistFailWarned = true;
-        try{ toast('⚠ تعذّر حفظ البيانات على هذا الجهاز — صدّر نسخة احتياطية أو فعّل المزامنة', true); }catch(__){}
+        try{
+          toastWithAction('⚠ تعذّر حفظ البيانات على هذا الجهاز — صدّرها الآن قبل إغلاق التطبيق', 'تصدير الآن', () => { try{ exportData(); }catch(e){} }, true);
+        }catch(__){}
       }
     }
     return false;
