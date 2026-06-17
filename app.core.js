@@ -368,11 +368,16 @@ async function loadState(){
   // ── Transactions: IndexedDB is the PRIMARY store (scales far past localStorage's
   //    ~5MB cap). localStorage may still hold a legacy copy from older versions or
   //    an IDB-unavailable fallback — used only when newer than the IDB snapshot. ──
-  const _lsLastEdit = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0;
+  // Wrapped (unlike a plain read) because some locked-down browsers (e.g. old Safari
+  // private mode) throw on EVERY localStorage call, not just setItem — an uncaught
+  // throw here would reject loadState() and leave the splash screen stuck for 6s
+  // until the fatal-error watchdog kicks in, instead of degrading to IDB-only state.
+  let _lsLastEdit = 0, _lsDataEdit = 0;
+  try{ _lsLastEdit = parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0; }catch(e){}
   // Prefer dataEdit (bumped only by real DATA changes) so a pref-only save that
   // bumped lastEdit can't make a stale localStorage tx blob win over fresher IDB.
   // Fall back to lastEdit only when dataEdit is absent (legacy migration path).
-  const _lsDataEdit = parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0;
+  try{ _lsDataEdit = parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0; }catch(e){}
   const _idb = await idbRestore(); // also opens the DB, setting _idbAvailable
   const _idbTime = (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0;
   let _lsTx = null;

@@ -914,7 +914,7 @@ function checkBalanceDrift(){
   });
   if(totalDrift === 0) return;
   const sig = String(totalDrift);
-  if(localStorage.getItem(LS_PREFIX + 'driftNotified') === sig) return; // already offered for this exact drift
+  try{ if(localStorage.getItem(LS_PREFIX + 'driftNotified') === sig) return; }catch(e){} // already offered for this exact drift
   try{ localStorage.setItem(LS_PREFIX + 'driftNotified', sig); }catch(e){}
   toastWithAction('⚠ رصيد إحدى محافظك لا يطابق سجل معاملاتها', 'إصلاح', () => { openModal('settingsModal'); repairBalancesFromLedger(); });
 }
@@ -926,6 +926,9 @@ async function wipeAll(){
   const answer = prompt('⚠️ سيتم حذف جميع الأرصدة والمعاملات نهائياً ولا يمكن التراجع.\n\nاكتب كلمة "حذف" للتأكيد:');
   if(answer === null) return; // cancelled
   if(answer.trim() !== 'حذف'){ toast('أُلغي الحذف — لم تُكتب كلمة التأكيد بشكل صحيح'); return; }
+  _txMutationStamp++; // wholesale wipe — invalidate derived caches
+  _opInFlight++; // block the cross-tab storage reload mid-wipe across the multi-await sequence below
+  try{
   clearTimeout(_undoTimer); _lastDeleted = null;
   // Tombstone every existing transaction BEFORE clearing the array, so the
   // deletion propagates on the next merge sync. Clearing tombstones outright
@@ -965,6 +968,7 @@ async function wipeAll(){
   closeModal('settingsModal');
   render();
   toast('🗑 تم حذف كل البيانات');
+  } finally { _opInFlight--; }
 }
 
 /* ============================================================
@@ -1725,8 +1729,8 @@ async function driveSyncFromCloud(isInitial, interactive){
     _pendingDriveCloud = cloud;
     const fmtWhen = ms => {
       if(!ms || !isFinite(ms)) return 'غير معروف';
-      try{ return new Date(ms).toLocaleString('ar', {dateStyle:'medium', timeStyle:'short'}); }
-      catch(_){ return new Date(ms).toLocaleString(); }
+      try{ return new Date(ms).toLocaleString('ar', {dateStyle:'medium', timeStyle:'short', numberingSystem:'latn'}); }
+      catch(_){ return new Date(ms).toLocaleString('en-US'); }
     };
     const cloudCount = (cloud.transactions || []).length;
     const localCount = state.transactions.length;
@@ -1970,7 +1974,7 @@ function buildDailyReviewContent(){
 ============================================================ */
 function exportMonthlyReport(){
   const now = new Date();
-  const monthName = now.toLocaleDateString('ar-EG', {month:'long', year:'numeric'});
+  const monthName = now.toLocaleDateString('ar-EG', {month:'long', year:'numeric', numberingSystem:'latn'});
   const [start, end] = monthRange(0);
 
   let totalIncome=0, totalExpense=0;
@@ -2356,7 +2360,11 @@ applySectionOrder();
 setupPWA();
 loadState().then(()=>{
   hideSplash();
-  const wasFirstRun = !localStorage.getItem(LS_PREFIX + 'welcomeSeen');
+  // Wrapped like the loadState() reads: a locked-down browser that throws on every
+  // localStorage call (not just setItem) must not break post-load init (first-run
+  // modal / daily review / drift check) right after the splash screen clears.
+  let wasFirstRun = false;
+  try{ wasFirstRun = !localStorage.getItem(LS_PREFIX + 'welcomeSeen'); }catch(e){}
   checkFirstRun();
   if(wasFirstRun){
     // mark today as reviewed so the daily modal doesn't stack on first run

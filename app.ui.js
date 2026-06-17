@@ -542,14 +542,14 @@ function renderRecentTx(){
       lbl.className = 'tx-day-label';
       lbl.textContent = dayStr===todayStr ? 'اليوم'
         : dayStr===yesterdayStr ? 'أمس'
-        : date.toLocaleDateString('ar-EG',{weekday:'long', day:'numeric', month:'long'});
+        : date.toLocaleDateString('ar-EG',{weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
       list.appendChild(lbl);
       card = document.createElement('div');
       card.className = 'recent-card';
       card.setAttribute('role','list');
       list.appendChild(card);
     }
-    const timeStr = date.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+    const timeStr = date.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',numberingSystem:'latn'});
     const sign = tx.type==='expense'?'-':'+';
     const cls = tx.type==='expense'?'neg':'pos';
     const row = document.createElement('div');
@@ -1402,7 +1402,7 @@ function openWalletDetail(walletId){
       div.innerHTML = `
         <div class="info">
           <div class="desc">${cat.icon} ${escHtml(tx.desc || cat.name)}</div>
-          <div class="meta">${date.toLocaleDateString('ar-EG',{day:'numeric',month:'short'})}</div>
+          <div class="meta">${date.toLocaleDateString('ar-EG',{day:'numeric',month:'short',numberingSystem:'latn'})}</div>
         </div>
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
       `;
@@ -1739,7 +1739,7 @@ function renderTxList(){
       // step back one calendar day (not 24h) so DST transition days still label correctly
       const _yest = new Date(); _yest.setDate(_yest.getDate()-1);
       const isYesterday = dayKey === _yest.toDateString();
-      lbl.textContent = isToday ? 'اليوم' : isYesterday ? 'أمس' : date.toLocaleDateString('ar-EG', {weekday:'long', day:'numeric', month:'long'});
+      lbl.textContent = isToday ? 'اليوم' : isYesterday ? 'أمس' : date.toLocaleDateString('ar-EG', {weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
       list.appendChild(lbl);
     }
 
@@ -1755,7 +1755,7 @@ function renderTxList(){
     div.className = 'tx';
     const sign = tx.type === 'expense' ? '-' : '+';
     const cls = tx.type === 'expense' ? 'neg' : 'pos';
-    const timeStr = date.toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'});
+    const timeStr = date.toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit', numberingSystem:'latn'});
     const cat = getCategory(tx.category);
     div.innerHTML = `
       <div class="info">
@@ -1770,7 +1770,7 @@ function renderTxList(){
     // Accessible name for the whole row so a screen reader announces what this
     // transaction is, not just the bare amount + an isolated "تعديل" button.
     div.setAttribute('aria-label',
-      `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${tx.desc || (wallet?wallet.name:'')}، ${cat.name}، ${date.toLocaleDateString('ar-EG',{day:'numeric',month:'long'})} ${timeStr}`);
+      `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${tx.desc || (wallet?wallet.name:'')}، ${cat.name}، ${date.toLocaleDateString('ar-EG',{day:'numeric',month:'long',numberingSystem:'latn'})} ${timeStr}`);
     div.dataset.txid = tx.id; // delegated swipe handler reads the id from here
     div.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); if(!div._swipeDeleting) openEdit(tx.id); };
     div.onclick = () => { if(!div._swipeDeleting) openEdit(tx.id); };

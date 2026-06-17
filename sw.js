@@ -47,7 +47,9 @@ self.addEventListener('fetch', e => {
       fetch(e.request).then(res => {
         if(res && res.ok){
           const clone = res.clone();
-          caches.open(CACHE).then(c => c.put('./index.html', clone));
+          // Best-effort cache refresh — a rejected put() (e.g. storage pressure)
+          // must not become an unhandled rejection or affect the navigation response.
+          caches.open(CACHE).then(c => c.put('./index.html', clone)).catch(() => {});
         }
         return res;
       }).catch(() => caches.match('./index.html').then(r => r || caches.match(e.request)))
@@ -66,7 +68,9 @@ self.addEventListener('fetch', e => {
       const fresh = fetch(e.request).then(res => {
         if(res && res.ok){
           const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
+          // Best-effort cache refresh — a rejected put() (e.g. storage pressure)
+          // must not become an unhandled rejection or affect the fetch response.
+          caches.open(CACHE).then(c => c.put(e.request, clone)).catch(() => {});
         }
         return res;
       }).catch(() => cached || new Response('', {status:503, statusText:'Offline'}));
