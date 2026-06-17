@@ -1137,6 +1137,16 @@
     *{animation:none !important; transition:none !important;}
   }
 
+  /* Windows High Contrast (forced-colors) strips author background-color, which is
+     the ONLY thing distinguishing the crisis toggle's knob from its track and the
+     Drive sync button's connected/idle tint — add real borders so the renderer has
+     edges to outline with system colors instead of both collapsing to one blob. */
+  @media (forced-colors: active){
+    .switch{ border:1px solid CanvasText; }
+    .switch::after{ border:1px solid Canvas; }
+    .drive-ind{ border-width:2px; }
+  }
+
 /* ============================================================
    V9.3 — BOTTOM NAV · FAB · TAB PANELS · ADD DRAWER · SUBS
 ============================================================ */

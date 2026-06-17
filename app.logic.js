@@ -698,7 +698,7 @@ async function applyImport(text){
   try{ data = JSON.parse(text); }
   catch(e){ toast('⚠ تنسيق JSON غير صالح', true); return; }
 
-  if(!data.wallets || !Array.isArray(data.transactions)){
+  if(!data || typeof data !== 'object' || !data.wallets || !Array.isArray(data.transactions)){
     toast('⚠ ملف غير صحيح — لا يحتوي على wallets أو transactions', true); return;
   }
   if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
@@ -2026,7 +2026,9 @@ function copyReportToClipboard(report){
 }
 
 function downloadReport(report){
-  const blob = new Blob([report], {type:'text/plain;charset=utf-8'});
+  // UTF-8 BOM so Arabic text renders correctly when opened directly in Windows
+  // Notepad/Excel instead of mojibake (neither auto-detects UTF-8 without it).
+  const blob = new Blob(['﻿', report], {type:'text/plain;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2373,6 +2375,20 @@ document.addEventListener('visibilitychange', () => {
     _monthlyExpenseCacheKey = '';
     capDateInputsToToday(); // "today" may have rolled over while tab was hidden
     checkForSWUpdate(); // returning to the app is the prime moment to catch a new version
+    // The background refresh timer (_scheduleTokenRefresh) is a setTimeout that mobile
+    // OSes routinely freeze while the PWA is backgrounded, so a token can sit expired
+    // for hours with the header indicator still showing "متصل ✓". Revalidate on resume
+    // instead of waiting for a sync attempt to fail and silently flip the UI later.
+    if(driveAccessToken && !driveTokenValid()){
+      clearDriveToken();
+      refreshDriveSettingsUI();
+      maybePromptDriveConnect();
+    }
+    // Same staleness problem applies to the once-per-day review/drift checks — both
+    // already self-guard against re-triggering (lastReviewDate / driftNotified), so
+    // it's safe to re-run them here for a PWA that's resumed instead of reloaded.
+    checkDailyReview();
+    checkBalanceDrift();
     render(true);
   } else {
     // flush pending Drive sync immediately — the 1500ms debounce may never fire if tab is discarded
