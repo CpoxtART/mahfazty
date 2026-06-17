@@ -2210,11 +2210,20 @@ function downloadReport(report){
    PWA: MANIFEST + SERVICE WORKER (inline, no extra files needed)
 ============================================================ */
 function buildManifestBlob(isLight){
-  const themeColor = isLight ? '#f4f2ed' : '#121419';
+  // must match the dark-mode value used by applyTheme()'s <meta name="theme-color">
+  // (app.core.js) and the inline pre-paint script in index.html — otherwise the
+  // installed PWA's OS chrome/splash color drifts from what the in-app UI shows.
+  const themeColor = isLight ? '#f4f2ed' : '#15171c';
+  const scopeUrl = new URL('.', location.href).pathname;
   const manifest = {
     name: 'محفظتيييي',
     short_name: 'محفظتيييي',
-    start_url: new URL('.', location.href).pathname,
+    start_url: scopeUrl,
+    // the manifest is served as a blob: URL, so its own "directory" is meaningless —
+    // without an explicit scope the browser can't derive one from the blob URL,
+    // which can break standalone-window navigation scoping. Pin it to the app's
+    // real deployed path (works at root or in a subdirectory).
+    scope: scopeUrl,
     display: 'standalone',
     background_color: themeColor,
     theme_color: themeColor,
@@ -2442,6 +2451,10 @@ renderEditCategoryGrid();
 // Enter key: submit add-form or save edit; Escape: close focused modal
 document.addEventListener('keydown', e => {
   if(e.key === 'Enter'){
+    // Ignore Enter while an IME composition is being confirmed (e.g. mobile
+    // predictive-text/emoji pickers) — that keystroke finalizes the composed
+    // text, it isn't a submit action.
+    if(e.isComposing || e.keyCode === 229) return;
     const tag = document.activeElement && document.activeElement.tagName;
     const id  = document.activeElement && document.activeElement.id;
     // Add-form inputs → submit with current addFormType

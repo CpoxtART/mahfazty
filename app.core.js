@@ -528,22 +528,28 @@ function mergeCloudData(cloud, cloudNewer){
   return { added, removed, hadLocal: localCount };
 }
 
-// Recompute every wallet balance purely from the transaction ledger
+// Recompute every (non-track) wallet balance purely from the transaction ledger
 // (model: balance = 0 + Σ ledger; an expense subtracts, income/adjustment adds).
 // Source of truth is the ledger, so this self-heals any drift between the stored
 // balances and the transactions (from a crash mid-write, a tampered backup, or a
 // rounding bug). Returns a {id: delta} diff of what changed, applies nothing
 // destructive on its own beyond setting state.wallets — caller decides to persist.
+// Track wallets (Uber/Cards/Cash) are skipped — their balance is intentionally
+// maintained manually (see checkBalanceDrift) and can legitimately diverge from
+// the ledger (real-world fees/interest never entered as a transaction). Without
+// this exclusion, an automatic background Drive merge would silently blow away a
+// manually-set tracked balance back to the ledger sum.
 function reconcileBalances(){
   const computed = {}, diff = {};
-  WALLET_DEFS.forEach(w => computed[w.id] = 0); // baseline 0 per the app's model
+  WALLET_DEFS.forEach(w => { if(!w.track) computed[w.id] = 0; }); // baseline 0 per the app's model
   state.transactions.forEach(tx => {
-    if(computed[tx.wallet] === undefined) return; // skip unknown wallet ids
+    if(computed[tx.wallet] === undefined) return; // skip unknown/track wallet ids
     const amt = parseFloat(tx.amount);
     if(!isFinite(amt)) return;
     computed[tx.wallet] = Math.round((computed[tx.wallet] + (tx.type === 'expense' ? -amt : amt)) * 100) / 100;
   });
   WALLET_DEFS.forEach(w => {
+    if(w.track) return; // leave manually-tracked balances untouched
     const before = parseFloat(state.wallets[w.id]) || 0;
     const after = computed[w.id];
     if(Math.abs(after - before) >= 0.005) diff[w.id] = Math.round((after - before) * 100) / 100;
