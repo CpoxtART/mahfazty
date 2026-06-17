@@ -980,7 +980,13 @@ function toast(msg, isError){
   // dropped for 5s after a delete, so "تم تسجيل المصروف" could vanish).
   // Note: we do NOT null _lastDeleted here so undo can still work if the user
   // taps the undo button in a toastWithUndo that appears after this toast.
-  if(_lastDeleted){ clearTimeout(_undoTimer); }
+  // We DO reschedule the expiry (not just clear it) — otherwise _lastDeleted
+  // would stay armed forever once interrupted, letting a much later undo
+  // resurrect a transaction long after the 5s window the toast implied.
+  if(_lastDeleted){
+    clearTimeout(_undoTimer);
+    _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
+  }
   const el = document.getElementById('saveStatus');
   el.textContent = msg;
   el.style.borderColor = isError ? 'var(--red)' : 'var(--line)';

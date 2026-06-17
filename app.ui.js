@@ -637,7 +637,7 @@ async function saveSubModal(){
   if(_saveSubBusy) return;
   const name = document.getElementById('subName').value.trim().slice(0,60);
   const amount = round2(parseAmount(document.getElementById('subAmount').value));
-  const billingDay = parseInt(document.getElementById('subBillingDay').value, 10);
+  const billingDay = parseInt(normalizeDigits(document.getElementById('subBillingDay').value), 10); // normalize Arabic-Indic digits (numeric keyboards often default to them)
   const active = document.getElementById('subActive')?.checked !== false;
   if(!name){ toast('⚠ أدخل اسم الاشتراك', true); return; }
   if(!isFinite(amount)||amount<=0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
