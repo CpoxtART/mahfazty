@@ -72,6 +72,7 @@ let editingTxId = null;
 let editType = 'expense';
 let editWallet = WALLET_DEFS[0].id;
 let _editingTransferLeg = false; // when true, type/category are locked (transfer)
+let _editingDistSource = false; // when true, amount is locked (already-distributed income source)
 let searchQuery = '';
 let prevSpendable = null;
 let selectedCategory = 'other';
@@ -577,12 +578,13 @@ async function saveTx(){
 }
 function _pruneRecurringDismissals(){
   if(dismissedRecurring.size < 40) return;
-  // dismissal keys are "desc\x00walletId" (see detectRecurring) — build the live
-  // set with the SAME shape, otherwise NONE of the keys ever match and we wipe
-  // every dismissal at once, making dismissed suggestions reappear.
+  // dismissal keys are "desc\x00walletId" (see detectRecurring, which keys on
+  // normalizeSearch(desc)) — build the live set with the SAME shape, otherwise
+  // NONE of the keys ever match and we wipe every dismissal at once, making
+  // dismissed suggestions reappear.
   const live = new Set(
     state.transactions
-      .map(tx => (tx.desc||'').trim().toLowerCase() + '\x00' + tx.wallet)
+      .map(tx => normalizeSearch(tx.desc) + '\x00' + tx.wallet)
       .filter(k => k.charAt(0) !== '\x00') // drop empty-description keys
   );
   for(const k of dismissedRecurring){ if(!live.has(k)) dismissedRecurring.delete(k); }

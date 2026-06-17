@@ -1537,18 +1537,33 @@ function detectRecurring(){
   // _recurringCache is nulled on every render(); this inner sig only guards
   // against duplicate calls within the same render cycle (e.g. from renderWallets
   // and renderRecurring both running). descLen was O(n) and redundant here.
-  const sig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size;
+  const sig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size + '|' + subscriptions.length;
   if(sig === _recurringCacheSig && _recurringCache) return _recurringCache;
   _recurringCacheSig = sig;
 
   const groups = {};
   state.transactions.forEach(tx=>{
     if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
-    const key = ((tx.desc||'').trim().toLowerCase()) + '\x00' + tx.wallet;
+    // normalizeSearch folds Arabic orthographic variants (alef/ya/teh-marbuta,
+    // tashkeel) so "نتفلكس" and "نتفلیکس" group as the same recurring pattern
+    // instead of being treated as unrelated one-off transactions (see normalizeSearch).
+    const key = normalizeSearch(tx.desc) + '\x00' + tx.wallet;
     if(!key.split('\x00')[0]) return;
     if(!groups[key]) groups[key] = [];
     groups[key].push(tx);
   });
+
+  // Tracked subscriptions the user already accepted shouldn't be re-suggested —
+  // compare normalized name + amount within 15% (same tolerance as the variance
+  // check below) so the matching transaction group is skipped entirely.
+  const trackedSubs = subscriptions.map(s => ({ name: normalizeSearch(s.name), amount: s.amount }));
+  function matchesTrackedSub(desc, avg){
+    const normDesc = normalizeSearch(desc);
+    return trackedSubs.some(s =>
+      (normDesc.includes(s.name) || s.name.includes(normDesc)) &&
+      Math.abs(avg - s.amount) / s.amount < 0.15
+    );
+  }
 
   const suggestions = [];
   Object.entries(groups).forEach(([key, txs])=>{
@@ -1564,6 +1579,7 @@ function detectRecurring(){
     const avg = amounts.reduce((a,b)=>a+b,0)/amounts.length;
     const variance = avg > 0 && amounts.every(a => Math.abs(a-avg)/avg < 0.15);
     if(!variance) return;
+    if(matchesTrackedSub(txs[0].desc, avg)) return;
 
     suggestions.push({ key, desc: txs[0].desc, avg, count: txs.length, wallet: txs[0].wallet, category: txs[0].category });
     // key = "desc\x00walletId" — dismiss per wallet so same desc in two wallets shows two suggestions

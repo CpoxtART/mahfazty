@@ -292,9 +292,23 @@ function openEdit(id){
   // category would unbalance the two-leg transfer (money created/destroyed),
   // and only amount/wallet/desc are synced to the partner. Hide those controls.
   _editingTransferLeg = !!(tx.link && tx.category === 'transfer');
+  // The income tx that triggered an auto-distribution keeps its own category
+  // (not 'transfer') but is linked to the withdrawal + N deposit legs that
+  // already moved the OLD amount into other wallets. Editing its amount here
+  // has no sync path (unlike the simple 2-leg transfer case above, which only
+  // syncs when there's exactly one partner) — those legs would silently stay
+  // at the stale amount, desyncing the source tx from the money actually
+  // distributed. Lock the amount field for this case; desc/date/category/type
+  // remain editable since they don't affect balances.
+  _editingDistSource = !!(tx.link && tx.category !== 'transfer' &&
+    state.transactions.filter(t => t.link === tx.link && t.id !== tx.id).length > 1);
   document.getElementById('editTypeToggle').style.display = _editingTransferLeg ? 'none' : '';
   document.getElementById('editCategorySection').style.display = _editingTransferLeg ? 'none' : '';
   document.getElementById('editTransferHint').style.display = _editingTransferLeg ? 'block' : 'none';
+  document.getElementById('editDistSourceHint').style.display = _editingDistSource ? 'block' : 'none';
+  const _eAmt = document.getElementById('editAmount');
+  _eAmt.disabled = _editingDistSource;
+  _eAmt.style.opacity = _editingDistSource ? '.55' : '';
   setEditType(tx.type);
   renderEditWalletSelect();
   renderEditCategoryGrid();
@@ -324,6 +338,16 @@ async function saveEdit(){
   if(!tx){
     toast('⚠ المعاملة لم تعد موجودة — ربما حُذفت من تبويب آخر', true);
     closeModal('editModal');
+    return;
+  }
+
+  // Defense in depth: the amount field is disabled in the UI for this case
+  // (see openEdit), but guard here too in case of stale state — editing the
+  // amount of an already-distributed income source has no path to rebalance
+  // the withdrawal + per-wallet deposit legs already created from the OLD
+  // amount, which would otherwise desync the source tx from the money moved.
+  if(_editingDistSource){
+    toast('⚠ هذه المعاملة موزعة على محافظ أخرى — احذفها وأضفها من جديد لتغيير المبلغ', true);
     return;
   }
 
@@ -2086,9 +2110,12 @@ function buildDailyReviewContent(){
     lines.push(`📅 لم تُسجَّل معاملات أمس.`);
   }
 
-  // budget warnings
+  // budget warnings — skip wallets currently merged into the crisis combined
+  // card: their individual budget bar isn't rendered while crisis mode is on,
+  // so naming them here would reference a wallet the user can't see or act on.
   WALLET_DEFS.forEach(w=>{
     if(w.track || !budgets[w.id]) return;
+    if(state.crisisMode && CRISIS_WALLET_IDS.includes(w.id)) return;
     const spent = monthlyExpenseForWallet(w.id);
     const budget = budgets[w.id];
     if(spent >= budget){
