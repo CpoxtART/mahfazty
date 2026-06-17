@@ -443,18 +443,26 @@ function resetLayout(){
    V9.3: ADD DRAWER
 ============================================================ */
 function openAddDrawer(){
+  const wasClosed = !addDrawerOpen;
   addDrawerOpen = true;
   switchDrawerTab(0); // always open on Details tab so amount/date are immediately visible
   document.getElementById('addDrawer').classList.add('open');
   document.getElementById('addDrawerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
   capDateInputsToToday();
+  // Same back-button bookkeeping as openModal/closeModal (see app.logic.js) so
+  // hardware/gesture back closes the drawer instead of navigating away. Guarded
+  // by wasClosed so re-entrant calls (none currently, but matches the modal
+  // pattern defensively) don't push a duplicate history entry.
+  if(wasClosed) _pushOverlayHistory();
 }
 function closeAddDrawer(){
+  const wasOpen = addDrawerOpen;
   addDrawerOpen = false;
   document.getElementById('addDrawer').classList.remove('open');
   document.getElementById('addDrawerOverlay').classList.remove('open');
   if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+  if(wasOpen) _popOverlayHistory();
 }
 function toggleAddDrawer(){
   if(addDrawerOpen) closeAddDrawer(); else openAddDrawer();
@@ -573,7 +581,7 @@ function renderRecentTx(){
     const more = document.createElement('button');
     more.className = 'btn-secondary';
     more.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:13px;';
-    more.textContent = `⬇ عرض ${toShow} معاملة أقدم` + (remaining - toShow > 0 ? ` (${remaining - toShow} متبقية)` : '');
+    more.textContent = `⬇ عرض ${arPlural(toShow, 'معاملة أقدم', 'معاملتين أقدم', 'معاملات أقدم')}` + (remaining - toShow > 0 ? ` (${arPlural(remaining - toShow, 'متبقية', 'متبقيتان', 'متبقية')})` : '');
     more.onclick = () => { _recentVisibleCount += recentTxLimit; renderRecentTx(); };
     list.appendChild(more);
   } else if(_recentVisibleCount > recentTxLimit && all.length > recentTxLimit){
@@ -808,6 +816,22 @@ function guessType(text){
 
 let voiceRecognition = null;
 let _voiceTimer = null;
+// Browsers without Web Speech support (notably Firefox, which implements
+// neither SpeechRecognition nor webkitSpeechRecognition) would otherwise show
+// a mic button that does nothing useful until tapped. Hide it up front instead
+// of failing only on click, so the UI never advertises a feature that can't work.
+(function hideVoiceBtnIfUnsupported(){
+  if(window.SpeechRecognition || window.webkitSpeechRecognition) return;
+  const hide = () => {
+    const btn = document.getElementById('voiceBtn');
+    if(btn) btn.style.display = 'none';
+  };
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', hide);
+  } else {
+    hide();
+  }
+})();
 function startVoiceInput(){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SpeechRecognition){
@@ -1792,8 +1816,8 @@ function renderTxList(){
     const toShow = Math.min(remaining, 50);
     const afterLoad = remaining - toShow;
     more.textContent = afterLoad > 0
-      ? `⬇ عرض ${toShow} معاملة (${afterLoad} ستبقى مخفية)`
-      : `⬇ عرض الـ ${toShow} المتبقية`;
+      ? `⬇ عرض ${arPlural(toShow, 'معاملة', 'معاملتين', 'معاملات')} (${arPlural(afterLoad, 'ستبقى مخفية', 'ستبقيان مخفيتين', 'ستبقى مخفية')})`
+      : `⬇ عرض ${arPlural(toShow, 'المعاملة المتبقية', 'المعاملتين المتبقيتين', 'المعاملات المتبقية')}`;
     more.onclick = () => { _txVisibleCount += 50; renderTxList(); };
     list.appendChild(more);
   }
@@ -1810,6 +1834,7 @@ function bindSwipeDelegation(list){
   if(!list || list._swipeBound) return;
   list._swipeBound = true;
   const threshold = 90;
+  const edgeZone = 24; // px from either screen edge reserved for the OS back-swipe gesture
   let el = null, txId = null, startX = 0, startY = 0, currentX = 0, dragging = false, swipeMode = false;
 
   const reset = () => { el = null; dragging = false; swipeMode = false; currentX = 0; };
@@ -1817,9 +1842,14 @@ function bindSwipeDelegation(list){
   list.addEventListener('touchstart', e=>{
     const row = e.target.closest && e.target.closest('.tx');
     if(!row || row._swipeDeleting){ reset(); return; } // not on a row / mid-delete
+    startX = e.touches[0].clientX;
+    // A touch starting inside the OS back-swipe edge zone (iOS Safari / Android
+    // Chrome gesture nav both watch the outer ~20px) must be left alone — claiming
+    // it here would fight the OS gesture and produce a half-swiped, half-navigated
+    // row instead of either a clean delete or a clean back-navigation.
+    if(startX < edgeZone || startX > window.innerWidth - edgeZone){ reset(); return; }
     el = row;
     txId = row.dataset.txid;
-    startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
     dragging = true;
     swipeMode = false;

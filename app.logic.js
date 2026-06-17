@@ -498,6 +498,82 @@ async function undoDelete(){
 }
 
 /* ============================================================
+   BACK-BUTTON / HISTORY INTEGRATION FOR MODALS & THE ADD DRAWER
+   ------------------------------------------------------------
+   Android/iOS-PWA back (and the browser back button) must close the
+   topmost open modal/drawer instead of navigating away or exiting the
+   app. We push one history entry per overlay opened; popstate closes
+   the topmost one via the SAME logic Escape already uses. Closing an
+   overlay through its own UI (X/cancel/backdrop/save) must consume
+   that entry with history.back() so the stack never accumulates
+   orphaned entries — that bookkeeping (push-on-open, pop-on-any-close,
+   and not double-handling the popstate-triggered close) is the part
+   that makes this safe rather than "architecturally risky".
+============================================================ */
+let _overlayHistDepth = 0;    // how many of OUR entries are currently on the history stack
+let _inPopstateClose = false; // true while popstate's own close is unwinding (skip history.back())
+function _pushOverlayHistory(){
+  _overlayHistDepth++;
+  history.pushState({ _mahfaztyOverlay: true, depth: _overlayHistDepth }, '');
+}
+function _popOverlayHistory(){
+  if(_overlayHistDepth <= 0) return;
+  _overlayHistDepth--;
+  if(_inPopstateClose) return; // popstate already moved history back for us
+  history.back();
+}
+// Single source of truth for "what does back/Escape close right now", reused by
+// both the keydown handler and popstate so the priority order (dropdown → add
+// drawer → topmost modal) only lives in one place.
+function _closeTopmostOverlay(){
+  const dropdowns = [
+    ['walletMenuWrap','walletSelectBtn'],
+    ['editWalletMenuWrap','editWalletBtn'],
+    ['transferFromMenuWrap','transferFromBtn'],
+    ['transferToMenuWrap','transferToBtn'],
+  ];
+  let closedDropdown = false;
+  dropdowns.forEach(([wrapId, btnId])=>{
+    const wrap = document.getElementById(wrapId);
+    if(wrap && wrap.classList.contains('open')){
+      wrap.classList.remove('open');
+      const btn = document.getElementById(btnId);
+      if(btn){ btn.classList.remove('open'); btn.setAttribute('aria-expanded','false'); btn.focus({preventScroll:true}); }
+      closedDropdown = true;
+    }
+  });
+  if(closedDropdown) return true;
+  if(addDrawerOpen){
+    closeAddDrawer();
+    return true;
+  }
+  const open = [...document.querySelectorAll('.modal-overlay.open')];
+  if(open.length){
+    closeModal(open[open.length-1].id);
+    return true;
+  }
+  return false;
+}
+// Dropdowns (custom <select>s) don't push history entries — they're a transient
+// in-page widget, not a "screen" — so popstate only needs to care about the add
+// drawer and modals, both of which already go through _pushOverlayHistory().
+window.addEventListener('popstate', () => {
+  if(_overlayHistDepth <= 0) return; // a real navigation, not one of our entries — let it proceed
+  _inPopstateClose = true;
+  try{
+    if(addDrawerOpen){
+      closeAddDrawer();
+    } else {
+      const open = [...document.querySelectorAll('.modal-overlay.open')];
+      if(open.length) closeModal(open[open.length-1].id);
+      else _overlayHistDepth = 0; // safety net: nothing open but we thought we had depth — resync
+    }
+  } finally {
+    _inPopstateClose = false;
+  }
+});
+
+/* ============================================================
    MODALS
 ============================================================ */
 // Stack (not a single var) so nested modals restore focus to the correct opener:
@@ -511,7 +587,13 @@ function openModal(id){
   // but only on the FIRST open. Re-opening an already-open modal (e.g. wallet
   // detail refreshing itself after a tracked-balance edit) must NOT push a
   // duplicate, or it would bury the real opener and break focus return.
-  if(modal && !modal.classList.contains('open')) _focusStack.push(document.activeElement);
+  const wasClosed = modal && !modal.classList.contains('open');
+  if(wasClosed) _focusStack.push(document.activeElement);
+  // Push one history entry per modal/drawer opened so the hardware/gesture BACK
+  // button closes the topmost overlay instead of navigating away or exiting the
+  // PWA. _histDepth tracks how many of OUR entries are stacked so popstate can
+  // tell "user pressed back with an overlay open" apart from a real navigation.
+  if(wasClosed) _pushOverlayHistory();
   // give the dialog an accessible name from its heading (so SR doesn't announce an
   // unnamed dialog) — done here once instead of hand-wiring aria-labelledby on all 11
   if(!modal.hasAttribute('aria-label') && !modal.hasAttribute('aria-labelledby')){
@@ -541,7 +623,9 @@ function openModal(id){
   });
 }
 function closeModal(id){
-  document.getElementById(id).classList.remove('open');
+  const modal = document.getElementById(id);
+  const wasOpen = modal && modal.classList.contains('open');
+  modal.classList.remove('open');
   // restore background scroll only once no modal remains open
   if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
   if(id === 'editModal'){
@@ -560,6 +644,11 @@ function closeModal(id){
   if(_retFocus && typeof _retFocus.focus === 'function'){
     try{ _retFocus.focus({preventScroll:true}); }catch(_){}
   }
+  // Closed via X/cancel/backdrop/save — NOT via the back button — so the history
+  // entry pushed on open is still sitting there. Consume it with history.back()
+  // so the stack doesn't accumulate an orphaned entry per modal opened+closed
+  // (would otherwise force the user to hit back N extra times to actually leave).
+  if(wasOpen) _popOverlayHistory();
 }
 // Modals that hold unsaved form input must NOT close on an accidental
 // backdrop tap (common on mobile) — only their explicit buttons close them.
@@ -766,7 +855,7 @@ async function applyImport(text){
   closeModal('dataModal');
   render(true);
   if(_droppedTx > 0){
-    toast(`✓ تم الاستيراد — لكن تم تجاهل ${_droppedTx} معاملة غير صالحة (محفظة مجهولة أو بيانات تالفة)`, true);
+    toast(`✓ تم الاستيراد — لكن تم تجاهل ${arPlural(_droppedTx, 'معاملة غير صالحة', 'معاملتين غير صالحتين', 'معاملات غير صالحة')} (محفظة مجهولة أو بيانات تالفة)`, true);
   } else {
     toast('✓ تم الاستيراد بنجاح');
   }
@@ -1486,6 +1575,56 @@ function driveFetch(url, opts, timeoutMs){
   return fetch(url, Object.assign({}, opts, { signal: ctrl.signal })).finally(() => clearTimeout(timer));
 }
 
+// Build an Error for a non-ok Drive response, tagging it with the specific reason
+// (e.g. 'storageQuotaExceeded' on a 403, or 429 rate-limiting) when Drive's JSON
+// error body provides one, so callers can show a precise message instead of a
+// generic "permission denied"/"connection failed" toast. Reading the body is
+// best-effort — a malformed/HTML body (Google outage page) must not throw here.
+async function _driveErrFromRes(res, prefix){
+  let reason = '';
+  try{
+    const body = await res.clone().json();
+    reason = (body && body.error && body.error.errors && body.error.errors[0] && body.error.errors[0].reason) || '';
+  }catch(_){ /* non-JSON body (e.g. HTML error page) — fall back to status only */ }
+  return new Error(`${prefix}: ${res.status}${reason ? ' (' + reason + ')' : ''}`);
+}
+
+// Shared failure handling for both sync directions (push/pull) so a token expiring
+// or being revoked mid-pull gets the exact same detection + user-facing toast as
+// it already got mid-push — previously driveSyncFromCloud's catch was silent
+// (console.error + a tiny red header icon only), so a 401/403 during a pull left
+// the user with no idea their data wasn't actually syncing, and a dead token
+// would just keep getting retried forever since it was never cleared.
+function _handleDriveSyncError(e){
+  console.error(e);
+  setDriveIndicator('error');
+  if(e.message && e.message.includes('401')){
+    clearDriveToken();
+    refreshDriveSettingsUI();
+    // Do NOT auto-call requestAccessToken here — on mobile Chrome it causes
+    // a redirect to gsi/transfer that hangs blank. Instead, guide the user
+    // to tap sign-in manually (one tap via the header indicator or settings).
+    toast('⚠ انتهت جلسة Drive — اضغط على ☁️ في الأعلى لتسجيل الدخول من جديد', true);
+  } else if(e.message && e.message.includes('storageQuotaExceeded')){
+    // distinct from a generic 403: the user's actual Drive storage is full,
+    // not an app-permission problem — re-auth would not fix this
+    toast('⚠ مساحة Google Drive ممتلئة — حرر مساحة لإتمام المزامنة', true);
+  } else if(e.message && e.message.includes('403')){
+    toast('⚠ تم رفض الإذن من Drive — تأكد من صلاحيات appdata بالـ Client ID', true);
+  } else if(e.message && e.message.includes('429')){
+    // rate-limited — the 1.5s debounce/timer-driven retry already provides
+    // natural backoff, so just tell the user honestly instead of implying
+    // a connection problem
+    toast('⚠ تم تجاوز حد الطلبات إلى Drive مؤقتًا — سيُعاد المحاولة تلقائيًا', true);
+  } else if(e.message && (e.message.includes(' 500') || e.message.includes('503'))){
+    toast('⚠ خطأ مؤقت في خوادم Drive — سيُعاد المحاولة تلقائيًا', true);
+  } else if(!navigator.onLine){
+    toast('⚠ لا يوجد اتصال بالإنترنت — سيتم الحفظ محليًا فقط', true);
+  } else {
+    toast('⚠ تعذر الاتصال بـ Drive، سيُعاد المحاولة لاحقًا', true);
+  }
+}
+
 // Find (or remember) the app data file on Drive. Matches the current filename OR
 // the legacy Arabic one, so users who synced before the rename keep their data.
 async function driveFindFile(){
@@ -1558,7 +1697,7 @@ async function driveSyncToCloud(){
         _driveResyncPending = true;
         throw new Error('drive update failed: 404 (file gone, will recreate)');
       }
-      if(!res.ok) throw new Error('drive update failed: ' + res.status);
+      if(!res.ok) throw await _driveErrFromRes(res, 'drive update failed');
     } else {
       const boundary = 'wallet_boundary_' + Date.now();
       const metadata = { name: DRIVE_FILE_NAME, parents: ['appDataFolder'] };
@@ -1574,29 +1713,14 @@ async function driveSyncToCloud(){
         },
         body
       });
-      if(!res.ok) throw new Error('drive create failed: ' + res.status);
+      if(!res.ok) throw await _driveErrFromRes(res, 'drive create failed');
       const data = await res.json();
       driveFileId = data.id;
     }
     setDriveIndicator('ok');
     return true;
   }catch(e){
-    console.error(e);
-    setDriveIndicator('error');
-    if(e.message && e.message.includes('401')){
-      clearDriveToken();
-      refreshDriveSettingsUI();
-      // Do NOT auto-call requestAccessToken here — on mobile Chrome it causes
-      // a redirect to gsi/transfer that hangs blank. Instead, guide the user
-      // to tap sign-in manually (one tap via the header indicator or settings).
-      toast('⚠ انتهت جلسة Drive — اضغط على ☁️ في الأعلى لتسجيل الدخول من جديد', true);
-    } else if(e.message && e.message.includes('403')){
-      toast('⚠ تم رفض الإذن من Drive — تأكد من صلاحيات appdata بالـ Client ID', true);
-    } else if(!navigator.onLine){
-      toast('⚠ لا يوجد اتصال بالإنترنت — سيتم الحفظ محليًا فقط', true);
-    } else {
-      toast('⚠ تعذر الاتصال بـ Drive، سيُعاد المحاولة لاحقًا', true);
-    }
+    _handleDriveSyncError(e);
     return false;
   } finally {
     _driveSyncBusy = false;
@@ -1673,7 +1797,7 @@ async function driveSyncFromCloud(isInitial, interactive){
     const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {
       headers: { 'Authorization': 'Bearer ' + driveAccessToken }
     });
-    if(!res.ok) throw new Error('drive download failed: ' + res.status);
+    if(!res.ok) throw await _driveErrFromRes(res, 'drive download failed');
     const cloud = await res.json();
 
     const localHasData = state.transactions.length > 0;
@@ -1744,12 +1868,11 @@ async function driveSyncFromCloud(isInitial, interactive){
     const tag = side => newer === side ? ' <b style="color:var(--green)">(الأحدث)</b>' : '';
     const info = document.getElementById('conflictInfo');
     if(info) info.innerHTML =
-      `☁️ <b>Drive</b>: ${cloudCount} عملية · ${escHtml(fmtWhen(cloudTime))}${tag('cloud')}<br>` +
-      `📱 <b>المحلية</b>: ${localCount} عملية · ${escHtml(fmtWhen(localTime))}${tag('local')}`;
+      `☁️ <b>Drive</b>: ${arPlural(cloudCount, 'عملية', 'عمليتين', 'عمليات')} · ${escHtml(fmtWhen(cloudTime))}${tag('cloud')}<br>` +
+      `📱 <b>المحلية</b>: ${arPlural(localCount, 'عملية', 'عمليتين', 'عمليات')} · ${escHtml(fmtWhen(localTime))}${tag('local')}`;
     openModal('driveConflictModal');
   }catch(e){
-    console.error(e);
-    setDriveIndicator('error');
+    _handleDriveSyncError(e);
   }
 }
 
@@ -1932,7 +2055,7 @@ function buildDailyReviewContent(){
 
   let lines = [];
   if(yCount > 0 || yIncome > 0){
-    lines.push(`📅 <b style="color:var(--text)">أمس:</b> صرفت <b style="color:var(--red)">${fmt(yExpense)}</b> على ${yCount} معاملة${yIncome>0?` · دخل <b style="color:var(--green)">${fmt(yIncome)}</b>`:''}`);
+    lines.push(`📅 <b style="color:var(--text)">أمس:</b> صرفت <b style="color:var(--red)">${fmt(yExpense)}</b> على ${arPlural(yCount, 'معاملة', 'معاملتين', 'معاملات')}${yIncome>0?` · دخل <b style="color:var(--green)">${fmt(yIncome)}</b>`:''}`);
   } else {
     lines.push(`📅 لم تُسجَّل معاملات أمس.`);
   }
@@ -1968,7 +2091,7 @@ function buildDailyReviewContent(){
   // pending recurring suggestions
   const recurring = detectRecurring();
   if(recurring.length > 0){
-    lines.push(`🔁 لديك ${recurring.length} معاملة متكررة محتملة بانتظار مراجعتك (تبويب تحليلات).`);
+    lines.push(`🔁 لديك ${arPlural(recurring.length, 'معاملة متكررة محتملة', 'معاملتان متكررتان محتملتان', 'معاملات متكررة محتملة')} بانتظار مراجعتك (تبويب تحليلات).`);
   }
 
   if(lines.length === 1 && yCount===0 && yIncome===0) return null;
@@ -2314,31 +2437,7 @@ document.addEventListener('keydown', e => {
     }
   }
   if(e.key === 'Escape'){
-    // Close open custom dropdowns first; if none, close the topmost modal
-    const dropdowns = [
-      ['walletMenuWrap','walletSelectBtn'],
-      ['editWalletMenuWrap','editWalletBtn'],
-      ['transferFromMenuWrap','transferFromBtn'],
-      ['transferToMenuWrap','transferToBtn'],
-    ];
-    let closedDropdown = false;
-    dropdowns.forEach(([wrapId, btnId])=>{
-      const wrap = document.getElementById(wrapId);
-      if(wrap && wrap.classList.contains('open')){
-        wrap.classList.remove('open');
-        const btn = document.getElementById(btnId);
-        if(btn){ btn.classList.remove('open'); btn.setAttribute('aria-expanded','false'); btn.focus({preventScroll:true}); }
-        closedDropdown = true;
-      }
-    });
-    if(!closedDropdown){
-      if(addDrawerOpen){
-        closeAddDrawer();
-      } else {
-        const open = [...document.querySelectorAll('.modal-overlay.open')];
-        if(open.length) closeModal(open[open.length-1].id);
-      }
-    }
+    _closeTopmostOverlay();
   }
   if(e.key === 'Tab'){
     const container = addDrawerOpen

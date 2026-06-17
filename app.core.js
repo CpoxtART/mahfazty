@@ -149,6 +149,19 @@ function fmt(n){
   return s === '-0.00' ? '0.00' : s;
 }
 
+// Build a grammatically-correct "<count> <noun>" Arabic phrase. Arabic number
+// agreement: 1 → singular ("معاملة واحدة"), 2 → dual ("معاملتان"), 3-10 → plural
+// ("3 معاملات"), 11+ → singular form again ("11 معاملة"). Naively concatenating
+// `${count} ${singular}` is only ever correct for the 11+ case, so every count+noun
+// spot in the UI needs this instead of raw template-literal interpolation.
+function arPlural(count, singular, dual, plural){
+  const n = Math.abs(Number(count) || 0);
+  if(n === 1) return `${singular} واحدة`;
+  if(n === 2) return dual;
+  if(n >= 3 && n <= 10) return `${count} ${plural}`;
+  return `${count} ${singular}`;
+}
+
 // Normalize Arabic-Indic (٠-٩) and Persian (۰-۹) digits + Arabic decimal/thousands
 // separators to ASCII so amount fields accept numbers typed on Arabic keyboards.
 function normalizeDigits(str){
