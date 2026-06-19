@@ -771,11 +771,21 @@ document.addEventListener('click', function(e){
 // thousands of transactions; keyed by _txMutationStamp so it auto-invalidates
 // on any add/edit/delete.
 let _firstTxStamp = -1, _firstTxMs = null;
-// ar-EG's numeric date/time formatting embeds invisible bidi control chars
-// (U+200E/U+200F) between segments so they render correctly in RTL text.
-// .sett-stat-v is forced direction:ltr, so those marks fight the bidi
-// algorithm instead and can visibly scramble the digit order — strip them.
-const stripBidi = s => s.replace(/[‎‏]/g, '');
+// .sett-stat-v is forced direction:ltr, but ICU's ar-EG numeric date/time
+// formatting embeds bidi control chars (and on some platforms, e.g. Android
+// Chrome, a different digit/separator order entirely) meant for RTL text —
+// fighting the forced LTR direction and visibly scrambling the digits.
+// Build the strings from plain digits instead of relying on locale
+// formatting at all, sidestepping ICU's platform-specific bidi quirks.
+const pad2 = n => String(n).padStart(2, '0');
+function fmtStatDate(ms){
+  const d = new Date(ms);
+  return `${d.getDate()}/${d.getMonth()+1}/${pad2(d.getFullYear() % 100)}`;
+}
+function fmtStatDateTime(ms){
+  const d = new Date(ms);
+  return `${d.getDate()}/${d.getMonth()+1} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
 function updateSettingsStats(){
   // numberingSystem:'latn' forces Western digits — Arabic-Indic numerals here looked
   // out of place against the rest of the UI's number formatting (fmt() etc. all use
@@ -788,12 +798,12 @@ function updateSettingsStats(){
       : null;
   }
   document.getElementById('statFirstTx').textContent = _firstTxMs !== null
-    ? stripBidi(new Date(_firstTxMs).toLocaleDateString('ar-EG', {day:'numeric', month:'numeric', year:'2-digit', numberingSystem:'latn'}))
+    ? fmtStatDate(_firstTxMs)
     : '—';
   try{
     const last = localStorage.getItem(LS_PREFIX + 'lastEdit');
     document.getElementById('statLastEdit').textContent = last
-      ? stripBidi(new Date(parseInt(last)).toLocaleString('ar-EG', {day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit', hour12:false, numberingSystem:'latn'}))
+      ? fmtStatDateTime(parseInt(last))
       : '—';
   }catch(e){
     document.getElementById('statLastEdit').textContent = '—';
