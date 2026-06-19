@@ -539,7 +539,7 @@ function resetLayout(){
   applySectionOrder();
   renderRecentTx();
   renderLayoutEditor();
-  toast('↺ تم استعادة الترتيب الافتراضي');
+  toast('↺ تمت استعادة الترتيب الافتراضي');
 }
 
 /* ============================================================
@@ -565,6 +565,16 @@ function closeAddDrawer(){
   document.getElementById('addDrawer').classList.remove('open');
   document.getElementById('addDrawerOverlay').classList.remove('open');
   if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+  // Closing via the back button skips the click-outside handler that normally
+  // collapses this dropdown, so it could otherwise show pre-expanded the next
+  // time the drawer opens (same fix as closeModal's editWalletMenuWrap cleanup).
+  const wWrap = document.getElementById('walletMenuWrap');
+  const wBtn = document.getElementById('walletSelectBtn');
+  if(wWrap) wWrap.classList.remove('open');
+  if(wBtn){ wBtn.classList.remove('open'); wBtn.setAttribute('aria-expanded','false'); }
+  // A pending voice recognition would otherwise keep listening in the background
+  // and silently fill the (now hidden) desc/amount fields whenever it resolves.
+  if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} }
   if(wasOpen) _popOverlayHistory();
 }
 function toggleAddDrawer(){
@@ -684,7 +694,7 @@ function renderRecentTx(){
     const more = document.createElement('button');
     more.className = 'btn-secondary';
     more.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:13px;';
-    more.textContent = `⬇ عرض ${arPlural(toShow, 'معاملة أقدم', 'معاملتين أقدم', 'معاملات أقدم')}` + (remaining - toShow > 0 ? ` (${arPlural(remaining - toShow, 'متبقية', 'متبقيتان', 'متبقية')})` : '');
+    more.textContent = `⬇ عرض ${arPlural(toShow, 'معاملة أقدم', 'معاملتين أقدم', 'معاملات أقدم', 'معاملة واحدة أقدم')}` + (remaining - toShow > 0 ? ` (${arPlural(remaining - toShow, 'متبقية', 'متبقيتان', 'متبقية', 'واحدة متبقية')})` : '');
     more.onclick = () => { _recentVisibleCount += recentTxLimit; renderRecentTx(); };
     list.appendChild(more);
   } else if(_recentVisibleCount > recentTxLimit && all.length > recentTxLimit){
@@ -739,8 +749,8 @@ function openSubModal(id){
   document.getElementById('subBillingDay').value = sub ? (sub.billingDay||'') : '';
   const activeEl = document.getElementById('subActive');
   if(activeEl) activeEl.checked = sub ? (sub.active !== false) : true;
-  const del = document.getElementById('subDeleteBtn');
-  if(del) del.style.display = sub ? 'block' : 'none';
+  const delRow = document.getElementById('subDeleteRow');
+  if(delRow) delRow.style.display = sub ? 'flex' : 'none';
   openModal('subModal');
 }
 let _saveSubBusy = false;
@@ -1110,7 +1120,12 @@ function renderCategoryGrid(){
 function renderEditCategoryGrid(){
   const grid = document.getElementById('editCategoryGrid');
   grid.innerHTML = '';
-  CATEGORIES.filter(c => c.types.includes(editType)).forEach(c => {
+  // 'transfer' is a sentinel: combined with tx.link it's how the app detects a
+  // 2-leg transfer elsewhere (openEdit's _editingTransferLeg, analytics filters).
+  // A distributed-income source also carries a link (to its withdrawal/deposit
+  // legs) — picking 'transfer' here would misclassify it as a transfer leg from
+  // then on, hiding its type/category controls and dropping it from income totals.
+  CATEGORIES.filter(c => c.types.includes(editType) && !(c.id === 'transfer' && _editingDistSource)).forEach(c => {
     grid.appendChild(_makeCatChip(c, editCategory===c.id, () => { editCategory = c.id; renderEditCategoryGrid(); }));
   });
 }
@@ -1330,6 +1345,8 @@ async function doTransfer(){
   _doTransferBusy = true;
   _txMutationStamp++; // only once committed past validation — invalid taps shouldn't bump it
   _opInFlight++;
+  const _transferBtn = document.getElementById('doTransferBtn');
+  _setBtnSaving(_transferBtn, true, '⏳ جارٍ التنفيذ...');
   try{
     const dateVal = document.getElementById('transferDate').value || todayISO();
     let ts = buildTxTs(dateVal);
@@ -1367,6 +1384,7 @@ async function doTransfer(){
   } finally {
     _doTransferBusy = false;
     _opInFlight--;
+    _setBtnSaving(_transferBtn, false);
   }
 }
 
@@ -1388,6 +1406,8 @@ async function updateTrackedBalance(){
   _updateBalanceBusy = true;
   _opInFlight++;
   _txMutationStamp++; // adds an adjustment tx — invalidate stamp-keyed caches
+  const _updateBalBtn = document.getElementById('updateTrackedBalanceBtn');
+  _setBtnSaving(_updateBalBtn, true, '⏳...');
   try{
     const tx = {
       id: 'tx_'+Date.now()+'_adj'+Math.random().toString(36).slice(2,4),
@@ -1409,6 +1429,7 @@ async function updateTrackedBalance(){
   } finally {
     _updateBalanceBusy = false;
     _opInFlight--;
+    _setBtnSaving(_updateBalBtn, false);
   }
 }
 
@@ -1955,8 +1976,8 @@ function renderTxList(){
     const toShow = Math.min(remaining, 50);
     const afterLoad = remaining - toShow;
     more.textContent = afterLoad > 0
-      ? `⬇ عرض ${arPlural(toShow, 'معاملة', 'معاملتين', 'معاملات')} (${arPlural(afterLoad, 'ستبقى مخفية', 'ستبقيان مخفيتين', 'ستبقى مخفية')})`
-      : `⬇ عرض ${arPlural(toShow, 'المعاملة المتبقية', 'المعاملتين المتبقيتين', 'المعاملات المتبقية')}`;
+      ? `⬇ عرض ${arPlural(toShow, 'معاملة', 'معاملتين', 'معاملات')} (${arPlural(afterLoad, 'ستبقى مخفية', 'ستبقيان مخفيتين', 'ستبقى مخفية', 'واحدة ستبقى مخفية')})`
+      : `⬇ عرض ${arPlural(toShow, 'المعاملة المتبقية', 'المعاملتين المتبقيتين', 'المعاملات المتبقية', 'المعاملة المتبقية')}`;
     more.onclick = () => { _txVisibleCount += 50; renderTxList(); };
     list.appendChild(more);
   }

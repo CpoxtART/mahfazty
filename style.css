@@ -193,6 +193,9 @@
   /* error → red, invites a re-tap */
   .drive-ind--error{ background:var(--red-soft); border-color:var(--red); }
   .drive-ind--error .drive-ind-badge{ background:var(--red); }
+  /* offline → muted, not clickable (signing in needs a connection too) */
+  .drive-ind--offline{ background:var(--bg-elev); border-color:var(--line); opacity:.7; }
+  .drive-ind--offline .drive-ind-badge{ background:var(--muted); }
   @keyframes driveSpin{ from{transform:rotate(0)} to{transform:rotate(360deg)} }
 
   /* ================= HERO ================= */
@@ -389,7 +392,10 @@
   }
   .analytics-card .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; font-weight:600;}
   .analytics-card .v{font-size:16px; font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .analytics-card .sub{font-size:11px; color:var(--muted); margin-top:4px;}
+  /* mixes Arabic words with an embedded number ("بمعدل 45.20 / يوم") — plaintext
+     bidi isolates the digit run correctly without forcing the whole line ltr
+     (which would reverse the surrounding Arabic word order) */
+  .analytics-card .sub{font-size:11px; color:var(--muted); margin-top:4px; unicode-bidi:plaintext;}
   .analytics-card .sub.up{color:var(--red);}
   .analytics-card .sub.down{color:var(--green);}
 
@@ -463,7 +469,9 @@
     color:var(--text);
     padding:12px 14px;
     border-radius:var(--radius-sm);
-    font-size:14px;
+    /* iOS Safari auto-zooms the page on focus for any text input under 16px —
+       keeping this at/above 16px avoids that jarring zoom-and-shift */
+    font-size:16px;
     margin-bottom:12px;
     font-family:inherit;
     transition: border-color .15s, box-shadow .15s;
@@ -563,7 +571,7 @@
     display:flex; justify-content:space-between; align-items:center;
     transition: background .1s;
   }
-  .wallet-menu .opt span.bal{color:var(--muted); font-size:12px; font-variant-numeric: tabular-nums;}
+  .wallet-menu .opt span.bal{color:var(--muted); font-size:12px; font-variant-numeric: tabular-nums; direction:ltr;}
   .wallet-menu .opt:last-child{border-bottom:none;}
   .wallet-menu .opt:active{background:var(--card2);}
   .wallet-menu .opt.selected{
@@ -586,6 +594,7 @@
     transition: transform var(--dur-fast) var(--ease), background .15s, opacity .15s;
   }
   button:active{transform:scale(.97);}
+  button:disabled{opacity:.6; cursor:default; transform:none; pointer-events:none;}
   .btn-row{display:flex; gap:8px;}
   .btn-row button{flex:1; padding:14px;}
   .btn-expense{background:var(--red-soft); color:var(--red); border:1px solid rgba(227,145,143,.22);}
@@ -742,7 +751,7 @@
     padding-inline-start:38px;
     padding-inline-end:36px;
     border-radius:var(--radius-sm);
-    font-size:13px;
+    font-size:16px; /* >=16px avoids iOS auto-zoom-on-focus */
     font-family:inherit;
     transition: border-color .15s;
   }
@@ -927,6 +936,10 @@
     display:flex; align-items:center; justify-content:center; gap:7px; font-weight:600;
     box-shadow:var(--shadow-strong);
     max-width:calc(100vw - 32px); flex-wrap:wrap; text-align:center;
+    /* toast text is plain (textContent, not innerHTML) and often mixes Arabic
+       words with an embedded amount ("المتاح: 45.20") — plaintext bidi isolates
+       the digit run correctly without needing per-message markup */
+    unicode-bidi:plaintext;
   }
   #saveStatus.show{opacity:1; transform:translateX(-50%) translateY(0);}
 
@@ -973,7 +986,7 @@
   .btn-danger:hover{border-color:var(--red); background:rgba(227,145,143,.16);}
   .modal input[type=text], .modal input[type=number], .modal input[type=date]{
     width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);
-    padding:12px 14px;border-radius:var(--radius-sm);margin-bottom:10px;font-size:14px;font-family:inherit;
+    padding:12px 14px;border-radius:var(--radius-sm);margin-bottom:10px;font-size:16px;font-family:inherit; /* >=16px avoids iOS auto-zoom-on-focus */
     transition: border-color .15s;
   }
   /* distribution editor inputs must stay fixed-width inside the flex row;
@@ -1002,6 +1015,7 @@
     background:none; border:none; color:var(--muted); font-family:inherit;
     font-size:12px; font-weight:600; cursor:pointer; padding:6px 8px; z-index:2;
     touch-action:manipulation;
+    min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center;
   }
   .onb-skip:hover{ color:var(--text); }
   .onb{ position:relative; min-height:286px; }
@@ -1263,6 +1277,8 @@
 .add-drawer .drawer-close{
   background:none; border:none; color:var(--muted); font-size:20px;
   cursor:pointer; padding:4px 6px; line-height:1; border-radius:var(--radius-sm);
+  min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center;
+  touch-action:manipulation;
 }
 .add-drawer .drawer-close:active{ background:var(--card); }
 .add-drawer .drawer-tabs{
@@ -1294,7 +1310,7 @@
 .add-drawer .drawer-body input[type=date]{
   width:100%; background:var(--bg-elev); border:1px solid var(--line);
   color:var(--text); padding:12px 14px; border-radius:var(--radius-sm);
-  font-size:14px; margin-bottom:12px; font-family:inherit;
+  font-size:16px; margin-bottom:12px; font-family:inherit; /* >=16px avoids iOS auto-zoom-on-focus */
   transition: border-color .15s, box-shadow .15s;
 }
 .add-drawer .drawer-body input:focus{
@@ -1351,6 +1367,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   border:1px solid var(--gold-dim); border-radius:var(--radius-pill); cursor:pointer;
   transition:transform var(--dur-fast) var(--ease), background .15s;
   letter-spacing:0; text-transform:none;
+  min-height:44px; touch-action:manipulation;
 }
 .sub-add-btn:active{ transform:scale(.95); }
 .subs-total{ font-size:12px; color:var(--muted); margin-bottom:10px; }
@@ -1410,6 +1427,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   background:none; border:1px solid var(--line); color:var(--muted);
   border-radius:var(--radius-sm); cursor:pointer;
   transition:background .15s;
+  min-height:40px; touch-action:manipulation;
 }
 .update-later:active{ background:var(--bg-elev); }
 .update-now{
@@ -1418,6 +1436,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   border:none; border-radius:var(--radius-sm); cursor:pointer;
   transition:opacity .15s, transform var(--dur-fast) var(--ease);
   white-space:nowrap;
+  min-height:40px; touch-action:manipulation;
 }
 .update-now:active{ opacity:.82; transform:scale(.95); }
 .update-now:disabled{ opacity:.55; cursor:default; transform:none; }

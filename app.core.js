@@ -165,9 +165,15 @@ function fmt(n){
 // ("3 معاملات"), 11+ → singular form again ("11 معاملة"). Naively concatenating
 // `${count} ${singular}` is only ever correct for the 11+ case, so every count+noun
 // spot in the UI needs this instead of raw template-literal interpolation.
-function arPlural(count, singular, dual, plural){
+// `singular` must stay a bare noun/short phrase — it's reused as-is in the 11+
+// branch below ("15 معاملة"). Appending واحدة to it for the n===1 case only
+// works when `singular` is noun-first ("معاملة" -> "معاملة واحدة"); phrases that
+// lead with an adjective ("متبقية") or a verb ("ستبقى مخفية") need واحدة placed
+// differently, or have no noun to attach to at all — pass the fully-formed
+// phrase via `singularOne` for those instead of relying on the default.
+function arPlural(count, singular, dual, plural, singularOne){
   const n = Math.abs(Number(count) || 0);
-  if(n === 1) return `${singular} واحدة`;
+  if(n === 1) return singularOne || `${singular} واحدة`;
   if(n === 2) return dual;
   if(n >= 3 && n <= 10) return `${count} ${plural}`;
   return `${count} ${singular}`;
@@ -220,6 +226,21 @@ function haptic(pattern){
       navigator.vibrate(pattern);
     }
   }catch(_){}
+}
+
+// Visual counterpart to the various _xBusy guard flags: those flags correctly
+// block a double-tap from corrupting state, but gave no on-screen sign anything
+// was happening, so a slow save looked like a no-op and invited a second tap.
+function _setBtnSaving(btn, saving, savingText){
+  if(!btn) return;
+  if(saving){
+    if(btn.dataset.origLabel === undefined) btn.dataset.origLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = savingText || '...';
+  } else {
+    btn.disabled = false;
+    if(btn.dataset.origLabel !== undefined){ btn.textContent = btn.dataset.origLabel; delete btn.dataset.origLabel; }
+  }
 }
 
 const _animFrames = {}; // track active animation frames per element id to allow cancellation
@@ -618,7 +639,7 @@ function loadSubs(){
 }
 async function saveSubs(){
   const ts = Date.now();
-  try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(subscriptions)); }catch(e){}
+  try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(subscriptions)); }catch(e){ toast('⚠ فشل حفظ الاشتراكات محليًا', true); }
   stampDataEdit(ts);
   scheduleDriveSync();
   idbBackup(ts);

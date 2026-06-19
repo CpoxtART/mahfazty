@@ -7,6 +7,10 @@ async function addTx(type){
   _addTxBusy = true;
   _opInFlight++;
   _txMutationStamp++;
+  const _expBtn = document.getElementById('addExpenseBtn');
+  const _incBtn = document.getElementById('addIncomeBtn');
+  _setBtnSaving(_expBtn, true, '⏳ جارٍ الحفظ...');
+  _setBtnSaving(_incBtn, true, '⏳ جارٍ الحفظ...');
   try{
     const walletId = selectedWallet;
     const desc = document.getElementById('descInput').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
@@ -82,6 +86,8 @@ async function addTx(type){
   } finally {
     _addTxBusy = false;
     _opInFlight--;
+    _setBtnSaving(_expBtn, false);
+    _setBtnSaving(_incBtn, false);
   }
 }
 
@@ -360,6 +366,8 @@ async function saveEdit(){
   if(_saveEditBusy) return; // double-tap guard: a second tap before the first
   _saveEditBusy = true;     // completes would reverse+reapply the balance twice
   _opInFlight++;
+  const _saveBtn = document.getElementById('saveEditBtn');
+  _setBtnSaving(_saveBtn, true, '⏳ جارٍ الحفظ...');
   try{
   _txMutationStamp++;
   const tx = state.transactions.find(t=>t.id===editingTxId);
@@ -425,7 +433,11 @@ async function saveEdit(){
   // two-leg balance stays consistent; only non-transfer txs adopt the new values
   if(!_editingTransferLeg){
     tx.type = editType;
-    tx.category = editCategory;
+    // Defense in depth: the category grid already excludes 'transfer' for a
+    // distributed-income source (see renderEditCategoryGrid) since that value
+    // would misclassify this linked tx as a transfer leg from then on — guard
+    // here too in case of stale state.
+    tx.category = (_editingDistSource && editCategory === 'transfer') ? tx.category : editCategory;
   }
   const dateVal = document.getElementById('editDate').value || todayISO();
   const oldDate = new Date(tx.ts);
@@ -453,6 +465,7 @@ async function saveEdit(){
   } finally {
     _saveEditBusy = false;
     _opInFlight--;
+    _setBtnSaving(_saveBtn, false);
   }
 }
 
@@ -704,6 +717,20 @@ function closeModal(id){
   if(id === 'distributeModal') pendingIncomeTx = null;
   if(id === 'walletDetailModal') detailWalletId = null;
   if(id === 'subModal') editingSubId = null;
+  if(id === 'transferModal'){
+    // Same stale-dropdown risk as editModal above: closing via the back button
+    // (no click event) bypasses the click-outside handler that normally closes
+    // these, so a left-open 'from'/'to' wallet dropdown would still show
+    // expanded the next time the modal opens.
+    ['transferFromMenuWrap','transferToMenuWrap'].forEach(wid => {
+      const w = document.getElementById(wid);
+      if(w) w.classList.remove('open');
+    });
+    ['transferFromBtn','transferToBtn'].forEach(bid => {
+      const b = document.getElementById(bid);
+      if(b){ b.classList.remove('open'); b.setAttribute('aria-expanded','false'); }
+    });
+  }
   // restore focus to whatever triggered this modal (pop the stack)
   const _retFocus = _focusStack.pop();
   if(_retFocus && typeof _retFocus.focus === 'function'){
@@ -881,7 +908,15 @@ async function applyImport(text){
       typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
       (tx.type === 'income' || tx.type === 'expense') &&
       WALLET_DEFS.find(w => w.id === tx.wallet)
-    ).map(tx => ({ ...tx, category: normalizeCategory(tx.category) }));
+    ).map(tx => ({
+      ...tx,
+      category: normalizeCategory(tx.category),
+      // addTx() caps manual entry to 120 chars (see app.logic.js) — a crafted or
+      // corrupt backup file isn't bound by that input-side limit, and an unbounded
+      // desc string would slip past escHtml() (it sanitizes, doesn't shorten) and
+      // bloat every list render that includes this transaction.
+      desc: typeof tx.desc === 'string' ? tx.desc.slice(0,120) : tx.desc
+    }));
     _droppedTx = incoming.length - state.transactions.length;
   }
 
@@ -920,7 +955,7 @@ async function applyImport(text){
   closeModal('dataModal');
   render(true);
   if(_droppedTx > 0){
-    toast(`✓ تم الاستيراد — لكن تم تجاهل ${arPlural(_droppedTx, 'معاملة غير صالحة', 'معاملتين غير صالحتين', 'معاملات غير صالحة')} (محفظة مجهولة أو بيانات تالفة)`, true);
+    toast(`✓ تم الاستيراد — لكن تم تجاهل ${arPlural(_droppedTx, 'معاملة غير صالحة', 'معاملتين غير صالحتين', 'معاملات غير صالحة', 'معاملة واحدة غير صالحة')} (محفظة مجهولة أو بيانات تالفة)`, true);
   } else {
     toast('✓ تم الاستيراد بنجاح');
   }
@@ -1102,6 +1137,8 @@ async function wipeAll(){
   transferTo = null;
   detailWalletId = null;
   pendingIncomeTx = null;
+  selectedTrackWallet = null; // a leftover pick would otherwise survive a "fresh start" wipe
+  trackLinkMode = {};
   prevSpendable = null;
   walletFilter = null;
   categoryFilter = null;
@@ -1121,6 +1158,7 @@ async function wipeAll(){
   await saveSubs();
   closeModal('settingsModal');
   render();
+  if(typeof renderTrackLinkPicker === 'function') renderTrackLinkPicker();
   toast('🗑 تم حذف كل البيانات');
   } finally { _opInFlight--; }
 }
@@ -1422,10 +1460,11 @@ function setDriveIndicator(state_){
     idle:    {icon:'☁️', label:'جاهز',   color:'var(--muted)'},
     syncing: {icon:'🔄', label:'يزامن',  color:'var(--blue)'},
     ok:      {icon:'✅', label:'متزامن', color:'var(--green)'},
-    error:   {icon:'⚠️', label:'خطأ',    color:'var(--red)'}
+    error:   {icon:'⚠️', label:'خطأ',    color:'var(--red)'},
+    offline: {icon:'📡', label:'غير متصل', color:'var(--muted)'}
   };
   const cfg = map[state_] || map.idle;
-  const clickable = (state_ === 'idle' || state_ === 'error'); // tap to sign in when disconnected
+  const clickable = (state_ === 'idle' || state_ === 'error'); // tap to sign in when disconnected (signing in also needs network, so 'offline' stays non-clickable)
   // Render as a real header button (same 44px rounded-square as the others) so it
   // reads as a control, not a mystery glyph. Always show the cloud ☁️ (universally
   // "sync/cloud") plus a small state badge, and tint the disconnected state with
@@ -1434,13 +1473,14 @@ function setDriveIndicator(state_){
   el.style.display = 'flex';
   el.onclick = clickable ? driveSignIn : null;
   el.setAttribute('role', clickable ? 'button' : 'img');
-  const badge = { idle:'', syncing:'🔄', ok:'✓', error:'!' }[state_] || '';
-  el.innerHTML = `<span class="drive-ind-ic">☁️</span>${badge ? `<span class="drive-ind-badge">${badge}</span>` : ''}`;
+  const badge = { idle:'', syncing:'🔄', ok:'✓', error:'!', offline:'⨯' }[state_] || '';
+  el.innerHTML = `<span class="drive-ind-ic">${state_ === 'offline' ? '📡' : '☁️'}</span>${badge ? `<span class="drive-ind-badge">${badge}</span>` : ''}`;
   const fullLabel = {
     idle: 'مزامنة Drive: جاهز — اضغط لتسجيل الدخول',
     syncing: 'مزامنة Drive: جاري المزامنة...',
     ok: 'مزامنة Drive: متزامن ✓',
-    error: 'مزامنة Drive: خطأ — اضغط لتسجيل الدخول مجدداً'
+    error: 'مزامنة Drive: خطأ — اضغط لتسجيل الدخول مجدداً',
+    offline: 'مزامنة Drive: غير متصل بالإنترنت — سيتم المزامنة تلقائياً عند العودة للاتصال'
   }[state_] || cfg.label;
   el.title = fullLabel;
   el.setAttribute('aria-label', fullLabel);
@@ -1861,7 +1901,8 @@ async function adoptCloudSnapshot(cloud){
       tx && (tx.type === 'income' || tx.type === 'expense') &&
       typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
       typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
-      WALLET_DEFS.find(w => w.id === tx.wallet));
+      WALLET_DEFS.find(w => w.id === tx.wallet))
+      .map(tx => typeof tx.desc === 'string' && tx.desc.length > 120 ? { ...tx, desc: tx.desc.slice(0,120) } : tx); // same input-side cap as applyImport()
     stripOrphanLinks(state.transactions);
   }
   if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
@@ -1938,11 +1979,15 @@ async function driveSyncFromCloud(isInitial, interactive){
       // transaction-level UNION merge so nothing added on either device is lost, and
       // honor tombstones from both sides so deletions still propagate (no resurrected
       // rows). Config is taken from whichever side edited last.
-      // Defer the swap while the user has a modal/the add-drawer open — same guard
-      // the cross-tab storage listener uses — so an in-progress edit isn't yanked out
-      // from under editingTxId/pendingIncomeTx by the array being replaced mid-flow.
+      // Defer the swap while the user has a modal/the add-drawer open, or another
+      // mutation is mid-flight — same guards the cross-tab storage listener uses
+      // (app.logic.js's window 'storage' handler) — so an in-progress edit isn't
+      // yanked out from under editingTxId/pendingIncomeTx by the array being
+      // replaced mid-flow. _opInFlight also covers windows the DOM checks miss,
+      // e.g. addTx's auto-distribution step which keeps _opInFlight raised after
+      // the add-drawer has already closed.
       // Capped so a forgotten open modal can't stall sync forever.
-      for(let waited=0; waited<10000 && (document.querySelector('.modal-overlay.open') || addDrawerOpen); waited+=250){
+      for(let waited=0; waited<10000 && (document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0); waited+=250){
         await new Promise(r => setTimeout(r, 250));
       }
       _opInFlight++;
@@ -1965,7 +2010,7 @@ async function driveSyncFromCloud(isInitial, interactive){
     _pendingDriveCloud = cloud;
     const fmtWhen = ms => {
       if(!ms || !isFinite(ms)) return 'غير معروف';
-      try{ return new Date(ms).toLocaleString('ar', {dateStyle:'medium', timeStyle:'short', numberingSystem:'latn'}); }
+      try{ return new Date(ms).toLocaleString('ar-EG', {dateStyle:'medium', timeStyle:'short', numberingSystem:'latn'}); }
       catch(_){ return new Date(ms).toLocaleString('en-US'); }
     };
     const cloudCount = (cloud.transactions || []).length;
@@ -1983,6 +2028,11 @@ async function driveSyncFromCloud(isInitial, interactive){
 }
 
 async function resolveConflict(useCloud){
+  // Adopting the cloud copy permanently overwrites whatever's on this device —
+  // unlike every other destructive action in the app (delete tx, wipe data),
+  // this one had no confirm step, so a stale/wrong Drive snapshot could wipe
+  // out newer local data with a single tap.
+  if(useCloud && !confirm('سيتم استبدال كل بيانات هذا الجهاز بنسخة Drive نهائياً. متابعة؟')) return;
   closeModal('driveConflictModal');
   if(!_pendingDriveCloud) return;
   const cloud = _pendingDriveCloud;
@@ -2200,7 +2250,7 @@ function buildDailyReviewContent(){
   // pending recurring suggestions
   const recurring = detectRecurring();
   if(recurring.length > 0){
-    lines.push(`🔁 لديك ${arPlural(recurring.length, 'معاملة متكررة محتملة', 'معاملتان متكررتان محتملتان', 'معاملات متكررة محتملة')} بانتظار مراجعتك (تبويب تحليلات).`);
+    lines.push(`🔁 لديك ${arPlural(recurring.length, 'معاملة متكررة محتملة', 'معاملتان متكررتان محتملتان', 'معاملات متكررة محتملة', 'معاملة واحدة متكررة محتملة')} بانتظار مراجعتك (تبويب تحليلات).`);
   }
 
   if(lines.length === 1 && yCount===0 && yIncome===0) return null;
@@ -2637,6 +2687,19 @@ document.addEventListener('visibilitychange', () => {
     // flush pending Drive sync immediately — the 1500ms debounce may never fire if tab is discarded
     if(driveSyncTimer){ clearTimeout(driveSyncTimer); driveSyncTimer = null; if(driveAccessToken) driveSyncToCloud(); }
   }
+});
+
+// Without this, going offline left the header showing whatever it last said
+// (often "متزامن ✓") indefinitely — nothing re-evaluates the indicator until
+// the next save's debounced sync attempt fails. A user could believe a second
+// device already has their offline edits when nothing has actually synced.
+window.addEventListener('offline', () => {
+  if(driveAccessToken) setDriveIndicator('offline');
+});
+window.addEventListener('online', () => {
+  // reconnecting is the best moment to push anything that piled up while offline,
+  // rather than waiting for the next local save to (re)start the 1500ms debounce
+  if(driveAccessToken){ clearTimeout(driveSyncTimer); driveSyncTimer = null; driveSyncToCloud(); }
 });
 
 // Proactive refresh when date rolls over while tab stays open in foreground
