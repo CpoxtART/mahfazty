@@ -672,9 +672,17 @@ async function saveSubs(){
 ============================================================ */
 let _idbInstance = null;
 let _idbAvailable = false; // becomes true once the DB opens — gates IDB-primary storage
+let _idbOpenPromise = null; // in-flight open() shared by concurrent early callers
 function idbOpen(){
-  return new Promise((resolve, reject)=>{
-    if(_idbInstance){ resolve(_idbInstance); return; }
+  if(_idbInstance) return Promise.resolve(_idbInstance);
+  // Without this cache, two saves fired back-to-back before the FIRST-EVER open()
+  // resolves (e.g. loadState's idbRestore racing an early saveBalances) would each
+  // issue their own indexedDB.open() and end up with two separate connection
+  // objects to the same DB — their later writes are then only ordered by whichever
+  // connection's request callback the browser happens to fire first, not by call
+  // order, which can let an older write silently land after a newer one.
+  if(_idbOpenPromise) return _idbOpenPromise;
+  _idbOpenPromise = new Promise((resolve, reject)=>{
     if(!('indexedDB' in window)){ reject('no idb'); return; }
     const req = indexedDB.open('walletTrackerDB', 1);
     req.onupgradeneeded = () => {
@@ -685,7 +693,8 @@ function idbOpen(){
     // Fires when another tab holds the DB at an older version and hasn't closed
     // it — without this the open request hangs indefinitely.
     req.onblocked = () => reject(new Error('idb blocked'));
-  });
+  }).finally(() => { _idbOpenPromise = null; });
+  return _idbOpenPromise;
 }
 // Writes the full snapshot to IndexedDB — the PRIMARY store for transactions
 // (localStorage only holds the small balances/config/prefs). Returns true on a

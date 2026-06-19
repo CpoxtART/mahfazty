@@ -988,8 +988,14 @@ async function applyImport(text){
 // zeroing them without clearing the ledger creates a mismatch the repair tool
 // would undo — we warn about that explicitly.
 
-// Zero the manually-tracked wallets (Uber, Bank Cards, Cash). No transactions
-// are involved, so this is always consistent.
+// Zero the manually-tracked wallets (Uber, Bank Cards, Cash). The transaction
+// records themselves are untouched, so this is safe AT THE MOMENT IT RUNS —
+// but it is not a permanent invariant: applyTxToBalance() re-derives a track
+// wallet's delta from each linked transaction's trackWallet/trackSign fields
+// every time that transaction is later edited or deleted (see saveEdit/deleteTx),
+// so editing an OLD track-linked transaction after this reset will re-apply its
+// (now stale) delta on top of the zeroed balance. reconcileBalances() can't fix
+// this either, since it deliberately skips track wallets (see applyTxToBalance).
 async function zeroTrackedWallets(){
   if(!confirm('سيتم تصفير أرصدة محافظ التتبع (أوبر، البطاقات، الكاش) إلى صفر.\n\nالمعاملات لا تتأثر. هل تريد المتابعة؟')) return;
   _txMutationStamp++;
@@ -2150,7 +2156,7 @@ function hideSplash(){
    FIRST-RUN WELCOME MODAL
 ============================================================ */
 let _welcomeStep = 0;
-const _WELCOME_STEPS = 4;
+const _WELCOME_STEPS = 5;
 // Returns true iff onboarding was actually shown — callers use this (not their own
 // pre-load localStorage peek) since the answer can only be known accurately AFTER
 // loadState() has had a chance to recover data from IndexedDB (see below).

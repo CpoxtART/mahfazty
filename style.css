@@ -46,6 +46,7 @@
     --green-soft:#1b2a21;
     --red:#e3918f;
     --red-soft:#2f1f20;
+    --on-red:#2f1414;    /* dark text on the light dark-mode --red (~7:1) */
     --blue:#86adcf;
     --blue-soft:#1c2730;
     --radius-lg:18px;
@@ -83,6 +84,8 @@
     --green:#3e8d59;
     --green-soft:#e3f0e7;
     --red:#c05a57;
+    --on-red:#fff;       /* light-mode --red is darker/more saturated than dark mode's —
+                             the dark-mode --on-red (#2f1414) would land under 4:1 here */
     --red-soft:#f6e4e3;
     --blue:#3f6e96;
     --blue-soft:#e3edf5;
@@ -708,6 +711,7 @@
     color:var(--muted);
     font-weight:600;
     padding:10px 6px;
+    min-height:40px; /* keep a comfortable tap target despite the small font/padding */
     font-size:12px;
     white-space:nowrap;
     transition: background .2s var(--ease), color .2s, border-color .2s;
@@ -761,11 +765,14 @@
     color:var(--muted2); font-size:14px; pointer-events:none;
   }
   .search-box .clear{
-    position:absolute; inset-inline-end:10px; top:50%; transform:translateY(-50%);
+    position:absolute; inset-inline-end:2px; top:50%; transform:translateY(-50%);
     background:none; border:none; color:var(--muted2); font-size:14px; cursor:pointer;
-    padding:4px; display:none; touch-action:manipulation;
+    /* visual glyph stays small, but the hit area is a real ~36px tap target —
+       a 4px-padding button here measured ~20px, easy to miss one-handed */
+    width:36px; height:36px; display:none; align-items:center; justify-content:center;
+    touch-action:manipulation;
   }
-  .search-box.has-text .clear{display:block;}
+  .search-box.has-text .clear{display:flex;}
 
   /* ================= SUMMARY ================= */
   .summary-grid{
@@ -871,9 +878,16 @@
   .tx-swipe-bg{
     position:absolute; inset:0;
     background:var(--red);
-    display:flex; align-items:center; justify-content:flex-end;
-    padding-inline-end:18px;
-    color:#2f1414; font-weight:700; font-size:13px;
+    display:flex; align-items:center;
+    /* The row card always slides physically LEFT during a swipe (touchmove clamps
+       currentX to <=0), which exposes this background's RIGHT edge first — the
+       PHYSICAL right, i.e. the inline-START side under RTL. Aligning the label to
+       inline-end (the old code) placed it under the still-covered left portion, so
+       "🗑 حذف" stayed invisible for the entire normal swipe range and only the bare
+       red fill ever showed. */
+    justify-content:flex-start;
+    padding-inline-start:18px;
+    color:var(--on-red); font-weight:700; font-size:13px;
     border-radius:var(--radius-sm);
   }
   .tx{

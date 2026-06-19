@@ -545,6 +545,23 @@ function resetLayout(){
 /* ============================================================
    V9.3: ADD DRAWER
 ============================================================ */
+// The drawer's sticky submit footer already stays reachable above the OS
+// keyboard via `max-height:92dvh` (style.css), but that only resizes the
+// drawer itself — it doesn't bring a freshly-focused field into the now-
+// shorter visible area. A field near the bottom (amount, desc) can still end
+// up hidden under the keyboard until the user scrolls manually. Nudge it into
+// view automatically instead, after a short delay so it runs once the
+// keyboard's resize/animation has actually settled (focusin fires before that).
+(function _bindAddDrawerKeyboardScroll(){
+  const drawer = document.getElementById('addDrawer');
+  if(!drawer) return;
+  drawer.addEventListener('focusin', (e) => {
+    if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
+    setTimeout(() => {
+      try{ e.target.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
+    }, 300);
+  });
+})();
 function openAddDrawer(){
   const wasClosed = !addDrawerOpen;
   // remember what had focus so we can restore it on close (a11y) — same
