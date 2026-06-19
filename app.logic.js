@@ -1180,10 +1180,17 @@ let _pendingDriveCloud = null;
 let driveFileId = null;
 let driveSyncTimer = null;
 let driveClientId = '';
-// Silent-reconnect state. _driveSilentMode marks an in-flight prompt:'' request and
-// what to do if it can't grant without UI: 'launch' (desktop auto open → show banner),
-// 'refresh' (token nearing expiry while open → quietly drop), 'banner' (user tapped
-// the reconnect banner → escalate to the account picker). null = interactive sign-in.
+// Drive token-request state. _driveSilentMode marks an in-flight token request and
+// how to recover / how to resolve the resulting sync:
+//   'launch'    — desktop auto-open silent grant → on failure show the banner
+//   'refresh'   — token nearing expiry while open → on failure quietly drop
+//   'banner'    — desktop banner silent grant → on failure escalate to account picker
+//   'reconnect' — mobile banner tap (gesture-backed interactive request)
+//   'signin'    — explicit user-initiated sign-in from Settings
+//   null        — idle (no request in flight)
+// IMPORTANT: only 'signin' is treated as "interactive" for sync resolution (it alone
+// may show the conflict modal). Every other mode resolves silently via the union
+// merge, so an automatic/banner reconnect never nags the user to pick a copy.
 let _driveSilentMode = null;
 let _driveBannerEscalate = false; // next banner tap should force the account picker
 let _driveTokenRefreshTimer = null; // proactive refresh 5 min before token expires
@@ -1502,7 +1509,15 @@ function initGisClient(){
         // stay quiet on background silent reconnects/refreshes; only announce when the
         // user explicitly acted (interactive sign-in or a banner tap)
         if(mode !== 'launch' && mode !== 'refresh') toast('✓ تم تسجيل الدخول بجوجل');
-        await driveSyncFromCloud(true, mode !== 'launch' && mode !== 'refresh');
+        // Only an explicit sign-in the user started from Settings ('signin') may
+        // interrupt with the conflict-resolution modal. EVERY automatic/banner
+        // reconnect ('launch'/'refresh'/'banner'/'reconnect') resolves silently via
+        // the non-destructive union merge instead. Previously this passed interactive
+        // = true for every banner reconnect, so a returning user with data on both
+        // sides got the "which copy do you want?" modal on EVERY app open — the
+        // repeated prompt. The union merge keeps everything from both sides (honoring
+        // tombstones), so resolving silently is safe and loses nothing.
+        await driveSyncFromCloud(true, mode === 'signin');
       }
     });
   }catch(e){
@@ -1515,7 +1530,7 @@ function initGisClient(){
 function driveSignIn(){
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
-  _driveSilentMode = null; // interactive
+  _driveSilentMode = 'signin'; // explicit user-initiated sign-in from Settings — the ONLY path allowed to show the conflict-resolution modal
   try{
     gisTokenClient.requestAccessToken({
       prompt: 'select_account',
@@ -1545,7 +1560,7 @@ function driveSignIn(){
 function driveReconnectInteractive(){
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
-  _driveSilentMode = null; // interactive
+  _driveSilentMode = 'reconnect'; // automatic banner reconnect — resolve via the silent union merge, never the conflict modal
   try{
     gisTokenClient.requestAccessToken({
       error_callback: (err) => {
