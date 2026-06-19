@@ -68,6 +68,10 @@ let currentFilter = 'all';
 let walletFilter = null;
 let categoryFilter = null;
 let selectedWallet = WALLET_DEFS[0].id;
+// Optional secondary tracked-wallet a new transaction also updates (e.g. pay Uber
+// from Core, and also move the linked tracked "Uber" wallet automatically). null =
+// none. See applyTxToBalance + addTx + trackLinkMode.
+let selectedTrackWallet = null;
 let editingTxId = null;
 let editType = 'expense';
 let editWallet = WALLET_DEFS[0].id;
@@ -82,6 +86,12 @@ let detailWalletId = null; // when set, shows wallet detail view
 let pendingIncomeTx = null;
 let autoDistribute = false;
 let budgets = {}; // walletId -> monthly budget limit (expenses)
+// Per-tracked-wallet direction for the optional transaction link (above): 'debit'
+// (a real balance — an expense DECREASES it, income increases it) or 'credit' (a
+// spending counter — an expense INCREASES it). Persisted via uiPrefs. The resolved
+// direction is also stamped onto each linked tx (trackSign) so later config changes
+// never retroactively flip the effect of past entries.
+let trackLinkMode = {}; // walletId -> 'debit' | 'credit'
 let dismissedRecurring = new Set();
 // Tombstones for delete propagation in multi-device merge sync: {txId: deletedAtMs}.
 // Without these, a union merge would resurrect a transaction deleted on another

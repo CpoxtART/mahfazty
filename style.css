@@ -624,6 +624,31 @@
   .cat-chip .ic{font-size:17px;}
   .cat-chip.active{border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold);}
 
+  /* optional tracked-wallet link chips (add form) */
+  .track-link-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; }
+  .track-chip{
+    padding:6px 12px; background:var(--bg-elev); border:1px solid var(--line);
+    border-radius:var(--radius-pill); color:var(--muted); font-size:12px; font-weight:600;
+    cursor:pointer; transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  }
+  .track-chip:hover{ border-color:var(--gold-dim); color:var(--gold); }
+  .track-chip:active{ transform:scale(.96); }
+  .track-chip.active{ border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold); }
+  .track-link-hint{ color:var(--muted); font-size:11.5px; line-height:1.6; }
+
+  /* per-wallet link direction toggle (wallet detail) */
+  .track-mode-block{ margin-top:12px; }
+  .track-mode-toggle{ display:flex; gap:6px; margin-top:4px; }
+  .track-mode-toggle button{
+    flex:1; padding:9px 6px; background:var(--bg-elev); border:1px solid var(--line);
+    border-radius:var(--radius-sm); color:var(--muted); font-size:12px; font-weight:700;
+    font-family:inherit; cursor:pointer; transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+  .track-mode-toggle button.active{ border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold); }
+
+  /* "↪ <tracked wallet>" badge shown on a linked transaction in the lists */
+  .tx-tracklink{ color:var(--gold); font-size:11px; font-weight:600; margin-inline-start:6px; white-space:nowrap; }
+
   /* category pie + legend */
   .pie-wrap{display:flex; align-items:center; gap:16px;}
   #pieCanvas{flex-shrink:0;}

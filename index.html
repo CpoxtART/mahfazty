@@ -238,6 +238,10 @@ try{
         <div class="wallet-menu" id="walletMenuWrap"><div id="walletMenu" role="listbox"></div></div>
       </div>
 
+      <label id="trackLinkLbl">حدّث محفظة تتبع أيضاً (اختياري)</label>
+      <div class="track-link-chips" id="trackLinkChips" role="group" aria-labelledby="trackLinkLbl"></div>
+      <div class="hint track-link-hint" id="trackLinkHint" style="display:none; margin-top:6px;"></div>
+
       <label for="descInput">الوصف</label>
       <div class="voice-input-row">
         <input type="text" id="descInput" maxlength="120" placeholder="مثال: عشاء، راتب، مواصلات...">
@@ -565,6 +569,14 @@ try{
         <button class="btn-primary" style="flex:0 0 auto; padding:0 18px;" onclick="updateTrackedBalance()">تحديث</button>
       </div>
       <div class="hint" style="margin-top:0;">هذه محفظة تتبع — أدخل رصيدك الفعلي الحالي (من تطبيق بنكك أو نقدًا) وسيتم تسجيل الفرق كمعاملة تلقائيًا.</div>
+      <div class="track-mode-block">
+        <label style="margin-top:4px;">عند ربط مصروف بهذه المحفظة من نموذج الإضافة:</label>
+        <div class="track-mode-toggle" role="group" aria-label="سلوك الربط">
+          <button type="button" id="trackModeDebit" onclick="setTrackLinkMode(detailWalletId,'debit')" aria-pressed="true">ينقص (رصيد فعلي)</button>
+          <button type="button" id="trackModeCredit" onclick="setTrackLinkMode(detailWalletId,'credit')" aria-pressed="false">يزيد (عدّاد إنفاق)</button>
+        </div>
+        <div class="hint" style="margin-top:6px;">«رصيد فعلي»: المصروف ينقص الرصيد (مثل بطاقة/كاش). «عدّاد إنفاق»: المصروف يزيد الرقم (إجمالي ما صرفته على هذا البند).</div>
+      </div>
     </div>
     <div class="detail-tx-list" id="detailTxList"></div>
     <div class="modal-actions">

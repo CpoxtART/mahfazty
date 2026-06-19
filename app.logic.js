@@ -37,6 +37,19 @@ async function addTx(type){
       ts: ts
     };
 
+    // Optional secondary tracked-wallet link: stamp the wallet id + its resolved
+    // direction onto the tx so applyTxToBalance also moves that tracked wallet, and
+    // so edit/delete/undo reverse it symmetrically. Validate against a real track
+    // wallet (a transfer/non-track pick is ignored). The sign is captured now from
+    // the wallet's configured mode so a later mode change can't rewrite history.
+    if(selectedTrackWallet){
+      const tw = WALLET_DEFS.find(w => w.id === selectedTrackWallet && w.track);
+      if(tw && tw.id !== walletId){
+        tx.trackWallet = tw.id;
+        tx.trackSign = (trackLinkMode[tw.id] === 'credit') ? 1 : -1;
+      }
+    }
+
     state.transactions.push(tx);
     applyTxToBalance(tx, +1);
 
@@ -45,6 +58,8 @@ async function addTx(type){
     document.getElementById('dateInput').value = todayISO();
     document.querySelectorAll('#quickAmounts button').forEach(b=>b.classList.remove('active'));
     // category intentionally kept so consecutive same-category entries don't need reselecting
+    selectedTrackWallet = null; // reset the optional tracked link so it isn't reused unintentionally
+    if(typeof renderTrackLinkChips === 'function') renderTrackLinkChips();
 
     await saveBalances();
     await saveTx();
@@ -185,7 +200,7 @@ async function runDistribution(sourceTx, amount){
   // undistributed remainder (when percentages sum to < 100%) then stays in
   // the source wallet instead of silently vanishing from the balance.
   const txOut = {
-    id: 'tx_'+Date.now()+'_d0'+Math.random().toString(36).slice(2,4),
+    id: 'tx_'+Date.now()+'_d0'+Math.random().toString(36).slice(2,7),
     wallet: sourceWalletId,
     desc: 'توزيع الدخل على المحافظ',
     amount: intendedTotal,
@@ -218,7 +233,7 @@ async function runDistribution(sourceTx, amount){
     if(share <= 0) return; // nothing left for this (or any later) leg — skip it
     allocated = round2(allocated + share);
     const txIn = {
-      id: 'tx_'+Date.now()+'_d'+(i+1)+Math.random().toString(36).slice(2,4),
+      id: 'tx_'+Date.now()+'_d'+(i+1)+Math.random().toString(36).slice(2,7),
       wallet: d.id,
       desc: `حصة ${w.name} (⁦${d.pct}%⁩) من دخل`,
       amount: share,
@@ -279,6 +294,19 @@ function applyTxToBalance(tx, sign){
   if(!WALLET_DEFS.find(w => w.id === tx.wallet)) return; // reject orphaned wallet refs
   const delta = (tx.type === 'expense' ? -tx.amount : tx.amount) * sign;
   state.wallets[tx.wallet] = round2((state.wallets[tx.wallet] ?? 0) + delta);
+  // Optional secondary effect on a linked tracked wallet (e.g. an Uber expense paid
+  // from Core that should also move the "Uber" tracking number). trackSign is the
+  // multiplier applied to an EXPENSE: -1 = balance/debit (expense lowers it), +1 =
+  // counter/credit (expense raises it). Income flips it so add/reverse stay symmetric
+  // (every caller pairs a +1 with a -1). reconcileBalances() deliberately skips track
+  // wallets, so this delta is never double-counted or wiped by a later rebuild.
+  if(tx.trackWallet && typeof tx.trackSign === 'number'){
+    const tw = WALLET_DEFS.find(w => w.id === tx.trackWallet && w.track);
+    if(tw){
+      const dir = (tx.type === 'expense' ? tx.trackSign : -tx.trackSign) * sign;
+      state.wallets[tw.id] = round2((state.wallets[tw.id] ?? 0) + dir * tx.amount);
+    }
+  }
 }
 
 function openEdit(id){
@@ -366,10 +394,12 @@ async function saveEdit(){
 
   // for a simple 2-leg transfer (link shared by exactly one other transfer leg),
   // keep both amounts in sync so balances stay consistent after editing one side
+  let _transferPartner = null;
   if(tx.link && tx.category === 'transfer'){
     const transferPartners = state.transactions.filter(t => t.link === tx.link && t.id !== tx.id && t.category === 'transfer');
     if(transferPartners.length === 1){
       const partner = transferPartners[0];
+      _transferPartner = partner;
       applyTxToBalance(partner, -1);
       partner.amount = newAmount;
       // keep partner description in sync with the edited leg's wallet
@@ -406,6 +436,12 @@ async function saveEdit(){
   // which loses milliseconds — we add them back from the original ts).
   const msPart = isFinite(tx.ts) ? (tx.ts % 1000) : 0;
   tx.ts = isFinite(newTs) ? Math.min(newTs + msPart, Date.now()) : (isFinite(tx.ts) ? tx.ts : Date.now());
+
+  // Move the partner leg to the SAME date as the edited leg. Previously a date edit
+  // updated only this leg's ts, splitting the two halves of one transfer across
+  // different day-groups in the log. The ±1ms keeps the original expense-before-income
+  // ordering (amount/desc were already synced above; ts isn't part of balance math).
+  if(_transferPartner){ _transferPartner.ts = tx.type === 'expense' ? tx.ts + 1 : tx.ts - 1; }
 
   applyTxToBalance(tx, +1);
 
@@ -448,6 +484,10 @@ function repeatLastTx(){
   const lastCat = CATEGORIES.find(c=>c.id===(last.category||'other'));
   if(lastCat && lastCat.types.includes(last.type)) selectedCategory = last.category || 'other';
   renderCategoryGrid();
+  // carry the optional tracked-wallet link too, so repeating e.g. an Uber payment
+  // re-links to the same tracked wallet without re-selecting it
+  selectedTrackWallet = (last.trackWallet && WALLET_DEFS.find(w=>w.id===last.trackWallet && w.track)) ? last.trackWallet : null;
+  renderTrackLinkChips();
   openAddDrawer();
   switchDrawerTab(0);
   toast('✓ تم تعبية النموذج — راجع واضغط تسجيل');
@@ -2490,6 +2530,7 @@ renderQuickAmounts();
 _initQuickAmountSync();
 renderCategoryGrid();
 renderEditCategoryGrid();
+renderTrackLinkChips();
 
 // Enter key: submit add-form or save edit; Escape: close focused modal
 document.addEventListener('keydown', e => {

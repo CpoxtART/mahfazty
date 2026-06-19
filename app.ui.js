@@ -226,6 +226,71 @@ function selectWallet(id){
 }
 
 /* ============================================================
+   OPTIONAL TRACKED-WALLET LINK (add form)
+   Lets an expense paid from a budget wallet ALSO move a tracked wallet
+   (e.g. pay Uber from Core, and auto-update the "Uber" tracking number) —
+   without making the tracked wallet the direct source of the transaction.
+============================================================ */
+function renderTrackLinkChips(){
+  const wrap = document.getElementById('trackLinkChips');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  const mk = (id, label) => {
+    const active = id === null ? !selectedTrackWallet : selectedTrackWallet === id;
+    const chip = document.createElement('div');
+    chip.className = 'track-chip' + (active ? ' active' : '');
+    chip.setAttribute('role', 'button');
+    chip.setAttribute('tabindex', '0');
+    chip.setAttribute('aria-pressed', String(active));
+    chip.textContent = label;
+    const onSel = () => selectTrackLink(id);
+    chip.onclick = onSel;
+    chip.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onSel(); } };
+    wrap.appendChild(chip);
+  };
+  mk(null, 'بدون');
+  WALLET_DEFS.filter(w => w.track).forEach(w => mk(w.id, w.name));
+
+  const hint = document.getElementById('trackLinkHint');
+  if(hint){
+    if(selectedTrackWallet){
+      const w = WALLET_DEFS.find(x => x.id === selectedTrackWallet);
+      const credit = trackModeFor(selectedTrackWallet) === 'credit';
+      hint.style.display = 'block';
+      hint.textContent = credit
+        ? `↪ سيزيد رقم «${w ? w.name : ''}» بقيمة المصروف تلقائياً (عدّاد إنفاق). غيّر السلوك من تفاصيل المحفظة ⓘ.`
+        : `↪ سينقص رصيد «${w ? w.name : ''}» بقيمة المصروف تلقائياً (رصيد فعلي). غيّر السلوك من تفاصيل المحفظة ⓘ.`;
+    } else {
+      hint.style.display = 'none';
+      hint.textContent = '';
+    }
+  }
+}
+function selectTrackLink(id){
+  selectedTrackWallet = (selectedTrackWallet === id) ? null : id;
+  renderTrackLinkChips();
+  haptic(6);
+}
+// Per-wallet direction for the link, set from the wallet-detail modal.
+function setTrackLinkMode(walletId, mode){
+  const w = WALLET_DEFS.find(x => x.id === walletId && x.track);
+  if(!w) return;
+  trackLinkMode[walletId] = (mode === 'credit') ? 'credit' : 'debit';
+  saveLayoutPrefs();
+  scheduleDriveSync();
+  _updateTrackModeToggleUI(walletId);
+  renderTrackLinkChips(); // refresh the add-form hint if this wallet is selected there
+  toast(trackLinkMode[walletId] === 'credit' ? '✓ سيُحتسب كعدّاد إنفاق (يزيد)' : '✓ سيُحتسب كرصيد فعلي (ينقص)');
+}
+function _updateTrackModeToggleUI(walletId){
+  const credit = trackModeFor(walletId) === 'credit';
+  const d = document.getElementById('trackModeDebit');
+  const c = document.getElementById('trackModeCredit');
+  if(d){ d.classList.toggle('active', !credit); d.setAttribute('aria-pressed', String(!credit)); }
+  if(c){ c.classList.toggle('active', credit); c.setAttribute('aria-pressed', String(credit)); }
+}
+
+/* ============================================================
    V9.3: TAB SWITCHING
 ============================================================ */
 function capTab(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -282,7 +347,23 @@ function loadLayoutPrefs(){
     recentTxLimit = clampRecentLimit(n);
   }catch(e){ recentTxLimit = RECENT_TX_LIMIT_DEFAULT; }
   _recentVisibleCount = recentTxLimit;
+  try{ trackLinkMode = sanitizeTrackLinkMode(JSON.parse(localStorage.getItem(LS_PREFIX + 'trackLinkMode') || 'null')); }
+  catch(e){ trackLinkMode = {}; }
 }
+// Keep only valid track-wallet ids mapped to a known mode ('debit'/'credit'),
+// so a corrupt/old saved value can't feed a bad direction into the money math.
+function sanitizeTrackLinkMode(obj){
+  const out = {};
+  if(obj && typeof obj === 'object'){
+    WALLET_DEFS.forEach(w => {
+      if(w.track && (obj[w.id] === 'debit' || obj[w.id] === 'credit')) out[w.id] = obj[w.id];
+    });
+  }
+  return out;
+}
+// Resolve a tracked wallet's link mode, defaulting to 'debit' (real-balance) — the
+// behavior consistent with how Cards/Cash already work (spending lowers the balance).
+function trackModeFor(walletId){ return trackLinkMode[walletId] === 'credit' ? 'credit' : 'debit'; }
 // Keep the page size sane: 5..50, default when missing/invalid
 function clampRecentLimit(n){
   if(!isFinite(n) || n < 5) return RECENT_TX_LIMIT_DEFAULT;
@@ -295,6 +376,7 @@ function saveLayoutPrefs(){
       localStorage.setItem(LS_PREFIX + 'secOrder_' + tab, JSON.stringify(sectionOrder[tab]));
     });
     localStorage.setItem(LS_PREFIX + 'recentTxLimit', String(recentTxLimit));
+    localStorage.setItem(LS_PREFIX + 'trackLinkMode', JSON.stringify(trackLinkMode));
   }catch(e){}
 }
 function setRecentTxLimit(n){
@@ -308,7 +390,7 @@ function setRecentTxLimit(n){
 // UI/layout preferences travel with backups and Drive sync so a user's chosen
 // tab order, section order and page size follow them across devices.
 function collectUiPrefs(){
-  return { tabOrder: tabOrder, sectionOrder: sectionOrder, recentTxLimit: recentTxLimit };
+  return { tabOrder: tabOrder, sectionOrder: sectionOrder, recentTxLimit: recentTxLimit, trackLinkMode: trackLinkMode };
 }
 function applyUiPrefs(p){
   if(!p || typeof p !== 'object') return;
@@ -323,6 +405,7 @@ function applyUiPrefs(p){
     recentTxLimit = clampRecentLimit(parseInt(p.recentTxLimit, 10));
     _recentVisibleCount = recentTxLimit;
   }
+  if(p.trackLinkMode !== undefined) trackLinkMode = sanitizeTrackLinkMode(p.trackLinkMode);
   saveLayoutPrefs();
   renderBottomNav();
   applySectionOrder();
@@ -567,7 +650,7 @@ function renderRecentTx(){
       <div class="rtx-badge" style="background:${cat.color}22; color:${cat.color};">${cat.icon}</div>
       <div class="rtx-body">
         <div class="rtx-desc">${escHtml(tx.desc||(wallet?wallet.name:''))}</div>
-        <div class="rtx-sub"><span class="rtx-wallet">${escHtml(wallet?wallet.name:'')}</span><span class="rtx-dot">·</span>${timeStr}</div>
+        <div class="rtx-sub"><span class="rtx-wallet">${escHtml(wallet?wallet.name:'')}</span><span class="rtx-dot">·</span>${timeStr}${_trackLinkTag(tx)}</div>
       </div>
       <div class="rtx-amt ${cls}">${sign}${fmt(tx.amount)}</div>`;
     row.onclick = () => openEdit(tx.id);
@@ -1014,6 +1097,14 @@ function renderEditCategoryGrid(){
 function getCategory(id){
   return CATEGORIES.find(c=>c.id===id) || CATEGORIES.find(c=>c.id==='other') || CATEGORIES[0];
 }
+// Small "↪ <tracked wallet>" badge for a transaction that also moves a tracked
+// wallet, so a linked entry is recognizable in the lists. Empty string otherwise.
+function _trackLinkTag(tx){
+  if(!tx || !tx.trackWallet) return '';
+  const w = WALLET_DEFS.find(x => x.id === tx.trackWallet && x.track);
+  if(!w) return '';
+  return `<span class="tx-tracklink">↪ ${escHtml(w.name)}</span>`;
+}
 // Collapse any unknown/untrusted category (e.g. from a crafted backup) to a
 // known id; 'adjustment' is internal-but-valid, everything else falls to 'other'
 const _KNOWN_CATEGORIES = new Set([...CATEGORIES.map(c=>c.id), 'adjustment']);
@@ -1403,6 +1494,7 @@ function openWalletDetail(walletId){
     updateWrap.style.display = 'block';
     budgetWrap.style.display = 'none';
     document.getElementById('detailNewBalance').value = currentVal;
+    _updateTrackModeToggleUI(walletId); // sync the "linked expense → ينقص/يزيد" toggle
   } else {
     updateWrap.style.display = 'none';
     budgetWrap.style.display = 'block';
@@ -1621,8 +1713,10 @@ function renderRecurring(){
       // chip is visible and highlighted
       setAddFormType('expense');
       selectedCategory = s.category;
+      selectedTrackWallet = null; // suggestion carries no tracked link — don't leak a stale selection
       renderWalletSelect();
       renderCategoryGrid();
+      renderTrackLinkChips();
       dismissedRecurring.add(s.key);
       saveConfig();
       renderRecurring();
@@ -1809,7 +1903,7 @@ function renderTxList(){
     div.innerHTML = `
       <div class="info">
         <div class="desc">${escHtml(tx.desc || (wallet ? wallet.name : ''))}</div>
-        <div class="meta"><span class="ctag">${cat.icon}</span><span class="wtag">${escHtml(wallet ? wallet.name : '')}</span> ${timeStr}</div>
+        <div class="meta"><span class="ctag">${cat.icon}</span><span class="wtag">${escHtml(wallet ? wallet.name : '')}</span> ${timeStr}${_trackLinkTag(tx)}</div>
       </div>
       <div class="right">
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
