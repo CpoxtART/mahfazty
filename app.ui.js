@@ -232,24 +232,29 @@ function selectWallet(id){
    without making the tracked wallet the direct source of the transaction.
 ============================================================ */
 function renderTrackLinkChips(){
-  const wrap = document.getElementById('trackLinkChips');
-  if(!wrap) return;
-  wrap.innerHTML = '';
-  const mk = (id, label) => {
-    const active = id === null ? !selectedTrackWallet : selectedTrackWallet === id;
-    const chip = document.createElement('div');
-    chip.className = 'track-chip' + (active ? ' active' : '');
-    chip.setAttribute('role', 'button');
-    chip.setAttribute('tabindex', '0');
-    chip.setAttribute('aria-pressed', String(active));
-    chip.textContent = label;
-    const onSel = () => selectTrackLink(id);
-    chip.onclick = onSel;
-    chip.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onSel(); } };
-    wrap.appendChild(chip);
-  };
-  mk(null, 'بدون');
-  WALLET_DEFS.filter(w => w.track).forEach(w => mk(w.id, w.name));
+  const toggle = document.getElementById('trackLinkEnable');
+  const picker = document.getElementById('trackLinkPicker');
+  const select = document.getElementById('trackLinkSelect');
+  if(!toggle || !picker || !select) return;
+
+  // A stale id (e.g. carried over from a repeated tx whose tracked wallet was
+  // since deleted/changed in a cloud merge) must not leave the form silently
+  // pointing at nothing.
+  if(selectedTrackWallet && !WALLET_DEFS.find(w => w.id === selectedTrackWallet && w.track)){
+    selectedTrackWallet = null;
+  }
+
+  select.innerHTML = '';
+  WALLET_DEFS.filter(w => w.track).forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w.id;
+    opt.textContent = w.name;
+    select.appendChild(opt);
+  });
+
+  toggle.checked = !!selectedTrackWallet;
+  picker.style.display = selectedTrackWallet ? '' : 'none';
+  if(selectedTrackWallet) select.value = selectedTrackWallet;
 
   const hint = document.getElementById('trackLinkHint');
   if(hint){
@@ -266,10 +271,25 @@ function renderTrackLinkChips(){
     }
   }
 }
-function selectTrackLink(id){
-  selectedTrackWallet = (selectedTrackWallet === id) ? null : id;
+// Checking the box reveals the wallet picker and defaults it to whatever is
+// already selected (or the first tracked wallet); unchecking clears the link
+// entirely rather than just hiding it, so a hidden stale selection can't
+// silently re-apply later.
+function toggleTrackLinkEnable(enabled){
+  if(enabled){
+    const firstTrack = WALLET_DEFS.find(w => w.track);
+    selectedTrackWallet = (firstTrack && WALLET_DEFS.find(w => w.id === selectedTrackWallet && w.track))
+      ? selectedTrackWallet
+      : (firstTrack ? firstTrack.id : null);
+  } else {
+    selectedTrackWallet = null;
+  }
   renderTrackLinkChips();
   haptic(6);
+}
+function selectTrackLink(id){
+  selectedTrackWallet = id || null;
+  renderTrackLinkChips();
 }
 // Per-wallet direction for the link, set from the wallet-detail modal.
 function setTrackLinkMode(walletId, mode){

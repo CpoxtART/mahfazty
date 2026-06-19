@@ -238,9 +238,15 @@ try{
         <div class="wallet-menu" id="walletMenuWrap"><div id="walletMenu" role="listbox"></div></div>
       </div>
 
-      <label id="trackLinkLbl">حدّث محفظة تتبع أيضاً (اختياري)</label>
-      <div class="track-link-chips" id="trackLinkChips" role="group" aria-labelledby="trackLinkLbl"></div>
-      <div class="hint track-link-hint" id="trackLinkHint" style="display:none; margin-top:6px;"></div>
+      <label class="track-link-toggle">
+        <input type="checkbox" id="trackLinkEnable" onchange="toggleTrackLinkEnable(this.checked)">
+        <span>احتساب هذه المعاملة على محفظة تتبع أيضاً؟</span>
+      </label>
+      <div class="track-link-picker" id="trackLinkPicker" style="display:none;">
+        <label id="trackLinkLbl" for="trackLinkSelect">أي محفظة؟</label>
+        <select id="trackLinkSelect" class="recent-limit-select" style="width:100%;" onchange="selectTrackLink(this.value)"></select>
+        <div class="hint track-link-hint" id="trackLinkHint" style="display:none; margin-top:6px;"></div>
+      </div>
 
       <label for="descInput">الوصف</label>
       <div class="voice-input-row">

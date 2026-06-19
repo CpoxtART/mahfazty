@@ -624,16 +624,15 @@
   .cat-chip .ic{font-size:17px;}
   .cat-chip.active{border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold);}
 
-  /* optional tracked-wallet link chips (add form) */
-  .track-link-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; }
-  .track-chip{
-    padding:6px 12px; background:var(--bg-elev); border:1px solid var(--line);
-    border-radius:var(--radius-pill); color:var(--muted); font-size:12px; font-weight:600;
-    cursor:pointer; transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  /* optional tracked-wallet link: opt-in checkbox + reveal a wallet picker (add form) */
+  .track-link-toggle{
+    display:flex; align-items:center; gap:10px; cursor:pointer;
+    margin-bottom:4px; font-size:13px; color:var(--text);
   }
-  .track-chip:hover{ border-color:var(--gold-dim); color:var(--gold); }
-  .track-chip:active{ transform:scale(.96); }
-  .track-chip.active{ border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold); }
+  .track-link-toggle input[type="checkbox"]{
+    width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0;
+  }
+  .track-link-picker{ margin-bottom:4px; }
   .track-link-hint{ color:var(--muted); font-size:11.5px; line-height:1.6; }
 
   /* per-wallet link direction toggle (wallet detail) */
