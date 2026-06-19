@@ -771,6 +771,11 @@ document.addEventListener('click', function(e){
 // thousands of transactions; keyed by _txMutationStamp so it auto-invalidates
 // on any add/edit/delete.
 let _firstTxStamp = -1, _firstTxMs = null;
+// ar-EG's numeric date/time formatting embeds invisible bidi control chars
+// (U+200E/U+200F) between segments so they render correctly in RTL text.
+// .sett-stat-v is forced direction:ltr, so those marks fight the bidi
+// algorithm instead and can visibly scramble the digit order — strip them.
+const stripBidi = s => s.replace(/[‎‏]/g, '');
 function updateSettingsStats(){
   // numberingSystem:'latn' forces Western digits — Arabic-Indic numerals here looked
   // out of place against the rest of the UI's number formatting (fmt() etc. all use
@@ -783,12 +788,12 @@ function updateSettingsStats(){
       : null;
   }
   document.getElementById('statFirstTx').textContent = _firstTxMs !== null
-    ? new Date(_firstTxMs).toLocaleDateString('ar-EG', {day:'numeric', month:'numeric', year:'2-digit', numberingSystem:'latn'})
+    ? stripBidi(new Date(_firstTxMs).toLocaleDateString('ar-EG', {day:'numeric', month:'numeric', year:'2-digit', numberingSystem:'latn'}))
     : '—';
   try{
     const last = localStorage.getItem(LS_PREFIX + 'lastEdit');
     document.getElementById('statLastEdit').textContent = last
-      ? new Date(parseInt(last)).toLocaleString('ar-EG', {day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit', hour12:false, numberingSystem:'latn'})
+      ? stripBidi(new Date(parseInt(last)).toLocaleString('ar-EG', {day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit', hour12:false, numberingSystem:'latn'}))
       : '—';
   }catch(e){
     document.getElementById('statLastEdit').textContent = '—';
