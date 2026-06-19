@@ -547,6 +547,9 @@ function resetLayout(){
 ============================================================ */
 function openAddDrawer(){
   const wasClosed = !addDrawerOpen;
+  // remember what had focus so we can restore it on close (a11y) — same
+  // stack openModal/closeModal use in app.logic.js
+  if(wasClosed) _focusStack.push(document.activeElement);
   addDrawerOpen = true;
   switchDrawerTab(0); // always open on Details tab so amount/date are immediately visible
   document.getElementById('addDrawer').classList.add('open');
@@ -558,6 +561,15 @@ function openAddDrawer(){
   // by wasClosed so re-entrant calls (none currently, but matches the modal
   // pattern defensively) don't push a duplicate history entry.
   if(wasClosed) _pushOverlayHistory();
+  // move focus into the drawer so keyboard/screen-reader users land in context —
+  // this is the app's most-used dialog (the FAB add-transaction flow), so leaving
+  // focus behind on the trigger button left keyboard/TalkBack users stranded.
+  // Target a button (not a text input) so the mobile keyboard doesn't pop open.
+  requestAnimationFrame(()=>{
+    const drawer = document.getElementById('addDrawer');
+    const focusable = drawer && drawer.querySelector('button, [tabindex]');
+    if(focusable) try{ focusable.focus({preventScroll:true}); }catch(_){}
+  });
 }
 function closeAddDrawer(){
   const wasOpen = addDrawerOpen;
@@ -576,6 +588,11 @@ function closeAddDrawer(){
   // and silently fill the (now hidden) desc/amount fields whenever it resolves.
   if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} }
   if(wasOpen) _popOverlayHistory();
+  // restore focus to whatever triggered the drawer (mirrors closeModal)
+  const _retFocus = _focusStack.pop();
+  if(_retFocus && typeof _retFocus.focus === 'function'){
+    try{ _retFocus.focus({preventScroll:true}); }catch(_){}
+  }
 }
 function toggleAddDrawer(){
   if(addDrawerOpen) closeAddDrawer(); else openAddDrawer();
@@ -675,7 +692,12 @@ function renderRecentTx(){
     const cls = tx.type==='expense'?'neg':'pos';
     const row = document.createElement('div');
     row.className = 'rtx';
+    // role stays 'listitem' (its parent `card` is role="list") — tabindex/keydown
+    // alone makes it keyboard-operable without breaking the list/listitem ARIA pairing.
     row.setAttribute('role','listitem');
+    row.setAttribute('tabindex','0');
+    row.setAttribute('aria-label',
+      `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${tx.desc || (wallet?wallet.name:'')}، ${cat.name}، ${timeStr}`);
     row.innerHTML = `
       <div class="rtx-badge" style="background:${cat.color}22; color:${cat.color};">${cat.icon}</div>
       <div class="rtx-body">
@@ -684,6 +706,7 @@ function renderRecentTx(){
       </div>
       <div class="rtx-amt ${cls}">${sign}${fmt(tx.amount)}</div>`;
     row.onclick = () => openEdit(tx.id);
+    row.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openEdit(tx.id); } };
     card.appendChild(row);
   });
 
@@ -1227,13 +1250,14 @@ function renderPieChart(){
         cmpHtml = `<span class="cat-cmp up">جديد</span>`;
       }
     }
-    html += `<div class="row cat-row" data-cat="${escHtml(catId)}"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
+    html += `<div class="row cat-row" data-cat="${escHtml(catId)}" role="button" tabindex="0" aria-label="تصفية حسب ${escHtml(cat.name)}"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
   });
   html += '</div>';
   wrap.innerHTML = html;
   wrap.querySelectorAll('.cat-row').forEach(row=>{
     row.style.cursor = 'pointer';
     row.onclick = () => toggleCategoryFilter(row.dataset.cat);
+    row.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleCategoryFilter(row.dataset.cat); } };
   });
 
   // draw pie
@@ -1955,9 +1979,15 @@ function renderTxList(){
     // transaction is, not just the bare amount + an isolated "تعديل" button.
     div.setAttribute('aria-label',
       `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${tx.desc || (wallet?wallet.name:'')}، ${cat.name}، ${date.toLocaleDateString('ar-EG',{day:'numeric',month:'long',numberingSystem:'latn'})} ${timeStr}`);
+    // `wrap` (parent) already carries role="listitem" for the list structure, so
+    // this nested element can be the actual interactive control — previously it
+    // was click-only, leaving keyboard/screen-reader users no way to open it.
+    div.setAttribute('role','button');
+    div.setAttribute('tabindex','0');
     div.dataset.txid = tx.id; // delegated swipe handler reads the id from here
     div.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); if(!div._swipeDeleting) openEdit(tx.id); };
     div.onclick = () => { if(!div._swipeDeleting) openEdit(tx.id); };
+    div.onkeydown = (e) => { if((e.key==='Enter'||e.key===' ') && !div._swipeDeleting){ e.preventDefault(); openEdit(tx.id); } };
 
     wrap.appendChild(bg);
     wrap.appendChild(div);

@@ -453,6 +453,15 @@ async function loadState(){
     if(Array.isArray(_idb.subscriptions)){
       try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(_idb.subscriptions)); }catch(e){}
     }
+    // Same recovery for the Drive client id: without this, a wiped localStorage
+    // makes driveClientId read back empty, initDrive() silently no-ops (its whole
+    // body is gated on `if(driveClientId)`), and Drive sync turns itself off with
+    // zero indication — the user just stops syncing and has no idea why. Restoring
+    // it (but never the OAuth token, which has its own cookie fallback) lets
+    // initDrive() detect "Drive was connected" and surface a normal reconnect prompt.
+    if(_idb.driveClientId && !localStorage.getItem(LS_PREFIX + 'driveClientId')){
+      try{ localStorage.setItem(LS_PREFIX + 'driveClientId', _idb.driveClientId); }catch(e){}
+    }
     if(!_lsHadBalances && state.transactions.length) toast('✓ تمت استعادة البيانات من النسخ الاحتياطي');
   } else if(Array.isArray(_lsTx)){
     // Legacy localStorage copy (older version) or IDB unavailable — adopt it; the
@@ -495,7 +504,7 @@ async function loadState(){
   const _di = document.getElementById('dateInput');
   if(_di) _di.value = todayISO();
   capDateInputsToToday();
-  loadSubs();
+  loadSubs(_idb);
   render(true);
 }
 
@@ -629,13 +638,26 @@ function _normalizeSub(x){
   x.billingDay = Math.min(31, Math.max(1, d));
   return x;
 }
-function loadSubs(){
+function loadSubs(idbSnapshot){
   try{
     const s = localStorage.getItem(LS_PREFIX + 'subs');
     if(s) subscriptions = JSON.parse(s)
       .filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0)
       .map(_normalizeSub);
-  }catch(e){ subscriptions = []; }
+  }catch(e){
+    // localStorage's 'subs' key is corrupted (e.g. a crash mid-write) — fall back
+    // to the IndexedDB snapshot's copy (idbBackup mirrors subscriptions into it on
+    // every save) instead of silently wiping the user's recurring subscriptions.
+    if(idbSnapshot && Array.isArray(idbSnapshot.subscriptions) && idbSnapshot.subscriptions.length){
+      subscriptions = idbSnapshot.subscriptions
+        .filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0)
+        .map(_normalizeSub);
+      toast('⚠ تعذّرت قراءة الاشتراكات محليًا — تم استرجاعها من النسخة الاحتياطية', true);
+    } else {
+      subscriptions = [];
+      toast('⚠ تعذّرت قراءة الاشتراكات المحفوظة، تم البدء بقائمة فارغة', true);
+    }
+  }
 }
 async function saveSubs(){
   const ts = Date.now();
@@ -684,6 +706,9 @@ async function idbBackup(savedAt){
         dismissedRecurring: Array.from(dismissedRecurring),
         deletedTxIds: deletedTxIds,
         subscriptions: subscriptions,
+        // mirrored so a wiped localStorage can still recover "Drive was connected"
+        // (see loadState) instead of Drive sync silently going dark with no UI cue
+        driveClientId: driveClientId,
         savedAt: (typeof savedAt === 'number' && isFinite(savedAt)) ? savedAt : Date.now()
       }, 'snapshot');
       tx.oncomplete = () => resolve();

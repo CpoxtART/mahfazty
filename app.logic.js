@@ -787,10 +787,9 @@ function fmtStatDateTime(ms){
   return `${d.getDate()}/${d.getMonth()+1} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 function updateSettingsStats(){
-  // numberingSystem:'latn' forces Western digits — Arabic-Indic numerals here looked
-  // out of place against the rest of the UI's number formatting (fmt() etc. all use
-  // Western digits), while keeping the 'ar-EG' locale's date/separator conventions.
-  document.getElementById('statTxCount').textContent = state.transactions.length.toLocaleString('ar-EG', {numberingSystem:'latn'});
+  // Thousands-grouped via a plain regex instead of toLocaleString — same
+  // ICU-bidi-fragility reasoning as fmtStatDate/fmtStatDateTime above.
+  document.getElementById('statTxCount').textContent = String(state.transactions.length).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   if(_firstTxStamp !== _txMutationStamp){
     _firstTxStamp = _txMutationStamp;
     _firstTxMs = state.transactions.length
@@ -930,7 +929,11 @@ async function applyImport(text){
       // corrupt backup file isn't bound by that input-side limit, and an unbounded
       // desc string would slip past escHtml() (it sanitizes, doesn't shorten) and
       // bloat every list render that includes this transaction.
-      desc: typeof tx.desc === 'string' ? tx.desc.slice(0,120) : tx.desc
+      desc: typeof tx.desc === 'string' ? tx.desc.slice(0,120) : tx.desc,
+      // every other entry point (addTx, transfers) rounds to cents before storing —
+      // a hand-edited or legacy backup file isn't bound by that, so an unrounded
+      // amount would otherwise persist forever and re-export on every future backup
+      amount: round2(tx.amount)
     }));
     _droppedTx = incoming.length - state.transactions.length;
   }
@@ -1917,7 +1920,13 @@ async function adoptCloudSnapshot(cloud){
       typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
       typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
       WALLET_DEFS.find(w => w.id === tx.wallet))
-      .map(tx => typeof tx.desc === 'string' && tx.desc.length > 120 ? { ...tx, desc: tx.desc.slice(0,120) } : tx); // same input-side cap as applyImport()
+      // same input-side cap as applyImport(), plus the same cent-rounding every
+      // other entry point enforces (a cloud copy isn't bound by addTx's rounding)
+      .map(tx => ({
+        ...tx,
+        desc: typeof tx.desc === 'string' && tx.desc.length > 120 ? tx.desc.slice(0,120) : tx.desc,
+        amount: round2(tx.amount)
+      }));
     stripOrphanLinks(state.transactions);
   }
   if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
@@ -2023,10 +2032,13 @@ async function driveSyncFromCloud(isInitial, interactive){
     // interactive sign-in with genuine data on both sides — let the user choose,
     // showing each copy's size + timestamp so the decision is informed
     _pendingDriveCloud = cloud;
+    // Manual digit formatting (not toLocaleString) — this choice drives a
+    // destructive "keep cloud vs keep local" decision, so it must render
+    // identically across platforms regardless of ICU bidi quirks.
     const fmtWhen = ms => {
       if(!ms || !isFinite(ms)) return 'غير معروف';
-      try{ return new Date(ms).toLocaleString('ar-EG', {dateStyle:'medium', timeStyle:'short', numberingSystem:'latn'}); }
-      catch(_){ return new Date(ms).toLocaleString('en-US'); }
+      const d = new Date(ms);
+      return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     };
     const cloudCount = (cloud.transactions || []).length;
     const localCount = state.transactions.length;
@@ -2139,15 +2151,29 @@ function hideSplash(){
 ============================================================ */
 let _welcomeStep = 0;
 const _WELCOME_STEPS = 4;
+// Returns true iff onboarding was actually shown — callers use this (not their own
+// pre-load localStorage peek) since the answer can only be known accurately AFTER
+// loadState() has had a chance to recover data from IndexedDB (see below).
 function checkFirstRun(){
   try{
     const seen = localStorage.getItem(LS_PREFIX + 'welcomeSeen');
     if(!seen){
+      // A wiped localStorage looks identical to a genuinely new install (neither has
+      // a 'welcomeSeen' key) — but if loadState() already recovered real transaction
+      // history from IndexedDB, this is a RETURNING user, not a new one. Showing the
+      // "welcome to the app" onboarding to someone with months of data is confusing;
+      // mark it seen and skip straight past it instead.
+      if(state.transactions.length > 0){
+        try{ localStorage.setItem(LS_PREFIX + 'welcomeSeen', '1'); }catch(e){}
+        return false;
+      }
       _welcomeStep = 0;
       _renderWelcomeStep();
       openModal('welcomeModal');
+      return true;
     }
   }catch(e){}
+  return false;
 }
 // Build the progress dots once, then sync slide/dots/buttons to the current step.
 function _renderWelcomeStep(){
@@ -2660,13 +2686,21 @@ applySectionOrder();
 setupPWA();
 loadState().then(()=>{
   hideSplash();
+  // initDrive() must run AFTER loadState() resolves, not alongside it: loadState()
+  // may restore driveClientId from the IndexedDB snapshot when localStorage was
+  // wiped (see the recovery block above), but that restore happens past loadState's
+  // first await — if initDrive() were fired synchronously right after the call
+  // (as it used to be), it would always read the pre-restore (empty) value and the
+  // reconnect-from-IDB recovery above would be dead code for the very first load.
+  initDrive();
   // Wrapped like the loadState() reads: a locked-down browser that throws on every
   // localStorage call (not just setItem) must not break post-load init (first-run
   // modal / daily review / drift check) right after the splash screen clears.
-  let wasFirstRun = false;
-  try{ wasFirstRun = !localStorage.getItem(LS_PREFIX + 'welcomeSeen'); }catch(e){}
-  checkFirstRun();
-  if(wasFirstRun){
+  // checkFirstRun()'s return value (not a pre-load localStorage peek) decides the
+  // branch below, since only checkFirstRun() knows whether loadState() recovered a
+  // returning user's data from IndexedDB and skipped onboarding for them.
+  const isFirstRun = checkFirstRun();
+  if(isFirstRun){
     // mark today as reviewed so the daily modal doesn't stack on first run
     try{ localStorage.setItem(LS_PREFIX + 'lastReviewDate', todayISO()); }catch(e){}
   } else {
@@ -2674,7 +2708,6 @@ loadState().then(()=>{
     setTimeout(checkBalanceDrift, 900);
   }
 });
-initDrive();
 
 // Refresh time-sensitive UI (budget bars, day/week filter, analytics) when user returns to tab
 document.addEventListener('visibilitychange', () => {
