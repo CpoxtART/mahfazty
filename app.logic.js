@@ -59,7 +59,7 @@ async function addTx(type){
     document.querySelectorAll('#quickAmounts button').forEach(b=>b.classList.remove('active'));
     // category intentionally kept so consecutive same-category entries don't need reselecting
     selectedTrackWallet = null; // reset the optional tracked link so it isn't reused unintentionally
-    if(typeof renderTrackLinkChips === 'function') renderTrackLinkChips();
+    if(typeof renderTrackLinkPicker === 'function') renderTrackLinkPicker();
 
     await saveBalances();
     await saveTx();
@@ -487,7 +487,7 @@ function repeatLastTx(){
   // carry the optional tracked-wallet link too, so repeating e.g. an Uber payment
   // re-links to the same tracked wallet without re-selecting it
   selectedTrackWallet = (last.trackWallet && WALLET_DEFS.find(w=>w.id===last.trackWallet && w.track)) ? last.trackWallet : null;
-  renderTrackLinkChips();
+  renderTrackLinkPicker();
   openAddDrawer();
   switchDrawerTab(0);
   toast('✓ تم تعبية النموذج — راجع واضغط تسجيل');
@@ -2530,7 +2530,7 @@ renderQuickAmounts();
 _initQuickAmountSync();
 renderCategoryGrid();
 renderEditCategoryGrid();
-renderTrackLinkChips();
+renderTrackLinkPicker();
 
 // Enter key: submit add-form or save edit; Escape: close focused modal
 document.addEventListener('keydown', e => {

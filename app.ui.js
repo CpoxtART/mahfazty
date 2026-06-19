@@ -231,7 +231,7 @@ function selectWallet(id){
    (e.g. pay Uber from Core, and auto-update the "Uber" tracking number) —
    without making the tracked wallet the direct source of the transaction.
 ============================================================ */
-function renderTrackLinkChips(){
+function renderTrackLinkPicker(){
   const toggle = document.getElementById('trackLinkEnable');
   const picker = document.getElementById('trackLinkPicker');
   const select = document.getElementById('trackLinkSelect');
@@ -284,12 +284,12 @@ function toggleTrackLinkEnable(enabled){
   } else {
     selectedTrackWallet = null;
   }
-  renderTrackLinkChips();
+  renderTrackLinkPicker();
   haptic(6);
 }
 function selectTrackLink(id){
   selectedTrackWallet = id || null;
-  renderTrackLinkChips();
+  renderTrackLinkPicker();
 }
 // Per-wallet direction for the link, set from the wallet-detail modal.
 function setTrackLinkMode(walletId, mode){
@@ -299,7 +299,7 @@ function setTrackLinkMode(walletId, mode){
   saveLayoutPrefs();
   scheduleDriveSync();
   _updateTrackModeToggleUI(walletId);
-  renderTrackLinkChips(); // refresh the add-form hint if this wallet is selected there
+  renderTrackLinkPicker(); // refresh the add-form hint if this wallet is selected there
   toast(trackLinkMode[walletId] === 'credit' ? '✓ سيُحتسب كعدّاد إنفاق (يزيد)' : '✓ سيُحتسب كرصيد فعلي (ينقص)');
 }
 function _updateTrackModeToggleUI(walletId){
@@ -1736,7 +1736,7 @@ function renderRecurring(){
       selectedTrackWallet = null; // suggestion carries no tracked link — don't leak a stale selection
       renderWalletSelect();
       renderCategoryGrid();
-      renderTrackLinkChips();
+      renderTrackLinkPicker();
       dismissedRecurring.add(s.key);
       saveConfig();
       renderRecurring();
