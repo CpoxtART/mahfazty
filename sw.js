@@ -52,7 +52,11 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE).then(c => c.put('./index.html', clone)).catch(() => {});
         }
         return res;
-      }).catch(() => caches.match('./index.html').then(r => r || caches.match(e.request)))
+      }).catch(() => caches.match('./index.html').then(r =>
+        // never resolve to undefined (respondWith would turn it into a confusing
+        // TypeError); fall back to the cached request, then a clean 503.
+        r || caches.match(e.request).then(c => c || new Response('', {status:503, statusText:'Offline'}))
+      ))
     );
     return;
   }

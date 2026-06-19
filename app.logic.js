@@ -648,7 +648,8 @@ function openModal(id){
 }
 function closeModal(id){
   const modal = document.getElementById(id);
-  const wasOpen = modal && modal.classList.contains('open');
+  if(!modal) return;
+  const wasOpen = modal.classList.contains('open');
   modal.classList.remove('open');
   // restore background scroll only once no modal remains open
   if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';

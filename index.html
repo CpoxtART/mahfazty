@@ -768,6 +768,13 @@ try{
     }catch(e){}
   }
   window.addEventListener('error', function(ev){
+    // Only treat this as a load-time fatal failure (the message tells the user to
+    // "re-upload index.html") while the splash is still showing. Once hideSplash()
+    // has run, the app already loaded successfully — a later runtime error (a
+    // third-party script, a browser extension, etc.) must not slap a permanent,
+    // undismissable "your file is corrupted" banner over a perfectly working app.
+    var s = document.getElementById('splash');
+    if(s && s.classList.contains('hide')) return;
     showFatal(ev && (ev.message || (ev.error && ev.error.message)));
   });
   window._splashTimer = setTimeout(function(){

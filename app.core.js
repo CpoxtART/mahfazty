@@ -374,7 +374,7 @@ async function loadState(){
   }catch(e){}
 
   const _validTx = arr => (Array.isArray(arr) ? arr : []).filter(t =>
-    t && (t.type === 'income' || t.type === 'expense') &&
+    t && t.id && (t.type === 'income' || t.type === 'expense') &&
     typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
     typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 &&
     WALLET_DEFS.find(w => w.id === t.wallet));
@@ -475,7 +475,7 @@ async function loadState(){
 // (crisis/budgets/distribution/prefs) is taken from whichever side edited last.
 // Returns {added, removed} counts for an informative toast.
 function mergeCloudData(cloud, cloudNewer){
-  const validTx = t => t && (t.type === 'income' || t.type === 'expense') &&
+  const validTx = t => t && t.id && (t.type === 'income' || t.type === 'expense') &&
     typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
     typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 &&
     WALLET_DEFS.find(w => w.id === t.wallet);
