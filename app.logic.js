@@ -691,6 +691,7 @@ function openModal(id){
     refreshDriveSettingsUI();
     renderDistributionEditor();
     renderLayoutEditor();
+    renderWalletDefsEditor();
   }
   // move focus into the modal so keyboard/screen-reader users land in context.
   // target a button (not a text input) so the mobile keyboard doesn't pop open.
@@ -827,6 +828,7 @@ function exportData(){
     dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
     theme: (document.body.classList.contains('light') ? 'light' : 'dark'),
     wallets: state.wallets,
+    walletDefs: WALLET_DEFS,
     transactions: state.transactions,
     crisisMode: state.crisisMode,
     budgets: budgets,
@@ -901,6 +903,14 @@ async function applyImport(text){
   _opInFlight++; // block the cross-tab storage reload mid-import, same as other wholesale replacements
   try{
 
+  // wallet defs are part of the same wholesale snapshot — replace BEFORE the
+  // wallets/transactions validation below, since both reference WALLET_DEFS
+  // by id (a custom wallet from the backup would otherwise look "unknown").
+  if(Array.isArray(data.walletDefs)){
+    const cleanWD = sanitizeWalletDefs(data.walletDefs);
+    if(cleanWD) applyWalletDefs(cleanWD);
+  }
+
   if(data.wallets){
     // a backup is a complete snapshot — clear all balances first so wallets that
     // are omitted from the imported file don't keep stale values that would
@@ -970,6 +980,7 @@ async function applyImport(text){
   await saveTx();
   await saveConfig();
   await saveSubs();
+  await saveWalletDefs();
   closeModal('dataModal');
   render(true);
   if(_droppedTx > 0){
@@ -1911,6 +1922,13 @@ async function driveSyncToCloud(){
 async function adoptCloudSnapshot(cloud){
   _opInFlight++; // wholesale state replacement across awaits — block cross-tab reload race
   try{
+  // wallet defs first — wholesale snapshot replace, same as applyImport(), so the
+  // wallets/transactions validation below (which checks WALLET_DEFS by id) already
+  // knows about every wallet the cloud snapshot references.
+  if(Array.isArray(cloud.walletDefs)){
+    const cleanWD = sanitizeWalletDefs(cloud.walletDefs);
+    if(cleanWD) applyWalletDefs(cleanWD);
+  }
   if(cloud.wallets){
     WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
     WALLET_DEFS.forEach(w => {
@@ -1947,7 +1965,7 @@ async function adoptCloudSnapshot(cloud){
   if(cloud.uiPrefs) applyUiPrefs(cloud.uiPrefs);
   _txMutationStamp++; // adopted a new cloud data set — invalidate derived caches
   prevSpendable = null; // force fresh hero animation after loading a new data set
-  await saveBalances(); await saveTx(); await saveConfig(); await saveSubs();
+  await saveBalances(); await saveTx(); await saveConfig(); await saveSubs(); await saveWalletDefs();
   render(true); // force: wallet object is mutated in-place so reference-equality sig check would miss balance changes
   } finally {
     _opInFlight--;
@@ -2024,7 +2042,7 @@ async function driveSyncFromCloud(isInitial, interactive){
       try{
         const cloudNewer = cloudTime > localTime;
         const { added, removed } = mergeCloudData(cloud, cloudNewer);
-        await saveBalances(); await saveTx(); await saveConfig(); await saveSubs();
+        await saveBalances(); await saveTx(); await saveConfig(); await saveSubs(); await saveWalletDefs();
         render(true);
         await driveSyncToCloud(); // push the merged result so the cloud converges too
         if(added || removed){
@@ -2266,9 +2284,10 @@ function buildDailyReviewContent(){
   // budget warnings — skip wallets currently merged into the crisis combined
   // card: their individual budget bar isn't rendered while crisis mode is on,
   // so naming them here would reference a wallet the user can't see or act on.
+  const _crisisIds = state.crisisMode ? crisisWalletIds() : null;
   WALLET_DEFS.forEach(w=>{
     if(w.track || !budgets[w.id]) return;
-    if(state.crisisMode && CRISIS_WALLET_IDS.includes(w.id)) return;
+    if(_crisisIds && _crisisIds.includes(w.id)) return;
     const spent = monthlyExpenseForWallet(w.id);
     const budget = budgets[w.id];
     if(spent >= budget){

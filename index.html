@@ -396,6 +396,18 @@ try{
       </div>
     </div>
 
+    <!-- ─── Wallets ─── -->
+    <div class="sett-section">
+      <div class="sett-section-head">🏦 إدارة المحافظ</div>
+      <div class="sett-section-body">
+        <div class="hint" style="margin:0 0 10px;">أضف محافظ جديدة (عادية تُحتسب بالإجمالي، أو تتبع فقط)، وعدّل الاسم والترتيب.</div>
+        <div id="walletDefsEditor"></div>
+        <div class="modal-actions" style="margin-top:8px;">
+          <button class="btn-primary" onclick="openWalletDefModal(null)">➕ محفظة جديدة</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── Distribution ─── -->
     <div class="sett-section">
       <div class="sett-section-head">📐 نسب التوزيع التلقائي</div>
@@ -752,6 +764,30 @@ try{
     </div>
     <div class="modal-actions" id="subDeleteRow" style="display:none;">
       <button class="btn-danger" id="subDeleteBtn" onclick="deleteSubModal()">🗑 حذف الاشتراك</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== WALLET DEFINITION MODAL (add/edit) ===== -->
+<div class="modal-overlay" role="dialog" aria-modal="true" id="walletDefModal">
+  <div class="modal">
+    <div class="grabber"></div>
+    <h3 id="walletDefModalTitle">➕ محفظة جديدة</h3>
+    <div id="walletDefTypeRow">
+      <label>نوع المحفظة</label>
+      <div class="type-mini-toggle">
+        <button type="button" class="neutral active" id="walletDefTypeRegular" onclick="setWalletDefType(false)">عادية (تُحتسب)</button>
+        <button type="button" class="neutral" id="walletDefTypeTrack" onclick="setWalletDefType(true)">تتبع (غير محتسبة)</button>
+      </div>
+    </div>
+    <label for="walletDefName">اسم المحفظة</label>
+    <input type="text" id="walletDefName" maxlength="40" placeholder="مثال: تعليم، سفر...">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('walletDefModal')">إلغاء</button>
+      <button class="btn-primary" onclick="saveWalletDefModal()">حفظ</button>
+    </div>
+    <div class="modal-actions" id="walletDefDeleteRow" style="display:none;">
+      <button class="btn-danger" id="walletDefDeleteBtn" onclick="deleteWalletDefModal()">🗑 حذف المحفظة</button>
     </div>
   </div>
 </div>

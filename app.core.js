@@ -2,6 +2,8 @@
 /* ============================================================
    CONFIG
 ============================================================ */
+const LS_PREFIX = 'walletTracker_';
+
 const WALLET_DEFS = [
   {id:'core',        name:'Core Expenses',  initial:0, track:false, pct:'50%'},
   {id:'wishlist',    name:'Wishlist',       initial:0, track:false, pct:'10%'},
@@ -14,6 +16,50 @@ const WALLET_DEFS = [
   {id:'cards',       name:'Bank Cards',     initial:0, track:true,  pct:'تتبع'},
   {id:'cash',        name:'Cash',           initial:0, track:true,  pct:'تتبع'},
 ];
+// Validates/cleans a candidate wallet-defs array (from localStorage, IndexedDB,
+// an imported backup, or a Drive snapshot) before it's allowed to replace the
+// live WALLET_DEFS. Returns a fresh array of plain {id,name,initial,track,pct}
+// objects, or null if the input is unusable (caller should keep what it has).
+function sanitizeWalletDefs(arr){
+  if(!Array.isArray(arr) || !arr.length) return null;
+  const seen = new Set();
+  const out = [];
+  arr.forEach(w => {
+    if(!w || typeof w !== 'object') return;
+    const id = typeof w.id === 'string' ? w.id.trim() : '';
+    const name = typeof w.name === 'string' ? w.name.trim().slice(0,40) : '';
+    if(!id || !name || seen.has(id)) return;
+    seen.add(id);
+    out.push({id, name, initial:0, track: !!w.track, pct: typeof w.pct === 'string' ? w.pct : (w.track ? 'تتبع' : '0%')});
+  });
+  // Every screen that lets the user pick a spendable wallet (add form, transfers)
+  // assumes at least one non-track wallet exists — a corrupt/edited blob with only
+  // track wallets would otherwise brick those screens.
+  if(!out.length || !out.some(w => !w.track)) return null;
+  return out;
+}
+// Mutates WALLET_DEFS IN PLACE (clear + refill) so every other module's direct
+// references to the same array — there are dozens across app.core/logic/ui.js —
+// pick up the change without needing to be updated individually.
+function applyWalletDefs(clean){
+  WALLET_DEFS.length = 0;
+  clean.forEach(w => WALLET_DEFS.push(w));
+  recomputeSelectableWallets();
+}
+// Custom wallets (added via Settings → إدارة المحافظ) are loaded synchronously
+// here, before SELECTABLE_WALLETS/CRISIS_WALLET_IDS-dependent code below runs,
+// so the very first render already reflects them. IndexedDB-side recovery (in
+// case localStorage was wiped) happens later in loadState(), same pattern as
+// the Drive client id / subscriptions recovery there.
+(function _loadCustomWalletDefsSync(){
+  try{
+    const raw = localStorage.getItem(LS_PREFIX + 'walletDefs');
+    if(!raw) return;
+    const clean = sanitizeWalletDefs(JSON.parse(raw));
+    if(clean) applyWalletDefs(clean);
+  }catch(e){}
+})();
+
 // Bar width baseline. Initials are all 0 (fresh app), so a static max is useless;
 // derive the scale from the largest current non-track balance at render time so
 // the bars stay proportional as real balances grow. Floor of 1 avoids /0.
@@ -26,11 +72,13 @@ function maxWalletVal(){
   });
   return m;
 }
-// In emergency mode the whole "second half" (everything except Core Expenses,
-// i.e. the non-track 50%: wishlist+growth+investments+joy+giving+reserve) merges
-// into one unified emergency reserve. Wishlist was previously missing here, so it
-// wrongly stayed visible at 10% beside Core while the combined card claimed 50%.
-const CRISIS_WALLET_IDS = ['wishlist','growth','investments','joy','giving','reserve'];
+// In emergency mode the whole "second half" (everything except Core Expenses)
+// merges into one unified emergency reserve. Computed live (not a fixed id list)
+// so a user-added regular wallet automatically joins the merge instead of being
+// left stranded outside both the Core card and the combined crisis card.
+function crisisWalletIds(){
+  return WALLET_DEFS.filter(w => !w.track && w.id !== 'core').map(w => w.id);
+}
 
 const CATEGORIES = [
   {id:'food',          types:['expense'],          name:'طعام وشراب',   icon:'🍽️', color:'#e3a07a'},
@@ -44,7 +92,10 @@ const CATEGORIES = [
   {id:'other',         types:['expense','income'], name:'أخرى',         icon:'✨', color:'#8d94a3'},
 ];
 const QUICK_AMOUNTS = [250, 500, 1000, 2000, 5000, 10000];
-const SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track);
+// `let` + explicit recompute (not a one-time const filter) because WALLET_DEFS
+// can grow/shrink at runtime once wallets become user-editable.
+let SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track);
+function recomputeSelectableWallets(){ SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track); }
 
 // Wallets that participate in automatic income distribution, with their share %
 const DEFAULT_DISTRIBUTION = [
@@ -109,6 +160,10 @@ let addDrawerOpen = false;
 let drawerTab = 0;
 let subscriptions = []; // [{id, name, amount, billingDay, active}]
 let editingSubId = null;
+
+/* v9.9 — user-editable wallet definitions (add/rename/reorder) */
+let editingWalletDefId = null; // null = "add new" mode in #walletDefModal
+let _walletDefModalTrack = false; // pending track/regular choice while the modal is open
 
 /* v9.4 — customizable layout (tab + section order) */
 let _layoutEditorTab = 'tab'; // which sub-tab is active in the layout editor
@@ -353,8 +408,6 @@ function capDateInputsToToday(){
 /* ============================================================
    STORAGE
 ============================================================ */
-const LS_PREFIX = 'walletTracker_';
-
 async function loadState(){
   state.wallets = {};
   WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
@@ -424,6 +477,26 @@ async function loadState(){
   // Fall back to lastEdit only when dataEdit is absent (legacy migration path).
   try{ _lsDataEdit = parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0; }catch(e){}
   const _idb = await idbRestore(); // also opens the DB, setting _idbAvailable
+  // Recover custom wallet definitions from IndexedDB if localStorage's copy was
+  // wiped — same wipe-recovery pattern as driveClientId/subscriptions below. Must
+  // happen before _validTx/balance-restore loops run (just below) so a custom
+  // wallet's transactions and balance aren't silently dropped as "unknown wallet".
+  if(_idb && Array.isArray(_idb.walletDefs) && !localStorage.getItem(LS_PREFIX + 'walletDefs')){
+    const _cleanWD = sanitizeWalletDefs(_idb.walletDefs);
+    if(_cleanWD){
+      applyWalletDefs(_cleanWD);
+      WALLET_DEFS.forEach(w => { if(state.wallets[w.id] === undefined) state.wallets[w.id] = 0; });
+      if(_idb.wallets){
+        WALLET_DEFS.forEach(w => {
+          if(_idb.wallets[w.id] !== undefined){
+            const v = parseFloat(_idb.wallets[w.id]);
+            if(isFinite(v)) state.wallets[w.id] = Math.round(v*100)/100;
+          }
+        });
+      }
+      try{ localStorage.setItem(LS_PREFIX + 'walletDefs', JSON.stringify(WALLET_DEFS)); }catch(e){}
+    }
+  }
   const _idbTime = (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0;
   let _lsTx = null;
   try{ const raw = localStorage.getItem(LS_PREFIX + 'transactions'); if(raw) _lsTx = JSON.parse(raw); }catch(e){}
@@ -515,6 +588,39 @@ async function loadState(){
 // (crisis/budgets/distribution/prefs) is taken from whichever side edited last.
 // Returns {added, removed} counts for an informative toast.
 function mergeCloudData(cloud, cloudNewer){
+  // 0) wallet defs — additive id union FIRST (unconditionally, regardless of
+  //    cloudNewer) so a wallet added on the OTHER device is already known
+  //    locally before validTx below runs; otherwise its transactions would be
+  //    silently rejected as "unknown wallet" and lost on this device.
+  const cloudWD = Array.isArray(cloud.walletDefs) ? sanitizeWalletDefs(cloud.walletDefs) : null;
+  if(cloudWD){
+    const localIds = new Set(WALLET_DEFS.map(w => w.id));
+    const onlyOnCloud = cloudWD.filter(w => !localIds.has(w.id));
+    if(onlyOnCloud.length){
+      const merged = WALLET_DEFS.concat(onlyOnCloud);
+      applyWalletDefs(merged);
+      onlyOnCloud.forEach(w => { if(state.wallets[w.id] === undefined) state.wallets[w.id] = 0; });
+      if(!cloudNewer) onlyOnCloud.forEach(w => { if(!DISTRIBUTION.find(d => d.id === w.id)) DISTRIBUTION.push({id: w.id, pct: 0}); });
+    }
+    // Renames/reordering: only adopted from the side that edited most recently —
+    // names/order are config-like, not additive data, same rule as step 5 below.
+    if(cloudNewer){
+      const cloudById = new Map(cloudWD.map(w => [w.id, w]));
+      const renamed = WALLET_DEFS.map(w => {
+        const cw = cloudById.get(w.id);
+        return cw ? {...w, name: cw.name} : w;
+      });
+      // order: cloud ids first (in cloud order), then any local-only ids appended
+      // at the end so a wallet added locally isn't dropped just because the cloud
+      // snapshot predates it.
+      const byId = new Map(renamed.map(w => [w.id, w]));
+      const ordered = [];
+      cloudWD.forEach(cw => { const w = byId.get(cw.id); if(w){ ordered.push(w); byId.delete(cw.id); } });
+      byId.forEach(w => ordered.push(w));
+      applyWalletDefs(ordered);
+    }
+  }
+
   const validTx = t => t && t.id && (t.type === 'income' || t.type === 'expense') &&
     typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
     typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 &&
@@ -666,6 +772,13 @@ async function saveSubs(){
   scheduleDriveSync();
   idbBackup(ts);
 }
+async function saveWalletDefs(){
+  const ts = Date.now();
+  try{ localStorage.setItem(LS_PREFIX + 'walletDefs', JSON.stringify(WALLET_DEFS)); }catch(e){ toast('⚠ فشل حفظ بيانات المحافظ محليًا', true); }
+  stampDataEdit(ts);
+  scheduleDriveSync();
+  idbBackup(ts);
+}
 
 /* ============================================================
    INDEXEDDB BACKUP (extra resilience alongside localStorage)
@@ -708,6 +821,7 @@ async function idbBackup(savedAt){
       const tx = db.transaction('backup','readwrite');
       tx.objectStore('backup').put({
         wallets: state.wallets,
+        walletDefs: WALLET_DEFS,
         transactions: state.transactions,
         crisisMode: state.crisisMode,
         autoDistribute, budgets,
@@ -778,7 +892,7 @@ async function idbRestore(){
 
 function toggleCrisis(){
   state.crisisMode = !state.crisisMode;
-  if(state.crisisMode && walletFilter && CRISIS_WALLET_IDS.includes(walletFilter)){
+  if(state.crisisMode && walletFilter && crisisWalletIds().includes(walletFilter)){
     walletFilter = null;
   }
   const _ct = document.getElementById('crisisToggle');

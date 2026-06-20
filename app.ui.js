@@ -54,7 +54,8 @@ function renderWallets(){
 
   let defs = WALLET_DEFS;
   if(state.crisisMode){
-    defs = WALLET_DEFS.filter(w => !CRISIS_WALLET_IDS.includes(w.id));
+    const crisisIds = crisisWalletIds();
+    defs = WALLET_DEFS.filter(w => !crisisIds.includes(w.id));
   }
 
   const barMax = maxWalletVal();
@@ -104,14 +105,17 @@ function renderWallets(){
   });
 
   if(state.crisisMode){
+    const crisisIds = crisisWalletIds();
     let crisisTotal = 0;
-    CRISIS_WALLET_IDS.forEach(id => crisisTotal += (state.wallets[id] ?? 0));
+    crisisIds.forEach(id => crisisTotal += (state.wallets[id] ?? 0));
     spendable += crisisTotal; // crisis reserve is part of total liquidity in emergency mode
-    // derive the combined percentage from the merged wallets' own pct labels so it
-    // can never drift from CRISIS_WALLET_IDS again (was hardcoded "٪50")
-    const crisisPct = CRISIS_WALLET_IDS.reduce((s,id)=>{
+    // derive the combined percentage from each merged wallet's LIVE distribution
+    // share (getWalletPctLabel, same source the individual cards use) — reading
+    // the static w.pct field here would go stale the moment a user edits the
+    // auto-distribute % editor, or never reflect a custom wallet's real share.
+    const crisisPct = crisisIds.reduce((s,id)=>{
       const w = WALLET_DEFS.find(x=>x.id===id);
-      return s + (w ? (parseFloat(w.pct) || 0) : 0);
+      return s + (w ? (parseFloat(getWalletPctLabel(w)) || 0) : 0);
     }, 0);
     const div = document.createElement('div');
     div.className = 'wallet crisis-combined';
@@ -185,6 +189,171 @@ function toggleCategoryFilter(catId){
   scrollToTxList();
 }
 
+
+/* ============================================================
+   WALLET DEFINITIONS EDITOR (Settings → إدارة المحافظ)
+   Add/rename/reorder custom wallets. Type (track/regular) is fixed at
+   creation — changing it after transactions reference the wallet would leave
+   applyTxToBalance/reconcileBalances in an undefined accounting state.
+============================================================ */
+function renderWalletDefsEditor(){
+  const host = document.getElementById('walletDefsEditor');
+  if(!host) return;
+  const group = track => {
+    const list = WALLET_DEFS.filter(w => w.track === track);
+    return list.map((w,i) => `
+      <div class="reorder-row">
+        <span class="reorder-label">${escHtml(w.name)}</span>
+        <div class="reorder-btns">
+          <button onclick="openWalletDefModal('${w.id}')" aria-label="تعديل ${escHtml(w.name)}">✎</button>
+          <button onclick="moveWalletDef('${w.id}',-1)" ${i===0?'disabled':''} aria-label="تحريك لأعلى">▲</button>
+          <button onclick="moveWalletDef('${w.id}',1)" ${i===list.length-1?'disabled':''} aria-label="تحريك لأسفل">▼</button>
+        </div>
+      </div>`).join('');
+  };
+  host.innerHTML = `
+    <div class="reorder-group">
+      <div class="reorder-gtitle">محافظ عادية (تُحتسب بالإجمالي)</div>
+      ${group(false)}
+    </div>
+    <div class="reorder-group">
+      <div class="reorder-gtitle">محافظ تتبع (غير محتسبة)</div>
+      ${group(true)}
+    </div>
+  `;
+}
+
+// Refresh every cache/UI surface that reads wallet id/name/order, beyond the
+// main render() loop — the add-form / edit-modal wallet pickers memoize a
+// signature that doesn't include the name, so a pure rename wouldn't
+// otherwise show up until something else changed their selection.
+function refreshAfterWalletDefsChange(){
+  _walletSelectSig = '';
+  _editWalletSelectSig = '';
+  renderWalletDefsEditor();
+  renderWallets();
+  renderWalletSelect();
+  renderEditWalletSelect();
+  renderTrackLinkPicker();
+  renderDistributionEditor();
+}
+
+// Reorders a wallet within its own group (track vs regular) only — the two
+// groups' relative interleaving in WALLET_DEFS is otherwise irrelevant, but
+// we still rebuild the full array in place (applyWalletDefs) so every
+// existing direct WALLET_DEFS reference across the app stays in sync.
+function moveWalletDef(id, dir){
+  const w = WALLET_DEFS.find(x => x.id === id);
+  if(!w) return;
+  const groupIds = WALLET_DEFS.filter(x => x.track === w.track).map(x => x.id);
+  const i = groupIds.indexOf(id), j = i + dir;
+  if(i < 0 || j < 0 || j >= groupIds.length) return;
+  [groupIds[i], groupIds[j]] = [groupIds[j], groupIds[i]];
+  const byId = new Map(WALLET_DEFS.map(x => [x.id, x]));
+  let gi = 0;
+  const reordered = WALLET_DEFS.map(x => x.track === w.track ? byId.get(groupIds[gi++]) : x);
+  applyWalletDefs(reordered);
+  saveWalletDefs();
+  refreshAfterWalletDefsChange();
+}
+
+function openWalletDefModal(id){
+  editingWalletDefId = id || null;
+  const w = id ? WALLET_DEFS.find(x => x.id === id) : null;
+  document.getElementById('walletDefModalTitle').textContent = w ? '✎ تعديل المحفظة' : '➕ محفظة جديدة';
+  document.getElementById('walletDefName').value = w ? w.name : '';
+  setWalletDefType(w ? w.track : false);
+  // type is only choosable when creating — locking it afterward avoids an
+  // undefined accounting state once transactions reference the wallet
+  const typeRow = document.getElementById('walletDefTypeRow');
+  if(typeRow) typeRow.style.display = w ? 'none' : '';
+  const delRow = document.getElementById('walletDefDeleteRow');
+  if(delRow) delRow.style.display = w ? 'flex' : 'none';
+  openModal('walletDefModal');
+}
+
+function setWalletDefType(isTrack){
+  _walletDefModalTrack = !!isTrack;
+  const regBtn = document.getElementById('walletDefTypeRegular');
+  const trkBtn = document.getElementById('walletDefTypeTrack');
+  if(regBtn) regBtn.classList.toggle('active', !_walletDefModalTrack);
+  if(trkBtn) trkBtn.classList.toggle('active', _walletDefModalTrack);
+}
+
+let _saveWalletDefBusy = false;
+async function saveWalletDefModal(){
+  if(_saveWalletDefBusy) return;
+  const name = document.getElementById('walletDefName').value.trim().slice(0,40);
+  if(!name){ toast('⚠ أدخل اسم المحفظة', true); return; }
+
+  _saveWalletDefBusy = true;
+  _opInFlight++;
+  try{
+    if(editingWalletDefId){
+      const w = WALLET_DEFS.find(x => x.id === editingWalletDefId);
+      if(!w){ toast('⚠ المحفظة غير موجودة', true); return; }
+      w.name = name;
+      await saveWalletDefs();
+    } else {
+      const track = _walletDefModalTrack;
+      const id = 'w_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+      WALLET_DEFS.push({ id, name, initial:0, track, pct: track ? 'تتبع' : '0%' });
+      recomputeSelectableWallets();
+      state.wallets[id] = 0;
+      // the distribution editor iterates DISTRIBUTION, not WALLET_DEFS — a new
+      // regular wallet needs an explicit entry or it'd never appear there
+      if(!track) DISTRIBUTION.push({ id, pct: 0 });
+      await saveWalletDefs();
+      await saveConfig();   // persists the new DISTRIBUTION entry
+      await saveBalances(); // persists the new wallet's zero balance
+    }
+    refreshAfterWalletDefsChange();
+    closeModal('walletDefModal');
+    toast('✓ تم الحفظ');
+  } finally {
+    _saveWalletDefBusy = false;
+    _opInFlight--;
+  }
+}
+
+async function deleteWalletDefModal(){
+  if(_saveWalletDefBusy || !editingWalletDefId) return;
+  const id = editingWalletDefId;
+  const w = WALLET_DEFS.find(x => x.id === id);
+  if(!w) return;
+  if(id === 'core'){ toast('⚠ لا يمكن حذف المحفظة الرئيسية', true); return; }
+  if(!w.track && WALLET_DEFS.filter(x => !x.track).length <= 1){
+    toast('⚠ لا يمكن حذف آخر محفظة عادية', true); return;
+  }
+  if(Math.abs(state.wallets[id] ?? 0) > 0.004){
+    toast('⚠ صفّر رصيد المحفظة أولاً قبل حذفها', true); return;
+  }
+  const hasTx = state.transactions.some(tx => tx.wallet === id || tx.trackWallet === id);
+  if(hasTx){
+    toast('⚠ لا يمكن حذف محفظة مرتبطة بمعاملات موجودة', true); return;
+  }
+  if(!confirm(`حذف محفظة "${w.name}" نهائياً؟`)) return;
+
+  _saveWalletDefBusy = true;
+  _opInFlight++;
+  try{
+    applyWalletDefs(WALLET_DEFS.filter(x => x.id !== id));
+    delete state.wallets[id];
+    if(!w.track){ DISTRIBUTION = DISTRIBUTION.filter(d => d.id !== id); }
+    if(budgets[id] !== undefined) delete budgets[id];
+    if(w.track && trackLinkMode[id] !== undefined){ delete trackLinkMode[id]; saveLayoutPrefs(); scheduleDriveSync(); }
+    await saveWalletDefs();
+    await saveConfig();
+    await saveBalances();
+    editingWalletDefId = null;
+    refreshAfterWalletDefsChange();
+    closeModal('walletDefModal');
+    toast('🗑 تم حذف المحفظة');
+  } finally {
+    _saveWalletDefBusy = false;
+    _opInFlight--;
+  }
+}
 
 /* ============================================================
    WALLET SELECT (add form)

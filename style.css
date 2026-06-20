@@ -1184,6 +1184,9 @@
   .type-mini-toggle button.active.inc{
     background:var(--green-soft); color:var(--green); border-color:rgba(134,195,154,.35);
   }
+  .type-mini-toggle button.active.neutral{
+    background:var(--gold-soft); color:var(--gold); border-color:var(--gold-dim);
+  }
 
   @media (prefers-reduced-motion: reduce){
     *{animation:none !important; transition:none !important;}
