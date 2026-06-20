@@ -328,8 +328,12 @@ function setWalletDefType(isTrack){
 let _saveWalletDefBusy = false;
 async function saveWalletDefModal(){
   if(_saveWalletDefBusy) return;
-  const name = stripBidiControls(document.getElementById('walletDefName').value).trim().slice(0,40);
-  if(!name){ toast('⚠ أدخل اسم المحفظة', true); return; }
+  const nameInput = document.getElementById('walletDefName');
+  const name = stripBidiControls(nameInput.value).trim().slice(0,40);
+  if(!name){ toast('⚠ أدخل اسم المحفظة', true); nameInput.focus(); return; }
+  if(WALLET_DEFS.some(w => w.id !== editingWalletDefId && w.name === name)){
+    toast('⚠ يوجد محفظة بهذا الاسم بالفعل', true); nameInput.focus(); return;
+  }
 
   _saveWalletDefBusy = true;
   _opInFlight++;
@@ -803,16 +807,19 @@ function resetLayout(){
 // up hidden under the keyboard until the user scrolls manually. Nudge it into
 // view automatically instead, after a short delay so it runs once the
 // keyboard's resize/animation has actually settled (focusin fires before that).
-(function _bindAddDrawerKeyboardScroll(){
-  const drawer = document.getElementById('addDrawer');
-  if(!drawer) return;
-  drawer.addEventListener('focusin', (e) => {
-    if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
-    setTimeout(() => {
-      try{ e.target.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
-    }, 300);
-  });
-})();
+// Delegated on document.body (not just #addDrawer) so every other modal —
+// editModal, subModal, walletDefModal, etc. — gets the same nudge-into-view
+// behavior. Without this, only the add-drawer had it; on a short viewport
+// with the keyboard open, fields/buttons near the bottom of any other modal
+// (e.g. editModal's save/delete row below the amount input) could end up
+// hidden with no auto-scroll to reveal them.
+document.body.addEventListener('focusin', (e) => {
+  if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return;
+  if(!e.target.closest('#addDrawer') && !e.target.closest('.modal-overlay.open')) return;
+  setTimeout(() => {
+    try{ e.target.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
+  }, 300);
+});
 function openAddDrawer(){
   const wasClosed = !addDrawerOpen;
   // remember what had focus so we can restore it on close (a11y) — same
@@ -1047,13 +1054,19 @@ function openSubModal(id){
 let _saveSubBusy = false;
 async function saveSubModal(){
   if(_saveSubBusy) return;
-  const name = document.getElementById('subName').value.trim().slice(0,60);
-  const amount = round2(parseAmount(document.getElementById('subAmount').value));
-  const billingDay = parseInt(normalizeDigits(document.getElementById('subBillingDay').value), 10); // normalize Arabic-Indic digits (numeric keyboards often default to them)
+  const nameInput = document.getElementById('subName');
+  const amountInput = document.getElementById('subAmount');
+  const dayInput = document.getElementById('subBillingDay');
+  const name = nameInput.value.trim().slice(0,60);
+  const amount = round2(parseAmount(amountInput.value));
+  const billingDay = parseInt(normalizeDigits(dayInput.value), 10); // normalize Arabic-Indic digits (numeric keyboards often default to them)
   const active = document.getElementById('subActive')?.checked !== false;
-  if(!name){ toast('⚠ أدخل اسم الاشتراك', true); return; }
-  if(!isFinite(amount)||amount<=0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
-  if(!isFinite(billingDay)||billingDay<1||billingDay>31){ toast('⚠ أدخل يوم صحيح (1-31)', true); return; }
+  if(!name){ toast('⚠ أدخل اسم الاشتراك', true); nameInput.focus(); return; }
+  if(subscriptions.some(s => s.id !== editingSubId && s.name === name)){
+    toast('⚠ يوجد اشتراك بهذا الاسم بالفعل', true); nameInput.focus(); return;
+  }
+  if(!isFinite(amount)||amount<=0){ toast('⚠ أدخل مبلغ صحيح', true); amountInput.focus(); return; }
+  if(!isFinite(billingDay)||billingDay<1||billingDay>31){ toast('⚠ أدخل يوم صحيح (1-31)', true); dayInput.focus(); return; }
 
   _saveSubBusy = true;
   _opInFlight++;
@@ -1441,61 +1454,71 @@ function normalizeCategory(cat){
 /* ============================================================
    CATEGORY PIE CHART
 ============================================================ */
+// Caches the expensive part (full-ledger scan + totals/percentages) keyed on
+// what can actually change it — every other render-triggering event (resize,
+// tab switch back to analytics, category-filter tap which only toggles a CSS
+// class elsewhere) used to re-scan all transactions from scratch for nothing.
+let _pieChartCache = null;
+let _pieChartSig = '';
 function renderPieChart(){
   const wrap = document.getElementById('pieContent');
-  const filtered = state.transactions
-    .filter(tx => inRange(tx.ts))
-    .filter(tx => !walletFilter || tx.wallet === walletFilter)
-    .filter(tx => tx.type==='expense' && tx.category !== 'transfer' && tx.category !== 'adjustment');
+  const sig = _txMutationStamp + '|' + currentFilter + '|' + walletFilter;
+  let data = (sig === _pieChartSig && _pieChartCache) ? _pieChartCache : null;
 
-  if(filtered.length === 0){
-    wrap.innerHTML = '<div class="empty" style="flex:1;"><span class="ic">🍰</span>أول مصروف يظهر هنا موزّعاً حسب الفئة</div>';
-    return;
-  }
+  if(!data){
+    const filtered = state.transactions
+      .filter(tx => inRange(tx.ts))
+      .filter(tx => !walletFilter || tx.wallet === walletFilter)
+      .filter(tx => tx.type==='expense' && tx.category !== 'transfer' && tx.category !== 'adjustment');
 
-  const totals = {};
-  filtered.forEach(tx => {
-    const cat = tx.category || 'other';
-    totals[cat] = (totals[cat]||0) + tx.amount;
-  });
-  const total = Object.values(totals).reduce((a,b)=>a+b,0);
-  // guard against an all-zero-amount set (e.g. crafted import) — every downstream
-  // amt/total below would be NaN/Infinity and the donut + legend would render broken
-  if(!(total > 0)){
-    wrap.innerHTML = '<div class="empty" style="flex:1;"><span class="ic">🍰</span>أول مصروف يظهر هنا موزّعاً حسب الفئة</div>';
-    return;
-  }
-  const entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
-
-  // largest-remainder rounding so the displayed integer percentages always sum
-  // to exactly 100 (plain toFixed(0) per slice could yield 99% or 101%)
-  const pctMap = {};
-  if(total > 0){
-    let floorSum = 0;
-    const fracs = entries.map(([catId, amt]) => {
-      const exact = amt / total * 100;
-      const fl = Math.floor(exact);
-      pctMap[catId] = fl; floorSum += fl;
-      return { catId, frac: exact - fl };
-    });
-    let leftover = Math.round(100 - floorSum);
-    fracs.sort((a,b)=> b.frac - a.frac);
-    for(let i=0; i<leftover && i<fracs.length; i++) pctMap[fracs[i].catId] += 1;
-  }
-
-  // per-category comparison vs last month (only meaningful when viewing "month")
-  let prevTotals = null;
-  if(currentFilter === 'month'){
-    prevTotals = {};
-    const [prevStart, prevEnd] = monthRange(1);
-    state.transactions.forEach(tx=>{
-      if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
-      if(tx.ts < prevStart || tx.ts >= prevEnd) return;
-      if(walletFilter && tx.wallet !== walletFilter) return;
+    const totals = {};
+    filtered.forEach(tx => {
       const cat = tx.category || 'other';
-      prevTotals[cat] = (prevTotals[cat]||0) + tx.amount;
+      totals[cat] = (totals[cat]||0) + tx.amount;
     });
+    const total = Object.values(totals).reduce((a,b)=>a+b,0);
+    let entries = [], pctMap = {}, prevTotals = null;
+    // guard against an all-zero-amount set (e.g. crafted import) — every downstream
+    // amt/total below would be NaN/Infinity and the donut + legend would render broken
+    if(total > 0){
+      entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+
+      // largest-remainder rounding so the displayed integer percentages always sum
+      // to exactly 100 (plain toFixed(0) per slice could yield 99% or 101%)
+      let floorSum = 0;
+      const fracs = entries.map(([catId, amt]) => {
+        const exact = amt / total * 100;
+        const fl = Math.floor(exact);
+        pctMap[catId] = fl; floorSum += fl;
+        return { catId, frac: exact - fl };
+      });
+      let leftover = Math.round(100 - floorSum);
+      fracs.sort((a,b)=> b.frac - a.frac);
+      for(let i=0; i<leftover && i<fracs.length; i++) pctMap[fracs[i].catId] += 1;
+
+      // per-category comparison vs last month (only meaningful when viewing "month")
+      if(currentFilter === 'month'){
+        prevTotals = {};
+        const [prevStart, prevEnd] = monthRange(1);
+        state.transactions.forEach(tx=>{
+          if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
+          if(tx.ts < prevStart || tx.ts >= prevEnd) return;
+          if(walletFilter && tx.wallet !== walletFilter) return;
+          const cat = tx.category || 'other';
+          prevTotals[cat] = (prevTotals[cat]||0) + tx.amount;
+        });
+      }
+    }
+    data = { filteredLen: filtered.length, total, entries, pctMap, prevTotals };
+    _pieChartCache = data;
+    _pieChartSig = sig;
   }
+
+  if(data.filteredLen === 0 || !(data.total > 0)){
+    wrap.innerHTML = '<div class="empty" style="flex:1;"><span class="ic">🍰</span>أول مصروف يظهر هنا موزّعاً حسب الفئة</div>';
+    return;
+  }
+  const { total, entries, pctMap, prevTotals } = data;
 
   const containerW = document.getElementById('pieContent')?.parentElement?.clientWidth || 320;
   const size = Math.min(120, Math.max(80, Math.round(containerW * 0.3)));
@@ -1630,8 +1653,9 @@ function toggleTransferMenu(dir){
 let _doTransferBusy = false;
 async function doTransfer(){
   if(_doTransferBusy) return;
-  const amt = round2(parseAmount(document.getElementById('transferAmount').value)); // cent precision — match display, avoid sub-cent drift
-  if(!isFinite(amt) || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); return; }
+  const amountInput = document.getElementById('transferAmount');
+  const amt = round2(parseAmount(amountInput.value)); // cent precision — match display, avoid sub-cent drift
+  if(!isFinite(amt) || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); amountInput.focus(); return; }
   if(!transferFrom || !transferTo){ toast('⚠ اختر المحفظتين أولاً', true); return; }
   if(transferFrom === transferTo){ toast('⚠ اختر محفظتين مختلفتين', true); return; }
   _doTransferBusy = true;
@@ -1650,6 +1674,10 @@ async function doTransfer(){
       toast(`⚠ الرصيد غير كافٍ — المتاح: ${fmt(Math.max(0, fromBalance))}`, true);
       return;
     }
+    // Track wallets are intentionally exempt from the overdraft block above (they're
+    // a manual running counter, not real spendable money) — but going negative with
+    // zero feedback can look like a silent bug. Warn without blocking the transfer.
+    const _trackGoingNegative = fromWallet.track && round2(fromBalance - amt) < 0;
     const fromName = fromWallet.name;
     const toName = toWallet.name;
 
@@ -1672,7 +1700,11 @@ async function doTransfer(){
     await saveTx();
     closeModal('transferModal');
     render();
-    toast('✓ تم التحويل بنجاح');
+    if(_trackGoingNegative){
+      toast(`⚠ تم التحويل، لكن رصيد "${fromName}" أصبح سالباً`, true);
+    } else {
+      toast('✓ تم التحويل بنجاح');
+    }
   } finally {
     _doTransferBusy = false;
     _opInFlight--;
@@ -2178,6 +2210,7 @@ function getFilteredTx(){
 function renderTxList(){
   const list = document.getElementById('txList');
   list.setAttribute('role','list');
+  if(list._cancelSwipe) list._cancelSwipe(); // abort any in-progress swipe before its row is wiped
   list.innerHTML = '';
   // getFilteredTx() is already cached AND sorted newest-first — use it directly
   // (read-only here; the visible slice below makes its own copy)
@@ -2304,8 +2337,20 @@ function bindSwipeDelegation(list){
   let el = null, txId = null, startX = 0, startY = 0, currentX = 0, dragging = false, swipeMode = false;
 
   const reset = () => { el = null; dragging = false; swipeMode = false; currentX = 0; };
+  // Exposed so renderTxList() can cancel an in-progress drag before wiping the
+  // list — otherwise a re-render mid-swipe (e.g. Drive sync merging in the
+  // background) leaves `el` pointing at a detached node while finish() still
+  // fires deleteTx(txId) on touchend, deleting whatever that stale id was.
+  list._cancelSwipe = () => {
+    if(el){ el.style.transition = ''; el.style.transform = ''; el.style.opacity = ''; el.style.willChange = ''; }
+    reset();
+  };
 
   list.addEventListener('touchstart', e=>{
+    // A second finger landing mid-swipe must not hijack the gesture state —
+    // otherwise touchmove/touchend (which only ever read touches[0]) can end up
+    // tracking the wrong row, swiping one row visually while deleting another.
+    if(e.touches.length > 1){ reset(); return; }
     const row = e.target.closest && e.target.closest('.tx');
     if(!row || row._swipeDeleting){ reset(); return; } // not on a row / mid-delete
     startX = e.touches[0].clientX;
@@ -2327,6 +2372,7 @@ function bindSwipeDelegation(list){
 
   list.addEventListener('touchmove', e=>{
     if(!dragging || !el) return;
+    if(e.touches.length > 1){ finish(true); return; } // second finger joined mid-swipe — abort, don't guess
     const dx = e.touches[0].clientX - startX;
     const dy = e.touches[0].clientY - startY;
     if(!swipeMode){

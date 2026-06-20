@@ -1591,12 +1591,16 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 .reorder-label{ font-size:13px; font-weight:600; color:var(--text); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .reorder-btns{ display:flex; gap:6px; }
 .reorder-btns button{
-  flex:1; height:42px; background:var(--bg-elev); border:1px solid var(--line);
+  flex:1; height:44px; background:var(--bg-elev); border:1px solid var(--line);
   color:var(--muted); border-radius:var(--radius-sm); cursor:pointer; font-size:13px;
   font-family:inherit; display:flex; align-items:center; justify-content:center;
   touch-action:manipulation;
   transition:color .15s, background .15s, border-color .15s;
 }
+/* Extra gap before the destructive delete button — it sits in the same dense
+   row as move-up/move-down with no other separation, so a fat-finger tap on
+   move-down landing on delete instead would trigger a destructive confirm(). */
+.reorder-btns button.rd-del{ margin-inline-start:6px; }
 .reorder-btns button:not(:disabled):active{ background:var(--card2); color:var(--gold); border-color:var(--gold-dim); }
 .reorder-btns button.rd-del:not(:disabled):active{ background:var(--red-soft); color:var(--red); border-color:var(--red); }
 .reorder-btns button.rd-view{ color:var(--gold); border-color:var(--gold-dim); background:var(--gold-soft); }

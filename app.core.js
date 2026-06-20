@@ -28,6 +28,19 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.3',
+    date: '2026-06-20',
+    title: 'تدقيق إضافي: لمس، تزامن وموثوقية',
+    items: [
+      'تعديل معاملة على جهاز ثم تعديلها على جهاز آخر صار يحتفظ بالتعديل الأحدث بدل تجاهله عند مزامنة Drive.',
+      'سحب-للحذف صار يتجاهل لمسة إصبع ثانية بدل الخلط بين صفّين أثناء السحب.',
+      'مقبض السحب أعلى النوافذ المنبثقة صار يعمل فعلياً للإغلاق بالسحب لأسفل.',
+      'حفظ النسخة الاحتياطية المحلية صار مجمّعاً بدل تكراره مع كل حفظ صغير، لتقليل الكتابة الزائدة على القرص.',
+      'تنبيه تحديث التطبيق صار يتحقق من وجود تعديل معاملة غير محفوظ، مو بس إضافة جديدة.',
+      'مدة ظهور رسائل التنبيه الطويلة صارت أطول تلقائياً لإعطاء وقت كافٍ لقراءتها.',
+    ],
+  },
+  {
     version: 'v47.2',
     date: '2026-06-20',
     title: 'تدقيق شامل: إتاحة ودقة وموثوقية',
@@ -698,6 +711,15 @@ async function loadState(){
     try{ localStorage.removeItem(LS_PREFIX + 'transactions'); }catch(e){}
   }
 
+  // trackLinkMode (debit/credit direction for tracked wallets) is normally only
+  // read once at startup via loadLayoutPrefs(), but it directly feeds balance
+  // math (trackModeFor/applyTxToBalance). The cross-tab storage listener calls
+  // loadState() for any data-relevant key — including this one — so without
+  // re-reading it here a second tab keeps computing totals with a stale mode
+  // after the first tab changes it, until a hard page reload.
+  try{ trackLinkMode = sanitizeTrackLinkMode(JSON.parse(localStorage.getItem(LS_PREFIX + 'trackLinkMode') || 'null')); }
+  catch(e){}
+
   _txMutationStamp++; // fresh data set loaded — invalidate any derived caches
   const _di = document.getElementById('dateInput');
   if(_di) _di.value = todayISO();
@@ -761,14 +783,23 @@ function mergeCloudData(cloud, cloudNewer){
   pruneTombstones();
 
   // 2) union transactions by id (local first, then cloud fills in the rest),
-  //    skipping anything tombstoned on either side so deletes win over a stale copy
+  //    skipping anything tombstoned on either side so deletes win over a stale copy.
+  //    When an id exists on both sides, the copy with the newer editedAt wins (an
+  //    edit made on one device after the last sync should overwrite the stale
+  //    other-device copy); if either side lacks editedAt (data synced before this
+  //    field existed) local keeps winning, same as before.
   const localCount = state.transactions.length;
   const byId = new Map();
   state.transactions.forEach(t => { if(validTx(t) && !deletedTxIds[t.id]) byId.set(t.id, t); });
   let removed = state.transactions.filter(t => deletedTxIds[t.id]).length; // local rows a remote delete removes
   let added = 0;
   (Array.isArray(cloud.transactions) ? cloud.transactions : []).forEach(t => {
-    if(validTx(t) && !deletedTxIds[t.id] && !byId.has(t.id)){ byId.set(t.id, t); added++; }
+    if(!validTx(t) || deletedTxIds[t.id]) return;
+    const local = byId.get(t.id);
+    if(!local){ byId.set(t.id, t); added++; return; }
+    if(typeof t.editedAt === 'number' && typeof local.editedAt === 'number' && t.editedAt > local.editedAt){
+      byId.set(t.id, t);
+    }
   });
   state.transactions = [...byId.values()];
   stripOrphanLinks(state.transactions);
@@ -835,7 +866,7 @@ function reconcileBalances(){
 // resolution compares dataEdit so a pref-only change (crisis toggle, layout) can't
 // make a stale local copy "win" over fresher cloud transaction data.
 function stampDataEdit(ts){ try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(ts)); }catch(e){} }
-async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } stampDataEdit(ts); scheduleDriveSync(); idbBackup(ts); }
+async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } stampDataEdit(ts); scheduleDriveSync(); scheduleIdbBackup(ts); }
 async function saveTx(){
   _allTxSortedCache = null;
   const ts = Date.now();
@@ -845,7 +876,7 @@ async function saveTx(){
   try{ localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){}
   stampDataEdit(ts);
   scheduleDriveSync();
-  idbBackup(ts);
+  scheduleIdbBackup(ts);
 }
 function _pruneRecurringDismissals(){
   if(dismissedRecurring.size < 40) return;
@@ -860,7 +891,7 @@ function _pruneRecurringDismissals(){
   );
   for(const k of dismissedRecurring){ if(!live.has(k)) dismissedRecurring.delete(k); }
 }
-async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); pruneTombstones(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION, deletedTxIds: deletedTxIds})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); idbBackup(ts); }
+async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); pruneTombstones(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION, deletedTxIds: deletedTxIds})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); scheduleIdbBackup(ts); }
 // clamp a subscription's billing day into 1–31 so corrupt data can't produce
 // "يوم 99" that never matches the daily-review check
 function _normalizeSub(x){
@@ -895,14 +926,14 @@ async function saveSubs(){
   try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(subscriptions)); }catch(e){ toast('⚠ فشل حفظ الاشتراكات محليًا', true); }
   stampDataEdit(ts);
   scheduleDriveSync();
-  idbBackup(ts);
+  scheduleIdbBackup(ts);
 }
 async function saveWalletDefs(){
   const ts = Date.now();
   try{ localStorage.setItem(LS_PREFIX + 'walletDefs', JSON.stringify(WALLET_DEFS)); }catch(e){ toast('⚠ فشل حفظ بيانات المحافظ محليًا', true); }
   stampDataEdit(ts);
   scheduleDriveSync();
-  idbBackup(ts);
+  scheduleIdbBackup(ts);
 }
 
 /* ============================================================
@@ -992,6 +1023,23 @@ async function idbBackup(savedAt){
   }finally{
     _idbWriteInFlight--;
   }
+}
+// saveBalances/saveTx/saveConfig/saveSubs/saveWalletDefs each fire idbBackup()
+// independently, so a single user action that touches more than one (e.g.
+// deleteTx → saveBalances + saveTx + saveConfig) used to write the entire
+// transactions array to IndexedDB 2-3x in a row. Debounce into one coalesced
+// write — flushed immediately on tab-hide/page-unload (see visibilitychange
+// and beforeunload below) so a backgrounded/closed tab never loses the pending
+// write entirely.
+let _idbBackupTimer = null;
+let _idbBackupPendingTs = 0;
+function scheduleIdbBackup(ts){
+  _idbBackupPendingTs = (typeof ts === 'number' && isFinite(ts)) ? ts : Date.now();
+  clearTimeout(_idbBackupTimer);
+  _idbBackupTimer = setTimeout(()=>{ _idbBackupTimer = null; idbBackup(_idbBackupPendingTs); }, 400);
+}
+function flushIdbBackup(){
+  if(_idbBackupTimer){ clearTimeout(_idbBackupTimer); _idbBackupTimer = null; idbBackup(_idbBackupPendingTs); }
 }
 let _persistFailWarned = false; // gate the "could not persist" warning to once/session
 let _idbOpenFailed = false; // true when the DB exists but couldn't be opened (blocked/corrupt)

@@ -413,6 +413,7 @@ async function saveEdit(){
       _transferPartner = partner;
       applyTxToBalance(partner, -1);
       partner.amount = newAmount;
+      partner.editedAt = Date.now();
       // keep partner description in sync with the edited leg's wallet
       const newWalletDef = WALLET_DEFS.find(w => w.id === editWallet);
       const partnerWalletDef = WALLET_DEFS.find(w => w.id === partner.wallet);
@@ -432,6 +433,7 @@ async function saveEdit(){
   tx.desc = document.getElementById('editDesc').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
   tx.amount = newAmount;
   tx.wallet = editWallet;
+  tx.editedAt = Date.now(); // lets mergeCloudData() resolve same-id conflicts by picking the newer edit instead of always favoring local
   // transfer legs keep their original type/category (locked in the UI) so the
   // two-leg balance stays consistent; only non-transfer txs adopt the new values
   if(!_editingTransferLeg){
@@ -765,9 +767,47 @@ function closeModal(id){
 }
 // Modals that hold unsaved form input must NOT close on an accidental
 // backdrop tap (common on mobile) — only their explicit buttons close them.
-const _protectedModals = new Set(['editModal','transferModal','distributeModal','walletDetailModal']);
+const _protectedModals = new Set(['editModal','transferModal','distributeModal','walletDetailModal',
+  // driveConflictModal has no cancel path — the user MUST pick a side via
+  // resolveConflict(); a backdrop tap dismissing it silently would leave the
+  // conflict unresolved with no indication the sync never completed.
+  'driveConflictModal',
+  // welcomeModal's real close path is closeWelcome(), which also stamps the
+  // welcomeSeen flag — a backdrop tap bypassing that re-triggers full onboarding
+  // on the next visit.
+  'welcomeModal']);
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
   ov.addEventListener('click', e=>{ if(e.target===ov && !_protectedModals.has(ov.id)) closeModal(ov.id); });
+});
+
+// The bottom-sheet "grabber" handle on every modal looked draggable but had no
+// backing gesture — a purely decorative affordance that suggests a swipe-down-
+// to-dismiss that didn't exist. Wire it up for real (protected modals excluded,
+// same as the backdrop-tap guard above).
+document.querySelectorAll('.modal-overlay .grabber').forEach(handle=>{
+  const overlay = handle.closest('.modal-overlay');
+  const sheet = handle.closest('.modal');
+  if(!overlay || !sheet) return;
+  let startY = 0, dy = 0, dragging = false;
+  handle.addEventListener('touchstart', e=>{
+    if(_protectedModals.has(overlay.id)) return;
+    startY = e.touches[0].clientY; dy = 0; dragging = true;
+    sheet.style.transition = 'none';
+  }, {passive:true});
+  handle.addEventListener('touchmove', e=>{
+    if(!dragging) return;
+    dy = Math.max(0, e.touches[0].clientY - startY); // only allow dragging downward
+    sheet.style.transform = `translateY(${dy}px)`;
+  }, {passive:true});
+  const finish = () => {
+    if(!dragging) return;
+    dragging = false;
+    sheet.style.transition = '';
+    if(dy > 80){ closeModal(overlay.id); }
+    else { sheet.style.transform = ''; }
+  };
+  handle.addEventListener('touchend', finish);
+  handle.addEventListener('touchcancel', finish);
 });
 
 // Close custom dropdowns when clicking outside
@@ -1264,7 +1304,10 @@ function toast(msg, isError){
   el.style.color = isError ? 'var(--red)' : 'var(--text)';
   el.classList.add('show');
   clearTimeout(window._saveTimeout);
-  window._saveTimeout = setTimeout(()=> { el.classList.remove('show'); _runQueuedToastIfAny(); }, 2200);
+  // Longer messages (e.g. voice-transcript confirmations) need more than 2.2s to
+  // read — scale with length instead of using one flat duration for everything.
+  const duration = Math.min(5000, Math.max(2200, msg.length * 60));
+  window._saveTimeout = setTimeout(()=> { el.classList.remove('show'); _runQueuedToastIfAny(); }, duration);
 }
 
 function toastWithUndo(msg, undoFn){
@@ -2523,6 +2566,10 @@ function applyUpdate(){
       if(!confirm('لديك معاملة غير محفوظة في نموذج الإضافة — التحديث الآن سيتجاهلها. متابعة؟')) return;
     }
   }
+  // Same guard for an in-progress transaction edit.
+  if(editingTxId != null){
+    if(!confirm('لديك تعديل معاملة لم يُحفظ — التحديث الآن سيتجاهله. متابعة؟')) return;
+  }
   // Flush any pending Drive sync before the reload interrupts it.
   if(typeof driveSyncTimer !== 'undefined' && driveSyncTimer){
     clearTimeout(driveSyncTimer); driveSyncTimer = null;
@@ -2703,6 +2750,7 @@ function render(force){
   _filteredTxSig = '';
   _analyticsSig = '';
   _heroStatsSig = '';
+  _pieChartSig = ''; // same reasoning as above — pie totals also depend on in-place edits / day-rollover, not just _txMutationStamp
   // Always-visible / cheap essentials (home hero + wallets + form dropdowns)
   renderWallets();
   renderWalletSelect();
@@ -2862,6 +2910,9 @@ document.addEventListener('visibilitychange', () => {
   } else {
     // flush pending Drive sync immediately — the 1500ms debounce may never fire if tab is discarded
     if(driveSyncTimer){ clearTimeout(driveSyncTimer); driveSyncTimer = null; if(driveAccessToken) driveSyncToCloud(); }
+    // same reasoning for the coalesced IndexedDB write — a backgrounded/discarded
+    // tab must not lose the most recent save waiting on the 400ms debounce
+    flushIdbBackup();
   }
 });
 
