@@ -2532,6 +2532,40 @@ async function forceClearAndUpdate(){
   window.location.reload();
 }
 
+/* ============================================================
+   CHANGELOG ("ما الجديد؟")
+============================================================ */
+// Shows/hides the "جديد" dot on the settings entry point by comparing the
+// newest CHANGELOG version against the last one the user actually opened —
+// runs at startup (so the dot is right before Settings is ever opened) and
+// again right after openChangelog() marks the latest version as seen.
+function _updateChangelogDot(){
+  const dot = document.getElementById('changelogDot');
+  if(!dot || !CHANGELOG.length) return;
+  let seen = null;
+  try{ seen = localStorage.getItem(LS_PREFIX + 'changelogSeen'); }catch(e){}
+  dot.hidden = (seen === CHANGELOG[0].version);
+}
+function renderChangelog(){
+  const host = document.getElementById('changelogList');
+  if(!host) return;
+  host.innerHTML = CHANGELOG.map(e => `
+    <div class="changelog-entry">
+      <div class="changelog-entry-head">
+        <span class="changelog-entry-title">${escHtml(e.title)}</span>
+        <span class="changelog-entry-date">${escHtml(e.date)}</span>
+      </div>
+      <ul>${e.items.map(it => `<li>${escHtml(it)}</li>`).join('')}</ul>
+    </div>
+  `).join('');
+}
+function openChangelog(){
+  renderChangelog();
+  try{ localStorage.setItem(LS_PREFIX + 'changelogSeen', CHANGELOG[0].version); }catch(e){}
+  _updateChangelogDot();
+  openModal('changelogModal');
+}
+
 // Ask the browser to re-check sw.js for a new version. `force` skips the 30s
 // throttle (used for the initial check). The throttle stops rapid tab-switching
 // from hammering the network while still letting a return-after-hours check run.
@@ -2723,6 +2757,7 @@ loadLayoutPrefs();
 renderBottomNav();
 applySectionOrder();
 setupPWA();
+_updateChangelogDot();
 loadState().then(()=>{
   hideSplash();
   // initDrive() must run AFTER loadState() resolves, not alongside it: loadState()

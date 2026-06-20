@@ -364,6 +364,12 @@ try{
       <button class="btn-cache-refresh" onclick="forceClearAndUpdate()">🔄 تحديث قسري</button>
     </div>
 
+    <!-- What's new -->
+    <button class="sett-changelog-btn" id="changelogBtn" onclick="openChangelog()">
+      <span>📋 ما الجديد في التطبيق؟</span>
+      <span class="changelog-dot" id="changelogDot" hidden>جديد</span>
+    </button>
+
     <!-- ─── Settings tab strip ─── -->
     <div class="le-tabs" id="settTabs" role="tablist" aria-label="أقسام الإعدادات">
       <button class="le-tab active" data-sett-tab="layout" role="tab" aria-selected="true" onclick="switchSettingsTab('layout')">🔀 <span>الترتيب</span></button>
@@ -815,6 +821,18 @@ try{
     </div>
     <div class="modal-actions" id="walletDefDeleteRow" style="display:none;">
       <button class="btn-danger" id="walletDefDeleteBtn" onclick="deleteWalletDefModal()">🗑 حذف المحفظة</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CHANGELOG MODAL ("ما الجديد؟") ===== -->
+<div class="modal-overlay" role="dialog" aria-modal="true" id="changelogModal">
+  <div class="modal">
+    <div class="grabber"></div>
+    <h3>📋 ما الجديد؟</h3>
+    <div id="changelogList"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('changelogModal')">إغلاق</button>
     </div>
   </div>
 </div>

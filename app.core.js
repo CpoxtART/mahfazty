@@ -16,6 +16,67 @@ const WALLET_DEFS = [
   {id:'cards',       name:'Bank Cards',     initial:0, track:true,  pct:'تتبع'},
   {id:'cash',        name:'Cash',           initial:0, track:true,  pct:'تتبع'},
 ];
+
+// Manually curated "what's new" log shown from Settings → 📋 ما الجديد؟.
+// Newest entry first; add one entry per shipped feature round (not every
+// commit) and keep `version` matching the CACHE bump in sw.js for that round
+// — the unseen-badge logic in app.logic.js compares against CHANGELOG[0].version.
+const CHANGELOG = [
+  {
+    version: 'v45',
+    date: '2026-06-20',
+    title: 'سجل "ما الجديد؟"',
+    items: [
+      'مكان جديد تحت زر التحديث القسري بالإعدادات يعرض آخر التحديثات والميزات المُضافة.',
+      'نقطة "جديد" تظهر تلقائياً كلما توفر تحديث لم تطّلع عليه بعد.',
+    ],
+  },
+  {
+    version: 'v44',
+    date: '2026-06-20',
+    title: 'شارة معلومات أوضح للمحافظ',
+    items: [
+      'شارة ⓘ بجانب كل محفظة صارت شريحة بحدود وألوان واضحة بدل نص باهت، لتعرف إنها قابلة للضغط.',
+      'محافظ التتبع: زر 🔄 تحديث يفتح مباشرة شاشة تحديث رصيدك الفعلي.',
+      'إصلاح اقتطاع أسماء المحافظ الطويلة داخل الإعدادات.',
+    ],
+  },
+  {
+    version: 'v42',
+    date: '2026-06-20',
+    title: 'حذف المحافظ ودليل ترحيب محدث',
+    items: [
+      'زر 🗑 لحذف أي محفظة مباشرة من قائمة الترتيب بالإعدادات.',
+      'شريحة جديدة بجولة الترحيب تشرح إضافة/تسمية/ترتيب/حذف المحافظ.',
+    ],
+  },
+  {
+    version: 'v41',
+    date: '2026-06-20',
+    title: 'الإعدادات بثلاث تبويبات',
+    items: [
+      'الإعدادات صارت مقسّمة: 🔀 الترتيب · 🏦 المحافظ · 💾 البيانات، بدل قائمة طويلة واحدة.',
+    ],
+  },
+  {
+    version: 'v40',
+    date: '2026-06-20',
+    title: 'إدارة المحافظ الكاملة',
+    items: [
+      'أضف محافظ جديدة (عادية تُحتسب بالإجمالي، أو تتبع فقط).',
+      'عدّل اسم وترتيب أي محفظة من الإعدادات.',
+    ],
+  },
+  {
+    version: 'v34',
+    date: '2026-06-19',
+    title: 'ربط المصروف بمحفظة تتبع',
+    items: [
+      'اختياري الآن: اربط أي مصروف بمحفظة تتبع (مثل بطاقة بنكية) عند تسجيله.',
+      'اختر سلوك الربط من تفاصيل المحفظة: ينقص الرصيد الفعلي، أو يزيد عدّاد إنفاق.',
+    ],
+  },
+];
 // Validates/cleans a candidate wallet-defs array (from localStorage, IndexedDB,
 // an imported backup, or a Drive snapshot) before it's allowed to replace the
 // live WALLET_DEFS. Returns a fresh array of plain {id,name,initial,track,pct}

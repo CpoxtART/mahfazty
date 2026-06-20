@@ -1129,6 +1129,32 @@
   .btn-cache-refresh:active{ transform:scale(.95); }
   .btn-cache-refresh:disabled{ opacity:.5; cursor:default; }
 
+  /* ─── What's new entry point ─── */
+  .sett-changelog-btn{
+    display:flex; align-items:center; justify-content:space-between; width:100%;
+    background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-sm);
+    padding:11px 14px; margin-bottom:20px; font-size:13px; font-weight:600; color:var(--text);
+    cursor:pointer; touch-action:manipulation; font-family:inherit;
+    transition:border-color .15s, background .15s;
+  }
+  .sett-changelog-btn:active{ background:var(--card2); transform:scale(.99); }
+  .sett-changelog-btn .changelog-dot{
+    font-size:10px; font-weight:700; color:var(--gold); background:var(--gold-soft);
+    border:1px solid var(--gold-dim); border-radius:var(--radius-pill); padding:2px 9px;
+    letter-spacing:.3px;
+  }
+  /* ─── Changelog modal ─── */
+  .changelog-entry{
+    background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-sm);
+    padding:12px 14px; margin-bottom:10px;
+  }
+  .changelog-entry:last-child{ margin-bottom:0; }
+  .changelog-entry-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:6px; }
+  .changelog-entry-title{ font-size:14px; font-weight:700; color:var(--text); }
+  .changelog-entry-date{ font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; direction:ltr; flex-shrink:0; }
+  .changelog-entry ul{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:5px; }
+  .changelog-entry li{ font-size:12.5px; color:var(--muted); line-height:1.6; }
+
   /* ─── Settings sections (card-style) ─── */
   .sett-section{
     background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
