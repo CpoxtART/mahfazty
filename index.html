@@ -153,7 +153,7 @@ try{
 
   <div class="search-box" id="searchBox">
     <span class="ic">🔍</span>
-    <input type="text" id="searchInput" placeholder="ابحث في المعاملات..." oninput="onSearchInput()">
+    <input type="text" id="searchInput" placeholder="ابحث في المعاملات..." oninput="onSearchInput()" autocomplete="off">
     <button class="clear" onclick="clearSearch()" aria-label="مسح البحث">✕</button>
   </div>
 
@@ -317,7 +317,7 @@ try{
     <label for="editDesc">الوصف</label>
     <input type="text" id="editDesc" maxlength="120" placeholder="الوصف">
     <label for="editAmount">المبلغ</label>
-    <input type="number" id="editAmount" step="any" inputmode="decimal" autocomplete="off">
+    <input type="number" id="editAmount" step="any" min="0" inputmode="decimal" autocomplete="off">
     <label for="editDate">التاريخ</label>
     <input type="date" id="editDate">
     <div id="editCategorySection">
@@ -788,7 +788,7 @@ try{
     <label for="subName">اسم الاشتراك</label>
     <input type="text" id="subName" maxlength="60" placeholder="مثال: نتفليكس، شاهد، Spotify...">
     <label for="subAmount">المبلغ الشهري</label>
-    <input type="number" id="subAmount" step="any" inputmode="decimal" placeholder="0" autocomplete="off">
+    <input type="number" id="subAmount" step="any" min="0" inputmode="decimal" placeholder="0" autocomplete="off">
     <label for="subBillingDay">يوم الاشتراك (1–31)</label>
     <input type="number" id="subBillingDay" min="1" max="31" step="1" inputmode="numeric" placeholder="15">
     <label style="display:flex; align-items:center; gap:10px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:600; font-size:13px; color:var(--text); margin-bottom:4px;">

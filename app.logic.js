@@ -272,7 +272,10 @@ async function runDistribution(sourceTx, amount){
 }
 
 function round2(n){
-  return Math.round(n * 100) / 100;
+  // Plain Math.round(n*100)/100 misrounds values like 1.005 → 1 (should be
+  // 1.01) because 1.005*100 is actually 100.49999... in binary float. The
+  // Number.EPSILON nudge corrects that without affecting any normal value.
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 // Drop any distribution entries whose wallet id no longer exists (e.g. from an
@@ -589,7 +592,14 @@ async function undoDelete(){
 ============================================================ */
 let _overlayHistDepth = 0;    // how many of OUR entries are currently on the history stack
 let _inPopstateClose = false; // true while popstate's own close is unwinding (skip history.back())
-let _suppressPopstateClose = false; // true while OUR own bookkeeping history.back() unwinds
+// Count (not a single boolean) of our own bookkeeping history.back() calls still
+// awaiting their popstate event. A boolean would mis-fire if two overlays are
+// closed in quick succession (e.g. back-button mashed on stacked modals): the
+// second _popOverlayHistory() call would re-arm the flag before the first
+// back()'s popstate had fired, so the first popstate consumes the flag and the
+// second popstate — which is ALSO ours — would be wrongly treated as a real
+// user navigation and close the parent overlay underneath.
+let _suppressPopstateCloseCount = 0;
 function _pushOverlayHistory(){
   _overlayHistDepth++;
   history.pushState({ _mahfaztyOverlay: true, depth: _overlayHistDepth }, '');
@@ -600,9 +610,9 @@ function _popOverlayHistory(){
   if(_inPopstateClose) return; // popstate already moved history back for us
   // This back() only consumes the entry the just-closed overlay pushed — it must
   // NOT be treated as a user "back" that closes the NEXT overlay down. Without
-  // this flag, closing a modal stacked on another (e.g. the wallet add/edit modal
+  // this counter, closing a modal stacked on another (e.g. the wallet add/edit modal
   // over Settings) would collapse BOTH instead of returning to the parent.
-  _suppressPopstateClose = true;
+  _suppressPopstateCloseCount++;
   history.back();
 }
 // Single source of truth for "what does back/Escape close right now", reused by
@@ -643,7 +653,7 @@ function _closeTopmostOverlay(){
 window.addEventListener('popstate', () => {
   // Our own _popOverlayHistory() back() just fired this — the entry is already
   // accounted for; don't also close the parent overlay underneath.
-  if(_suppressPopstateClose){ _suppressPopstateClose = false; return; }
+  if(_suppressPopstateCloseCount > 0){ _suppressPopstateCloseCount--; return; }
   if(_overlayHistDepth <= 0) return; // a real navigation, not one of our entries — let it proceed
   _inPopstateClose = true;
   try{
@@ -1522,6 +1532,17 @@ function setDriveIndicator(state_){
   el.style.display = 'flex';
   el.onclick = clickable ? driveSignIn : null;
   el.setAttribute('role', clickable ? 'button' : 'img');
+  // It's a plain <span> (not a native <button>), so role="button" alone doesn't
+  // make it keyboard-reachable — every other custom-interactive control in the
+  // app pairs role="button" with tabindex+a keydown handler; this one was missing
+  // both, leaving it completely unusable from the keyboard when clickable.
+  if(clickable){
+    el.setAttribute('tabindex', '0');
+    el.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); driveSignIn(); } };
+  } else {
+    el.removeAttribute('tabindex');
+    el.onkeydown = null;
+  }
   const badge = { idle:'', syncing:'🔄', ok:'✓', error:'!', offline:'⨯' }[state_] || '';
   el.innerHTML = `<span class="drive-ind-ic">${state_ === 'offline' ? '📡' : '☁️'}</span>${badge ? `<span class="drive-ind-badge">${badge}</span>` : ''}`;
   const fullLabel = {
@@ -1990,8 +2011,15 @@ async function adoptCloudSnapshot(cloud){
 // interactive: the user explicitly tapped "sign in" — only then do we ever
 //   interrupt with the conflict modal. Automatic reconnects on app open resolve
 //   silently by timestamp so the user is never nagged on every visit.
+// Two independent triggers can call this close together — initDrive()'s launch-time
+// pull (still-valid stored token) and the GIS token-refresh callback (silent reconnect
+// near expiry). Without a guard, both could run their merge/adoptCloudSnapshot logic
+// concurrently and double-apply the same cloud transactions into state.transactions.
+let _driveSyncFromCloudBusy = false;
 async function driveSyncFromCloud(isInitial, interactive){
   if(!driveAccessToken) return;
+  if(_driveSyncFromCloudBusy) return;
+  _driveSyncFromCloudBusy = true;
   // A debounced local push may be armed from a save in the last 1.5s. Cancel it so
   // it can't fire mid-pull and clobber the cloud before we've merged it in.
   clearTimeout(driveSyncTimer); driveSyncTimer = null;
@@ -2089,6 +2117,8 @@ async function driveSyncFromCloud(isInitial, interactive){
     openModal('driveConflictModal');
   }catch(e){
     _handleDriveSyncError(e);
+  } finally {
+    _driveSyncFromCloudBusy = false;
   }
 }
 
@@ -2720,6 +2750,30 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       doTransfer();
     }
+    // Subscription modal → save
+    if(id === 'subName' || id === 'subAmount' || id === 'subBillingDay'){
+      e.preventDefault();
+      saveSubModal();
+    }
+    // Wallet-def (add/rename) modal → save
+    if(id === 'walletDefName'){
+      e.preventDefault();
+      saveWalletDefModal();
+    }
+    // Wallet-detail modal → budget field saves the budget, balance field syncs
+    if(id === 'detailBudgetInput'){
+      e.preventDefault();
+      saveWalletBudget();
+    }
+    if(id === 'detailNewBalance'){
+      e.preventDefault();
+      updateTrackedBalance();
+    }
+    // Settings → Drive client ID field
+    if(id === 'driveClientId'){
+      e.preventDefault();
+      saveDriveClientId();
+    }
   }
   // Enter/Space activates custom dropdown triggers and their options (these are
   // <div>s with onclick, so they need explicit keyboard activation unlike <button>)
@@ -2873,9 +2927,15 @@ window.addEventListener('storage', (e) => {
   }
 });
 
-// Global handler for unhandled promise rejections — prevents silent failures
+// Global handler for unhandled promise rejections — prevents silent failures.
+// Throttled: a retry storm (e.g. several queued fetches failing offline at once)
+// would otherwise stack an unreadable wall of identical toasts instead of one.
+let _lastRejectionToast = 0;
 window.addEventListener('unhandledrejection', (e) => {
   console.error('Unhandled rejection:', e.reason);
+  const now = Date.now();
+  if(now - _lastRejectionToast < 3000) return;
+  _lastRejectionToast = now;
   toast('⚠ حدث خطأ غير متوقع', true);
 });
 

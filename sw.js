@@ -1,8 +1,14 @@
-const CACHE = 'mhfzty-v47.1';
+const CACHE = 'mhfzty-v47.2';
 // Note: sw.js itself is intentionally NOT precached — the browser fetches and
 // byte-compares it directly to drive updates; caching it via the Cache API is a
 // no-op at best and can interfere with that update check.
-const PRECACHE = ['./index.html', './style.css', './app.core.js', './app.ui.js', './app.logic.js'];
+const PRECACHE = [
+  './index.html', './style.css', './app.core.js', './app.ui.js', './app.logic.js',
+  // referenced from index.html's <head> (favicon/apple-touch-icon) and footer
+  // (privacy/terms) — omitted before, undermining the "works offline from the
+  // very first visit" guarantee the install handler below is meant to provide.
+  './favicon-32.png', './apple-touch-icon.png', './privacy.html', './terms.html'
+];
 
 self.addEventListener('install', e => {
   // Pre-cache core files so the app works offline from the very first visit.

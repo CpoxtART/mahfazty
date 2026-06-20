@@ -260,12 +260,27 @@ function renderWalletDefsEditor(){
 function refreshAfterWalletDefsChange(){
   _walletSelectSig = '';
   _editWalletSelectSig = '';
+  // A deleted wallet can never have transactions (deleteWalletDef enforces
+  // that), so an active filter pointing at it would otherwise leave the tx
+  // list permanently empty with a stale filter chip the user has no obvious
+  // way to connect to "I deleted that wallet".
+  if(walletFilter && !WALLET_DEFS.some(w => w.id === walletFilter)){
+    clearWalletFilter();
+  } else if(walletFilter){
+    // rename case — keep the chip label in sync with the live wallet name
+    const w = WALLET_DEFS.find(x => x.id === walletFilter);
+    const label = document.getElementById('walletFilterLabel');
+    if(w && label) label.textContent = 'فلترة حسب: ' + w.name;
+  }
   renderWalletDefsEditor();
   renderWallets();
   renderWalletSelect();
   renderEditWalletSelect();
   renderTrackLinkPicker();
   renderDistributionEditor();
+  renderTxList();
+  renderChart();
+  renderPieChart();
 }
 
 // Reorders a wallet within its own group (track vs regular) only — the two
@@ -313,7 +328,7 @@ function setWalletDefType(isTrack){
 let _saveWalletDefBusy = false;
 async function saveWalletDefModal(){
   if(_saveWalletDefBusy) return;
-  const name = document.getElementById('walletDefName').value.trim().slice(0,40);
+  const name = stripBidiControls(document.getElementById('walletDefName').value).trim().slice(0,40);
   if(!name){ toast('⚠ أدخل اسم المحفظة', true); return; }
 
   _saveWalletDefBusy = true;
@@ -407,7 +422,7 @@ function renderWalletSelect(){
     opt.setAttribute('role','option');
     opt.tabIndex = 0; // keyboard-reachable when the menu is open
     const val = state.wallets[w.id] ?? 0;
-    opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
+    opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
     opt.onclick = () => selectWallet(w.id);
     menu.appendChild(opt);
   });
@@ -1094,7 +1109,7 @@ function renderEditWalletSelect(){
     opt.setAttribute('role','option');
     opt.tabIndex = 0;
     const val = state.wallets[w.id] ?? 0;
-    opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
+    opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
     opt.onclick = () => { editWallet = w.id; document.getElementById('editWalletMenuWrap').classList.remove('open'); const eb = document.getElementById('editWalletBtn'); eb.classList.remove('open'); eb.setAttribute('aria-expanded','false'); renderEditWalletSelect(); };
     menu.appendChild(opt);
   });
@@ -1503,7 +1518,7 @@ function renderPieChart(){
         cmpHtml = `<span class="cat-cmp up">جديد</span>`;
       }
     }
-    html += `<div class="row cat-row" data-cat="${escHtml(catId)}" role="button" tabindex="0" aria-label="تصفية حسب ${escHtml(cat.name)}"><span class="sw" style="background:${cat.color}"></span><span class="name">${cat.icon} ${cat.name}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
+    html += `<div class="row cat-row" data-cat="${escHtml(catId)}" role="button" tabindex="0" aria-label="تصفية حسب ${escHtml(cat.name)}"><span class="sw" style="background:${escHtml(cat.color)}"></span><span class="name">${escHtml(cat.icon)} ${escHtml(cat.name)}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
   });
   html += '</div>';
   wrap.innerHTML = html;
@@ -1587,7 +1602,7 @@ function renderTransferMenus(){
       opt.setAttribute('role','option');
       opt.tabIndex = 0;
       const val = state.wallets[w.id] ?? 0;
-      opt.innerHTML = `<span>${w.name}</span><span class="bal">${fmt(val)}</span>`;
+      opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
       opt.onclick = () => {
         if(dir==='from') transferFrom = w.id; else transferTo = w.id;
         const k = dir==='from'?'From':'To';
@@ -1710,17 +1725,23 @@ async function updateTrackedBalance(){
   }
 }
 
+let _saveWalletBudgetBusy = false;
 async function saveWalletBudget(){
-  if(!detailWalletId) return;
-  const val = parseAmount(document.getElementById('detailBudgetInput').value);
-  if(!val || val <= 0){
-    delete budgets[detailWalletId];
-  } else {
-    budgets[detailWalletId] = val;
+  if(!detailWalletId || _saveWalletBudgetBusy) return;
+  _saveWalletBudgetBusy = true;
+  try{
+    const val = parseAmount(document.getElementById('detailBudgetInput').value);
+    if(!val || val <= 0){
+      delete budgets[detailWalletId];
+    } else {
+      budgets[detailWalletId] = val;
+    }
+    await saveConfig();
+    renderWallets();
+    toast('✓ تم حفظ الميزانية');
+  } finally {
+    _saveWalletBudgetBusy = false;
   }
-  await saveConfig();
-  renderWallets();
-  toast('✓ تم حفظ الميزانية');
 }
 
 function renderDistributionEditor(){
@@ -1731,7 +1752,7 @@ function renderDistributionEditor(){
     const row = document.createElement('div');
     row.className = 'dist-edit-row';
     row.innerHTML = `
-      <span class="name">${w ? w.name : d.id}</span>
+      <span class="name">${escHtml(w ? w.name : d.id)}</span>
       <input type="number" min="0" max="100" step="any" inputmode="decimal" value="${d.pct}" data-idx="${i}">
       <span class="pct-sign">%</span>
     `;

@@ -28,6 +28,18 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.2',
+    date: '2026-06-20',
+    title: 'تدقيق شامل: إتاحة ودقة وموثوقية',
+    items: [
+      'تباين ألوان أفضل بالوضع الفاتح لمبالغ المعاملات والأرصدة (كانت لا تحقق معيار الوضوح القياسي).',
+      'حذف محفظة كانت تُبقي فلتر المعاملات عالقاً عليها فاضياً للأبد — صار يُمسح تلقائياً.',
+      'مؤشر مزامنة Drive صار يعمل بلوحة المفاتيح، مو بس باللمس/الفأرة.',
+      'منطقة لمس أكبر لزر مسح البحث، وحماية إضافية من تكرار العمليات بشاشة تفاصيل المحفظة.',
+      'إصلاحات داخلية متفرقة لتقليل احتمالية تعارض المزامنة السحابية وتثبيت سلوك زر الرجوع عند تكدّس عدة نوافذ.',
+    ],
+  },
+  {
     version: 'v47.1',
     date: '2026-06-20',
     title: 'مزامنة بدل التحديث لمحافظ التتبع',
@@ -121,7 +133,11 @@ function sanitizeWalletDefs(arr){
   arr.forEach(w => {
     if(!w || typeof w !== 'object') return;
     const id = typeof w.id === 'string' ? w.id.trim() : '';
-    const name = typeof w.name === 'string' ? w.name.trim().slice(0,40) : '';
+    // Strip bidi-control/zero-width chars same as escHtml — a wallet name
+    // bypasses escHtml's protection wherever it's rendered via textContent
+    // (which doesn't need HTML-escaping but is still vulnerable to display
+    // corruption from a name like "Cash‮hsac").
+    const name = typeof w.name === 'string' ? stripBidiControls(w.name).trim().slice(0,40) : '';
     if(!id || !name || seen.has(id)) return;
     seen.add(id);
     out.push({id, name, initial:0, track: !!w.track, pct: typeof w.pct === 'string' ? w.pct : (w.track ? 'تتبع' : '0%')});
@@ -145,13 +161,19 @@ function applyWalletDefs(clean){
 // so the very first render already reflects them. IndexedDB-side recovery (in
 // case localStorage was wiped) happens later in loadState(), same pattern as
 // the Drive client id / subscriptions recovery there.
+// Set when localStorage's walletDefs key exists but is corrupted/unusable —
+// loadState()'s IndexedDB-recovery check below only looked at "key absent",
+// so a present-but-corrupt blob used to silently skip recovery too (worse
+// than a missing key) and fall back to default wallets with zero warning.
+let _walletDefsLoadFailed = false;
 (function _loadCustomWalletDefsSync(){
+  const raw = localStorage.getItem(LS_PREFIX + 'walletDefs');
+  if(!raw) return;
   try{
-    const raw = localStorage.getItem(LS_PREFIX + 'walletDefs');
-    if(!raw) return;
     const clean = sanitizeWalletDefs(JSON.parse(raw));
     if(clean) applyWalletDefs(clean);
-  }catch(e){}
+    else _walletDefsLoadFailed = true;
+  }catch(e){ _walletDefsLoadFailed = true; }
 })();
 
 // Bar width baseline. Initials are all 0 (fresh app), so a static max is useless;
@@ -305,8 +327,7 @@ function fmt(n){
   if(isNaN(n) || !isFinite(n)) return '0.00';
   // collapse -0 and sub-cent negatives so they never render as "-0.00"
   if(Object.is(n, -0) || (n < 0 && n > -0.005)) n = 0;
-  const s = Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-  return s === '-0.00' ? '0.00' : s;
+  return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
 // Build a grammatically-correct "<count> <noun>" Arabic phrase. Arabic number
@@ -324,8 +345,8 @@ function arPlural(count, singular, dual, plural, singularOne){
   const n = Math.abs(Number(count) || 0);
   if(n === 1) return singularOne || `${singular} واحدة`;
   if(n === 2) return dual;
-  if(n >= 3 && n <= 10) return `${count} ${plural}`;
-  return `${count} ${singular}`;
+  if(n >= 3 && n <= 10) return `${n} ${plural}`;
+  return `${n} ${singular}`;
 }
 
 // Normalize Arabic-Indic (٠-٩) and Persian (۰-۹) digits + Arabic decimal/thousands
@@ -350,15 +371,19 @@ function parseAmount(str){
   return v;
 }
 
+// Shared by escHtml() and any other text that ends up displayed/rendered
+// (e.g. wallet names) — strips Unicode bidi controls + zero-width chars. A
+// pasted/imported string containing e.g. U+202E or U+200F can otherwise
+// visually scramble the whole RTL layout of surrounding UI text
+// ("Trojan Source"-style display corruption). Covers: zero-width
+// (200B-200D, FEFF), LRM/RLM (200E-200F), Arabic letter mark (061C),
+// embeddings/overrides (202A-202E), isolates (2066-2069). Explicit \u
+// escapes are immune to source-editor stripping of literal controls.
+function stripBidiControls(str){
+  return String(str||'').replace(/[\u200B-\u200F\u061C\u202A-\u202E\u2066-\u2069\uFEFF]/g,'');
+}
 function escHtml(str){
-  return String(str||'')
-    // strip Unicode bidi controls + zero-width chars — a pasted or voiced
-    // description containing e.g. U+202E or U+200F can otherwise visually scramble
-    // the whole RTL layout of surrounding UI text ("Trojan Source"-style display
-    // corruption). Covers: zero-width (200B-200D, FEFF), LRM/RLM (200E-200F),
-    // Arabic letter mark (061C), embeddings/overrides (202A-202E), isolates (2066-2069).
-    // Explicit \u escapes are immune to source-editor stripping of literal controls.
-    .replace(/[\u200B-\u200F\u061C\u202A-\u202E\u2066-\u2069\uFEFF]/g,'')
+  return stripBidiControls(str)
     .replace(/&/g,'&amp;')
     .replace(/</g,'&lt;')
     .replace(/>/g,'&gt;')
@@ -572,10 +597,11 @@ async function loadState(){
   try{ _lsDataEdit = parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0; }catch(e){}
   const _idb = await idbRestore(); // also opens the DB, setting _idbAvailable
   // Recover custom wallet definitions from IndexedDB if localStorage's copy was
-  // wiped — same wipe-recovery pattern as driveClientId/subscriptions below. Must
-  // happen before _validTx/balance-restore loops run (just below) so a custom
-  // wallet's transactions and balance aren't silently dropped as "unknown wallet".
-  if(_idb && Array.isArray(_idb.walletDefs) && !localStorage.getItem(LS_PREFIX + 'walletDefs')){
+  // wiped OR corrupted (_walletDefsLoadFailed) — same wipe-recovery pattern as
+  // driveClientId/subscriptions below. Must happen before _validTx/balance-restore
+  // loops run (just below) so a custom wallet's transactions and balance aren't
+  // silently dropped as "unknown wallet".
+  if(_idb && Array.isArray(_idb.walletDefs) && (_walletDefsLoadFailed || !localStorage.getItem(LS_PREFIX + 'walletDefs'))){
     const _cleanWD = sanitizeWalletDefs(_idb.walletDefs);
     if(_cleanWD){
       applyWalletDefs(_cleanWD);
@@ -590,6 +616,11 @@ async function loadState(){
       }
       try{ localStorage.setItem(LS_PREFIX + 'walletDefs', JSON.stringify(WALLET_DEFS)); }catch(e){}
     }
+  } else if(_walletDefsLoadFailed){
+    // Corrupted locally and no usable IDB copy to recover from — the app is
+    // about to fall back to default wallets, so say so instead of silently
+    // dropping the user's custom wallet setup with zero indication why.
+    toast('⚠ تعذّرت قراءة بيانات المحافظ محليًا — تم الرجوع للمحافظ الافتراضية', true);
   }
   const _idbTime = (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0;
   let _lsTx = null;
@@ -967,6 +998,11 @@ let _idbOpenFailed = false; // true when the DB exists but couldn't be opened (b
 async function idbRestore(){
   try{
     const db = await idbOpen();
+    // A successful open clears any earlier failure latch — otherwise a
+    // transient open failure (e.g. another tab briefly holding an older DB
+    // version during startup) would permanently arm the "data locked out"
+    // warning for the rest of the session even after IDB recovers.
+    _idbOpenFailed = false;
     return new Promise((resolve)=>{
       const tx = db.transaction('backup','readonly');
       const req = tx.objectStore('backup').get('snapshot');
