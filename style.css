@@ -354,6 +354,7 @@
   .wallet .top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:9px;}
   .wallet .name{font-size:12px; color:var(--muted); letter-spacing:.3px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:calc(100% - 52px);}
   .wallet .pct{position:relative; font-size:11px; color:var(--muted2); background:var(--bg-elev); padding:2px 7px; border-radius:var(--radius-xs); font-weight:600; letter-spacing:.5px; cursor:pointer; flex-shrink:0;}
+  .wallet .pct.pct-track{color:var(--blue); background:var(--blue-soft); border:1px solid rgba(134,173,207,.35);}
   /* invisibly extend the ⓘ tap target to ~44px without enlarging the visible pill */
   .wallet .pct::after{content:''; position:absolute; inset:-14px -10px;}
   .wallet .val{font-size:19px; font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; text-align:right; transition: color .25s; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -1509,22 +1510,26 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   letter-spacing:1px; font-weight:600; margin:0 0 7px;
 }
 .reorder-row{
-  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  display:flex; flex-direction:column; gap:8px;
   background:var(--bg-elev); border:1px solid var(--line);
-  border-radius:var(--radius-sm); padding:8px 12px; margin-bottom:6px;
+  border-radius:var(--radius-sm); padding:10px 12px; margin-bottom:6px;
 }
 .reorder-row:last-child{ margin-bottom:0; }
-.reorder-label{ font-size:13px; color:var(--text); display:flex; align-items:center; gap:7px; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-.reorder-btns{ display:flex; gap:6px; flex-shrink:0; }
+/* Name gets its own full-width line — squeezing it beside 4-5 buttons on one
+   row truncated even mid-length names on real phone widths. */
+.reorder-label{ font-size:13px; font-weight:600; color:var(--text); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.reorder-btns{ display:flex; gap:6px; }
 .reorder-btns button{
-  width:44px; height:44px; background:var(--bg-elev); border:1px solid var(--line);
-  color:var(--muted); border-radius:var(--radius-sm); cursor:pointer; font-size:12px;
+  flex:1; height:42px; background:var(--bg-elev); border:1px solid var(--line);
+  color:var(--muted); border-radius:var(--radius-sm); cursor:pointer; font-size:13px;
   font-family:inherit; display:flex; align-items:center; justify-content:center;
   touch-action:manipulation;
   transition:color .15s, background .15s, border-color .15s;
 }
 .reorder-btns button:not(:disabled):active{ background:var(--card2); color:var(--gold); border-color:var(--gold-dim); }
 .reorder-btns button.rd-del:not(:disabled):active{ background:var(--red-soft); color:var(--red); border-color:var(--red); }
+.reorder-btns button.rd-update{ color:var(--gold); border-color:var(--gold-dim); background:var(--gold-soft); }
+.reorder-btns button.rd-update:not(:disabled):active{ background:var(--card2); border-color:var(--gold); }
 .reorder-btns button:disabled{ opacity:.28; cursor:default; }
 .recent-limit-select{
   flex-shrink:0; background:var(--bg-elev); border:1px solid var(--line);

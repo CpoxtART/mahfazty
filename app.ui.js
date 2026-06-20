@@ -88,10 +88,16 @@ function renderWallets(){
     // (the hover title never shows on touch), so users stop wondering why the total
     // doesn't include Cards/Cash.
     const trackTag = w.track ? `<div class="track-tag">تتبع · غير محتسب</div>` : '';
+    // Track wallets' "ⓘ تتبع" badge used to look like a passive label, so users
+    // never realized tapping it opens the actual-balance sync (تحديث الرصيد
+    // الفعلي) — make it read as a button on track cards specifically.
+    const pctBtn = w.track
+      ? `<div class="pct pct-track" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="تحديث الرصيد الفعلي لـ ${escHtml(w.name)}" title="تحديث الرصيد الفعلي">🔄 تحديث</div>`
+      : `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="تفاصيل ${escHtml(w.name)}" title="التفاصيل">ⓘ ${escHtml(getWalletPctLabel(w))}</div>`;
     div.innerHTML = `
       <div class="top">
         <div class="name">${escHtml(w.name)}</div>
-        <div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="تفاصيل ${escHtml(w.name)}" title="التفاصيل">ⓘ ${escHtml(getWalletPctLabel(w))}</div>
+        ${pctBtn}
       </div>
       <div class="val">${fmt(val)}</div>
       <div class="bar"><i style="transform:scaleX(${(pctWidth/100).toFixed(4)})"></i></div>
@@ -207,10 +213,18 @@ function renderWalletDefsEditor(){
       // Balance/transaction guards stay dynamic (the user can clear them), so those
       // wallets keep an enabled button that explains via toast why it's blocked.
       const blockDelete = (w.id === 'core') || (!track && list.length <= 1);
+      // Track wallets get a 5th button that jumps straight to "تحديث الرصيد
+      // الفعلي" (the actual-balance sync, see openWalletDetail) — that feature
+      // otherwise only surfaces via the small ⓘ on the dashboard card, which
+      // users reported needing time to even notice it exists.
+      const updateBtn = track
+        ? `<button class="rd-update" onclick="openWalletDetail('${w.id}')" aria-label="تحديث الرصيد الفعلي لـ ${escHtml(w.name)}" title="تحديث الرصيد الفعلي">🔄</button>`
+        : '';
       return `
       <div class="reorder-row">
-        <span class="reorder-label">${escHtml(w.name)}</span>
+        <div class="reorder-label">${escHtml(w.name)}</div>
         <div class="reorder-btns">
+          ${updateBtn}
           <button onclick="openWalletDefModal('${w.id}')" aria-label="تعديل ${escHtml(w.name)}">✎</button>
           <button onclick="moveWalletDef('${w.id}',-1)" ${i===0?'disabled':''} aria-label="تحريك لأعلى">▲</button>
           <button onclick="moveWalletDef('${w.id}',1)" ${i===list.length-1?'disabled':''} aria-label="تحريك لأسفل">▼</button>
@@ -226,6 +240,7 @@ function renderWalletDefsEditor(){
     </div>
     <div class="reorder-group">
       <div class="reorder-gtitle">محافظ تتبع (غير محتسبة)</div>
+      <div class="hint" style="margin:0 0 8px;">🔄 = تحديث رصيدك الفعلي لهذه المحفظة — يُسجَّل الفرق تلقائياً كمعاملة.</div>
       ${group(true)}
     </div>
   `;
