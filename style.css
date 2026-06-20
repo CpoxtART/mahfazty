@@ -364,7 +364,11 @@
     transition: transform .12s var(--ease), background .15s, border-color .15s;
   }
   .wallet .pct:active{ transform:scale(.93); }
-  .wallet .pct.pct-track{color:var(--blue); background:var(--blue-soft); border-color:rgba(134,173,207,.5);}
+  /* Track wallets reuse the exact same gold chip as regular wallets — only the
+     icon/text differ (🔄 تحديث vs ⓘ %) — so every wallet card carries one
+     consistent "there's an option here" visual language instead of a second
+     ad-hoc color. The track identity is already carried elsewhere on the card
+     (blue value, blue bar, the "تتبع · غير محتسب" tag). */
   .wallet.crisis-combined .pct{color:var(--red); background:rgba(227,145,143,.12); border:none; cursor:default;}
   .wallet.crisis-combined .pct:active{ transform:none; }
   /* invisibly extend the ⓘ tap target to ~44px without enlarging the visible pill */
@@ -1565,8 +1569,8 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 }
 .reorder-btns button:not(:disabled):active{ background:var(--card2); color:var(--gold); border-color:var(--gold-dim); }
 .reorder-btns button.rd-del:not(:disabled):active{ background:var(--red-soft); color:var(--red); border-color:var(--red); }
-.reorder-btns button.rd-update{ color:var(--gold); border-color:var(--gold-dim); background:var(--gold-soft); }
-.reorder-btns button.rd-update:not(:disabled):active{ background:var(--card2); border-color:var(--gold); }
+.reorder-btns button.rd-view{ color:var(--gold); border-color:var(--gold-dim); background:var(--gold-soft); }
+.reorder-btns button.rd-view:not(:disabled):active{ background:var(--card2); border-color:var(--gold); }
 .reorder-btns button:disabled{ opacity:.28; cursor:default; }
 .recent-limit-select{
   flex-shrink:0; background:var(--bg-elev); border:1px solid var(--line);

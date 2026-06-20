@@ -88,11 +88,12 @@ function renderWallets(){
     // (the hover title never shows on touch), so users stop wondering why the total
     // doesn't include Cards/Cash.
     const trackTag = w.track ? `<div class="track-tag">تتبع · غير محتسب</div>` : '';
-    // Track wallets' "ⓘ تتبع" badge used to look like a passive label, so users
-    // never realized tapping it opens the actual-balance sync (تحديث الرصيد
-    // الفعلي) — make it read as a button on track cards specifically.
+    // Track wallets' badge used to look like a passive label, so users never
+    // realized tapping it opens the actual-balance sync (تحديث الرصيد الفعلي)
+    // — make it read as a button, in the same gold chip style every other
+    // wallet badge uses (consistency was the explicit ask).
     const pctBtn = w.track
-      ? `<div class="pct pct-track" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="تحديث الرصيد الفعلي لـ ${escHtml(w.name)}" title="تحديث الرصيد الفعلي">🔄 تحديث</div>`
+      ? `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="تحديث الرصيد الفعلي لـ ${escHtml(w.name)}" title="تحديث الرصيد الفعلي">🔄 تحديث</div>`
       : `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="تفاصيل ${escHtml(w.name)}" title="التفاصيل">ⓘ ${escHtml(getWalletPctLabel(w))}</div>`;
     div.innerHTML = `
       <div class="top">
@@ -213,18 +214,19 @@ function renderWalletDefsEditor(){
       // Balance/transaction guards stay dynamic (the user can clear them), so those
       // wallets keep an enabled button that explains via toast why it's blocked.
       const blockDelete = (w.id === 'core') || (!track && list.length <= 1);
-      // Track wallets get a 5th button that jumps straight to "تحديث الرصيد
-      // الفعلي" (the actual-balance sync, see openWalletDetail) — that feature
-      // otherwise only surfaces via the small ⓘ on the dashboard card, which
-      // users reported needing time to even notice it exists.
-      const updateBtn = track
-        ? `<button class="rd-update" onclick="openWalletDetail('${w.id}')" aria-label="تحديث الرصيد الفعلي لـ ${escHtml(w.name)}" title="تحديث الرصيد الفعلي">🔄</button>`
-        : '';
+      // Every row gets a gold "view" button that jumps straight to the wallet's
+      // detail screen — 🔄 for track wallets (the actual-balance sync) and ⓘ for
+      // regular wallets (details + monthly budget). Both otherwise only surface
+      // via the small badge on the dashboard card, which users reported needing
+      // time to even notice exists.
+      const viewBtn = track
+        ? `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="تحديث الرصيد الفعلي لـ ${escHtml(w.name)}" title="تحديث الرصيد الفعلي">🔄</button>`
+        : `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="تفاصيل ${escHtml(w.name)}" title="التفاصيل والميزانية">ⓘ</button>`;
       return `
       <div class="reorder-row">
         <div class="reorder-label">${escHtml(w.name)}</div>
         <div class="reorder-btns">
-          ${updateBtn}
+          ${viewBtn}
           <button onclick="openWalletDefModal('${w.id}')" aria-label="تعديل ${escHtml(w.name)}">✎</button>
           <button onclick="moveWalletDef('${w.id}',-1)" ${i===0?'disabled':''} aria-label="تحريك لأعلى">▲</button>
           <button onclick="moveWalletDef('${w.id}',1)" ${i===list.length-1?'disabled':''} aria-label="تحريك لأسفل">▼</button>
@@ -236,6 +238,7 @@ function renderWalletDefsEditor(){
   host.innerHTML = `
     <div class="reorder-group">
       <div class="reorder-gtitle">محافظ عادية (تُحتسب بالإجمالي)</div>
+      <div class="hint" style="margin:0 0 8px;">ⓘ = تفاصيل المحفظة وضبط الميزانية الشهرية.</div>
       ${group(false)}
     </div>
     <div class="reorder-group">
