@@ -365,7 +365,7 @@
   }
   .wallet .pct:active{ transform:scale(.93); }
   /* Track wallets reuse the exact same gold chip as regular wallets — only the
-     icon/text differ (🔄 تحديث vs ⓘ %) — so every wallet card carries one
+     icon/text differ (⚖️ share% vs ⓘ %) — so every wallet card carries one
      consistent "there's an option here" visual language instead of a second
      ad-hoc color. The track identity is already carried elsewhere on the card
      (blue value, blue bar, the "تتبع · غير محتسب" tag). */

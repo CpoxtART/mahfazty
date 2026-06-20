@@ -37,6 +37,10 @@ function renderWallets(){
   const grid = document.getElementById('walletsGrid');
   grid.innerHTML = '';
   let spendable = 0;
+  // Track wallets' badge shows their share of ALL money across every wallet
+  // (track + regular combined) — e.g. "this is 25% of everything I have" —
+  // rather than a budget-distribution %, which doesn't apply to them.
+  const grandTotal = WALLET_DEFS.reduce((s,d) => s + (state.wallets[d.id] ?? 0), 0);
 
   // First-run guidance: a brand-new app has every balance at 0, which reads as
   // "broken" rather than "empty". Show a friendly CTA that points at the natural
@@ -88,12 +92,12 @@ function renderWallets(){
     // (the hover title never shows on touch), so users stop wondering why the total
     // doesn't include Cards/Cash.
     const trackTag = w.track ? `<div class="track-tag">تتبع · غير محتسب</div>` : '';
-    // Track wallets' badge used to look like a passive label, so users never
-    // realized tapping it opens the actual-balance sync (تحديث الرصيد الفعلي)
-    // — make it read as a button, in the same gold chip style every other
-    // wallet badge uses (consistency was the explicit ask).
+    // Track wallets' badge shows their live share of all money across every
+    // wallet (⚖️) — same gold chip style every other wallet badge uses, still
+    // a button that opens the balance-sync screen on tap.
+    const trackSharePct = grandTotal > 0 ? Math.round((val/grandTotal)*100) : 0;
     const pctBtn = w.track
-      ? `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="تحديث الرصيد الفعلي لـ ${escHtml(w.name)}" title="تحديث الرصيد الفعلي">🔄 تحديث</div>`
+      ? `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="مزامنة الرصيد الفعلي لـ ${escHtml(w.name)} — ${trackSharePct}% من إجمالي محافظك" title="مزامنة الرصيد الفعلي">⚖️ ${trackSharePct}%</div>`
       : `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="تفاصيل ${escHtml(w.name)}" title="التفاصيل">ⓘ ${escHtml(getWalletPctLabel(w))}</div>`;
     div.innerHTML = `
       <div class="top">
@@ -215,12 +219,12 @@ function renderWalletDefsEditor(){
       // wallets keep an enabled button that explains via toast why it's blocked.
       const blockDelete = (w.id === 'core') || (!track && list.length <= 1);
       // Every row gets a gold "view" button that jumps straight to the wallet's
-      // detail screen — 🔄 for track wallets (the actual-balance sync) and ⓘ for
+      // detail screen — ⚖️ for track wallets (the actual-balance sync) and ⓘ for
       // regular wallets (details + monthly budget). Both otherwise only surface
       // via the small badge on the dashboard card, which users reported needing
       // time to even notice exists.
       const viewBtn = track
-        ? `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="تحديث الرصيد الفعلي لـ ${escHtml(w.name)}" title="تحديث الرصيد الفعلي">🔄</button>`
+        ? `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="مزامنة الرصيد الفعلي لـ ${escHtml(w.name)}" title="مزامنة الرصيد الفعلي">⚖️</button>`
         : `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="تفاصيل ${escHtml(w.name)}" title="التفاصيل والميزانية">ⓘ</button>`;
       return `
       <div class="reorder-row">
@@ -243,7 +247,7 @@ function renderWalletDefsEditor(){
     </div>
     <div class="reorder-group">
       <div class="reorder-gtitle">محافظ تتبع (غير محتسبة)</div>
-      <div class="hint" style="margin:0 0 8px;">🔄 = تحديث رصيدك الفعلي لهذه المحفظة — يُسجَّل الفرق تلقائياً كمعاملة.</div>
+      <div class="hint" style="margin:0 0 8px;">⚖️ = مزامنة رصيدك الفعلي لهذه المحفظة — يُسجَّل الفرق تلقائياً كمعاملة.</div>
       ${group(true)}
     </div>
   `;
@@ -1685,7 +1689,7 @@ async function updateTrackedBalance(){
     const tx = {
       id: 'tx_'+Date.now()+'_adj'+Math.random().toString(36).slice(2,4),
       wallet: detailWalletId,
-      desc: 'تحديث رصيد ' + w.name,
+      desc: 'مزامنة رصيد ' + w.name,
       amount: Math.abs(diff),
       type: diff > 0 ? 'income' : 'expense',
       category: 'adjustment', // excluded from pie chart and recurring detection
@@ -1698,7 +1702,7 @@ async function updateTrackedBalance(){
     await saveTx();
     render();
     openWalletDetail(detailWalletId); // refresh modal in place
-    toast('✓ تم تحديث الرصيد');
+    toast('✓ تمت مزامنة الرصيد');
   } finally {
     _updateBalanceBusy = false;
     _opInFlight--;
