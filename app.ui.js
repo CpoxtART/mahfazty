@@ -686,6 +686,37 @@ function switchLayoutEditorTab(id){
   _layoutEditorTab = id;
   renderLayoutEditor();
 }
+
+/* ============================================================
+   SETTINGS TOP-LEVEL TABS
+   Splits the (otherwise very long) settings sheet into three panels:
+   layout/ordering, wallets, and data — so it scrolls less and reads cleaner.
+============================================================ */
+let _settingsTab = 'layout';
+const SETTINGS_TABS = ['layout', 'wallets', 'data'];
+function switchSettingsTab(id){
+  if(!SETTINGS_TABS.includes(id)) id = 'layout';
+  _settingsTab = id;
+  // show only the selected panel
+  document.querySelectorAll('#settingsModal [data-sett-panel]').forEach(p => {
+    p.hidden = (p.getAttribute('data-sett-panel') !== id);
+  });
+  // reflect selection on the tab strip (visual + a11y)
+  document.querySelectorAll('#settTabs .le-tab').forEach(b => {
+    const on = b.getAttribute('data-sett-tab') === id;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+  // each tab should start at its own top, not wherever the previous one was scrolled
+  const modal = document.querySelector('#settingsModal .modal');
+  if(modal) modal.scrollTop = 0;
+}
+// Open settings already focused on a given tab (used by the ⚙/⇅ buttons and the
+// drift-repair toast, which wants the data tab where the repair tool lives).
+function openSettingsTab(id){
+  _settingsTab = SETTINGS_TABS.includes(id) ? id : 'layout';
+  openModal('settingsModal');
+}
 function moveLayout(scope, key, dir){
   const arr = scope === 'tab' ? tabOrder : sectionOrder[scope.split(':')[1]];
   if(!arr) return;
@@ -1725,6 +1756,8 @@ async function saveDistribution(){
 function resetDistribution(){
   if(!confirm('استعادة النسب الافتراضية (50/10/10/10/10/5/5)؟')) return;
   DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  // keep custom regular wallets in the editor (DEFAULT only covers factory ones)
+  WALLET_DEFS.forEach(w => { if(!w.track && !DISTRIBUTION.find(d => d.id === w.id)) DISTRIBUTION.push({id: w.id, pct: 0}); });
   renderDistributionEditor();
   saveConfig();
   renderWallets();
@@ -2111,7 +2144,7 @@ function renderTxList(){
     if(state.transactions.length === 0 && !searchQuery && currentFilter==='all'){
       list.innerHTML = `<div class="empty"><span class="ic">🗂</span>لا توجد معاملات بعد.<br><br>
         <button class="btn-primary" onclick="document.querySelector('.fab-btn').click()" style="width:auto; padding:10px 20px; display:inline-block; margin-bottom:8px;">＋ أضف أول معاملة</button><br>
-        <button class="btn-secondary" onclick="openModal('dataModal')" style="width:auto; padding:8px 16px; display:inline-block; font-size:12px;">⬆ استيراد من JSON</button>
+        <button class="btn-secondary" onclick="openSettingsTab('data')" style="width:auto; padding:8px 16px; display:inline-block; font-size:12px;">⬆ استيراد من JSON</button>
       </div>`;
     } else {
       list.innerHTML = `<div class="empty"><span class="ic">🗂</span>لا توجد معاملات${searchQuery ? ' مطابقة لبحثك' : ' في هذه الفترة'}</div>`;

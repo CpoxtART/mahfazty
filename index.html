@@ -45,8 +45,8 @@ try{
   <div class="actions">
     <span id="driveIndicator" style="display:none; align-items:center; font-size:13px;" title="حالة المزامنة"></span>
     <button class="icon-btn" id="themeToggle" onclick="toggleTheme()" aria-label="تبديل المظهر"></button>
-    <button class="icon-btn" onclick="openModal('dataModal')" aria-label="البيانات">⇅</button>
-    <button class="icon-btn icon-btn--primary" onclick="openModal('settingsModal')" aria-label="الإعدادات">⚙</button>
+    <button class="icon-btn" onclick="openSettingsTab('data')" aria-label="البيانات">⇅</button>
+    <button class="icon-btn icon-btn--primary" onclick="openSettingsTab('layout')" aria-label="الإعدادات">⚙</button>
   </div>
 </header>
 
@@ -334,26 +334,6 @@ try{
   </div>
 </div>
 
-<!-- ===== DATA MODAL ===== -->
-<div class="modal-overlay" role="dialog" aria-modal="true" id="dataModal">
-  <div class="modal">
-    <div class="grabber"></div>
-    <h3>⇅ البيانات</h3>
-    <div class="btn-row" style="margin-bottom:10px;">
-      <button class="btn-secondary" onclick="exportData()">⬇ تصدير JSON</button>
-      <button class="btn-primary" onclick="document.getElementById('importFile').click()">⬆ استيراد ملف</button>
-    </div>
-    <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importFromFile(event)">
-    <label for="jsonArea">أو الصق/انسخ JSON هنا</label>
-    <textarea class="json-area" id="jsonArea"></textarea>
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('dataModal')">إغلاق</button>
-      <button class="btn-primary" onclick="importFromTextarea()">استيراد من النص</button>
-    </div>
-    <div class="hint">التصدير يحفظ الأرصدة وكل المعاملات. الاستيراد يستبدل البيانات الحالية بالكامل — تأكد من أخذ نسخة احتياطية أولاً.</div>
-  </div>
-</div>
-
 <!-- ===== SETTINGS MODAL ===== -->
 <div class="modal-overlay" role="dialog" aria-modal="true" id="settingsModal">
   <div class="modal">
@@ -384,42 +364,75 @@ try{
       <button class="btn-cache-refresh" onclick="forceClearAndUpdate()">🔄 تحديث قسري</button>
     </div>
 
-    <!-- ─── Layout order ─── -->
-    <div class="sett-section">
-      <div class="sett-section-head">🔀 ترتيب الواجهة</div>
-      <div class="sett-section-body">
-        <div class="hint" style="margin:0 0 10px;">رتّب التبويبات والأقسام كما يناسبك. التغيير فوري.</div>
-        <div id="layoutEditor"></div>
-        <div class="modal-actions" style="margin-top:8px;">
-          <button class="btn-secondary" onclick="resetLayout()">↺ استعادة الافتراضي</button>
+    <!-- ─── Settings tab strip ─── -->
+    <div class="le-tabs" id="settTabs" role="tablist" aria-label="أقسام الإعدادات">
+      <button class="le-tab active" data-sett-tab="layout" role="tab" aria-selected="true" onclick="switchSettingsTab('layout')">🔀 <span>الترتيب</span></button>
+      <button class="le-tab" data-sett-tab="wallets" role="tab" aria-selected="false" onclick="switchSettingsTab('wallets')">🏦 <span>المحافظ</span></button>
+      <button class="le-tab" data-sett-tab="data" role="tab" aria-selected="false" onclick="switchSettingsTab('data')">💾 <span>البيانات</span></button>
+    </div>
+
+    <!-- ═══════ Panel: ordering ═══════ -->
+    <div class="sett-panel" data-sett-panel="layout" role="tabpanel">
+      <!-- ─── Layout order ─── -->
+      <div class="sett-section">
+        <div class="sett-section-head">🔀 ترتيب الواجهة</div>
+        <div class="sett-section-body">
+          <div class="hint" style="margin:0 0 10px;">رتّب التبويبات والأقسام كما يناسبك. التغيير فوري.</div>
+          <div id="layoutEditor"></div>
+          <div class="modal-actions" style="margin-top:8px;">
+            <button class="btn-secondary" onclick="resetLayout()">↺ استعادة الافتراضي</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- ─── Wallets ─── -->
-    <div class="sett-section">
-      <div class="sett-section-head">🏦 إدارة المحافظ</div>
-      <div class="sett-section-body">
-        <div class="hint" style="margin:0 0 10px;">أضف محافظ جديدة (عادية تُحتسب بالإجمالي، أو تتبع فقط)، وعدّل الاسم والترتيب.</div>
-        <div id="walletDefsEditor"></div>
-        <div class="modal-actions" style="margin-top:8px;">
-          <button class="btn-primary" onclick="openWalletDefModal(null)">➕ محفظة جديدة</button>
+    <!-- ═══════ Panel: wallets ═══════ -->
+    <div class="sett-panel" data-sett-panel="wallets" role="tabpanel" hidden>
+      <!-- ─── Wallets ─── -->
+      <div class="sett-section">
+        <div class="sett-section-head">🏦 إدارة المحافظ</div>
+        <div class="sett-section-body">
+          <div class="hint" style="margin:0 0 10px;">أضف محافظ جديدة (عادية تُحتسب بالإجمالي، أو تتبع فقط)، وعدّل الاسم والترتيب.</div>
+          <div id="walletDefsEditor"></div>
+          <div class="modal-actions" style="margin-top:8px;">
+            <button class="btn-primary" onclick="openWalletDefModal(null)">➕ محفظة جديدة</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Distribution ─── -->
+      <div class="sett-section">
+        <div class="sett-section-head">📐 نسب التوزيع التلقائي</div>
+        <div class="sett-section-body">
+          <div class="hint" style="margin:0 0 10px;">عدّل نسبة كل محفظة من الدخل (المجموع = 100%).</div>
+          <div id="distributionEditor"></div>
+          <div class="modal-actions" style="margin-top:8px;">
+            <button class="btn-secondary" onclick="saveDistribution()">حفظ النسب</button>
+            <button class="btn-secondary" onclick="resetDistribution()">استعادة الافتراضي</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- ─── Distribution ─── -->
-    <div class="sett-section">
-      <div class="sett-section-head">📐 نسب التوزيع التلقائي</div>
-      <div class="sett-section-body">
-        <div class="hint" style="margin:0 0 10px;">عدّل نسبة كل محفظة من الدخل (المجموع = 100%).</div>
-        <div id="distributionEditor"></div>
-        <div class="modal-actions" style="margin-top:8px;">
-          <button class="btn-secondary" onclick="saveDistribution()">حفظ النسب</button>
-          <button class="btn-secondary" onclick="resetDistribution()">استعادة الافتراضي</button>
+    <!-- ═══════ Panel: data ═══════ -->
+    <div class="sett-panel" data-sett-panel="data" role="tabpanel" hidden>
+      <!-- ─── Export / Import ─── -->
+      <div class="sett-section">
+        <div class="sett-section-head">⇅ تصدير واستيراد البيانات</div>
+        <div class="sett-section-body">
+          <div class="btn-row" style="margin-bottom:10px;">
+            <button class="btn-secondary" onclick="exportData()">⬇ تصدير JSON</button>
+            <button class="btn-primary" onclick="document.getElementById('importFile').click()">⬆ استيراد ملف</button>
+          </div>
+          <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importFromFile(event)">
+          <label for="jsonArea">أو الصق/انسخ JSON هنا</label>
+          <textarea class="json-area" id="jsonArea"></textarea>
+          <div class="modal-actions" style="margin-top:8px;">
+            <button class="btn-primary" onclick="importFromTextarea()">استيراد من النص</button>
+          </div>
+          <div class="hint" style="margin-top:8px;">التصدير يحفظ الأرصدة وكل المعاملات. الاستيراد يستبدل البيانات الحالية بالكامل — تأكد من أخذ نسخة احتياطية أولاً.</div>
         </div>
       </div>
-    </div>
 
     <!-- ─── Google Drive ─── -->
     <div class="sett-section">
@@ -523,7 +536,8 @@ try{
           </button>
         </div>
       </div>
-    </div>
+    </div><!-- /section: deletion -->
+    </div><!-- /panel: data -->
 
     <!-- ─── Bottom actions ─── -->
     <div class="sett-actions">

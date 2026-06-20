@@ -1129,6 +1129,10 @@
   }
   .sett-section-body{ padding:16px; }
 
+  /* ─── Settings tab panels ─── */
+  /* explicit so a stray global display rule can't override the [hidden] attribute */
+  .sett-panel[hidden]{ display:none; }
+
   /* ─── Settings bottom buttons ─── */
   .sett-actions{
     display:flex; gap:10px; margin-bottom:14px;

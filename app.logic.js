@@ -684,7 +684,6 @@ function openModal(id){
   // lock background scroll so the page behind the sheet doesn't move while a
   // modal (and the on-screen keyboard) is open on mobile
   document.body.style.overflow = 'hidden';
-  if(id==='dataModal') document.getElementById('jsonArea').value = '';
   if(id==='settingsModal'){
     updateSettingsStats();
     document.getElementById('driveClientId').value = driveClientId;
@@ -692,6 +691,8 @@ function openModal(id){
     renderDistributionEditor();
     renderLayoutEditor();
     renderWalletDefsEditor();
+    const _ja = document.getElementById('jsonArea'); if(_ja) _ja.value = ''; // fresh scratch area each open (import/export now lives in the data tab)
+    switchSettingsTab(_settingsTab); // sync panels/strip to the requested tab
   }
   // move focus into the modal so keyboard/screen-reader users land in context.
   // target a button (not a text input) so the mobile keyboard doesn't pop open.
@@ -981,7 +982,7 @@ async function applyImport(text){
   await saveConfig();
   await saveSubs();
   await saveWalletDefs();
-  closeModal('dataModal');
+  closeModal('settingsModal'); // import/export now lives inside the settings data tab
   render(true);
   if(_droppedTx > 0){
     toast(`✓ تم الاستيراد — لكن تم تجاهل ${arPlural(_droppedTx, 'معاملة غير صالحة', 'معاملتين غير صالحتين', 'معاملات غير صالحة', 'معاملة واحدة غير صالحة')} (محفظة مجهولة أو بيانات تالفة)`, true);
@@ -1140,7 +1141,7 @@ function checkBalanceDrift(){
   const sig = String(totalDrift);
   try{ if(localStorage.getItem(LS_PREFIX + 'driftNotified') === sig) return; }catch(e){} // already offered for this exact drift
   try{ localStorage.setItem(LS_PREFIX + 'driftNotified', sig); }catch(e){}
-  toastWithAction('⚠ رصيد إحدى محافظك لا يطابق سجل معاملاتها', 'إصلاح', () => { openModal('settingsModal'); repairBalancesFromLedger(); });
+  toastWithAction('⚠ رصيد إحدى محافظك لا يطابق سجل معاملاتها', 'إصلاح', () => { openSettingsTab('data'); repairBalancesFromLedger(); });
 }
 
 async function wipeAll(){
@@ -1181,6 +1182,10 @@ async function wipeAll(){
   _txVisibleCount = 50;
   currentFilter = 'all';
   DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  // DEFAULT_DISTRIBUTION only lists the factory wallets — keep any custom regular
+  // wallets (which survive a wipe) represented, else they'd silently drop out of
+  // the distribution editor and never receive an auto-distribute share.
+  WALLET_DEFS.forEach(w => { if(!w.track && !DISTRIBUTION.find(d => d.id === w.id)) DISTRIBUTION.push({id: w.id, pct: 0}); });
   document.getElementById('walletFilterChip').classList.remove('show');
   document.getElementById('categoryFilterChip').classList.remove('show');
   document.querySelectorAll('.filters button').forEach(b => b.classList.toggle('active', b.dataset.f === 'all'));
