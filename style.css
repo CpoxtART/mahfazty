@@ -352,9 +352,21 @@
     border-color:transparent var(--gold) transparent transparent;
   }
   .wallet .top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:9px;}
-  .wallet .name{font-size:12px; color:var(--muted); letter-spacing:.3px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:calc(100% - 52px);}
-  .wallet .pct{position:relative; font-size:11px; color:var(--muted2); background:var(--bg-elev); padding:2px 7px; border-radius:var(--radius-xs); font-weight:600; letter-spacing:.5px; cursor:pointer; flex-shrink:0;}
-  .wallet .pct.pct-track{color:var(--blue); background:var(--blue-soft); border:1px solid rgba(134,173,207,.35);}
+  .wallet .name{font-size:12px; color:var(--muted); letter-spacing:.3px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:calc(100% - 64px);}
+  /* A real chip (filled + bordered + bold), not a flat muted label — it should
+     read as a tappable control, since this is the only way to reach the
+     per-wallet budget/actual-balance screen and users were missing it. */
+  .wallet .pct{
+    position:relative; font-size:11px; color:var(--gold); background:var(--gold-soft);
+    border:1px solid var(--gold-dim); padding:3px 9px; border-radius:var(--radius-pill);
+    font-weight:700; letter-spacing:.3px; cursor:pointer; flex-shrink:0;
+    display:inline-flex; align-items:center; gap:3px;
+    transition: transform .12s var(--ease), background .15s, border-color .15s;
+  }
+  .wallet .pct:active{ transform:scale(.93); }
+  .wallet .pct.pct-track{color:var(--blue); background:var(--blue-soft); border-color:rgba(134,173,207,.5);}
+  .wallet.crisis-combined .pct{color:var(--red); background:rgba(227,145,143,.12); border:none; cursor:default;}
+  .wallet.crisis-combined .pct:active{ transform:none; }
   /* invisibly extend the ⓘ tap target to ~44px without enlarging the visible pill */
   .wallet .pct::after{content:''; position:absolute; inset:-14px -10px;}
   .wallet .val{font-size:19px; font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; text-align:right; transition: color .25s; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -455,7 +467,6 @@
   }
   .wallet.crisis-combined .name{color:var(--red);}
   .wallet.crisis-combined .val{color:var(--red);}
-  .wallet.crisis-combined .pct{color:var(--red); background:rgba(227,145,143,.12);}
 
   /* ================= FORM ================= */
   .form{
