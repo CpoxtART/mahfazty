@@ -23,6 +23,15 @@ const WALLET_DEFS = [
 // — the unseen-badge logic in app.logic.js compares against CHANGELOG[0].version.
 const CHANGELOG = [
   {
+    version: 'v47',
+    date: '2026-06-20',
+    title: 'تصميم أنيق لمكان "ما الجديد؟"',
+    items: [
+      'زر "ما الجديد في التطبيق؟" بالإعدادات صار بطاقة بأيقونة ووصف بدل سطر مسطّح، بنفس أسلوب بقية أزرار الإعدادات.',
+      'نقطة "جديد" تبرز بشكل أوضح فقط لمن عنده تحديث لم يطّلع عليه بعد.',
+    ],
+  },
+  {
     version: 'v46',
     date: '2026-06-20',
     title: 'شارة موحّدة لكل المحافظ',
