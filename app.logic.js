@@ -589,6 +589,7 @@ async function undoDelete(){
 ============================================================ */
 let _overlayHistDepth = 0;    // how many of OUR entries are currently on the history stack
 let _inPopstateClose = false; // true while popstate's own close is unwinding (skip history.back())
+let _suppressPopstateClose = false; // true while OUR own bookkeeping history.back() unwinds
 function _pushOverlayHistory(){
   _overlayHistDepth++;
   history.pushState({ _mahfaztyOverlay: true, depth: _overlayHistDepth }, '');
@@ -597,6 +598,11 @@ function _popOverlayHistory(){
   if(_overlayHistDepth <= 0) return;
   _overlayHistDepth--;
   if(_inPopstateClose) return; // popstate already moved history back for us
+  // This back() only consumes the entry the just-closed overlay pushed — it must
+  // NOT be treated as a user "back" that closes the NEXT overlay down. Without
+  // this flag, closing a modal stacked on another (e.g. the wallet add/edit modal
+  // over Settings) would collapse BOTH instead of returning to the parent.
+  _suppressPopstateClose = true;
   history.back();
 }
 // Single source of truth for "what does back/Escape close right now", reused by
@@ -635,6 +641,9 @@ function _closeTopmostOverlay(){
 // in-page widget, not a "screen" — so popstate only needs to care about the add
 // drawer and modals, both of which already go through _pushOverlayHistory().
 window.addEventListener('popstate', () => {
+  // Our own _popOverlayHistory() back() just fired this — the entry is already
+  // accounted for; don't also close the parent overlay underneath.
+  if(_suppressPopstateClose){ _suppressPopstateClose = false; return; }
   if(_overlayHistDepth <= 0) return; // a real navigation, not one of our entries — let it proceed
   _inPopstateClose = true;
   try{
@@ -2179,7 +2188,7 @@ function hideSplash(){
    FIRST-RUN WELCOME MODAL
 ============================================================ */
 let _welcomeStep = 0;
-const _WELCOME_STEPS = 5;
+const _WELCOME_STEPS = 6;
 // Returns true iff onboarding was actually shown — callers use this (not their own
 // pre-load localStorage peek) since the answer can only be known accurately AFTER
 // loadState() has had a chance to recover data from IndexedDB (see below).

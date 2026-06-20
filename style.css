@@ -1514,7 +1514,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   border-radius:var(--radius-sm); padding:8px 12px; margin-bottom:6px;
 }
 .reorder-row:last-child{ margin-bottom:0; }
-.reorder-label{ font-size:13px; color:var(--text); display:flex; align-items:center; gap:7px; }
+.reorder-label{ font-size:13px; color:var(--text); display:flex; align-items:center; gap:7px; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .reorder-btns{ display:flex; gap:6px; flex-shrink:0; }
 .reorder-btns button{
   width:44px; height:44px; background:var(--bg-elev); border:1px solid var(--line);
@@ -1524,6 +1524,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   transition:color .15s, background .15s, border-color .15s;
 }
 .reorder-btns button:not(:disabled):active{ background:var(--card2); color:var(--gold); border-color:var(--gold-dim); }
+.reorder-btns button.rd-del:not(:disabled):active{ background:var(--red-soft); color:var(--red); border-color:var(--red); }
 .reorder-btns button:disabled{ opacity:.28; cursor:default; }
 .recent-limit-select{
   flex-shrink:0; background:var(--bg-elev); border:1px solid var(--line);

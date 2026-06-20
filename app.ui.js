@@ -201,15 +201,23 @@ function renderWalletDefsEditor(){
   if(!host) return;
   const group = track => {
     const list = WALLET_DEFS.filter(w => w.track === track);
-    return list.map((w,i) => `
+    return list.map((w,i) => {
+      // 'core' is structural and a group must keep at least one wallet — those two
+      // cases can never be deleted, so disable the button rather than toast-on-tap.
+      // Balance/transaction guards stay dynamic (the user can clear them), so those
+      // wallets keep an enabled button that explains via toast why it's blocked.
+      const blockDelete = (w.id === 'core') || (!track && list.length <= 1);
+      return `
       <div class="reorder-row">
         <span class="reorder-label">${escHtml(w.name)}</span>
         <div class="reorder-btns">
           <button onclick="openWalletDefModal('${w.id}')" aria-label="تعديل ${escHtml(w.name)}">✎</button>
           <button onclick="moveWalletDef('${w.id}',-1)" ${i===0?'disabled':''} aria-label="تحريك لأعلى">▲</button>
           <button onclick="moveWalletDef('${w.id}',1)" ${i===list.length-1?'disabled':''} aria-label="تحريك لأسفل">▼</button>
+          <button class="rd-del" onclick="deleteWalletDef('${w.id}')" ${blockDelete?'disabled':''} aria-label="حذف ${escHtml(w.name)}">🗑</button>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   };
   host.innerHTML = `
     <div class="reorder-group">
@@ -316,23 +324,25 @@ async function saveWalletDefModal(){
   }
 }
 
-async function deleteWalletDefModal(){
-  if(_saveWalletDefBusy || !editingWalletDefId) return;
-  const id = editingWalletDefId;
+// Core deletion + all safety guards. Shared by the inline 🗑 button in the
+// reorder list and the edit modal's delete button. Returns true if the wallet
+// was actually removed (so the modal caller knows whether to close).
+async function deleteWalletDef(id){
+  if(_saveWalletDefBusy) return false;
   const w = WALLET_DEFS.find(x => x.id === id);
-  if(!w) return;
-  if(id === 'core'){ toast('⚠ لا يمكن حذف المحفظة الرئيسية', true); return; }
+  if(!w) return false;
+  if(id === 'core'){ toast('⚠ لا يمكن حذف المحفظة الرئيسية', true); return false; }
   if(!w.track && WALLET_DEFS.filter(x => !x.track).length <= 1){
-    toast('⚠ لا يمكن حذف آخر محفظة عادية', true); return;
+    toast('⚠ لا يمكن حذف آخر محفظة عادية', true); return false;
   }
   if(Math.abs(state.wallets[id] ?? 0) > 0.004){
-    toast('⚠ صفّر رصيد المحفظة أولاً قبل حذفها', true); return;
+    toast('⚠ صفّر رصيد المحفظة أولاً قبل حذفها', true); return false;
   }
   const hasTx = state.transactions.some(tx => tx.wallet === id || tx.trackWallet === id);
   if(hasTx){
-    toast('⚠ لا يمكن حذف محفظة مرتبطة بمعاملات موجودة', true); return;
+    toast('⚠ لا يمكن حذف محفظة مرتبطة بمعاملات موجودة', true); return false;
   }
-  if(!confirm(`حذف محفظة "${w.name}" نهائياً؟`)) return;
+  if(!confirm(`حذف محفظة "${w.name}" نهائياً؟`)) return false;
 
   _saveWalletDefBusy = true;
   _opInFlight++;
@@ -345,14 +355,18 @@ async function deleteWalletDefModal(){
     await saveWalletDefs();
     await saveConfig();
     await saveBalances();
-    editingWalletDefId = null;
+    if(editingWalletDefId === id) editingWalletDefId = null;
     refreshAfterWalletDefsChange();
-    closeModal('walletDefModal');
     toast('🗑 تم حذف المحفظة');
+    return true;
   } finally {
     _saveWalletDefBusy = false;
     _opInFlight--;
   }
+}
+async function deleteWalletDefModal(){
+  if(!editingWalletDefId) return;
+  if(await deleteWalletDef(editingWalletDefId)) closeModal('walletDefModal');
 }
 
 /* ============================================================
