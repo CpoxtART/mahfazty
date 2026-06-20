@@ -28,6 +28,17 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.6',
+    date: '2026-06-20',
+    title: 'مظهر تلقائي يتناغم مع نظام جهازك',
+    items: [
+      'وضع تلقائي جديد للمظهر (فاتح/داكن) من الإعدادات ← الترتيب — يتبع إعداد نظام جهازك مباشرة، وهو الافتراضي لمن لم يختر مظهراً يدوياً من قبل.',
+      'عند تبديل مظهر نظام جهازك (مثلاً تلقائياً عند الغروب) والتطبيق مفتوح، يتغيّر مظهر التطبيق فوراً بدون إعادة تحميل — طالما الوضع التلقائي مفعّل.',
+      'اختيار مظهر يدوي (فاتح/داكن) من زر الشريط العلوي أو الإعدادات يوقف المتابعة التلقائية لنظام الجهاز حتى تُعيد تفعيلها بنفسك.',
+      'النسخة الاحتياطية (تصدير/استيراد، ومزامنة Drive) صارت تحفظ اختيارك (تلقائي/فاتح/داكن) بدل تجميد لون واحد، فجهاز ثانٍ بالوضع التلقائي يتبع نظامه هو لا نظام الجهاز الذي صدّر النسخة.',
+    ],
+  },
+  {
     version: 'v47.5',
     date: '2026-06-20',
     title: 'تدقيق من زوايا جديدة: استيراد، صوت وأمان',
@@ -518,22 +529,61 @@ function applyTheme(theme){
   // keep the installed PWA splash/chrome color in sync with the chosen theme
   if(typeof applyManifest === 'function') applyManifest(theme === 'light');
 }
-function toggleTheme(){
-  const isLight = document.body.classList.contains('light');
-  const next = isLight ? 'dark' : 'light';
-  applyTheme(next);
-  try{ localStorage.setItem(LS_PREFIX + 'theme', next); }catch(e){}
+// Theme MODE is one of 'light' | 'dark' | 'auto'. 'auto' isn't stored explicitly —
+// its absence from localStorage IS the auto state, so a value written before this
+// feature existed ('light'/'dark') keeps behaving as an explicit manual choice.
+function _systemPrefersLight(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+}
+function _currentThemeMode(){
+  let m = null;
+  try{ m = localStorage.getItem(LS_PREFIX + 'theme'); }catch(e){}
+  return (m === 'light' || m === 'dark') ? m : 'auto';
+}
+function _resolveThemeMode(mode){
+  return mode === 'auto' ? (_systemPrefersLight() ? 'light' : 'dark') : mode;
+}
+function _updateThemeModeUI(mode){
+  document.querySelectorAll('#themeModeTabs [data-theme-mode]').forEach(btn => {
+    const active = btn.dataset.themeMode === mode;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+}
+function setThemeMode(mode){
+  try{
+    if(mode === 'auto') localStorage.removeItem(LS_PREFIX + 'theme');
+    else localStorage.setItem(LS_PREFIX + 'theme', mode);
+  }catch(e){}
+  applyTheme(_resolveThemeMode(mode));
+  _updateThemeModeUI(mode);
   // canvas charts bake theme colors at draw time — redraw so they match the new theme
   if(typeof renderChart === 'function') renderChart();
   if(typeof renderPieChart === 'function') renderPieChart();
 }
+function toggleTheme(){
+  // quick header tap = explicit manual choice (the opposite of what's showing now),
+  // matching the long-standing one-tap behavior; pick 'auto' from Settings instead
+  const isLight = document.body.classList.contains('light');
+  setThemeMode(isLight ? 'dark' : 'light');
+}
 function initTheme(){
-  let theme = null;
-  try{ theme = localStorage.getItem(LS_PREFIX + 'theme'); }catch(e){}
-  if(!theme){
-    theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  const mode = _currentThemeMode();
+  applyTheme(_resolveThemeMode(mode));
+  _updateThemeModeUI(mode);
+  // live-follow the device's light/dark switch (e.g. sunset auto-dark-mode) while
+  // in auto mode, instead of only resolving it once at page load
+  if(window.matchMedia){
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const onSystemThemeChange = () => {
+      if(_currentThemeMode() !== 'auto') return;
+      applyTheme(_resolveThemeMode('auto'));
+      if(typeof renderChart === 'function') renderChart();
+      if(typeof renderPieChart === 'function') renderPieChart();
+    };
+    if(mq.addEventListener) mq.addEventListener('change', onSystemThemeChange);
+    else if(mq.addListener) mq.addListener(onSystemThemeChange); // older Safari
   }
-  applyTheme(theme);
 }
 
 function todayISO(){

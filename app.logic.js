@@ -930,9 +930,12 @@ function exportData(){
   const payload = {
     exportedAt: new Date().toISOString(),
     // carry the data-edit timestamp + theme so a restore on another device orders
-    // Drive conflicts correctly and keeps the user's chosen appearance
+    // Drive conflicts correctly and keeps the user's chosen appearance. This is the
+    // MODE ('light'/'dark'/'auto'), not the resolved color — otherwise a user on
+    // 'auto' would have today's resolved color baked in and frozen on every other
+    // device that restores this backup, instead of each device following its own system.
     dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
-    theme: (document.body.classList.contains('light') ? 'light' : 'dark'),
+    theme: _currentThemeMode(),
     wallets: state.wallets,
     walletDefs: WALLET_DEFS,
     transactions: state.transactions,
@@ -1084,8 +1087,8 @@ async function applyImport(text){
   pendingIncomeTx = null;
   detailWalletId = null;
   // restore appearance + data-edit time if the backup carried them (lossless round-trip)
-  if(data.theme === 'light' || data.theme === 'dark'){
-    try{ applyTheme(data.theme); localStorage.setItem(LS_PREFIX + 'theme', data.theme); }catch(_){ }
+  if(data.theme === 'light' || data.theme === 'dark' || data.theme === 'auto'){
+    try{ setThemeMode(data.theme); }catch(_){ }
   }
   if(typeof data.dataEditedAt === 'number' && data.dataEditedAt > 0){
     try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(data.dataEditedAt)); }catch(_){ }

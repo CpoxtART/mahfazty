@@ -23,7 +23,7 @@
 /* Apply saved theme before first paint to prevent dark-flash on light-mode devices */
 try{
   var _t=localStorage.getItem('walletTracker_theme');
-  if(!_t)_t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme:light)').matches)?'light':'dark';
+  if(_t!=='light' && _t!=='dark')_t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme:light)').matches)?'light':'dark';
   if(_t==='light')document.body.classList.add('light');
 }catch(e){}
 </script>
@@ -383,6 +383,19 @@ try{
 
     <!-- ═══════ Panel: ordering ═══════ -->
     <div class="sett-panel" data-sett-panel="layout" role="tabpanel">
+      <!-- ─── Appearance ─── -->
+      <div class="sett-section">
+        <div class="sett-section-head">🌗 المظهر</div>
+        <div class="sett-section-body">
+          <div class="hint" style="margin:0 0 10px;">اختر فاتح أو داكن، أو اتركه تلقائياً ليتناغم مع إعداد نظام جهازك ويتغيّر معه فوراً عند تبديله.</div>
+          <div class="le-tabs" id="themeModeTabs" role="tablist" aria-label="وضع المظهر">
+            <button class="le-tab" data-theme-mode="light" role="tab" aria-selected="false" onclick="setThemeMode('light')">☀️ <span>فاتح</span></button>
+            <button class="le-tab" data-theme-mode="dark" role="tab" aria-selected="false" onclick="setThemeMode('dark')">🌙 <span>داكن</span></button>
+            <button class="le-tab" data-theme-mode="auto" role="tab" aria-selected="false" onclick="setThemeMode('auto')">🌗 <span>تلقائي (حسب الجهاز)</span></button>
+          </div>
+        </div>
+      </div>
+
       <!-- ─── Layout order ─── -->
       <div class="sett-section">
         <div class="sett-section-head">🔀 ترتيب الواجهة</div>
