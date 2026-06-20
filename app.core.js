@@ -21,6 +21,11 @@ const WALLET_DEFS = [
 // Newest entry first; add one entry per shipped feature round (not every
 // commit) and keep `version` matching the CACHE bump in sw.js for that round
 // — the unseen-badge logic in app.logic.js compares against CHANGELOG[0].version.
+//
+// Numbering: whole numbers (v47, v48, ...) are the baseline. Smaller follow-up
+// rounds on top of that baseline get a decimal point instead of their own
+// whole number — v47.1, v47.2, v47.3, ... up to v47.99 — then roll over to
+// the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
     version: 'v47',
