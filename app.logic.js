@@ -131,7 +131,7 @@ function openDistributionModal(amount){
         const note = document.createElement('div');
         note.className = 'dist-row';
         note.style.cssText = 'border-style:dashed; opacity:.85; margin-top:4px;';
-        note.innerHTML = `<span class="name">يبقى في ${srcW ? srcW.name : 'المحفظة'} <span class="pct">${round2(100-totalPct)}%</span></span><span class="amt">${fmt(remainder)}</span>`;
+        note.innerHTML = `<span class="name">يبقى في ${srcW ? escHtml(srcW.name) : 'المحفظة'} <span class="pct">${round2(100-totalPct)}%</span></span><span class="amt">${fmt(remainder)}</span>`;
         wrap.appendChild(note);
       }
     }
@@ -1017,7 +1017,11 @@ async function applyImport(text){
     if(cleanWD) applyWalletDefs(cleanWD);
   }
 
-  if(data.wallets){
+  // data.wallets must be a plain id-keyed object — an array (or any other
+  // truthy non-object-shaped value) would pass the old `!data.wallets` check
+  // yet return undefined for every WALLET_DEFS[w.id] lookup below, silently
+  // zeroing every balance with no restore and no warning.
+  if(data.wallets && typeof data.wallets === 'object' && !Array.isArray(data.wallets)){
     // a backup is a complete snapshot — clear all balances first so wallets that
     // are omitted from the imported file don't keep stale values that would
     // mismatch the freshly-replaced transaction list
@@ -1032,12 +1036,18 @@ async function applyImport(text){
   let _droppedTx = 0;
   if(data.transactions){
     const incoming = Array.isArray(data.transactions) ? data.transactions : [];
+    // dedup by id last (only after every other check passes) so a duplicate
+    // doesn't get "claimed" by a malformed copy that's filtered out anyway —
+    // otherwise a later, valid copy of the same id would be wrongly dropped
+    const seenIds = new Set();
     state.transactions = incoming.filter(tx =>
       tx &&
+      typeof tx.id === 'string' && tx.id &&
       typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
-      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 && tx.amount <= MAX_AMOUNT &&
       (tx.type === 'income' || tx.type === 'expense') &&
-      WALLET_DEFS.find(w => w.id === tx.wallet)
+      WALLET_DEFS.find(w => w.id === tx.wallet) &&
+      !seenIds.has(tx.id) && seenIds.add(tx.id)
     ).map(tx => ({
       ...tx,
       category: normalizeCategory(tx.category),

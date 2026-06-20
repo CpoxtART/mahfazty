@@ -1307,6 +1307,10 @@ function startVoiceInput(){
   };
 
   voiceRecognition.onresult = (event) => {
+    // same stale-instance guard cleanup() uses above — without it, a result that
+    // arrives just after abort() (cancel-tap) but before onend fires would still
+    // apply the discarded transcript, defeating the whole point of abort().
+    if(voiceRecognition !== thisRecognition) return;
     if(!event.results || !event.results[0] || !event.results[0][0]) return;
     const transcript = event.results[0][0].transcript.trim();
     if(!transcript){
@@ -1413,7 +1417,7 @@ function setAddFormType(type){
 function _makeCatChip(c, isActive, onSelect){
   const chip = document.createElement('div');
   chip.className = 'cat-chip' + (isActive ? ' active' : '');
-  chip.innerHTML = `<span class="ic">${c.icon}</span><span>${c.name}</span>`;
+  chip.innerHTML = `<span class="ic">${c.icon}</span><span>${escHtml(c.name)}</span>`;
   chip.setAttribute('role', 'button');
   chip.setAttribute('tabindex', '0');
   chip.setAttribute('aria-pressed', String(isActive));
