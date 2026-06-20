@@ -678,6 +678,47 @@ window.addEventListener('popstate', () => {
 // e.g. wallet card → wallet detail → edit tx. A single variable would lose the
 // outer modal's opener when the inner modal overwrote it.
 const _focusStack = [];
+// Background landmarks to hide from screen readers while any modal/drawer is
+// open — without this, a screen-reader user swiping through the page can still
+// land on (and hear) the tab content sitting behind an open overlay, since
+// CSS-only overlays don't remove the background from the accessibility tree.
+const _bgLandmarks = () => document.querySelectorAll('body > header, body > .tab-panel, body > nav.bottom-nav');
+function _anyOverlayOpen(){
+  return addDrawerOpen || !!document.querySelector('.modal-overlay.open');
+}
+function _setBackgroundHidden(hidden){
+  _bgLandmarks().forEach(el => {
+    if(hidden) el.setAttribute('aria-hidden', 'true');
+    else el.removeAttribute('aria-hidden');
+  });
+}
+// Tab/Shift+Tab focus trap scoped to the topmost open modal or the add-drawer —
+// without this, tabbing past the last focusable element in a dialog leaks focus
+// into the (visually hidden but still-tabbable) page behind it.
+function _activeOverlayEl(){
+  const modals = document.querySelectorAll('.modal-overlay.open');
+  if(modals.length) return modals[modals.length - 1];
+  if(addDrawerOpen) return document.getElementById('addDrawer');
+  return null;
+}
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Tab') return;
+  const overlay = _activeOverlayEl();
+  if(!overlay) return;
+  const focusables = overlay.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if(!focusables.length) return;
+  const list = Array.from(focusables).filter(el => !el.disabled && el.offsetParent !== null);
+  if(!list.length) return;
+  const first = list[0], last = list[list.length - 1];
+  if(e.shiftKey && document.activeElement === first){
+    e.preventDefault(); last.focus();
+  }else if(!e.shiftKey && document.activeElement === last){
+    e.preventDefault(); first.focus();
+  }else if(!overlay.contains(document.activeElement)){
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+  }
+});
 function openModal(id){
   const modal = document.getElementById(id);
   if(!modal) return;
@@ -702,6 +743,11 @@ function openModal(id){
     }
   }
   modal.classList.add('open');
+  // blur the trigger BEFORE hiding its ancestor from the a11y tree — aria-hidden
+  // on an element that still holds focus is an ARIA violation (and Chrome logs a
+  // warning for it); the real focus-in-modal happens a frame later below.
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  _setBackgroundHidden(true);
   // lock background scroll so the page behind the sheet doesn't move while a
   // modal (and the on-screen keyboard) is open on mobile
   document.body.style.overflow = 'hidden';
@@ -727,8 +773,8 @@ function closeModal(id){
   if(!modal) return;
   const wasOpen = modal.classList.contains('open');
   modal.classList.remove('open');
-  // restore background scroll only once no modal remains open
-  if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+  // restore background scroll/aria-hidden only once no modal/drawer remains open
+  if(!_anyOverlayOpen()){ document.body.style.overflow = ''; _setBackgroundHidden(false); }
   if(id === 'editModal'){
     editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id;
     // ensure wallet dropdown is fully closed so stale 'open' state can't persist across edits
@@ -1244,7 +1290,8 @@ async function wipeAll(){
   // DEFAULT_DISTRIBUTION only lists the factory wallets — keep any custom regular
   // wallets (which survive a wipe) represented, else they'd silently drop out of
   // the distribution editor and never receive an auto-distribute share.
-  WALLET_DEFS.forEach(w => { if(!w.track && !DISTRIBUTION.find(d => d.id === w.id)) DISTRIBUTION.push({id: w.id, pct: 0}); });
+  const _wipeExtraDist = WALLET_DEFS.filter(w => !w.track && !DISTRIBUTION.find(d => d.id === w.id)).map(w => ({id: w.id, pct: 0}));
+  if(_wipeExtraDist.length) DISTRIBUTION = DISTRIBUTION.concat(_wipeExtraDist);
   document.getElementById('walletFilterChip').classList.remove('show');
   document.getElementById('categoryFilterChip').classList.remove('show');
   document.querySelectorAll('.filters button').forEach(b => b.classList.toggle('active', b.dataset.f === 'all'));
@@ -2532,14 +2579,17 @@ function buildManifestBlob(isLight){
   };
   return new Blob([JSON.stringify(manifest)], {type:'application/json'});
 }
+let _manifestBlobUrl = null; // tracked separately from the link's href so a revoke
+// can't be skipped by a failed/never-applied previous toggle (getAttribute() would
+// silently miss that case and leak the blob for the rest of the session).
 function applyManifest(isLight){
   try{
     const link = document.getElementById('manifestLink');
     if(!link) return;
-    // revoke the previous blob so it doesn't leak across theme toggles
-    const old = link.getAttribute('href');
-    if(old && old.startsWith('blob:')) URL.revokeObjectURL(old);
-    link.setAttribute('href', URL.createObjectURL(buildManifestBlob(isLight)));
+    const next = URL.createObjectURL(buildManifestBlob(isLight));
+    link.setAttribute('href', next);
+    if(_manifestBlobUrl) URL.revokeObjectURL(_manifestBlobUrl);
+    _manifestBlobUrl = next;
   }catch(e){}
 }
 /* ─── PWA Update Banner ─── */

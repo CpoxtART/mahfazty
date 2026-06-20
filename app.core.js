@@ -28,6 +28,19 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.4',
+    date: '2026-06-20',
+    title: 'تدقيق عميق: إتاحة ودقة العرض',
+    items: [
+      'فخّ تركيز (focus trap) جديد بكل نافذة منبثقة ودرج الإضافة — مفتاح Tab لم يعد يُخرج التركيز للخلفية المخفية أثناء فتح نافذة.',
+      'محتوى الصفحة خلف أي نافذة منبثقة أو درج الإضافة صار مخفياً فعلياً عن قارئ الشاشة (aria-hidden) بدل أن يبقى ظاهراً وهو غير قابل للاستخدام.',
+      'إضافة محفظة جديدة من الإعدادات صارت تُحدّث محرر توزيع الدخل فوراً، بدل احتمال بقائه بحالة قديمة حتى يحدث تحديث آخر للواجهة.',
+      'نفس إصلاح التوزيع طُبّق على تصفير التوزيع الافتراضي ومزامنة محافظ جديدة قادمة من جهاز آخر عبر Drive.',
+      'تسريب رابط أيقونة التطبيق المؤقت (blob) عند تبديل الوضع الفاتح/الداكن بسرعة صار مُتتبَّعاً ويُحرَّر بشكل صحيح.',
+      'تنظيف كود CSS غير مستخدم لتأثير حذف معاملة بالسحب.',
+    ],
+  },
+  {
     version: 'v47.3',
     date: '2026-06-20',
     title: 'تدقيق إضافي: لمس، تزامن وموثوقية',
@@ -747,7 +760,15 @@ function mergeCloudData(cloud, cloudNewer){
       const merged = WALLET_DEFS.concat(onlyOnCloud);
       applyWalletDefs(merged);
       onlyOnCloud.forEach(w => { if(state.wallets[w.id] === undefined) state.wallets[w.id] = 0; });
-      if(!cloudNewer) onlyOnCloud.forEach(w => { if(!DISTRIBUTION.find(d => d.id === w.id)) DISTRIBUTION.push({id: w.id, pct: 0}); });
+      // Reassign (not push) — computeRenderSig() caches the distribution signature by
+      // object-reference equality and only re-stringifies when the reference changes;
+      // an in-place push() here would silently keep the stale cached signature, so a
+      // wallet synced in from another device could fail to show its new 0% share
+      // until something else happens to force a full render.
+      if(!cloudNewer){
+        const newEntries = onlyOnCloud.filter(w => !DISTRIBUTION.find(d => d.id === w.id)).map(w => ({id: w.id, pct: 0}));
+        if(newEntries.length) DISTRIBUTION = DISTRIBUTION.concat(newEntries);
+      }
     }
     // Renames/reordering: only adopted from the side that edited most recently —
     // names/order are config-like, not additive data, same rule as step 5 below.

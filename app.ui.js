@@ -350,8 +350,11 @@ async function saveWalletDefModal(){
       recomputeSelectableWallets();
       state.wallets[id] = 0;
       // the distribution editor iterates DISTRIBUTION, not WALLET_DEFS — a new
-      // regular wallet needs an explicit entry or it'd never appear there
-      if(!track) DISTRIBUTION.push({ id, pct: 0 });
+      // regular wallet needs an explicit entry or it'd never appear there.
+      // Reassign (not push) — computeRenderSig() caches this array by reference,
+      // so mutating in place would leave the next render() comparing against a
+      // stale signature and silently skipping the update this wallet needs.
+      if(!track) DISTRIBUTION = DISTRIBUTION.concat([{ id, pct: 0 }]);
       await saveWalletDefs();
       await saveConfig();   // persists the new DISTRIBUTION entry
       await saveBalances(); // persists the new wallet's zero balance
@@ -829,6 +832,10 @@ function openAddDrawer(){
   switchDrawerTab(0); // always open on Details tab so amount/date are immediately visible
   document.getElementById('addDrawer').classList.add('open');
   document.getElementById('addDrawerOverlay').classList.add('open');
+  // blur the trigger BEFORE hiding its ancestor from the a11y tree (see openModal
+  // in app.logic.js for why) — the real focus-in-drawer happens a frame later below.
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  _setBackgroundHidden(true);
   document.body.style.overflow = 'hidden';
   capDateInputsToToday();
   // Same back-button bookkeeping as openModal/closeModal (see app.logic.js) so
@@ -851,7 +858,7 @@ function closeAddDrawer(){
   addDrawerOpen = false;
   document.getElementById('addDrawer').classList.remove('open');
   document.getElementById('addDrawerOverlay').classList.remove('open');
-  if(!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+  if(!_anyOverlayOpen()){ document.body.style.overflow = ''; _setBackgroundHidden(false); }
   // Closing via the back button skips the click-outside handler that normally
   // collapses this dropdown, so it could otherwise show pre-expanded the next
   // time the drawer opens (same fix as closeModal's editWalletMenuWrap cleanup).
@@ -1368,6 +1375,7 @@ function renderQuickAmounts(){
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = fmt(amt);
+    btn.setAttribute('aria-label', 'مبلغ سريع: ' + fmt(amt));
     btn.onclick = () => {
       const input = document.getElementById('amountInput');
       input.value = amt;
@@ -1846,7 +1854,8 @@ function resetDistribution(){
   if(!confirm('استعادة النسب الافتراضية (50/10/10/10/10/5/5)؟')) return;
   DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
   // keep custom regular wallets in the editor (DEFAULT only covers factory ones)
-  WALLET_DEFS.forEach(w => { if(!w.track && !DISTRIBUTION.find(d => d.id === w.id)) DISTRIBUTION.push({id: w.id, pct: 0}); });
+  const extra = WALLET_DEFS.filter(w => !w.track && !DISTRIBUTION.find(d => d.id === w.id)).map(w => ({id: w.id, pct: 0}));
+  if(extra.length) DISTRIBUTION = DISTRIBUTION.concat(extra);
   renderDistributionEditor();
   saveConfig();
   renderWallets();

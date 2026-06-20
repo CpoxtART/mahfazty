@@ -944,11 +944,6 @@
        anti-pattern with 10k+ transactions). */
   }
   .tx:active{background:var(--card2);}
-  .tx.removing{
-    transform: translateX(-120%); /* match the leftward swipe-to-delete direction */
-    opacity:0;
-    transition: transform .3s var(--ease), opacity .3s var(--ease);
-  }
   .tx .info{flex:1; min-width:0;}
   .tx .info .desc{font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .tx .info .meta{font-size:11px; color:var(--muted); margin-top:3px; display:flex; align-items:center; gap:6px;}
