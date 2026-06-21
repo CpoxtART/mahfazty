@@ -1466,6 +1466,11 @@ let driveClientId = '';
 let _driveSilentMode = null;
 let _driveBannerEscalate = false; // next banner tap should force the account picker
 let _driveTokenRefreshTimer = null; // proactive refresh 5 min before token expires
+// The dataEditedAt value we last confirmed is reflected on Drive (either we just
+// pushed it, or we just merged it in from a pull). Lets driveSyncToCloud tell
+// "Drive still matches what we last saw" apart from "another device pushed since
+// then" without re-merging on every single debounced push.
+let _driveLastSyncedEditedAt = 0;
 
 // A gesture-free silent token grab is reliable on desktop browsers, but on mobile /
 // embedded / installed-PWA contexts it can redirect the top frame to
@@ -2011,6 +2016,32 @@ async function driveFindFile(){
   return driveFileId;
 }
 
+// Merge a cloud snapshot into local state in place (union merge — see
+// mergeCloudData), persist it, and re-render. Shared by the post-reconnect
+// background merge and driveSyncToCloud's pre-push reconciliation below —
+// both need the exact same "don't lose either side's edits" behavior, just
+// triggered from different moments (sign-in vs. about-to-overwrite-Drive).
+async function _mergeCloudIntoLocal(cloud, cloudNewer){
+  // Defer the swap while the user has a modal/the add-drawer open, or another
+  // mutation is mid-flight — same guards the cross-tab storage listener uses
+  // (app.logic.js's window 'storage' handler) — so an in-progress edit isn't
+  // yanked out from under editingTxId/pendingIncomeTx by the array being
+  // replaced mid-flow. _opInFlight also covers windows the DOM checks miss,
+  // e.g. addTx's auto-distribution step which keeps _opInFlight raised after
+  // the add-drawer has already closed.
+  // Capped so a forgotten open modal can't stall sync forever.
+  for(let waited=0; waited<10000 && (document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0); waited+=250){
+    await new Promise(r => setTimeout(r, 250));
+  }
+  _opInFlight++;
+  try{
+    const { added, removed } = mergeCloudData(cloud, cloudNewer);
+    await saveBalances(); await saveTx(); await saveConfig(); await saveSubs(); await saveWalletDefs();
+    render(true);
+    return { added, removed };
+  } finally { _opInFlight--; }
+}
+
 // Push current local state to Drive (create file if needed)
 let _driveSyncBusy = false;
 let _driveResyncPending = false; // a change arrived mid-sync — re-sync afterwards
@@ -2022,9 +2053,36 @@ async function driveSyncToCloud(){
   _driveSyncBusy = true;
   setDriveIndicator('syncing');
   try{
+    await driveFindFile();
+
+    if(driveFileId){
+      // Nothing pulls from Drive between sign-ins — only this debounced push runs
+      // — so if another device is connected at the same time, its push could
+      // already be sitting on Drive, newer than what we last saw. Re-pull and
+      // union-merge it in first so this push can't silently overwrite it (the
+      // same race driveSyncFromCloud's reconnect-time merge guards against, just
+      // caught on the push side here instead of only on the pull side). Skipped
+      // when remote is already known to match what we last synced, so a burst of
+      // local edits doesn't pay for a merge on every debounced push.
+      try{
+        const checkRes = await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {
+          headers: { 'Authorization': 'Bearer ' + driveAccessToken }
+        });
+        if(checkRes.ok){
+          const remote = await checkRes.json();
+          const remoteEdited = (typeof remote.dataEditedAt === 'number' && remote.dataEditedAt > 0) ? remote.dataEditedAt : 0;
+          if(remoteEdited > 0 && remoteEdited !== _driveLastSyncedEditedAt){
+            const localTime = parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0;
+            await _mergeCloudIntoLocal(remote, remoteEdited > localTime);
+          }
+        }
+      }catch(_){ /* best-effort reconciliation — if the check itself fails, push local state as-is, no worse than before this fix */ }
+    }
+
+    const dataEditedAtVal = parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0;
     const payload = JSON.stringify({
       exportedAt: new Date().toISOString(),
-      dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
+      dataEditedAt: dataEditedAtVal,
       wallets: state.wallets,
       transactions: state.transactions,
       crisisMode: state.crisisMode,
@@ -2036,8 +2094,6 @@ async function driveSyncToCloud(){
       subscriptions: subscriptions,
       uiPrefs: collectUiPrefs()
     });
-
-    await driveFindFile();
 
     if(driveFileId){
       const res = await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
@@ -2075,6 +2131,7 @@ async function driveSyncToCloud(){
       const data = await res.json();
       driveFileId = data.id;
     }
+    _driveLastSyncedEditedAt = dataEditedAtVal;
     setDriveIndicator('ok');
     return true;
   }catch(e){
@@ -2144,6 +2201,9 @@ async function adoptCloudSnapshot(cloud){
   prevSpendable = null; // force fresh hero animation after loading a new data set
   await saveBalances(); await saveTx(); await saveConfig(); await saveSubs(); await saveWalletDefs();
   render(true); // force: wallet object is mutated in-place so reference-equality sig check would miss balance changes
+  // local now matches this cloud snapshot exactly — record it so the next push's
+  // pre-push reconciliation check doesn't immediately re-fetch and re-merge it.
+  _driveLastSyncedEditedAt = (typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0) ? cloud.dataEditedAt : 0;
   } finally {
     _opInFlight--;
   }
@@ -2211,28 +2271,12 @@ async function driveSyncFromCloud(isInitial, interactive){
       // transaction-level UNION merge so nothing added on either device is lost, and
       // honor tombstones from both sides so deletions still propagate (no resurrected
       // rows). Config is taken from whichever side edited last.
-      // Defer the swap while the user has a modal/the add-drawer open, or another
-      // mutation is mid-flight — same guards the cross-tab storage listener uses
-      // (app.logic.js's window 'storage' handler) — so an in-progress edit isn't
-      // yanked out from under editingTxId/pendingIncomeTx by the array being
-      // replaced mid-flow. _opInFlight also covers windows the DOM checks miss,
-      // e.g. addTx's auto-distribution step which keeps _opInFlight raised after
-      // the add-drawer has already closed.
-      // Capped so a forgotten open modal can't stall sync forever.
-      for(let waited=0; waited<10000 && (document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0); waited+=250){
-        await new Promise(r => setTimeout(r, 250));
+      const cloudNewer = cloudTime > localTime;
+      const { added, removed } = await _mergeCloudIntoLocal(cloud, cloudNewer);
+      await driveSyncToCloud(); // push the merged result so the cloud converges too
+      if(added || removed){
+        toast(`☁️ تمت المزامنة — ${added ? `أُضيف ${added} ` : ''}${removed ? `حُذف ${removed} ` : ''}من جهاز آخر`);
       }
-      _opInFlight++;
-      try{
-        const cloudNewer = cloudTime > localTime;
-        const { added, removed } = mergeCloudData(cloud, cloudNewer);
-        await saveBalances(); await saveTx(); await saveConfig(); await saveSubs(); await saveWalletDefs();
-        render(true);
-        await driveSyncToCloud(); // push the merged result so the cloud converges too
-        if(added || removed){
-          toast(`☁️ تمت المزامنة — ${added ? `أُضيف ${added} ` : ''}${removed ? `حُذف ${removed} ` : ''}من جهاز آخر`);
-        }
-      } finally { _opInFlight--; }
       setDriveIndicator('ok');
       return;
     }
