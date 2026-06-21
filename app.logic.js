@@ -760,6 +760,7 @@ function openModal(id){
     refreshDriveSettingsUI();
     renderDistributionEditor();
     renderLayoutEditor();
+    renderAccentSwatches();
     renderWalletDefsEditor();
     const _ja = document.getElementById('jsonArea'); if(_ja) _ja.value = ''; // fresh scratch area each open (import/export now lives in the data tab)
     switchSettingsTab(_settingsTab); // sync panels/strip to the requested tab
@@ -939,6 +940,7 @@ function exportData(){
     // device that restores this backup, instead of each device following its own system.
     dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
     theme: _currentThemeMode(),
+    accent: _currentAccent(),
     wallets: state.wallets,
     walletDefs: WALLET_DEFS,
     transactions: state.transactions,
@@ -1092,6 +1094,9 @@ async function applyImport(text){
   // restore appearance + data-edit time if the backup carried them (lossless round-trip)
   if(data.theme === 'light' || data.theme === 'dark' || data.theme === 'auto'){
     try{ setThemeMode(data.theme); }catch(_){ }
+  }
+  if(typeof data.accent === 'string'){
+    try{ setAccent(data.accent); }catch(_){ } // setAccent validates against the known palette ids
   }
   if(typeof data.dataEditedAt === 'number' && data.dataEditedAt > 0){
     try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(data.dataEditedAt)); }catch(_){ }
@@ -2928,6 +2933,7 @@ document.addEventListener('keydown', e => {
 });
 
 initTheme();
+initAccent();
 loadLayoutPrefs();
 renderBottomNav();
 applySectionOrder();
@@ -3037,6 +3043,16 @@ window.addEventListener('storage', (e) => {
     const mode = (e.newValue === 'light' || e.newValue === 'dark') ? e.newValue : 'auto';
     applyTheme(_resolveThemeMode(mode));
     _updateThemeModeUI(mode);
+    if(typeof renderChart === 'function') renderChart();
+    if(typeof renderPieChart === 'function') renderPieChart();
+    return;
+  }
+  // Accent palette is cosmetic-only too — mirror the other tab's choice live
+  // instead of reloading the ledger (same rationale as theme above).
+  if(e.key === LS_PREFIX + 'accent'){
+    const acc = _currentAccent();
+    applyAccent(acc);
+    _updateAccentUI(acc);
     if(typeof renderChart === 'function') renderChart();
     if(typeof renderPieChart === 'function') renderPieChart();
     return;

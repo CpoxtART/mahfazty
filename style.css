@@ -65,8 +65,69 @@
     --dur-fast:.12s;
     --dur:.2s;
     --dur-slow:.3s;
-    /* unified gold focus ring for inputs/selects */
-    --focus-ring: 0 0 0 3px rgba(220,182,116,.14);
+    /* Accent hue as an RGB triple so the decorative glows (body backdrop, hero
+       sheen) can tint themselves from a single source per palette via rgba(). The
+       solid --gold* swatches are still defined explicitly per theme below so each
+       can be contrast-tuned for its background. */
+    --accent-rgb:220,182,116;
+    /* unified accent focus ring for inputs/selects — derives from --accent-rgb so
+       it follows whichever palette is active */
+    --focus-ring: 0 0 0 3px rgba(var(--accent-rgb),.14);
+  }
+
+  /* ===================== ACCENT PALETTES =====================
+     Each palette re-skins ONLY the accent tokens (--gold family + --accent-rgb).
+     The neutral/semantic tokens (bg, card, text, green, red, blue) are untouched,
+     so a palette layers cleanly on top of either the dark (:root) or light
+     (body.light) theme. Values are hand-tuned per theme for WCAG AA: the dark
+     --gold-btn carries dark --on-gold text (~7:1), the light --gold-btn carries
+     white --on-gold (≥4.5:1), and the text-weight --gold clears 4.5:1 on its
+     theme's card/soft surfaces. 'gold' is the default and lives in :root above —
+     no class needed for it. */
+  body.accent-sapphire{
+    --gold:#8ab4f8; --gold-dim:#5e82c4; --gold-soft:#16202f;
+    --gold-btn:#6fa0f0; --gold-btn-end:#4178d0; --on-gold:#08152b;
+    --accent-rgb:122,162,247;
+  }
+  body.light.accent-sapphire{
+    --gold:#2c5fb0; --gold-dim:#6f9bd6; --gold-soft:#e8f0fc;
+    --gold-btn:#3568b8; --gold-btn-end:#284f8c; --on-gold:#ffffff;
+  }
+  body.accent-emerald{
+    --gold:#6ecb9a; --gold-dim:#4a8f6e; --gold-soft:#112620;
+    --gold-btn:#54bd8a; --gold-btn-end:#2f8a63; --on-gold:#052016;
+    --accent-rgb:94,196,148;
+  }
+  body.light.accent-emerald{
+    --gold:#1f7a52; --gold-dim:#5cb18c; --gold-soft:#e3f3ea;
+    --gold-btn:#1f7a52; --gold-btn-end:#18653f; --on-gold:#ffffff;
+  }
+  body.accent-amethyst{
+    --gold:#c0a3f0; --gold-dim:#8d6fc4; --gold-soft:#1f1830;
+    --gold-btn:#a987e6; --gold-btn-end:#7d56c8; --on-gold:#160a2a;
+    --accent-rgb:181,148,232;
+  }
+  body.light.accent-amethyst{
+    --gold:#6b46b0; --gold-dim:#a487d6; --gold-soft:#efe9fb;
+    --gold-btn:#8158d0; --gold-btn-end:#6b46b0; --on-gold:#ffffff;
+  }
+  body.accent-rose{
+    --gold:#ef9fb8; --gold-dim:#c0708d; --gold-soft:#2f1b23;
+    --gold-btn:#e985a4; --gold-btn-end:#c25c7f; --on-gold:#2a0f18;
+    --accent-rgb:240,150,180;
+  }
+  body.light.accent-rose{
+    --gold:#b03a63; --gold-dim:#d77f9d; --gold-soft:#fbe7ee;
+    --gold-btn:#bd3e6c; --gold-btn-end:#a3345b; --on-gold:#ffffff;
+  }
+  body.accent-teal{
+    --gold:#5fcccc; --gold-dim:#3f9999; --gold-soft:#102726;
+    --gold-btn:#46c2c2; --gold-btn-end:#2a9393; --on-gold:#042020;
+    --accent-rgb:76,200,200;
+  }
+  body.light.accent-teal{
+    --gold:#0f6b6b; --gold-dim:#4fb3b3; --gold-soft:#e0f3f3;
+    --gold-btn:#157d7d; --gold-btn-end:#0f6464; --on-gold:#ffffff;
   }
   body.light{
     --bg:#f4f2ed;
@@ -105,7 +166,7 @@
   body{
     font-family:var(--sans);
     background:
-      radial-gradient(1000px 500px at 80% -8%, rgba(220,182,116,.07), transparent 55%),
+      radial-gradient(1000px 500px at 80% -8%, rgba(var(--accent-rgb),.07), transparent 55%),
       radial-gradient(800px 500px at 10% 0%, rgba(134,173,207,.05), transparent 50%),
       var(--bg);
     color:var(--text);
@@ -131,7 +192,7 @@
   }
   header .brand{display:flex; align-items:center; gap:14px; flex:1; min-width:0;}
   header .brand .mark{
-    width:42px; height:42px; border-radius:13px;
+    width:42px; height:42px; border-radius:var(--radius);
     background:linear-gradient(150deg, var(--gold-btn), var(--gold-btn-end));
     display:flex; align-items:center; justify-content:center;
     font-size:20px; box-shadow:var(--shadow);
@@ -160,7 +221,7 @@
   header .actions{display:flex; gap:6px; align-items:center; flex-shrink:0;}
   .icon-btn{
     width:44px; height:44px;
-    border-radius:13px;
+    border-radius:var(--radius);
     border:1px solid var(--line);
     background:var(--card);
     color:var(--muted);
@@ -223,13 +284,13 @@
     content:'';
     position:absolute; inset:0;
     background:
-      repeating-linear-gradient(135deg, rgba(220,182,116,.025) 0 2px, transparent 2px 30px);
+      repeating-linear-gradient(135deg, rgba(var(--accent-rgb),.025) 0 2px, transparent 2px 30px);
     pointer-events:none;
   }
   .hero::after{
     content:'';
     position:absolute; top:-60px; inset-inline-start:-60px; width:160px; height:160px; border-radius:50%;
-    background:radial-gradient(circle, rgba(220,182,116,.12), transparent 70%);
+    background:radial-gradient(circle, rgba(var(--accent-rgb),.12), transparent 70%);
     pointer-events:none;
   }
   .hero .label{
@@ -285,7 +346,7 @@
     background:linear-gradient(160deg, var(--card2) 0%, var(--card) 65%, var(--bg-elev) 100%);
   }
   body.light .hero::before{
-    background:repeating-linear-gradient(135deg, rgba(220,182,116,.06) 0 2px, transparent 2px 30px);
+    background:repeating-linear-gradient(135deg, rgba(var(--accent-rgb),.06) 0 2px, transparent 2px 30px);
   }
 
   /* ================= CRISIS ================= */
@@ -302,15 +363,20 @@
   .crisis-toggle .label small{display:block; font-size:11px; color:var(--muted); font-weight:400; margin-top:2px;}
   .switch{
     width:44px; height:25px; background:var(--line); border-radius:var(--radius-pill); position:relative; flex-shrink:0;
-    transition:background .25s var(--ease);
+    transition:background var(--dur-slow) var(--ease);
   }
+  /* Knob slides via transform (compositor-only) instead of animating
+     inset-inline-end, which triggered layout every frame on this tap target.
+     App is RTL: the knob rests at the inline-end (physical-left) edge and the
+     active state translates it +19px to the physical-right end of the track
+     (track 44 − knob 20 − 2×2.5 margins = 19px of travel). */
   .switch::after{
     content:''; position:absolute; top:2.5px; inset-inline-end:2.5px; width:20px; height:20px; background:var(--text);
-    border-radius:50%; transition:inset-inline-end .25s var(--ease), background .25s;
+    border-radius:50%; transition:transform var(--dur-slow) var(--ease), background var(--dur-slow) var(--ease);
     box-shadow:0 2px 4px rgba(0,0,0,.3);
   }
   .crisis-toggle.active .switch{background:var(--red);}
-  .crisis-toggle.active .switch::after{inset-inline-end:calc(100% - 22.5px);}
+  .crisis-toggle.active .switch::after{transform:translateX(19px);}
 
   /* ================= SECTION TITLES ================= */
   .section-title{
@@ -508,7 +574,9 @@
     transition: border-color .15s, box-shadow .15s;
   }
   .form input:focus{outline:none; border-color:var(--gold); box-shadow:var(--focus-ring);}
-  .form input::placeholder, .modal input::placeholder, .modal textarea::placeholder{color:var(--muted); opacity:.6;}
+  /* --muted2 is the contrast-tuned muted token; full opacity keeps placeholders
+     at WCAG AA. The previous --muted × .6 alpha dropped well under 4.5:1. */
+  .form input::placeholder, .modal input::placeholder, .modal textarea::placeholder{color:var(--muted2); opacity:1;}
   .form input[type=number]{font-variant-numeric: tabular-nums;}
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
@@ -658,8 +726,8 @@
     display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:12px;
   }
   .cat-chip{
-    display:flex; flex-direction:column; align-items:center; gap:4px;
-    padding:8px 4px; background:var(--bg-elev); border:1px solid var(--line);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    padding:8px 4px; min-height:44px; background:var(--bg-elev); border:1px solid var(--line);
     border-radius:var(--radius-sm); color:var(--muted); font-size:10px; font-weight:600;
     cursor:pointer; transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
   }
@@ -996,7 +1064,9 @@
     -webkit-backdrop-filter: blur(3px);
     backdrop-filter: blur(3px);
     opacity:0; pointer-events:none; visibility:hidden;
-    transition: opacity .2s var(--ease), visibility .2s;
+    /* matches the panel's transform duration below so the backdrop fade and the
+       sheet slide finish together on close (they used to desync: .2s vs .3s) */
+    transition: opacity var(--dur-slow) var(--ease), visibility var(--dur-slow);
   }
   .modal-overlay.open{opacity:1; pointer-events:auto; visibility:visible;}
   .modal{
@@ -1012,7 +1082,7 @@
     overscroll-behavior:contain;
     overflow-y:auto;
     transform:translateY(40px);
-    transition: transform .3s var(--ease);
+    transition: transform var(--dur-slow) var(--ease);
   }
   .modal-overlay.open .modal{transform:translateY(0);}
   .modal .grabber{
@@ -1192,6 +1262,21 @@
     display:flex; align-items:center; gap:8px;
   }
   .sett-section-body{ padding:16px; }
+
+  /* ─── Accent colour swatches ─── */
+  .accent-swatches{ display:flex; flex-wrap:wrap; gap:12px; }
+  .accent-swatch{
+    width:44px; height:44px; border-radius:50%; padding:0; cursor:pointer;
+    border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.18);
+    transition: transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  }
+  .accent-swatch:active{ transform:scale(.9); }
+  .accent-swatch.active{ border-color:var(--text); transform:scale(1.06); }
+  .accent-swatch.active::after{
+    content:'✓'; color:var(--sw-on,#fff); font-size:17px; font-weight:800; line-height:1;
+  }
 
   /* ─── Settings tab panels ─── */
   /* explicit so a stray global display rule can't override the [hidden] attribute */
@@ -1405,7 +1490,7 @@
   outline:none; border-color:var(--gold);
   box-shadow:var(--focus-ring);
 }
-.add-drawer .drawer-body input::placeholder{ color:var(--muted); opacity:.6; }
+.add-drawer .drawer-body input::placeholder{ color:var(--muted2); opacity:1; }
 .add-drawer .drawer-body input[type=number]{ font-variant-numeric:tabular-nums; }
 .add-drawer .drawer-body input[type=date]{ color-scheme:dark; }
 body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }

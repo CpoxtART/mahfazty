@@ -25,6 +25,9 @@ try{
   var _t=localStorage.getItem('walletTracker_theme');
   if(_t!=='light' && _t!=='dark')_t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme:light)').matches)?'light':'dark';
   if(_t==='light')document.body.classList.add('light');
+  /* apply the saved accent palette before first paint too, so the accent doesn't flash gold→colour on load */
+  var _a=localStorage.getItem('walletTracker_accent');
+  if(_a && _a!=='gold' && /^[a-z]+$/.test(_a))document.body.classList.add('accent-'+_a);
 }catch(e){}
 </script>
 
@@ -393,6 +396,8 @@ try{
             <button class="le-tab" data-theme-mode="dark" role="tab" aria-selected="false" onclick="setThemeMode('dark')">🌙 <span>داكن</span></button>
             <button class="le-tab" data-theme-mode="auto" role="tab" aria-selected="false" onclick="setThemeMode('auto')">🌗 <span>تلقائي</span></button>
           </div>
+          <div class="hint" style="margin:16px 0 10px;">لون التطبيق — يُطبَّق في الوضعين الفاتح والداكن بدرجات متناغمة.</div>
+          <div class="accent-swatches" id="accentSwatches" role="radiogroup" aria-label="لون التطبيق"></div>
         </div>
       </div>
 

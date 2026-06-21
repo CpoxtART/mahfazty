@@ -28,6 +28,18 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.9',
+    date: '2026-06-21',
+    title: 'ألوان للتطبيق + لمسات بصرية أدق',
+    items: [
+      'جديد: اختر لون التطبيق من الإعدادات ← الترتيب ← المظهر — ٦ ألوان متناغمة (ذهبي، ياقوتي، زمردي، بنفسجي، وردي، فيروزي) تُطبَّق في الوضعين الفاتح والداكن بدرجات مضبوطة على معايير التباين (WCAG AA).',
+      'اللون المختار يتبعك: يُحفظ، يُزامَن فوراً بين تبويبات التطبيق المفتوحة، ويُحفظ ويُستعاد ضمن النسخة الاحتياطية (تصدير/استيراد).',
+      'حركة مفتاح "الوضع البديل" صارت أنعم وأخف على البطارية (تتحرك عبر transform بدل إعادة حساب التخطيط في كل إطار).',
+      'إغلاق النوافذ المنبثقة صار يتزامن فيه اختفاء الخلفية مع انزلاق النافذة بدل تفاوت بسيط بينهما.',
+      'تحسين وضوح النص التلميحي داخل الحقول (placeholder)، وزيادة مساحة لمس بطاقات الفئات، وتوحيد انحناءات الزوايا في الأزرار العلوية.',
+    ],
+  },
+  {
     version: 'v47.8',
     date: '2026-06-21',
     title: 'تحسينات إتاحة (Accessibility) ودقّة الأرقام',
@@ -607,6 +619,79 @@ function initTheme(){
     if(mq.addEventListener) mq.addEventListener('change', onSystemThemeChange);
     else if(mq.addListener) mq.addListener(onSystemThemeChange); // older Safari
   }
+}
+
+/* ============================================================
+   ACCENT PALETTE (works in both light & dark)
+============================================================ */
+// Each palette re-skins the accent (--gold* + --accent-rgb) via a body.accent-<id>
+// class defined in style.css (with a light variant). 'gold' is the default and
+// has NO class — it falls back to the :root/body.light gold tokens. The c1/c2/on
+// triple here is ONLY the swatch preview gradient shown in Settings; the authored,
+// contrast-tuned applied colors live in CSS so they can differ per light/dark.
+const ACCENTS = [
+  {id:'gold',     name:'ذهبي',   c1:'#dcb674', c2:'#b88c46', on:'#241d0d'},
+  {id:'sapphire', name:'ياقوتي', c1:'#6fa0f0', c2:'#4178d0', on:'#08152b'},
+  {id:'emerald',  name:'زمردي',  c1:'#54bd8a', c2:'#2f8a63', on:'#052016'},
+  {id:'amethyst', name:'بنفسجي', c1:'#a987e6', c2:'#7d56c8', on:'#160a2a'},
+  {id:'rose',     name:'وردي',   c1:'#e985a4', c2:'#c25c7f', on:'#2a0f18'},
+  {id:'teal',     name:'فيروزي', c1:'#46c2c2', c2:'#2a9393', on:'#042020'},
+];
+const _ACCENT_IDS = ACCENTS.map(a => a.id);
+function _currentAccent(){
+  let a = null;
+  try{ a = localStorage.getItem(LS_PREFIX + 'accent'); }catch(e){}
+  return _ACCENT_IDS.indexOf(a) > -1 ? a : 'gold';
+}
+function applyAccent(id){
+  if(_ACCENT_IDS.indexOf(id) === -1) id = 'gold';
+  _ACCENT_IDS.forEach(a => { if(a !== 'gold') document.body.classList.remove('accent-' + a); });
+  if(id !== 'gold') document.body.classList.add('accent-' + id);
+  _themeColorCache = {}; // accent changed --gold etc — drop cached colors
+}
+function _updateAccentUI(id){
+  document.querySelectorAll('#accentSwatches [data-accent]').forEach(el => {
+    const active = el.dataset.accent === id;
+    el.classList.toggle('active', active);
+    el.setAttribute('aria-checked', active ? 'true' : 'false');
+  });
+}
+function renderAccentSwatches(){
+  const wrap = document.getElementById('accentSwatches');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  const cur = _currentAccent();
+  ACCENTS.forEach(a => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'accent-swatch' + (a.id === cur ? ' active' : '');
+    b.dataset.accent = a.id;
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', a.id === cur ? 'true' : 'false');
+    b.setAttribute('aria-label', a.name);
+    b.title = a.name;
+    b.style.background = 'linear-gradient(150deg,' + a.c1 + ',' + a.c2 + ')';
+    b.style.setProperty('--sw-on', a.on);
+    b.onclick = () => setAccent(a.id);
+    b.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setAccent(a.id); } };
+    wrap.appendChild(b);
+  });
+}
+function setAccent(id){
+  if(_ACCENT_IDS.indexOf(id) === -1) id = 'gold';
+  try{
+    if(id === 'gold') localStorage.removeItem(LS_PREFIX + 'accent');
+    else localStorage.setItem(LS_PREFIX + 'accent', id);
+  }catch(e){}
+  applyAccent(id);
+  _updateAccentUI(id);
+  // canvas charts bake some theme colors at draw time — redraw so any accent-tinted
+  // pixels stay in sync (cheap, and future-proofs charts that adopt --gold)
+  if(typeof renderChart === 'function') renderChart();
+  if(typeof renderPieChart === 'function') renderPieChart();
+}
+function initAccent(){
+  applyAccent(_currentAccent());
 }
 
 function todayISO(){
