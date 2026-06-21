@@ -761,6 +761,7 @@ function openModal(id){
     renderDistributionEditor();
     renderLayoutEditor();
     renderAccentSwatches();
+    _updateLangUI(_currentLang());
     renderWalletDefsEditor();
     const _ja = document.getElementById('jsonArea'); if(_ja) _ja.value = ''; // fresh scratch area each open (import/export now lives in the data tab)
     switchSettingsTab(_settingsTab); // sync panels/strip to the requested tab
@@ -941,6 +942,7 @@ function exportData(){
     dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
     theme: _currentThemeMode(),
     accent: _currentAccent(),
+    lang: _currentLang(),
     wallets: state.wallets,
     walletDefs: WALLET_DEFS,
     transactions: state.transactions,
@@ -1097,6 +1099,9 @@ async function applyImport(text){
   }
   if(typeof data.accent === 'string'){
     try{ setAccent(data.accent); }catch(_){ } // setAccent validates against the known palette ids
+  }
+  if(data.lang === 'ar' || data.lang === 'en'){
+    try{ setLang(data.lang); }catch(_){ }
   }
   if(typeof data.dataEditedAt === 'number' && data.dataEditedAt > 0){
     try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(data.dataEditedAt)); }catch(_){ }
@@ -2934,6 +2939,7 @@ document.addEventListener('keydown', e => {
 
 initTheme();
 initAccent();
+initLang();
 loadLayoutPrefs();
 renderBottomNav();
 applySectionOrder();
@@ -3055,6 +3061,12 @@ window.addEventListener('storage', (e) => {
     _updateAccentUI(acc);
     if(typeof renderChart === 'function') renderChart();
     if(typeof renderPieChart === 'function') renderPieChart();
+    return;
+  }
+  // Language is a UI preference (not ledger data) — mirror it live across tabs:
+  // re-translate static markup, flip direction, and re-render dynamic UI.
+  if(e.key === _LANG_LS){
+    setLang(_currentLang());
     return;
   }
   // Layout prefs (tab/section order, recent-tx page size) are cosmetic-only and

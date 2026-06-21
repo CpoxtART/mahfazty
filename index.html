@@ -23,12 +23,22 @@
 /* Apply saved theme before first paint to prevent dark-flash on light-mode devices */
 try{
   var _t=localStorage.getItem('walletTracker_theme');
-  if(_t!=='light' && _t!=='dark' && _t!=='black')_t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme:light)').matches)?'light':'dark';
+  if(_t!=='light' && _t!=='dark' && _t!=='black'){
+    /* auto: follow the OS, and when it's dark resolve to the user's preferred
+       dark variant (standard vs matte) so neither flashes before the engine runs */
+    _t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme:light)').matches)?'light':(localStorage.getItem('walletTracker_darkVariant')==='black'?'black':'dark');
+  }
   if(_t==='light')document.body.classList.add('light');
   else if(_t==='black')document.body.classList.add('theme-black');
   /* apply the saved accent palette before first paint too, so the accent doesn't flash gold→colour on load */
   var _a=localStorage.getItem('walletTracker_accent');
   if(_a && _a!=='gold' && /^[a-z]+$/.test(_a))document.body.classList.add('accent-'+_a);
+  /* apply saved language direction before first paint so an English (LTR) user
+     doesn't see the RTL layout flash before the engine initialises */
+  if(localStorage.getItem('walletTracker_lang')==='en'){
+    document.documentElement.setAttribute('lang','en');
+    document.documentElement.setAttribute('dir','ltr');
+  }
 }catch(e){}
 </script>
 
@@ -42,15 +52,15 @@ try{
   <div class="brand">
     <div class="mark">💰</div>
     <div class="brand-text">
-      <h1>محفظتيييي</h1>
+      <h1 data-i18n="app.name">محفظتيييي</h1>
       <span class="brand-emoji">🙂‍↔️</span>
     </div>
   </div>
   <div class="actions">
-    <span id="driveIndicator" style="display:none; align-items:center; font-size:13px;" title="حالة المزامنة"></span>
-    <button class="icon-btn" id="themeToggle" onclick="toggleTheme()" aria-label="تبديل المظهر"></button>
-    <button class="icon-btn" onclick="openSettingsTab('data')" aria-label="البيانات">⇅</button>
-    <button class="icon-btn icon-btn--primary" onclick="openSettingsTab('layout')" aria-label="الإعدادات">⚙</button>
+    <span id="driveIndicator" style="display:none; align-items:center; font-size:13px;" title="حالة المزامنة" data-i18n-title="hdr.syncStatus"></span>
+    <button class="icon-btn" id="themeToggle" onclick="toggleTheme()" aria-label="تبديل المظهر" data-i18n-aria="hdr.themeToggle"></button>
+    <button class="icon-btn" onclick="openSettingsTab('data')" aria-label="البيانات" data-i18n-aria="hdr.data">⇅</button>
+    <button class="icon-btn icon-btn--primary" onclick="openSettingsTab('layout')" aria-label="الإعدادات" data-i18n-aria="hdr.settings">⚙</button>
   </div>
 </header>
 
@@ -59,15 +69,15 @@ try{
 
   <div class="ui-sec" data-sec="balance">
     <div class="hero">
-      <div class="label">إجمالي المتاح للصرف</div>
+      <div class="label" data-i18n="home.spendable">إجمالي المتاح للصرف</div>
       <div class="amount" id="totalSpendable">٠</div>
       <div class="meta-row">
         <div class="item">
-          <div class="ml"><span class="dot g"></span> دخل الشهر</div>
+          <div class="ml"><span class="dot g"></span> <span data-i18n="home.monthIncome">دخل الشهر</span></div>
           <b class="pos" id="heroIncome">٠</b>
         </div>
         <div class="item">
-          <div class="ml"><span class="dot r"></span> مصروف الشهر</div>
+          <div class="ml"><span class="dot r"></span> <span data-i18n="home.monthExpense">مصروف الشهر</span></div>
           <b class="neg" id="heroExpense">٠</b>
         </div>
       </div>
@@ -77,8 +87,8 @@ try{
   <div class="ui-sec" data-sec="crisis">
     <div class="crisis-toggle" id="crisisToggle" onclick="toggleCrisis()" role="switch" aria-checked="false" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCrisis();}">
       <div class="label"><span class="ic">🔄</span>
-        <div>الوضع البديل
-          <small>دمج الاحتياطي الثاني (٥٠٪) في احتياطي موحّد واحد</small>
+        <div><span data-i18n="home.altMode">الوضع البديل</span>
+          <small data-i18n="home.altModeHint">دمج الاحتياطي الثاني (٥٠٪) في احتياطي موحّد واحد</small>
         </div>
       </div>
       <div class="switch"></div>
@@ -86,7 +96,7 @@ try{
   </div>
 
   <div class="ui-sec" data-sec="wallets">
-    <div class="section-title">المحافظ <span class="count" id="walletCount"></span></div>
+    <div class="section-title"><span data-i18n="home.wallets">المحافظ</span> <span class="count" id="walletCount"></span></div>
     <div class="wallets" id="walletsGrid"></div>
   </div>
 
@@ -94,7 +104,7 @@ try{
 
 <!-- ===== TAB: TRANSACTIONS (full log) ===== -->
 <div class="tab-panel" id="tabTransactions">
-  <div class="section-title">سجل المعاملات <span class="count" id="txLogCount"></span></div>
+  <div class="section-title"><span data-i18n="sec.txLog">سجل المعاملات</span> <span class="count" id="txLogCount"></span></div>
   <div class="tx-list" id="recentTxList" role="list"></div>
 </div>
 
@@ -102,7 +112,7 @@ try{
 <div class="tab-panel" id="tabAnalytics">
 
   <div class="ui-sec" data-sec="stats">
-    <div class="section-title">📊 تحليلات الشهر</div>
+    <div class="section-title" data-i18n="sec.monthStats">📊 تحليلات الشهر</div>
     <div class="analytics-grid" id="analyticsGrid"></div>
   </div>
 
@@ -112,14 +122,14 @@ try{
 
   <div class="ui-sec" data-sec="export">
     <div class="btn-row" style="margin-bottom:14px;">
-      <button class="btn-secondary" onclick="exportMonthlyReport()">📄 تصدير/مشاركة تقرير الشهر</button>
+      <button class="btn-secondary" onclick="exportMonthlyReport()" data-i18n="sec.exportReport">📄 تصدير/مشاركة تقرير الشهر</button>
     </div>
   </div>
 
   <div class="ui-sec" data-sec="subscriptions">
     <div class="subs-section-header">
-      <span class="subs-label">الاشتراكات الشهرية</span>
-      <button class="sub-add-btn" onclick="openSubModal(null)">＋ اشتراك</button>
+      <span class="subs-label" data-i18n="sec.subs">الاشتراكات الشهرية</span>
+      <button class="sub-add-btn" onclick="openSubModal(null)" data-i18n="sec.subAdd">＋ اشتراك</button>
     </div>
     <div class="subs-total" id="subsTotal"></div>
     <div class="subs-list" id="subsList"></div>
@@ -127,7 +137,7 @@ try{
 
   <div class="ui-sec" data-sec="chart">
     <div class="chart-wrap" id="pieWrap">
-      <div class="chart-title"><span>التوزيع حسب الفئة</span></div>
+      <div class="chart-title"><span data-i18n="sec.byCategory">التوزيع حسب الفئة</span></div>
       <div class="pie-wrap" id="pieContent"></div>
     </div>
   </div>
@@ -137,42 +147,42 @@ try{
 <!-- ===== TAB 3: REPORTS ===== -->
 <div class="tab-panel" id="tabReports">
 
-  <div class="wallet-filter-chip" id="walletFilterChip" onclick="clearWalletFilter()" role="button" tabindex="0" aria-label="إلغاء تصفية المحفظة" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();clearWalletFilter();}">
+  <div class="wallet-filter-chip" id="walletFilterChip" onclick="clearWalletFilter()" role="button" tabindex="0" aria-label="إلغاء تصفية المحفظة" data-i18n-aria="flt.clearWallet" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();clearWalletFilter();}">
     <span id="walletFilterLabel"></span>
     <span aria-hidden="true">✕</span>
   </div>
 
-  <div class="wallet-filter-chip" id="categoryFilterChip" onclick="toggleCategoryFilter(null)" style="background:var(--blue-soft); border-color:var(--blue);" role="button" tabindex="0" aria-label="إلغاء تصفية الفئة" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCategoryFilter(null);}">
+  <div class="wallet-filter-chip" id="categoryFilterChip" onclick="toggleCategoryFilter(null)" style="background:var(--blue-soft); border-color:var(--blue);" role="button" tabindex="0" aria-label="إلغاء تصفية الفئة" data-i18n-aria="flt.clearCategory" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCategoryFilter(null);}">
     <span id="categoryFilterLabel" style="color:var(--blue);"></span>
     <span style="color:var(--blue);" aria-hidden="true">✕</span>
   </div>
 
   <div class="filters">
-    <button data-f="day" onclick="setFilter('day')">اليوم</button>
-    <button data-f="week" onclick="setFilter('week')">الأسبوع</button>
-    <button data-f="month" onclick="setFilter('month')">الشهر</button>
-    <button data-f="year" onclick="setFilter('year')">السنة</button>
-    <button data-f="all" class="active" onclick="setFilter('all')">الكل</button>
+    <button data-f="day" onclick="setFilter('day')" data-i18n="flt.day">اليوم</button>
+    <button data-f="week" onclick="setFilter('week')" data-i18n="flt.week">الأسبوع</button>
+    <button data-f="month" onclick="setFilter('month')" data-i18n="flt.month">الشهر</button>
+    <button data-f="year" onclick="setFilter('year')" data-i18n="flt.year">السنة</button>
+    <button data-f="all" class="active" onclick="setFilter('all')" data-i18n="flt.all">الكل</button>
   </div>
 
   <div class="search-box" id="searchBox">
     <span class="ic">🔍</span>
-    <input type="text" id="searchInput" placeholder="ابحث في المعاملات..." oninput="onSearchInput()" autocomplete="off">
-    <button class="clear" onclick="clearSearch()" aria-label="مسح البحث">✕</button>
+    <input type="text" id="searchInput" placeholder="ابحث في المعاملات..." data-i18n-ph="search.ph" oninput="onSearchInput()" autocomplete="off">
+    <button class="clear" onclick="clearSearch()" aria-label="مسح البحث" data-i18n-aria="search.clear">✕</button>
   </div>
 
   <div class="ui-sec" data-sec="summary">
     <div class="summary-grid">
       <div class="summary-card in">
-        <div class="l">دخل</div>
+        <div class="l" data-i18n="sum.income">دخل</div>
         <div class="v" id="sumIncome">٠</div>
       </div>
       <div class="summary-card out">
-        <div class="l">مصروف</div>
+        <div class="l" data-i18n="sum.expense">مصروف</div>
         <div class="v" id="sumExpense">٠</div>
       </div>
       <div class="summary-card net">
-        <div class="l">الصافي</div>
+        <div class="l" data-i18n="sum.net">الصافي</div>
         <div class="v" id="sumNet">٠</div>
       </div>
     </div>
@@ -181,11 +191,11 @@ try{
   <div class="ui-sec" data-sec="chart">
     <div class="chart-wrap">
       <div class="chart-title">
-        <span>حركة الرصيد</span>
+        <span data-i18n="sum.balanceFlow">حركة الرصيد</span>
         <span class="net-badge" id="chartNet"></span>
       </div>
-      <canvas id="chartCanvas" role="img" aria-label="مخطط حركة الرصيد"></canvas>
-      <div class="chart-empty" id="chartEmpty" style="display:none;"><span class="ic">📈</span>سجّل معاملتين لترى حركة رصيدك هنا</div>
+      <canvas id="chartCanvas" role="img" aria-label="مخطط حركة الرصيد" data-i18n-aria="sum.chartAria"></canvas>
+      <div class="chart-empty" id="chartEmpty" style="display:none;"><span class="ic">📈</span><span data-i18n="sum.chartEmpty">سجّل معاملتين لترى حركة رصيدك هنا</span></div>
     </div>
   </div>
 
@@ -389,17 +399,29 @@ try{
     <div class="sett-panel" data-sett-panel="layout" role="tabpanel">
       <!-- ─── Appearance ─── -->
       <div class="sett-section">
-        <div class="sett-section-head">🌗 المظهر</div>
+        <div class="sett-section-head" data-i18n="set.appearance">🌗 المظهر</div>
         <div class="sett-section-body">
-          <div class="hint" style="margin:0 0 10px;">اختر فاتح أو داكن، أو اتركه تلقائياً ليتناغم مع إعداد نظام جهازك ويتغيّر معه فوراً عند تبديله.</div>
+          <div class="hint" style="margin:0 0 10px;" data-i18n="set.appearanceHint">اختر فاتح أو داكن، أو اتركه تلقائياً ليتناغم مع إعداد نظام جهازك ويتغيّر معه فوراً عند تبديله.</div>
           <div class="le-tabs" id="themeModeTabs" role="tablist" aria-label="وضع المظهر">
-            <button class="le-tab" data-theme-mode="light" role="tab" aria-selected="false" onclick="setThemeMode('light')">☀️ <span>فاتح</span></button>
-            <button class="le-tab" data-theme-mode="dark" role="tab" aria-selected="false" onclick="setThemeMode('dark')">🌙 <span>داكن</span></button>
-            <button class="le-tab" data-theme-mode="black" role="tab" aria-selected="false" onclick="setThemeMode('black')">⚫ <span>أسود</span></button>
-            <button class="le-tab" data-theme-mode="auto" role="tab" aria-selected="false" onclick="setThemeMode('auto')">🌗 <span>تلقائي</span></button>
+            <button class="le-tab" data-theme-mode="light" role="tab" aria-selected="false" onclick="setThemeMode('light')">☀️ <span data-i18n="set.themeLight">فاتح</span></button>
+            <button class="le-tab" data-theme-mode="dark" role="tab" aria-selected="false" onclick="setThemeMode('dark')">🌙 <span data-i18n="set.themeDark">داكن</span></button>
+            <button class="le-tab" data-theme-mode="black" role="tab" aria-selected="false" onclick="setThemeMode('black')">⚫ <span data-i18n="set.themeBlack">مطفي</span></button>
+            <button class="le-tab" data-theme-mode="auto" role="tab" aria-selected="false" onclick="setThemeMode('auto')">🌗 <span data-i18n="set.themeAuto">تلقائي</span></button>
           </div>
-          <div class="hint" style="margin:16px 0 10px;">لون التطبيق — يُطبَّق في الوضعين الفاتح والداكن بدرجات متناغمة.</div>
+          <div class="hint" style="margin:16px 0 10px;" data-i18n="set.accentHint">لون التطبيق — يُطبَّق في الوضعين الفاتح والداكن بدرجات متناغمة.</div>
           <div class="accent-swatches" id="accentSwatches" role="radiogroup" aria-label="لون التطبيق"></div>
+        </div>
+      </div>
+
+      <!-- ─── Language ─── -->
+      <div class="sett-section">
+        <div class="sett-section-head" data-i18n="set.language">🌐 اللغة</div>
+        <div class="sett-section-body">
+          <div class="hint" style="margin:0 0 10px;" data-i18n="set.languageHint">اختر لغة التطبيق. يتغيّر اتجاه الواجهة تلقائياً مع اللغة.</div>
+          <div class="le-tabs" id="langTabs" role="tablist" aria-label="Language / اللغة">
+            <button class="le-tab" data-lang="ar" role="tab" aria-selected="false" onclick="setLang('ar')">🇸🇦 <span>العربية</span></button>
+            <button class="le-tab" data-lang="en" role="tab" aria-selected="false" onclick="setLang('en')">🇬🇧 <span>English</span></button>
+          </div>
         </div>
       </div>
 
@@ -932,6 +954,7 @@ try{
 </script>
 <!-- app split into 3 ordered classic scripts (shared global scope, equivalent to
      the old single app.js). Load order matters: core → ui → logic (bootstrap). -->
+<script src="i18n.js"></script>
 <script src="app.core.js"></script>
 <script src="app.ui.js"></script>
 <script src="app.logic.js"></script>

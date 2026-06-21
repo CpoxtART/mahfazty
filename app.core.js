@@ -28,6 +28,16 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.11',
+    date: '2026-06-21',
+    title: 'لغة إنجليزية + تحكّم أدق بوضع الليل',
+    items: [
+      'جديد: دعم اللغة الإنجليزية — بدّلها من الإعدادات ← الترتيب ← اللغة، ويتحوّل اتجاه الواجهة تلقائياً (يمين↔يسار) مع اللغة. يُحفظ الاختيار ويُزامَن بين التبويبات ويُحفظ في النسخة الاحتياطية. (الترجمة تشمل الشاشات الرئيسية الآن وتتوسّع تباعاً لبقية النوافذ.)',
+      'أُعيدت تسمية وضع "أسود" إلى "مطفي".',
+      'صار التطبيق يتذكّر نمط الليل المفضّل لك (داكن أو مطفي): عند الضغط على زر تبديل المظهر، أو عند التبديل التلقائي حسب نظام جهازك، يذهب إلى النمط الذي اخترته آخر مرة بدل الداكن العادي دائماً.',
+    ],
+  },
+  {
     version: 'v47.10',
     date: '2026-06-21',
     title: 'وضع أسود مطفي + لون بنّي',
@@ -590,8 +600,17 @@ function _currentThemeMode(){
   try{ m = localStorage.getItem(LS_PREFIX + 'theme'); }catch(e){}
   return (m === 'light' || m === 'dark' || m === 'black') ? m : 'auto';
 }
+// Which dark style to use whenever the theme resolves to "dark" — either the
+// standard dark or the matte ('black'). Remembered from the user's last explicit
+// dark/matte pick so 'auto' AND the header quick-toggle both honour it.
+function _darkVariant(){
+  let v = null;
+  try{ v = localStorage.getItem(LS_PREFIX + 'darkVariant'); }catch(e){}
+  return v === 'black' ? 'black' : 'dark';
+}
 function _resolveThemeMode(mode){
-  return mode === 'auto' ? (_systemPrefersLight() ? 'light' : 'dark') : mode;
+  if(mode === 'auto') return _systemPrefersLight() ? 'light' : _darkVariant();
+  return mode;
 }
 function _updateThemeModeUI(mode){
   document.querySelectorAll('#themeModeTabs [data-theme-mode]').forEach(btn => {
@@ -604,6 +623,9 @@ function setThemeMode(mode){
   try{
     if(mode === 'auto') localStorage.removeItem(LS_PREFIX + 'theme');
     else localStorage.setItem(LS_PREFIX + 'theme', mode);
+    // Remember the preferred dark style so 'auto' and the header toggle resolve
+    // dark to the same variant the user last chose (standard dark vs matte).
+    if(mode === 'dark' || mode === 'black') localStorage.setItem(LS_PREFIX + 'darkVariant', mode);
   }catch(e){}
   applyTheme(_resolveThemeMode(mode));
   _updateThemeModeUI(mode);
@@ -613,9 +635,10 @@ function setThemeMode(mode){
 }
 function toggleTheme(){
   // quick header tap = explicit manual choice (the opposite of what's showing now),
-  // matching the long-standing one-tap behavior; pick 'auto' from Settings instead
+  // matching the long-standing one-tap behavior; pick 'auto' from Settings instead.
+  // Going to dark uses the user's preferred dark variant (standard or matte).
   const isLight = document.body.classList.contains('light');
-  setThemeMode(isLight ? 'dark' : 'light');
+  setThemeMode(isLight ? _darkVariant() : 'light');
 }
 function initTheme(){
   const mode = _currentThemeMode();
