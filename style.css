@@ -129,6 +129,15 @@
     --gold:#0f6b6b; --gold-dim:#4fb3b3; --gold-soft:#e0f3f3;
     --gold-btn:#157d7d; --gold-btn-end:#0f6464; --on-gold:#ffffff;
   }
+  body.accent-brown{
+    --gold:#cba888; --gold-dim:#9a7a5c; --gold-soft:#241c14;
+    --gold-btn:#b88a5e; --gold-btn-end:#8a6038; --on-gold:#1f1408;
+    --accent-rgb:184,138,94;
+  }
+  body.light.accent-brown{
+    --gold:#7a5230; --gold-dim:#b08a64; --gold-soft:#f1e8de;
+    --gold-btn:#8a5e36; --gold-btn-end:#6e4a28; --on-gold:#ffffff;
+  }
   body.light{
     --bg:#f4f2ed;
     --bg-elev:#fbfaf7;
@@ -160,6 +169,30 @@
     --blue-soft:#e3edf5;
     --shadow: 0 8px 24px rgba(80,70,50,.12);
     --shadow-strong: 0 10px 30px rgba(80,70,50,.22);
+  }
+  /* ===================== MATTE-BLACK NIGHT THEME =====================
+     A deeper, neutral (no blue tint) matte black variant of the dark theme —
+     great on OLED. It overrides ONLY the neutral surface/line/text tokens; it is
+     a dark theme (no .light), so the :root dark accent (--gold*) values still
+     apply and every accent palette keeps working on top of it. Selected as a
+     4th appearance mode ('black'). */
+  body.theme-black{
+    --bg:#0b0b0d;
+    --bg-elev:#121214;
+    --card:#17171a;
+    --card2:#1f1f23;
+    --line:#2c2c31;
+    --line-soft:#202024;
+    --text:#f2f2f4;
+    --muted:#9b9ba1;   /* neutral gray, ~6:1 on --card */
+    --muted2:#9b9ba1;
+    --shadow: 0 8px 28px rgba(0,0,0,.55);
+    --shadow-strong: 0 10px 34px rgba(0,0,0,.7);
+  }
+  /* the hero uses a hardcoded charcoal gradient for the default dark theme;
+     give matte-black its own neutral-black gradient so it doesn't stay bluish */
+  body.theme-black .hero{
+    background:linear-gradient(160deg, #1c1c20 0%, #141417 65%, #0e0e10 100%);
   }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
   html{scroll-behavior:smooth;}
@@ -1709,6 +1742,12 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   touch-action:manipulation;
 }
 .le-tab span{ font-size:11px; }
+/* The appearance picker has 4 equal options (فاتح/داكن/أسود/تلقائي) — distribute
+   them evenly and let them shrink so all four fit a 320px screen without the
+   horizontal scroll the generic .le-tabs falls back to. */
+#themeModeTabs .le-tab{ flex:1 1 0; min-width:0; justify-content:center; padding-inline:4px; gap:3px; font-size:11px; }
+#themeModeTabs .le-tab span{ overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:360px){ #themeModeTabs .le-tab{ font-size:10px; } }
 .le-tab.active{
   background:var(--card); color:var(--gold);
   box-shadow:0 1px 4px rgba(0,0,0,.18);

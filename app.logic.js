@@ -1092,7 +1092,7 @@ async function applyImport(text){
   pendingIncomeTx = null;
   detailWalletId = null;
   // restore appearance + data-edit time if the backup carried them (lossless round-trip)
-  if(data.theme === 'light' || data.theme === 'dark' || data.theme === 'auto'){
+  if(data.theme === 'light' || data.theme === 'dark' || data.theme === 'black' || data.theme === 'auto'){
     try{ setThemeMode(data.theme); }catch(_){ }
   }
   if(typeof data.accent === 'string'){
@@ -3040,7 +3040,7 @@ window.addEventListener('storage', (e) => {
   // ledger over an unrelated preference change (which used to flash/scroll-jump
   // every open tab just from tapping the header theme toggle in one of them).
   if(e.key === LS_PREFIX + 'theme'){
-    const mode = (e.newValue === 'light' || e.newValue === 'dark') ? e.newValue : 'auto';
+    const mode = (e.newValue === 'light' || e.newValue === 'dark' || e.newValue === 'black') ? e.newValue : 'auto';
     applyTheme(_resolveThemeMode(mode));
     _updateThemeModeUI(mode);
     if(typeof renderChart === 'function') renderChart();

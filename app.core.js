@@ -28,6 +28,16 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.10',
+    date: '2026-06-21',
+    title: 'وضع أسود مطفي + لون بنّي',
+    items: [
+      'جديد: وضع "أسود" مطفي للّيل — خيار رابع بجانب فاتح/داكن/تلقائي في الإعدادات ← الترتيب ← المظهر. أسود محايد عميق مريح للعين وموفّر للطاقة على شاشات OLED.',
+      'جديد: لون "بنّي" أُضيف إلى ألوان التطبيق — متاح في الوضعين الفاتح والداكن (والأسود) بدرجات مضبوطة على معايير التباين.',
+      'كل ألوان التطبيق السبعة تعمل فوق الوضع الأسود الجديد، وتُحفظ وتُزامَن وتُستعاد كالمعتاد.',
+    ],
+  },
+  {
     version: 'v47.9',
     date: '2026-06-21',
     title: 'ألوان للتطبيق + لمسات بصرية أدق',
@@ -553,27 +563,32 @@ function scrollToTxList(){
 
 function applyTheme(theme){
   _themeColorCache = {}; // theme switch — drop cached colors so charts re-read them
-  document.body.classList.toggle('light', theme === 'light');
+  const isLight = theme === 'light';
+  const isBlack = theme === 'black';
+  document.body.classList.toggle('light', isLight);
+  document.body.classList.toggle('theme-black', isBlack); // matte-black variant of dark
   const btn = document.getElementById('themeToggle');
   if(btn){
-    btn.textContent = theme === 'light' ? '🌙' : '☀️';
-    btn.title = theme === 'light' ? 'التبديل للوضع الداكن' : 'التبديل للوضع الفاتح';
+    btn.textContent = isLight ? '🌙' : '☀️';
+    btn.title = isLight ? 'التبديل للوضع الداكن' : 'التبديل للوضع الفاتح';
   }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if(meta) meta.setAttribute('content', theme === 'light' ? '#f4f2ed' : '#15171c');
+  if(meta) meta.setAttribute('content', isLight ? '#f4f2ed' : (isBlack ? '#0b0b0d' : '#15171c'));
   // keep the installed PWA splash/chrome color in sync with the chosen theme
-  if(typeof applyManifest === 'function') applyManifest(theme === 'light');
+  if(typeof applyManifest === 'function') applyManifest(isLight);
 }
-// Theme MODE is one of 'light' | 'dark' | 'auto'. 'auto' isn't stored explicitly —
-// its absence from localStorage IS the auto state, so a value written before this
-// feature existed ('light'/'dark') keeps behaving as an explicit manual choice.
+// Theme MODE is one of 'light' | 'dark' | 'black' | 'auto'. 'auto' isn't stored
+// explicitly — its absence from localStorage IS the auto state, so a value written
+// before this feature existed ('light'/'dark') keeps behaving as an explicit choice.
+// 'black' is a manual-only matte-dark variant ('auto' never resolves to it — auto
+// only follows the OS light/dark switch).
 function _systemPrefersLight(){
   return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
 }
 function _currentThemeMode(){
   let m = null;
   try{ m = localStorage.getItem(LS_PREFIX + 'theme'); }catch(e){}
-  return (m === 'light' || m === 'dark') ? m : 'auto';
+  return (m === 'light' || m === 'dark' || m === 'black') ? m : 'auto';
 }
 function _resolveThemeMode(mode){
   return mode === 'auto' ? (_systemPrefersLight() ? 'light' : 'dark') : mode;
@@ -636,6 +651,7 @@ const ACCENTS = [
   {id:'amethyst', name:'بنفسجي', c1:'#a987e6', c2:'#7d56c8', on:'#160a2a'},
   {id:'rose',     name:'وردي',   c1:'#e985a4', c2:'#c25c7f', on:'#2a0f18'},
   {id:'teal',     name:'فيروزي', c1:'#46c2c2', c2:'#2a9393', on:'#042020'},
+  {id:'brown',    name:'بنّي',   c1:'#b88a5e', c2:'#8a6038', on:'#1f1408'},
 ];
 const _ACCENT_IDS = ACCENTS.map(a => a.id);
 function _currentAccent(){
