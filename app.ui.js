@@ -333,9 +333,9 @@ async function saveWalletDefModal(){
   if(_saveWalletDefBusy) return;
   const nameInput = document.getElementById('walletDefName');
   const name = stripBidiControls(nameInput.value).trim().slice(0,40);
-  if(!name){ toast('⚠ أدخل اسم المحفظة', true); nameInput.focus(); return; }
+  if(!name){ toast(t({ar:'⚠ أدخل اسم المحفظة', en:'⚠ Enter a wallet name'}), true); nameInput.focus(); return; }
   if(WALLET_DEFS.some(w => w.id !== editingWalletDefId && w.name === name)){
-    toast('⚠ يوجد محفظة بهذا الاسم بالفعل', true); nameInput.focus(); return;
+    toast(t({ar:'⚠ يوجد محفظة بهذا الاسم بالفعل', en:'⚠ A wallet with this name already exists'}), true); nameInput.focus(); return;
   }
 
   _saveWalletDefBusy = true;
@@ -343,7 +343,7 @@ async function saveWalletDefModal(){
   try{
     if(editingWalletDefId){
       const w = WALLET_DEFS.find(x => x.id === editingWalletDefId);
-      if(!w){ toast('⚠ المحفظة غير موجودة', true); return; }
+      if(!w){ toast(t({ar:'⚠ المحفظة غير موجودة', en:'⚠ Wallet not found'}), true); return; }
       w.name = name;
       await saveWalletDefs();
     } else {
@@ -364,7 +364,7 @@ async function saveWalletDefModal(){
     }
     refreshAfterWalletDefsChange();
     closeModal('walletDefModal');
-    toast('✓ تم الحفظ');
+    toast(t({ar:'✓ تم الحفظ', en:'✓ Saved'}));
   } finally {
     _saveWalletDefBusy = false;
     _opInFlight--;
@@ -378,18 +378,18 @@ async function deleteWalletDef(id){
   if(_saveWalletDefBusy) return false;
   const w = WALLET_DEFS.find(x => x.id === id);
   if(!w) return false;
-  if(id === 'core'){ toast('⚠ لا يمكن حذف المحفظة الرئيسية', true); return false; }
+  if(id === 'core'){ toast(t({ar:'⚠ لا يمكن حذف المحفظة الرئيسية', en:'⚠ Cannot delete the main wallet'}), true); return false; }
   if(!w.track && WALLET_DEFS.filter(x => !x.track).length <= 1){
-    toast('⚠ لا يمكن حذف آخر محفظة عادية', true); return false;
+    toast(t({ar:'⚠ لا يمكن حذف آخر محفظة عادية', en:'⚠ Cannot delete the last regular wallet'}), true); return false;
   }
   if(Math.abs(state.wallets[id] ?? 0) > 0.004){
-    toast('⚠ صفّر رصيد المحفظة أولاً قبل حذفها', true); return false;
+    toast(t({ar:'⚠ صفّر رصيد المحفظة أولاً قبل حذفها', en:'⚠ Zero out the wallet balance before deleting it'}), true); return false;
   }
   const hasTx = state.transactions.some(tx => tx.wallet === id || tx.trackWallet === id);
   if(hasTx){
-    toast('⚠ لا يمكن حذف محفظة مرتبطة بمعاملات موجودة', true); return false;
+    toast(t({ar:'⚠ لا يمكن حذف محفظة مرتبطة بمعاملات موجودة', en:'⚠ Cannot delete a wallet linked to existing transactions'}), true); return false;
   }
-  if(!confirm(`حذف محفظة "${w.name}" نهائياً؟`)) return false;
+  if(!confirm(t({ar:`حذف محفظة "${w.name}" نهائياً؟`, en:`Permanently delete wallet "${w.name}"?`}))) return false;
 
   _saveWalletDefBusy = true;
   _opInFlight++;
@@ -404,7 +404,7 @@ async function deleteWalletDef(id){
     await saveBalances();
     if(editingWalletDefId === id) editingWalletDefId = null;
     refreshAfterWalletDefsChange();
-    toast('🗑 تم حذف المحفظة');
+    toast(t({ar:'🗑 تم حذف المحفظة', en:'🗑 Wallet deleted'}));
     return true;
   } finally {
     _saveWalletDefBusy = false;
@@ -531,7 +531,7 @@ function setTrackLinkMode(walletId, mode){
   scheduleDriveSync();
   _updateTrackModeToggleUI(walletId);
   renderTrackLinkPicker(); // refresh the add-form hint if this wallet is selected there
-  if(saved) toast(trackLinkMode[walletId] === 'credit' ? '✓ سيُحتسب كعدّاد إنفاق (يزيد)' : '✓ سيُحتسب كرصيد فعلي (ينقص)');
+  if(saved) toast(trackLinkMode[walletId] === 'credit' ? t({ar:'✓ سيُحتسب كعدّاد إنفاق (يزيد)', en:'✓ Will be counted as a spending counter (increases)'}) : t({ar:'✓ سيُحتسب كرصيد فعلي (ينقص)', en:'✓ Will be counted as an actual balance (decreases)'}));
 }
 function _updateTrackModeToggleUI(walletId){
   const credit = trackModeFor(walletId) === 'credit';
@@ -631,7 +631,7 @@ function saveLayoutPrefs(){
     localStorage.setItem(LS_PREFIX + 'recentTxLimit', String(recentTxLimit));
     localStorage.setItem(LS_PREFIX + 'trackLinkMode', JSON.stringify(trackLinkMode));
     return true;
-  }catch(e){ toast('⚠ فشل حفظ تفضيلات الترتيب محليًا', true); return false; }
+  }catch(e){ toast(t({ar:'⚠ فشل حفظ تفضيلات الترتيب محليًا', en:'⚠ Failed to save layout preferences locally'}), true); return false; }
 }
 function setRecentTxLimit(n){
   recentTxLimit = clampRecentLimit(n);
@@ -811,7 +811,7 @@ function resetLayout(){
   applySectionOrder();
   renderRecentTx();
   renderLayoutEditor();
-  if(saved) toast('↺ تمت استعادة الترتيب الافتراضي');
+  if(saved) toast(t({ar:'↺ تمت استعادة الترتيب الافتراضي', en:'↺ Default layout restored'}));
 }
 
 /* ============================================================
@@ -1094,12 +1094,12 @@ async function saveSubModal(){
   const amount = round2(parseAmount(amountInput.value));
   const billingDay = parseInt(normalizeDigits(dayInput.value), 10); // normalize Arabic-Indic digits (numeric keyboards often default to them)
   const active = document.getElementById('subActive')?.checked !== false;
-  if(!name){ toast('⚠ أدخل اسم الاشتراك', true); nameInput.focus(); return; }
+  if(!name){ toast(t({ar:'⚠ أدخل اسم الاشتراك', en:'⚠ Enter a subscription name'}), true); nameInput.focus(); return; }
   if(subscriptions.some(s => s.id !== editingSubId && s.name === name)){
-    toast('⚠ يوجد اشتراك بهذا الاسم بالفعل', true); nameInput.focus(); return;
+    toast(t({ar:'⚠ يوجد اشتراك بهذا الاسم بالفعل', en:'⚠ A subscription with this name already exists'}), true); nameInput.focus(); return;
   }
-  if(!isFinite(amount)||amount<=0){ toast('⚠ أدخل مبلغ صحيح', true); amountInput.focus(); return; }
-  if(!isFinite(billingDay)||billingDay<1||billingDay>31){ toast('⚠ أدخل يوم صحيح (1-31)', true); dayInput.focus(); return; }
+  if(!isFinite(amount)||amount<=0){ toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true); amountInput.focus(); return; }
+  if(!isFinite(billingDay)||billingDay<1||billingDay>31){ toast(t({ar:'⚠ أدخل يوم صحيح (1-31)', en:'⚠ Enter a valid day (1-31)'}), true); dayInput.focus(); return; }
 
   _saveSubBusy = true;
   _opInFlight++;
@@ -1113,7 +1113,7 @@ async function saveSubModal(){
     await saveSubs();
     renderSubscriptions();
     closeModal('subModal');
-    toast('✓ تم حفظ الاشتراك');
+    toast(t({ar:'✓ تم حفظ الاشتراك', en:'✓ Subscription saved'}));
   } finally {
     _saveSubBusy = false;
     _opInFlight--;
@@ -1121,7 +1121,7 @@ async function saveSubModal(){
 }
 async function deleteSubModal(){
   if(_saveSubBusy || !editingSubId) return;
-  if(!confirm('حذف هذا الاشتراك نهائياً؟')) return;
+  if(!confirm(t({ar:'حذف هذا الاشتراك نهائياً؟', en:'Permanently delete this subscription?'}))) return;
   _saveSubBusy = true;
   _opInFlight++;
   try{
@@ -1129,7 +1129,7 @@ async function deleteSubModal(){
     await saveSubs();
     renderSubscriptions();
     closeModal('subModal');
-    toast('🗑 تم حذف الاشتراك');
+    toast(t({ar:'🗑 تم حذف الاشتراك', en:'🗑 Subscription deleted'}));
   } finally {
     _saveSubBusy = false;
     _opInFlight--;
@@ -1287,7 +1287,7 @@ let _voiceTimer = null;
 function startVoiceInput(){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SpeechRecognition){
-    toast('⚠ متصفحك لا يدعم الإدخال الصوتي', true);
+    toast(t({ar:'⚠ متصفحك لا يدعم الإدخال الصوتي', en:'⚠ Your browser does not support voice input'}), true);
     return;
   }
   const btn = document.getElementById('voiceBtn');
@@ -1328,9 +1328,9 @@ function startVoiceInput(){
   voiceRecognition.onerror = (e) => {
     cleanup();
     if(e.error === 'not-allowed'){
-      toast('⚠ يجب السماح بالوصول للميكروفون', true);
+      toast(t({ar:'⚠ يجب السماح بالوصول للميكروفون', en:'⚠ Microphone access must be allowed'}), true);
     } else if(e.error !== 'aborted'){
-      toast('⚠ تعذر التعرف على الصوت، حاول مرة أخرى', true);
+      toast(t({ar:'⚠ تعذر التعرف على الصوت، حاول مرة أخرى', en:'⚠ Could not recognize speech, try again'}), true);
     }
   };
 
@@ -1342,14 +1342,14 @@ function startVoiceInput(){
     if(!event.results || !event.results[0] || !event.results[0][0]) return;
     const transcript = event.results[0][0].transcript.trim();
     if(!transcript){
-      toast('🎤 لم يُفهم الكلام — حاول مجددًا', true);
+      toast(t({ar:'🎤 لم يُفهم الكلام — حاول مجددًا', en:'🎤 Speech not understood — try again'}), true);
       return;
     }
     applyVoiceTranscript(transcript);
   };
 
   try{ voiceRecognition.start(); }
-  catch(e){ cleanup(); toast('⚠ تعذر بدء التعرف الصوتي', true); }
+  catch(e){ cleanup(); toast(t({ar:'⚠ تعذر بدء التعرف الصوتي', en:'⚠ Could not start voice recognition'}), true); }
 }
 
 function applyVoiceTranscript(text){
@@ -1392,7 +1392,7 @@ function applyVoiceTranscript(text){
   if(amount !== null){
     toast(`🎤 "${text}" → ${fmt(amount)} ${desc?'· '+desc:''}`);
   } else {
-    toast('🎤 لم يتم العثور على رقم — اكتب المبلغ يدويًا', true);
+    toast(t({ar:'🎤 لم يتم العثور على رقم — اكتب المبلغ يدويًا', en:'🎤 No number found — enter the amount manually'}), true);
     const amtEl = document.getElementById('amountInput');
     amtEl.focus(); // guide the user straight to the missing field
     amtEl.scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -1702,23 +1702,23 @@ async function doTransfer(){
   if(_doTransferBusy) return;
   const amountInput = document.getElementById('transferAmount');
   const amt = round2(parseAmount(amountInput.value)); // cent precision — match display, avoid sub-cent drift
-  if(!isFinite(amt) || amt <= 0){ toast('⚠ أدخل مبلغ صحيح', true); amountInput.focus(); return; }
-  if(!transferFrom || !transferTo){ toast('⚠ اختر المحفظتين أولاً', true); return; }
-  if(transferFrom === transferTo){ toast('⚠ اختر محفظتين مختلفتين', true); return; }
+  if(!isFinite(amt) || amt <= 0){ toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true); amountInput.focus(); return; }
+  if(!transferFrom || !transferTo){ toast(t({ar:'⚠ اختر المحفظتين أولاً', en:'⚠ Choose both wallets first'}), true); return; }
+  if(transferFrom === transferTo){ toast(t({ar:'⚠ اختر محفظتين مختلفتين', en:'⚠ Choose two different wallets'}), true); return; }
   _doTransferBusy = true;
   _txMutationStamp++; // only once committed past validation — invalid taps shouldn't bump it
   _opInFlight++;
   const _transferBtn = document.getElementById('doTransferBtn');
-  _setBtnSaving(_transferBtn, true, '⏳ جارٍ التنفيذ...');
+  _setBtnSaving(_transferBtn, true, t({ar:'⏳ جارٍ التنفيذ...', en:'⏳ Processing...'}));
   try{
     const dateVal = document.getElementById('transferDate').value || todayISO();
     let ts = buildTxTs(dateVal);
     const fromWallet = WALLET_DEFS.find(w=>w.id===transferFrom);
     const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
-    if(!fromWallet || !toWallet){ toast('⚠ محفظة غير صحيحة', true); return; }
+    if(!fromWallet || !toWallet){ toast(t({ar:'⚠ محفظة غير صحيحة', en:'⚠ Invalid wallet'}), true); return; }
     const fromBalance = state.wallets[transferFrom] ?? 0;
     if(!fromWallet.track && round2(fromBalance - amt) < 0){
-      toast(`⚠ الرصيد غير كافٍ — المتاح: ${fmt(Math.max(0, fromBalance))}`, true);
+      toast(t({ar:`⚠ الرصيد غير كافٍ — المتاح: ${fmt(Math.max(0, fromBalance))}`, en:`⚠ Insufficient balance — available: ${fmt(Math.max(0, fromBalance))}`}), true);
       return;
     }
     // Track wallets are intentionally exempt from the overdraft block above (they're
@@ -1748,9 +1748,9 @@ async function doTransfer(){
     closeModal('transferModal');
     render();
     if(_trackGoingNegative){
-      toast(`⚠ تم التحويل، لكن رصيد "${fromName}" أصبح سالباً`, true);
+      toast(t({ar:`⚠ تم التحويل، لكن رصيد "${fromName}" أصبح سالباً`, en:`⚠ Transfer completed, but "${fromName}" balance is now negative`}), true);
     } else {
-      toast('✓ تم التحويل بنجاح');
+      toast(t({ar:'✓ تم التحويل بنجاح', en:'✓ Transfer successful'}));
     }
   } finally {
     _doTransferBusy = false;
@@ -1770,13 +1770,13 @@ async function updateTrackedBalance(){
   // are in flight, which would otherwise misattribute the refresh/toast below.
   const walletId = detailWalletId;
   const w = WALLET_DEFS.find(x=>x.id===walletId);
-  if(!w){ toast('⚠ المحفظة غير موجودة', true); return; } // detailWalletId could be stale
+  if(!w){ toast(t({ar:'⚠ المحفظة غير موجودة', en:'⚠ Wallet not found'}), true); return; } // detailWalletId could be stale
   const newVal = parseAmount(document.getElementById('detailNewBalance').value);
-  if(isNaN(newVal)){ toast('⚠ أدخل رصيد صحيح', true); return; }
+  if(isNaN(newVal)){ toast(t({ar:'⚠ أدخل رصيد صحيح', en:'⚠ Enter a valid balance'}), true); return; }
 
   const current = state.wallets[walletId] ?? 0;
   const diff = round2(newVal - current);
-  if(diff === 0){ toast('لا يوجد تغيير بالرصيد'); return; }
+  if(diff === 0){ toast(t({ar:'لا يوجد تغيير بالرصيد', en:'No change to the balance'})); return; }
 
   _updateBalanceBusy = true;
   _opInFlight++;
@@ -1802,7 +1802,7 @@ async function updateTrackedBalance(){
     // Only snap the modal back to this wallet if the user is still on it —
     // they may have navigated to a different wallet's detail view meanwhile.
     if(detailWalletId === walletId) openWalletDetail(walletId);
-    toast('✓ تمت مزامنة الرصيد');
+    toast(t({ar:'✓ تمت مزامنة الرصيد', en:'✓ Balance synced'}));
   } finally {
     _updateBalanceBusy = false;
     _opInFlight--;
@@ -1823,7 +1823,7 @@ async function saveWalletBudget(){
     }
     await saveConfig();
     renderWallets();
-    toast('✓ تم حفظ الميزانية');
+    toast(t({ar:'✓ تم حفظ الميزانية', en:'✓ Budget saved'}));
   } finally {
     _saveWalletBudgetBusy = false;
   }
@@ -1885,18 +1885,18 @@ function normalizeDistribution(){
 async function saveDistribution(){
   const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
   if(parseFloat(total.toFixed(1)) !== 100){
-    if(!(total > 0)){ toast('⚠ أدخل نِسبًا صحيحة أولاً', true); return; }
-    if(!confirm(`الإجمالي ${total.toFixed(1)}% وليس 100%.\n\nسيتم تعديل النسب تلقائيًا لتصبح 100% مع الحفاظ على تناسبها. متابعة؟`)) return;
+    if(!(total > 0)){ toast(t({ar:'⚠ أدخل نِسبًا صحيحة أولاً', en:'⚠ Enter valid ratios first'}), true); return; }
+    if(!confirm(t({ar:`الإجمالي ${total.toFixed(1)}% وليس 100%.\n\nسيتم تعديل النسب تلقائيًا لتصبح 100% مع الحفاظ على تناسبها. متابعة؟`, en:`Total is ${total.toFixed(1)}%, not 100%.\n\nRatios will be auto-adjusted to 100% while keeping their proportions. Continue?`}))) return;
     normalizeDistribution();
     renderDistributionEditor(); // reflect the normalized values back into the inputs
   }
   await saveConfig();
   renderWallets();
-  toast('✓ تم حفظ النسب (المجموع 100٪)');
+  toast(t({ar:'✓ تم حفظ النسب (المجموع 100٪)', en:'✓ Ratios saved (total 100%)'}));
 }
 
 function resetDistribution(){
-  if(!confirm('استعادة النسب الافتراضية (50/10/10/10/10/5/5)؟')) return;
+  if(!confirm(t({ar:'استعادة النسب الافتراضية (50/10/10/10/10/5/5)؟', en:'Restore default ratios (50/10/10/10/10/5/5)?'}))) return;
   DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
   // keep custom regular wallets in the editor (DEFAULT only covers factory ones)
   const extra = WALLET_DEFS.filter(w => !w.track && !DISTRIBUTION.find(d => d.id === w.id)).map(w => ({id: w.id, pct: 0}));
@@ -1904,12 +1904,12 @@ function resetDistribution(){
   renderDistributionEditor();
   saveConfig();
   renderWallets();
-  toast('✓ تمت الاستعادة');
+  toast(t({ar:'✓ تمت الاستعادة', en:'✓ Restored'}));
 }
 
 function openWalletDetail(walletId){
   const w = WALLET_DEFS.find(x=>x.id===walletId);
-  if(!w){ toast('⚠ المحفظة غير موجودة', true); return; }
+  if(!w){ toast(t({ar:'⚠ المحفظة غير موجودة', en:'⚠ Wallet not found'}), true); return; }
   detailWalletId = walletId;
   const currentVal = state.wallets[walletId] ?? 0;
   document.getElementById('detailTitle').textContent = (w.track?'🏦 ':'💳 ') + w.name;
@@ -2149,7 +2149,7 @@ function renderRecurring(){
       renderRecurring();
       openAddDrawer();
       switchDrawerTab(0);
-      toast('✓ تم تعبية النموذج — راجع وسجّل المعاملة');
+      toast(t({ar:'✓ تم تعبية النموذج — راجع وسجّل المعاملة', en:'✓ Form filled — review and save the transaction'}));
     };
     box.appendChild(card);
   });

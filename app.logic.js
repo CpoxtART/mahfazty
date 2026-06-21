@@ -9,8 +9,8 @@ async function addTx(type){
   _txMutationStamp++;
   const _expBtn = document.getElementById('addExpenseBtn');
   const _incBtn = document.getElementById('addIncomeBtn');
-  _setBtnSaving(_expBtn, true, '⏳ جارٍ الحفظ...');
-  _setBtnSaving(_incBtn, true, '⏳ جارٍ الحفظ...');
+  _setBtnSaving(_expBtn, true, t({ar:'⏳ جارٍ الحفظ...', en:'⏳ Saving...'}));
+  _setBtnSaving(_incBtn, true, t({ar:'⏳ جارٍ الحفظ...', en:'⏳ Saving...'}));
   try{
     const walletId = selectedWallet;
     const desc = document.getElementById('descInput').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
@@ -20,12 +20,12 @@ async function addTx(type){
     const dateVal = document.getElementById('dateInput').value || todayISO();
 
     if(!isFinite(amountVal) || amountVal <= 0){
-      toast('⚠ أدخل مبلغ صحيح', true);
+      toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true);
       document.getElementById('amountInput').focus();
       return;
     }
     if(!WALLET_DEFS.find(w => w.id === walletId)){
-      toast('⚠ اختر محفظة صحيحة', true);
+      toast(t({ar:'⚠ اختر محفظة صحيحة', en:'⚠ Choose a valid wallet'}), true);
       return;
     }
 
@@ -70,14 +70,14 @@ async function addTx(type){
     render();
     closeAddDrawer();
     haptic(15); // brief confirm pulse on a successful entry
-    toast(type==='expense' ? '✓ تم تسجيل المصروف' : '✓ تم تسجيل الدخل');
+    toast(type==='expense' ? t({ar:'✓ تم تسجيل المصروف', en:'✓ Expense recorded'}) : t({ar:'✓ تم تسجيل الدخل', en:'✓ Income recorded'}));
 
     // auto-distribution flow for income
     if(type === 'income' && tx.category !== 'transfer'){
       if(autoDistribute){
         await runDistribution(tx, amountVal);
         render(); // reflect the distributed shares (render above ran before distribution)
-        toast('🔄 تم توزيع الدخل تلقائيًا');
+        toast(t({ar:'🔄 تم توزيع الدخل تلقائيًا', en:'🔄 Income auto-distributed'}));
       } else {
         pendingIncomeTx = tx;
         openDistributionModal(amountVal);
@@ -152,7 +152,7 @@ async function confirmDistribution(){
   if(!pendingIncomeTx) { closeModal('distributeModal'); return; }
   const hasActive = DISTRIBUTION.some(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
   if(!hasActive){
-    toast('⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً', true);
+    toast(t({ar:'⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً', en:'⚠ No distribution ratios set — set them up in Settings first'}), true);
     return;
   }
   const txToDistribute = pendingIncomeTx;
@@ -160,7 +160,7 @@ async function confirmDistribution(){
   // re-find by id: a cross-tab reload could have replaced state.transactions, leaving
   // txToDistribute detached (its link mutation + legs would target a stale object)
   const live = state.transactions.find(t => t.id === txToDistribute.id);
-  if(!live){ closeModal('distributeModal'); toast('⚠ تعذّر التوزيع — لم تعد المعاملة موجودة', true); return; }
+  if(!live){ closeModal('distributeModal'); toast(t({ar:'⚠ تعذّر التوزيع — لم تعد المعاملة موجودة', en:'⚠ Could not distribute — the transaction no longer exists'}), true); return; }
   _opInFlight++; // guard the multi-await distribution against a mid-flight reload
   const _btn = document.getElementById('confirmDistributionBtn');
   _setBtnSaving(_btn, true);
@@ -168,7 +168,7 @@ async function confirmDistribution(){
     await runDistribution(live, live.amount);
     closeModal('distributeModal');
     render();
-    toast('✓ تم توزيع الدخل على المحافظ');
+    toast(t({ar:'✓ تم توزيع الدخل على المحافظ', en:'✓ Income distributed across wallets'}));
   } finally {
     _opInFlight--;
     _setBtnSaving(_btn, false);
@@ -373,12 +373,12 @@ async function saveEdit(){
   _saveEditBusy = true;     // completes would reverse+reapply the balance twice
   _opInFlight++;
   const _saveBtn = document.getElementById('saveEditBtn');
-  _setBtnSaving(_saveBtn, true, '⏳ جارٍ الحفظ...');
+  _setBtnSaving(_saveBtn, true, t({ar:'⏳ جارٍ الحفظ...', en:'⏳ Saving...'}));
   try{
   _txMutationStamp++;
   const tx = state.transactions.find(t=>t.id===editingTxId);
   if(!tx){
-    toast('⚠ المعاملة لم تعد موجودة — ربما حُذفت من تبويب آخر', true);
+    toast(t({ar:'⚠ المعاملة لم تعد موجودة — ربما حُذفت من تبويب آخر', en:'⚠ This transaction no longer exists — it may have been deleted from another tab'}), true);
     closeModal('editModal');
     return;
   }
@@ -389,17 +389,17 @@ async function saveEdit(){
   // the withdrawal + per-wallet deposit legs already created from the OLD
   // amount, which would otherwise desync the source tx from the money moved.
   if(_editingDistSource){
-    toast('⚠ هذه المعاملة موزعة على محافظ أخرى — احذفها وأضفها من جديد لتغيير المبلغ', true);
+    toast(t({ar:'⚠ هذه المعاملة موزعة على محافظ أخرى — احذفها وأضفها من جديد لتغيير المبلغ', en:'⚠ This transaction is distributed across other wallets — delete and re-add it to change the amount'}), true);
     return;
   }
 
   const newAmount = round2(parseAmount(document.getElementById('editAmount').value)); // cent precision — match display, avoid sub-cent drift
   if(!isFinite(newAmount) || newAmount <= 0){
-    toast('⚠ أدخل مبلغ صحيح', true);
+    toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true);
     return;
   }
   if(!WALLET_DEFS.find(w => w.id === editWallet)){
-    toast('⚠ محفظة غير صالحة', true);
+    toast(t({ar:'⚠ محفظة غير صالحة', en:'⚠ Invalid wallet'}), true);
     return;
   }
 
@@ -469,7 +469,7 @@ async function saveEdit(){
   await saveTx();
   closeModal('editModal');
   render(true); // force: desc/date-only edits don't change the render signature
-  toast('✓ تم التحديث');
+  toast(t({ar:'✓ تم التحديث', en:'✓ Updated'}));
   } finally {
     _saveEditBusy = false;
     _opInFlight--;
@@ -492,7 +492,7 @@ function repeatLastTx(){
     const t = sorted[i];
     if(t.category !== 'transfer' && t.category !== 'adjustment'){ last = t; break; }
   }
-  if(!last){ toast('لا توجد معاملة سابقة لتكرارها'); return; }
+  if(!last){ toast(t({ar:'لا توجد معاملة سابقة لتكرارها', en:'No previous transaction to repeat'})); return; }
   document.getElementById('descInput').value = last.desc || '';
   document.getElementById('amountInput').value = (Number(last.amount) || 0).toFixed(2);
   document.getElementById('amountInput').dispatchEvent(new Event('input'));
@@ -511,7 +511,7 @@ function repeatLastTx(){
   renderTrackLinkPicker();
   openAddDrawer();
   switchDrawerTab(0);
-  toast('✓ تم تعبية النموذج — راجع واضغط تسجيل');
+  toast(t({ar:'✓ تم تعبية النموذج — راجع واضغط تسجيل', en:'✓ Form filled — review and tap Save'}));
 }
 
 let _lastDeleted = null;
@@ -552,7 +552,7 @@ async function deleteTx(id){
     clearTimeout(_undoTimer);
     _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
     haptic([12, 40, 12]); // double-tap pulse signals a destructive commit
-    toastWithUndo(removed.length > 1 ? `🗑 تم حذف ${removed.length} حركات مرتبطة` : '🗑 تم الحذف', undoDelete);
+    toastWithUndo(removed.length > 1 ? t({ar:`🗑 تم حذف ${removed.length} حركات مرتبطة`, en:`🗑 Deleted ${removed.length} linked entries`}) : t({ar:'🗑 تم الحذف', en:'🗑 Deleted'}), undoDelete);
   } finally {
     _opInFlight--;
   }
@@ -576,7 +576,7 @@ async function undoDelete(){
     await saveTx();
     await saveConfig(); // persist tombstone removal
     render();
-    toast(removed.length > 1 ? '↩️ تم استرجاع الحركات' : '↩️ تم استرجاع المعاملة');
+    toast(removed.length > 1 ? t({ar:'↩️ تم استرجاع الحركات', en:'↩️ Entries restored'}) : t({ar:'↩️ تم استرجاع المعاملة', en:'↩️ Transaction restored'}));
   } finally {
     _opInFlight--;
   }
@@ -976,7 +976,7 @@ function exportData(){
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  toast('✓ تم تجهيز ملف التصدير');
+  toast(t({ar:'✓ تم تجهيز ملف التصدير', en:'✓ Export file ready'}));
 }
 
 function importFromFile(event){
@@ -984,7 +984,7 @@ function importFromFile(event){
   if(!file) return;
   // a real export is tiny JSON — reject oversized/binary files before reading
   if(file.size > 10 * 1024 * 1024){
-    toast('⚠ الملف كبير جدًا — اختر ملف نسخة احتياطية صالح', true);
+    toast(t({ar:'⚠ الملف كبير جدًا — اختر ملف نسخة احتياطية صالح', en:'⚠ File too large — choose a valid backup file'}), true);
     event.target.value = '';
     return;
   }
@@ -998,14 +998,14 @@ function importFromFile(event){
       ? result : '/* تم تحميل ملف كبير — يُستورَد مباشرةً دون معاينة */';
     applyImport(result);
   };
-  reader.onerror = () => toast('⚠ تعذّر قراءة الملف', true);
+  reader.onerror = () => toast(t({ar:'⚠ تعذّر قراءة الملف', en:'⚠ Could not read the file'}), true);
   reader.readAsText(file);
   event.target.value = ''; // allow re-selecting the same file later
 }
 
 function importFromTextarea(){
   const txt = document.getElementById('jsonArea').value.trim();
-  if(!txt){ toast('⚠ الصق بيانات JSON أولاً', true); return; }
+  if(!txt){ toast(t({ar:'⚠ الصق بيانات JSON أولاً', en:'⚠ Paste JSON data first'}), true); return; }
   applyImport(txt);
 }
 
@@ -1018,12 +1018,12 @@ function stripOrphanLinks(txList){
 async function applyImport(text){
   let data;
   try{ data = JSON.parse(text); }
-  catch(e){ toast('⚠ تنسيق JSON غير صالح', true); return; }
+  catch(e){ toast(t({ar:'⚠ تنسيق JSON غير صالح', en:'⚠ Invalid JSON format'}), true); return; }
 
   if(!data || typeof data !== 'object' || !data.wallets || !Array.isArray(data.transactions)){
-    toast('⚠ ملف غير صحيح — لا يحتوي على wallets أو transactions', true); return;
+    toast(t({ar:'⚠ ملف غير صحيح — لا يحتوي على wallets أو transactions', en:'⚠ Invalid file — missing wallets or transactions'}), true); return;
   }
-  if(!confirm('سيتم استبدال كل البيانات الحالية. متابعة؟')) return;
+  if(!confirm(t({ar:'سيتم استبدال كل البيانات الحالية. متابعة؟', en:'This will replace all current data. Continue?'}))) return;
   _txMutationStamp++; // wholesale data replacement — invalidate derived caches
   _opInFlight++; // block the cross-tab storage reload mid-import, same as other wholesale replacements
   try{
@@ -1141,9 +1141,9 @@ async function applyImport(text){
   closeModal('settingsModal'); // import/export now lives inside the settings data tab
   render(true);
   if(_droppedTx > 0){
-    toast(`✓ تم الاستيراد — لكن تم تجاهل ${arPlural(_droppedTx, 'معاملة غير صالحة', 'معاملتين غير صالحتين', 'معاملات غير صالحة', 'معاملة واحدة غير صالحة')} (محفظة مجهولة أو بيانات تالفة)`, true);
+    toast(t({ar:`✓ تم الاستيراد — لكن تم تجاهل ${arPlural(_droppedTx, 'معاملة غير صالحة', 'معاملتين غير صالحتين', 'معاملات غير صالحة', 'معاملة واحدة غير صالحة')} (محفظة مجهولة أو بيانات تالفة)`, en:`✓ Import complete — but ${_droppedTx} invalid ${_droppedTx===1?'transaction was':'transactions were'} skipped (unknown wallet or corrupt data)`}), true);
   } else {
-    toast('✓ تم الاستيراد بنجاح');
+    toast(t({ar:'✓ تم الاستيراد بنجاح', en:'✓ Import successful'}));
   }
   } finally {
     _opInFlight--;
@@ -1165,7 +1165,7 @@ async function applyImport(text){
 // (now stale) delta on top of the zeroed balance. reconcileBalances() can't fix
 // this either, since it deliberately skips track wallets (see applyTxToBalance).
 async function zeroTrackedWallets(){
-  if(!confirm('سيتم تصفير أرصدة محافظ التتبع (أوبر، البطاقات، الكاش) إلى صفر.\n\nالمعاملات لا تتأثر. هل تريد المتابعة؟')) return;
+  if(!confirm(t({ar:'سيتم تصفير أرصدة محافظ التتبع (أوبر، البطاقات، الكاش) إلى صفر.\n\nالمعاملات لا تتأثر. هل تريد المتابعة؟', en:'This will reset tracking wallet balances (Uber, cards, cash) to zero.\n\nTransactions are not affected. Continue?'}))) return;
   _txMutationStamp++;
   _opInFlight++;
   try{
@@ -1173,14 +1173,14 @@ async function zeroTrackedWallets(){
     prevSpendable = null;
     await saveBalances();
     render(true);
-    toast('✓ تم تصفير محافظ التتبع');
+    toast(t({ar:'✓ تم تصفير محافظ التتبع', en:'✓ Tracking wallets reset'}));
   } finally { _opInFlight--; }
 }
 
 // Zero the regular (non-tracked) wallets while keeping the ledger. This makes
 // balances diverge from the transaction history on purpose.
 async function zeroRegularWallets(){
-  if(!confirm('⚠️ سيتم تصفير أرصدة المحافظ العادية إلى صفر مع بقاء كل المعاملات.\n\nهذا يجعل الأرصدة لا تطابق سجل المعاملات (قد تظهر أرقام غير متوقعة في الإحصائيات).\n\nهل تريد المتابعة؟')) return;
+  if(!confirm(t({ar:'⚠️ سيتم تصفير أرصدة المحافظ العادية إلى صفر مع بقاء كل المعاملات.\n\nهذا يجعل الأرصدة لا تطابق سجل المعاملات (قد تظهر أرقام غير متوقعة في الإحصائيات).\n\nهل تريد المتابعة؟', en:'⚠️ This will reset regular wallet balances to zero while keeping all transactions.\n\nThis makes balances not match the transaction ledger (unexpected numbers may appear in stats).\n\nContinue?'}))) return;
   _txMutationStamp++;
   _opInFlight++;
   try{
@@ -1188,20 +1188,20 @@ async function zeroRegularWallets(){
     prevSpendable = null;
     await saveBalances();
     render(true);
-    toast('✓ تم تصفير المحافظ العادية');
+    toast(t({ar:'✓ تم تصفير المحافظ العادية', en:'✓ Regular wallets reset'}));
   } finally { _opInFlight--; }
 }
 
 // Remove every subscription. Balances and transactions are untouched.
 async function clearAllSubscriptions(){
-  if(!subscriptions.length){ toast('لا توجد اشتراكات للحذف'); return; }
-  if(!confirm(`سيتم حذف جميع الاشتراكات (${subscriptions.length}). لا يمكن التراجع.\n\nهل تريد المتابعة؟`)) return;
+  if(!subscriptions.length){ toast(t({ar:'لا توجد اشتراكات للحذف', en:'No subscriptions to delete'})); return; }
+  if(!confirm(t({ar:`سيتم حذف جميع الاشتراكات (${subscriptions.length}). لا يمكن التراجع.\n\nهل تريد المتابعة؟`, en:`This will delete all subscriptions (${subscriptions.length}). This cannot be undone.\n\nContinue?`}))) return;
   _opInFlight++;
   try{
     subscriptions = [];
     await saveSubs();
     render(true);
-    toast('✓ تم حذف كل الاشتراكات');
+    toast(t({ar:'✓ تم حذف كل الاشتراكات', en:'✓ All subscriptions deleted'}));
   } finally { _opInFlight--; }
 }
 
@@ -1210,9 +1210,13 @@ async function clearAllSubscriptions(){
 // tombstoned so the deletion propagates on multi-device merge sync (otherwise a
 // cloud copy would resurrect them on the next merge).
 async function clearBalancesAndTx(){
-  const answer = prompt('⚠️ سيتم تصفير كل الأرصدة وحذف كل المعاملات نهائياً.\nالاشتراكات والإعدادات تبقى كما هي.\n\nاكتب كلمة "تصفير" للتأكيد:');
+  const _resetWord = t({ar:'تصفير', en:'RESET'});
+  const answer = prompt(t({
+    ar: `⚠️ سيتم تصفير كل الأرصدة وحذف كل المعاملات نهائياً.\nالاشتراكات والإعدادات تبقى كما هي.\n\nاكتب كلمة "${_resetWord}" للتأكيد:`,
+    en: `⚠️ This will reset all balances and permanently delete all transactions.\nSubscriptions and settings stay as they are.\n\nType "${_resetWord}" to confirm:`,
+  }));
   if(answer === null) return;
-  if(answer.trim() !== 'تصفير'){ toast('أُلغي — لم تُكتب كلمة التأكيد بشكل صحيح'); return; }
+  if(answer.trim() !== _resetWord){ toast(t({ar:'أُلغي — لم تُكتب كلمة التأكيد بشكل صحيح', en:'Cancelled — confirmation word was not typed correctly'})); return; }
   _txMutationStamp++;
   _opInFlight++;
   try{
@@ -1235,7 +1239,7 @@ async function clearBalancesAndTx(){
     await saveConfig(); // persist tombstones (they live in config)
     closeModal('settingsModal');
     render(true);
-    toast('✓ تم تصفير الرصيد والمعاملات');
+    toast(t({ar:'✓ تم تصفير الرصيد والمعاملات', en:'✓ Balance and transactions reset'}));
   } finally { _opInFlight--; }
 }
 
@@ -1249,7 +1253,7 @@ async function repairBalancesFromLedger(){
   const keys = Object.keys(diff);
   if(!keys.length){
     // nothing changed — restore (reconcile already set identical values) and inform
-    toast('✓ الأرصدة مطابقة لسجل المعاملات — لا حاجة للإصلاح');
+    toast(t({ar:'✓ الأرصدة مطابقة لسجل المعاملات — لا حاجة للإصلاح', en:'✓ Balances match the transaction ledger — no fix needed'}));
     render(true);
     return;
   }
@@ -1261,7 +1265,7 @@ async function repairBalancesFromLedger(){
   }).join('\n');
   // revert to pre-reconcile values so cancelling leaves nothing changed
   WALLET_DEFS.forEach(w => state.wallets[w.id] = before[w.id]);
-  if(!confirm(`🔧 سيُعاد حساب الأرصدة من سجل معاملاتك (صفر + مجموع المعاملات).\n\nالفروقات المكتشفة:\n${lines}\n\nتطبيق الإصلاح؟`)){
+  if(!confirm(t({ar:`🔧 سيُعاد حساب الأرصدة من سجل معاملاتك (صفر + مجموع المعاملات).\n\nالفروقات المكتشفة:\n${lines}\n\nتطبيق الإصلاح؟`, en:`🔧 Balances will be recalculated from your transaction ledger (zero + sum of transactions).\n\nDifferences found:\n${lines}\n\nApply the fix?`}))){
     render(true);
     return;
   }
@@ -1269,7 +1273,7 @@ async function repairBalancesFromLedger(){
   await saveBalances();
   closeModal('settingsModal');
   render(true);
-  toast('🔧 تم إصلاح الأرصدة من السجل');
+  toast(t({ar:'🔧 تم إصلاح الأرصدة من السجل', en:'🔧 Balances fixed from the ledger'}));
 }
 
 // Lightweight, non-mutating drift check restricted to ledger-derived wallets (excludes
@@ -1297,16 +1301,20 @@ function checkBalanceDrift(){
   const sig = String(totalDrift);
   try{ if(localStorage.getItem(LS_PREFIX + 'driftNotified') === sig) return; }catch(e){} // already offered for this exact drift
   try{ localStorage.setItem(LS_PREFIX + 'driftNotified', sig); }catch(e){}
-  toastWithAction('⚠ رصيد إحدى محافظك لا يطابق سجل معاملاتها', 'إصلاح', () => { openSettingsTab('data'); repairBalancesFromLedger(); });
+  toastWithAction(t({ar:'⚠ رصيد إحدى محافظك لا يطابق سجل معاملاتها', en:"⚠ One of your wallets' balance doesn't match its transaction ledger"}), t({ar:'إصلاح', en:'Fix'}), () => { openSettingsTab('data'); repairBalancesFromLedger(); });
 }
 
 async function wipeAll(){
   // Typed-word confirmation instead of two consecutive confirm() dialogs — on
   // mobile a fast double-tap could dismiss both confirms and wipe data by
-  // accident. Requiring the user to type "حذف" makes it a deliberate action.
-  const answer = prompt('⚠️ سيتم حذف جميع الأرصدة والمعاملات نهائياً ولا يمكن التراجع.\n\nاكتب كلمة "حذف" للتأكيد:');
+  // accident. Requiring the user to type the confirmation word makes it a deliberate action.
+  const _deleteWord = t({ar:'حذف', en:'DELETE'});
+  const answer = prompt(t({
+    ar: `⚠️ سيتم حذف جميع الأرصدة والمعاملات نهائياً ولا يمكن التراجع.\n\nاكتب كلمة "${_deleteWord}" للتأكيد:`,
+    en: `⚠️ This will permanently delete all balances and transactions. This cannot be undone.\n\nType "${_deleteWord}" to confirm:`,
+  }));
   if(answer === null) return; // cancelled
-  if(answer.trim() !== 'حذف'){ toast('أُلغي الحذف — لم تُكتب كلمة التأكيد بشكل صحيح'); return; }
+  if(answer.trim() !== _deleteWord){ toast(t({ar:'أُلغي الحذف — لم تُكتب كلمة التأكيد بشكل صحيح', en:'Deletion cancelled — confirmation word was not typed correctly'})); return; }
   _txMutationStamp++; // wholesale wipe — invalidate derived caches
   _opInFlight++; // block the cross-tab storage reload mid-wipe across the multi-await sequence below
   try{
@@ -1356,7 +1364,7 @@ async function wipeAll(){
   closeModal('settingsModal');
   render();
   if(typeof renderTrackLinkPicker === 'function') renderTrackLinkPicker();
-  toast('🗑 تم حذف كل البيانات');
+  toast(t({ar:'🗑 تم حذف كل البيانات', en:'🗑 All data deleted'}));
   } finally { _opInFlight--; }
 }
 
@@ -1409,7 +1417,7 @@ function toast(msg, isError){
 }
 
 function toastWithUndo(msg, undoFn){
-  toastWithAction(msg, 'تراجع ↩️', undoFn);
+  toastWithAction(msg, t({ar:'تراجع ↩️', en:'Undo ↩️'}), undoFn);
 }
 // critical=true marks a severe, rare warning (e.g. local persistence totally failed)
 // that must not be silently overwritten by/lost a race with a routine toast that
@@ -1567,7 +1575,7 @@ function _scheduleTokenRefresh(){
     } else {
       clearDriveToken();
       refreshDriveSettingsUI();
-      toast('⏱ انتهت جلسة Drive — اضغط على أيقونة ☁️ في الأعلى أو سجّل دخولك من الإعدادات', true);
+      toast(t({ar:'⏱ انتهت جلسة Drive — اضغط على أيقونة ☁️ في الأعلى أو سجّل دخولك من الإعدادات', en:'⏱ Drive session expired — tap the ☁️ icon above or sign in from Settings'}), true);
     }
   }, delay);
 }
@@ -1593,7 +1601,7 @@ function enableDriveAutoSignIn(){
   if(p) p.style.display = 'none';
   const row = document.getElementById('driveAutoSignInRow');
   if(row) row.style.display = 'block';
-  toast('✓ سيتصل التطبيق بـ Drive تلقائياً في كل مرة تفتحه');
+  toast(t({ar:'✓ سيتصل التطبيق بـ Drive تلقائياً في كل مرة تفتحه', en:'✓ The app will connect to Drive automatically every time you open it'}));
 }
 function dismissDriveAutoSignInPrompt(){
   const p = document.getElementById('driveAutoSignInPrompt');
@@ -1758,25 +1766,25 @@ function refreshDriveSettingsUI(){
 function saveDriveClientId(){
   const val = document.getElementById('driveClientId').value.trim();
   if(!val || !/^[\w.-]+\.apps\.googleusercontent\.com$/.test(val)){
-    toast('⚠ تأكد من نسخ Client ID كاملاً (ينتهي بـ .apps.googleusercontent.com)', true);
+    toast(t({ar:'⚠ تأكد من نسخ Client ID كاملاً (ينتهي بـ .apps.googleusercontent.com)', en:'⚠ Make sure you copied the full Client ID (ends with .apps.googleusercontent.com)'}), true);
     return;
   }
   driveClientId = val;
   try{
     localStorage.setItem(LS_PREFIX + 'driveClientId', val);
   }catch(e){
-    toast('⚠ فشل حفظ Client ID محليًا — لن يبقى محفوظاً بعد إعادة فتح التطبيق', true);
+    toast(t({ar:'⚠ فشل حفظ Client ID محليًا — لن يبقى محفوظاً بعد إعادة فتح التطبيق', en:"⚠ Failed to save Client ID locally — it won't persist after reopening the app"}), true);
     refreshDriveSettingsUI();
     initGisClient();
     return;
   }
   refreshDriveSettingsUI();
   initGisClient();
-  toast('✓ تم الحفظ. الآن سجّل الدخول بجوجل');
+  toast(t({ar:'✓ تم الحفظ. الآن سجّل الدخول بجوجل', en:'✓ Saved. Now sign in with Google'}));
 }
 
 function changeDriveClientId(){
-  if(!confirm('سيتم تسجيل الخروج وحذف إعداد Drive الحالي. متابعة؟')) return;
+  if(!confirm(t({ar:'سيتم تسجيل الخروج وحذف إعداد Drive الحالي. متابعة؟', en:'This will sign out and remove the current Drive setup. Continue?'}))) return;
   driveSignOut();
   driveClientId = '';
   driveFileId = null;
@@ -1802,7 +1810,7 @@ function initGisClient(){
           if(mode === 'refresh'){ clearDriveToken(); refreshDriveSettingsUI(); setDriveIndicator('idle'); return; }
           if(mode === 'banner'){ _driveBannerEscalate = true; showDriveBanner(); return; }
           setDriveIndicator('error');
-          toast('⚠ فشل تسجيل الدخول بجوجل', true);
+          toast(t({ar:'⚠ فشل تسجيل الدخول بجوجل', en:'⚠ Google sign-in failed'}), true);
           refreshDriveSettingsUI();
           return;
         }
@@ -1811,7 +1819,7 @@ function initGisClient(){
         refreshDriveSettingsUI();
         // stay quiet on background silent reconnects/refreshes; only announce when the
         // user explicitly acted (interactive sign-in or a banner tap)
-        if(mode !== 'launch' && mode !== 'refresh') toast('✓ تم تسجيل الدخول بجوجل');
+        if(mode !== 'launch' && mode !== 'refresh') toast(t({ar:'✓ تم تسجيل الدخول بجوجل', en:'✓ Signed in with Google'}));
         // Only an explicit sign-in the user started from Settings ('signin') may
         // interrupt with the conflict-resolution modal. EVERY automatic/banner
         // reconnect ('launch'/'refresh'/'banner'/'reconnect') resolves silently via
@@ -1832,7 +1840,7 @@ function initGisClient(){
 // connection and as the fallback when a silent grant needs real interaction.
 function driveSignIn(){
   if(!gisTokenClient){ initGisClient(); }
-  if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
+  if(!gisTokenClient){ toast(t({ar:'⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', en:'⚠ Could not initialize Google, try refreshing the page'}), true); return; }
   _driveSilentMode = 'signin'; // explicit user-initiated sign-in from Settings — the ONLY path allowed to show the conflict-resolution modal
   try{
     gisTokenClient.requestAccessToken({
@@ -1844,15 +1852,15 @@ function driveSignIn(){
         setDriveIndicator('error');
         const t = (err && err.type) || '';
         if(t === 'popup_failed_to_open'){
-          toast('⚠ تعذّر فتح نافذة جوجل — افتح التطبيق في متصفح Chrome/Safari', true);
+          toast(t({ar:'⚠ تعذّر فتح نافذة جوجل — افتح التطبيق في متصفح Chrome/Safari', en:'⚠ Could not open the Google window — open the app in Chrome/Safari'}), true);
         } else if(t === 'popup_closed'){
-          toast('أُغلقت نافذة تسجيل الدخول قبل اكتمالها', true);
+          toast(t({ar:'أُغلقت نافذة تسجيل الدخول قبل اكتمالها', en:'The sign-in window was closed before completing'}), true);
         } else {
-          toast('⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', true);
+          toast(t({ar:'⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', en:'⚠ Google sign-in failed, try again'}), true);
         }
       }
     });
-  }catch(e){ toast('⚠ تعذّر بدء تسجيل الدخول بجوجل', true); }
+  }catch(e){ toast(t({ar:'⚠ تعذّر بدء تسجيل الدخول بجوجل', en:'⚠ Could not start Google sign-in'}), true); }
 }
 
 // Banner reconnect on mobile: an interactive (gesture-backed) request like driveSignIn,
@@ -1862,7 +1870,7 @@ function driveSignIn(){
 // popup/redirect path that's proven not to hang on mobile (unlike prompt:'' below).
 function driveReconnectInteractive(){
   if(!gisTokenClient){ initGisClient(); }
-  if(!gisTokenClient){ toast('⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', true); return; }
+  if(!gisTokenClient){ toast(t({ar:'⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', en:'⚠ Could not initialize Google, try refreshing the page'}), true); return; }
   _driveSilentMode = 'reconnect'; // automatic banner reconnect — resolve via the silent union merge, never the conflict modal
   try{
     gisTokenClient.requestAccessToken({
@@ -1871,15 +1879,15 @@ function driveReconnectInteractive(){
         setDriveIndicator('error');
         const t = (err && err.type) || '';
         if(t === 'popup_failed_to_open'){
-          toast('⚠ تعذّر فتح نافذة جوجل — افتح التطبيق في متصفح Chrome/Safari', true);
+          toast(t({ar:'⚠ تعذّر فتح نافذة جوجل — افتح التطبيق في متصفح Chrome/Safari', en:'⚠ Could not open the Google window — open the app in Chrome/Safari'}), true);
         } else if(t === 'popup_closed'){
-          toast('أُغلقت نافذة تسجيل الدخول قبل اكتمالها', true);
+          toast(t({ar:'أُغلقت نافذة تسجيل الدخول قبل اكتمالها', en:'The sign-in window was closed before completing'}), true);
         } else {
-          toast('⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', true);
+          toast(t({ar:'⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', en:'⚠ Google sign-in failed, try again'}), true);
         }
       }
     });
-  }catch(e){ toast('⚠ تعذّر بدء تسجيل الدخول بجوجل', true); }
+  }catch(e){ toast(t({ar:'⚠ تعذّر بدء تسجيل الدخول بجوجل', en:'⚠ Could not start Google sign-in'}), true); }
 }
 
 // Silent (no-UI) token request. With an active Google session AND consent already
@@ -1930,7 +1938,7 @@ function driveSignOut(){
   }
   clearDriveToken();
   refreshDriveSettingsUI();
-  toast('تم تسجيل الخروج من Drive');
+  toast(t({ar:'تم تسجيل الخروج من Drive', en:'Signed out of Drive'}));
 }
 
 // Plain fetch() has no built-in timeout — a stalled (not failed) connection on a
@@ -1973,24 +1981,24 @@ function _handleDriveSyncError(e){
     // Do NOT auto-call requestAccessToken here — on mobile Chrome it causes
     // a redirect to gsi/transfer that hangs blank. Instead, guide the user
     // to tap sign-in manually (one tap via the header indicator or settings).
-    toast('⚠ انتهت جلسة Drive — اضغط على ☁️ في الأعلى لتسجيل الدخول من جديد', true);
+    toast(t({ar:'⚠ انتهت جلسة Drive — اضغط على ☁️ في الأعلى لتسجيل الدخول من جديد', en:'⚠ Drive session expired — tap ☁️ above to sign in again'}), true);
   } else if(e.message && e.message.includes('storageQuotaExceeded')){
     // distinct from a generic 403: the user's actual Drive storage is full,
     // not an app-permission problem — re-auth would not fix this
-    toast('⚠ مساحة Google Drive ممتلئة — حرر مساحة لإتمام المزامنة', true);
+    toast(t({ar:'⚠ مساحة Google Drive ممتلئة — حرر مساحة لإتمام المزامنة', en:'⚠ Google Drive storage is full — free up space to complete sync'}), true);
   } else if(e.message && e.message.includes('403')){
-    toast('⚠ تم رفض الإذن من Drive — تأكد من صلاحيات appdata بالـ Client ID', true);
+    toast(t({ar:'⚠ تم رفض الإذن من Drive — تأكد من صلاحيات appdata بالـ Client ID', en:'⚠ Drive permission denied — check the appdata scope on the Client ID'}), true);
   } else if(e.message && e.message.includes('429')){
     // rate-limited — the 1.5s debounce/timer-driven retry already provides
     // natural backoff, so just tell the user honestly instead of implying
     // a connection problem
-    toast('⚠ تم تجاوز حد الطلبات إلى Drive مؤقتًا — سيُعاد المحاولة تلقائيًا', true);
+    toast(t({ar:'⚠ تم تجاوز حد الطلبات إلى Drive مؤقتًا — سيُعاد المحاولة تلقائيًا', en:'⚠ Drive request limit temporarily exceeded — will retry automatically'}), true);
   } else if(e.message && (e.message.includes(' 500') || e.message.includes('503'))){
-    toast('⚠ خطأ مؤقت في خوادم Drive — سيُعاد المحاولة تلقائيًا', true);
+    toast(t({ar:'⚠ خطأ مؤقت في خوادم Drive — سيُعاد المحاولة تلقائيًا', en:'⚠ Temporary error on Drive servers — will retry automatically'}), true);
   } else if(!navigator.onLine){
-    toast('⚠ لا يوجد اتصال بالإنترنت — سيتم الحفظ محليًا فقط', true);
+    toast(t({ar:'⚠ لا يوجد اتصال بالإنترنت — سيتم الحفظ محليًا فقط', en:'⚠ No internet connection — saving locally only'}), true);
   } else {
-    toast('⚠ تعذر الاتصال بـ Drive، سيُعاد المحاولة لاحقًا', true);
+    toast(t({ar:'⚠ تعذر الاتصال بـ Drive، سيُعاد المحاولة لاحقًا', en:'⚠ Could not connect to Drive, will retry later'}), true);
   }
 }
 
@@ -2265,7 +2273,7 @@ async function driveSyncFromCloud(isInitial, interactive){
       // local is empty — safely adopt the cloud copy
       await adoptCloudSnapshot(cloud);
       setDriveIndicator('ok');
-      toast('☁️ تم تحميل بياناتك من Drive');
+      toast(t({ar:'☁️ تم تحميل بياناتك من Drive', en:'☁️ Your data was loaded from Drive'}));
       return;
     }
 
@@ -2287,7 +2295,7 @@ async function driveSyncFromCloud(isInitial, interactive){
       const { added, removed } = await _mergeCloudIntoLocal(cloud, cloudNewer);
       await driveSyncToCloud(); // push the merged result so the cloud converges too
       if(added || removed){
-        toast(`☁️ تمت المزامنة — ${added ? `أُضيف ${added} ` : ''}${removed ? `حُذف ${removed} ` : ''}من جهاز آخر`);
+        toast(t({ar:`☁️ تمت المزامنة — ${added ? `أُضيف ${added} ` : ''}${removed ? `حُذف ${removed} ` : ''}من جهاز آخر`, en:`☁️ Synced — ${added ? `${added} added ` : ''}${removed ? `${removed} deleted ` : ''}from another device`}));
       }
       setDriveIndicator('ok');
       return;
@@ -2325,24 +2333,24 @@ async function resolveConflict(useCloud){
   // unlike every other destructive action in the app (delete tx, wipe data),
   // this one had no confirm step, so a stale/wrong Drive snapshot could wipe
   // out newer local data with a single tap.
-  if(useCloud && !confirm('سيتم استبدال كل بيانات هذا الجهاز بنسخة Drive نهائياً. متابعة؟')) return;
+  if(useCloud && !confirm(t({ar:'سيتم استبدال كل بيانات هذا الجهاز بنسخة Drive نهائياً. متابعة؟', en:"This will permanently replace all of this device's data with the Drive version. Continue?"}))) return;
   closeModal('driveConflictModal');
   if(!_pendingDriveCloud) return;
   const cloud = _pendingDriveCloud;
   _pendingDriveCloud = null;
   if(useCloud){
     await adoptCloudSnapshot(cloud);
-    toast('☁️ تم استخدام نسخة Drive');
+    toast(t({ar:'☁️ تم استخدام نسخة Drive', en:'☁️ Used the Drive version'}));
   } else {
     await driveSyncToCloud();
-    toast('☁️ تم رفع نسختك المحلية إلى Drive');
+    toast(t({ar:'☁️ تم رفع نسختك المحلية إلى Drive', en:'☁️ Uploaded your local version to Drive'}));
   }
 }
 
 function driveManualSync(){
   // only toast success when the upload actually succeeded — driveSyncToCloud
   // catches its own errors (and toasts them), returning false on failure/queue
-  driveSyncToCloud().then(ok => { if(ok) toast('✓ تمت المزامنة مع Drive'); });
+  driveSyncToCloud().then(ok => { if(ok) toast(t({ar:'✓ تمت المزامنة مع Drive', en:'✓ Synced with Drive'})); });
 }
 
 // Debounced auto-sync: called after every local save
@@ -2625,7 +2633,7 @@ function exportMonthlyReport(){
 function copyReportToClipboard(report){
   if(navigator.clipboard){
     navigator.clipboard.writeText(report).then(()=>{
-      toast('✓ تم نسخ التقرير للحافظة');
+      toast(t({ar:'✓ تم نسخ التقرير للحافظة', en:'✓ Report copied to clipboard'}));
     }).catch(()=> downloadReport(report));
   } else {
     downloadReport(report);
@@ -2644,7 +2652,7 @@ function downloadReport(report){
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  toast('✓ تم تنزيل التقرير');
+  toast(t({ar:'✓ تم تنزيل التقرير', en:'✓ Report downloaded'}));
 }
 
 /* ============================================================
@@ -2721,19 +2729,19 @@ function applyUpdate(){
     const amt = document.getElementById('amountInput');
     const desc = document.getElementById('descInput');
     if((amt && amt.value) || (desc && desc.value)){
-      if(!confirm('لديك معاملة غير محفوظة في نموذج الإضافة — التحديث الآن سيتجاهلها. متابعة؟')) return;
+      if(!confirm(t({ar:'لديك معاملة غير محفوظة في نموذج الإضافة — التحديث الآن سيتجاهلها. متابعة؟', en:'You have an unsaved transaction in the add form — updating now will discard it. Continue?'}))) return;
     }
   }
   // Same guard for an in-progress transaction edit.
   if(editingTxId != null){
-    if(!confirm('لديك تعديل معاملة لم يُحفظ — التحديث الآن سيتجاهله. متابعة؟')) return;
+    if(!confirm(t({ar:'لديك تعديل معاملة لم يُحفظ — التحديث الآن سيتجاهله. متابعة؟', en:'You have an unsaved transaction edit — updating now will discard it. Continue?'}))) return;
   } else if(document.querySelector('.modal-overlay.open')){
     // Any other open dialog (تحويل/اشتراك/محفظة/توزيع الدخل، إلخ) can also hold
     // unsaved form input the two specific checks above don't know about — the
     // cross-tab storage listener already treats "any modal open" as unsafe to
     // reload over (see _anyOverlayOpen below); applyUpdate() is a user-initiated
     // reload so it asks instead of silently deferring.
-    if(!confirm('هناك نافذة مفتوحة قد تحتوي بيانات غير محفوظة — التحديث الآن سيُغلقها. متابعة؟')) return;
+    if(!confirm(t({ar:'هناك نافذة مفتوحة قد تحتوي بيانات غير محفوظة — التحديث الآن سيُغلقها. متابعة؟', en:'There is an open dialog that may contain unsaved data — updating now will close it. Continue?'}))) return;
   }
   // Flush any pending Drive sync before the reload interrupts it.
   if(typeof driveSyncTimer !== 'undefined' && driveSyncTimer){
@@ -3194,7 +3202,7 @@ window.addEventListener('unhandledrejection', (e) => {
   const now = Date.now();
   if(now - _lastRejectionToast < 3000) return;
   _lastRejectionToast = now;
-  toast('⚠ حدث خطأ غير متوقع', true);
+  toast(t({ar:'⚠ حدث خطأ غير متوقع', en:'⚠ An unexpected error occurred'}), true);
 });
 
 // Prevent accidental scroll-wheel from changing number input values on desktop
