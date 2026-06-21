@@ -987,8 +987,12 @@ function renderRecentTx(){
     // alone makes it keyboard-operable without breaking the list/listitem ARIA pairing.
     row.setAttribute('role','listitem');
     row.setAttribute('tabindex','0');
+    // setAttribute doesn't interpret markup, so HTML-escaping isn't needed here —
+    // but a pasted description could still smuggle bidi override characters that
+    // scramble how a screen reader announces the rest of this label, so strip
+    // those (stripBidiControls) without the unneeded HTML-entity escaping.
     row.setAttribute('aria-label',
-      `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${tx.desc || (wallet?wallet.name:'')}، ${cat.name}، ${timeStr}`);
+      `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${stripBidiControls(tx.desc) || (wallet?wallet.name:'')}، ${cat.name}، ${timeStr}`);
     row.innerHTML = `
       <div class="rtx-badge" style="background:${cat.color}22; color:${cat.color};">${cat.icon}</div>
       <div class="rtx-body">
@@ -2318,8 +2322,10 @@ function renderTxList(){
     `;
     // Accessible name for the whole row so a screen reader announces what this
     // transaction is, not just the bare amount + an isolated "تعديل" button.
+    // see the matching aria-label in renderRecentTx: setAttribute needs bidi
+    // stripping, not HTML-escaping, since it never interprets markup.
     div.setAttribute('aria-label',
-      `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${tx.desc || (wallet?wallet.name:'')}، ${cat.name}، ${date.toLocaleDateString('ar-EG',{day:'numeric',month:'long',numberingSystem:'latn'})} ${timeStr}`);
+      `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${stripBidiControls(tx.desc) || (wallet?wallet.name:'')}، ${cat.name}، ${date.toLocaleDateString('ar-EG',{day:'numeric',month:'long',numberingSystem:'latn'})} ${timeStr}`);
     // `wrap` (parent) already carries role="listitem" for the list structure, so
     // this nested element can be the actual interactive control — previously it
     // was click-only, leaving keyboard/screen-reader users no way to open it.

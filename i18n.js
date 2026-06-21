@@ -306,7 +306,7 @@ var I18N_STRINGS = {
   'banner.updateNow':     { ar: 'تحديث الآن', en: 'Update now' },
 
   // ── settings modal: header, stats, tabs ──
-  'set.title':        { ar: 'الإعدادات', en: 'Settings' },
+  'set.title':        { ar: '⚙️ الإعدادات', en: '⚙️ Settings' },
   'set.statTxCount':  { ar: 'معاملة', en: 'Transactions' },
   'set.statFirstTx':  { ar: 'أول معاملة', en: 'First transaction' },
   'set.statLastEdit': { ar: 'آخر تعديل', en: 'Last edit' },

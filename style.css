@@ -694,7 +694,7 @@
     border-color: var(--line);
     opacity:1;
   }
-  .wallet-menu > div{overflow-y:auto; max-height:280px; min-height:0; -webkit-overflow-scrolling:touch;}
+  .wallet-menu > div{overflow-y:auto; max-height:280px; min-height:0; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;}
   .wallet-menu .opt{
     padding:12px 14px;
     font-size:13px;
@@ -816,7 +816,7 @@
   }
   .detail-stat .l{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; font-weight:600;}
   .detail-stat .v{font-size:17px; font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .detail-tx-list{display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto;}
+  .detail-tx-list{display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto; overscroll-behavior:contain;}
 
   /* distribution breakdown */
   .dist-row{
@@ -1559,7 +1559,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   transition: max-height .22s var(--ease), margin-bottom .22s var(--ease),
               opacity .16s var(--ease);
 }
-.add-drawer .wallet-select-wrap .wallet-menu > div{ max-height:260px; overflow-y:auto; }
+.add-drawer .wallet-select-wrap .wallet-menu > div{ max-height:260px; overflow-y:auto; overscroll-behavior:contain; }
 
 /* ─── Subscriptions ─── */
 .subs-section-header{
