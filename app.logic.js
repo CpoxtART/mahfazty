@@ -3019,6 +3019,18 @@ scheduleNextMidnightRefresh();
 // settle before we re-read it — localStorage fires this event synchronously.
 let _storageSyncTimer = null;
 window.addEventListener('storage', (e) => {
+  // Theme is cosmetic-only and is its own source of truth (not part of the money
+  // ledger) — sync the OTHER tab's appearance live instead of reloading the whole
+  // ledger over an unrelated preference change (which used to flash/scroll-jump
+  // every open tab just from tapping the header theme toggle in one of them).
+  if(e.key === LS_PREFIX + 'theme'){
+    const mode = (e.newValue === 'light' || e.newValue === 'dark') ? e.newValue : 'auto';
+    applyTheme(_resolveThemeMode(mode));
+    _updateThemeModeUI(mode);
+    if(typeof renderChart === 'function') renderChart();
+    if(typeof renderPieChart === 'function') renderPieChart();
+    return;
+  }
   // Layout prefs (tab/section order, recent-tx page size) are cosmetic-only and
   // never touch dataEdit/lastEdit — reloading the full ledger for them would
   // flash/scroll-jump every other open tab over a change that doesn't affect
@@ -3031,10 +3043,23 @@ window.addEventListener('storage', (e) => {
       // If a mutation is in flight, wait and re-check rather than reloading on
       // top of it (would reset `state` mid-write and corrupt balances).
       const _trySync = () => {
-        // wait out both an in-flight mutation AND an uncommitted IDB write so we
-        // never reload a half-written snapshot on top of live state
-        if(_opInFlight > 0 || _idbWriteInFlight > 0){ _storageSyncTimer = setTimeout(_trySync, 250); return; }
-        loadState();
+        // Wait out an in-flight mutation, an uncommitted IDB write, AND a pending
+        // (not-yet-started) debounced IDB backup — without that last check, this
+        // tab's own just-added transaction could still be sitting unflushed in
+        // scheduleIdbBackup()'s 400ms debounce window with both flags at 0; reloading
+        // here would silently wipe it from memory, and the debounce callback would
+        // then persist that now-amputated state right over the other tab's data.
+        if(_opInFlight > 0 || _idbWriteInFlight > 0 || _idbBackupTimer){ _storageSyncTimer = setTimeout(_trySync, 250); return; }
+        loadState().then(() => {
+          // loadState() replaces state.transactions wholesale from the freshly-
+          // merged IDB snapshot (see idbBackup's cross-tab union), but balances
+          // are read from localStorage's own separately-written 'balances' key,
+          // which the OTHER tab's concurrent save never touched. Recompute from
+          // the now-correct ledger so this tab's wallet totals can't drift from
+          // a transaction that only just arrived via the merge.
+          const diff = reconcileBalances();
+          if(Object.keys(diff).length){ saveBalances(); render(); }
+        });
       };
       _storageSyncTimer = setTimeout(_trySync, 200);
     }

@@ -28,6 +28,17 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.7',
+    date: '2026-06-21',
+    title: 'تصحيح عطل خطير: فقدان معاملة عند فتح التطبيق بأكثر من تبويب',
+    items: [
+      'فتح التطبيق في تبويبين/نافذتين بنفس الوقت وإضافة معاملة مختلفة في كل منهما خلال أقل من ثانية كان أحياناً يمحو إحدى المعاملتين نهائياً من التخزين الدائم بصمت — تم إصلاحه بدمج التغييرات بدل الكتابة فوق بعضها.',
+      'بعد دمج معاملات تبويبين، صار التطبيق يعيد حساب أرصدة المحافظ تلقائياً من سجل المعاملات الصحيح بدل ترك التبويب الآخر بأرقام غير متطابقة.',
+      'تبويب "تلقائي" في إعدادات المظهر لم يعد ينقطع نصه على الشاشات الضيقة جداً (320px فأقل).',
+      'أسماء/أوصاف المعاملات المُدخلة بخليط عربي/إنجليزي أو رموز اتجاه خفية صارت تُعرض دائماً بالاتجاه الصحيح في قائمة المعاملات ونافذة المراجعة اليومية.',
+    ],
+  },
+  {
     version: 'v47.6',
     date: '2026-06-20',
     title: 'مظهر تلقائي يتناغم مع نظام جهازك',
@@ -1058,21 +1069,59 @@ async function idbBackup(savedAt){
     const db = await idbOpen();
     await new Promise((resolve, reject)=>{
       const tx = db.transaction('backup','readwrite');
-      tx.objectStore('backup').put({
-        wallets: state.wallets,
-        walletDefs: WALLET_DEFS,
-        transactions: state.transactions,
-        crisisMode: state.crisisMode,
-        autoDistribute, budgets,
-        distribution: DISTRIBUTION,
-        dismissedRecurring: Array.from(dismissedRecurring),
-        deletedTxIds: deletedTxIds,
-        subscriptions: subscriptions,
-        // mirrored so a wiped localStorage can still recover "Drive was connected"
-        // (see loadState) instead of Drive sync silently going dark with no UI cue
-        driveClientId: driveClientId,
-        savedAt: (typeof savedAt === 'number' && isFinite(savedAt)) ? savedAt : Date.now()
-      }, 'snapshot');
+      const store = tx.objectStore('backup');
+      const getReq = store.get('snapshot');
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        // Two tabs of the same app can each debounce-write within the same ~400ms
+        // window; without this, whichever write commits last would blindly overwrite
+        // the other tab's already-persisted transactions (each tab only knows its
+        // OWN in-memory copy). Union by id against whatever's currently in IDB —
+        // same tombstone + newer-editedAt-wins rule as mergeCloudData — so a
+        // transaction added in the other tab survives instead of being silently
+        // erased. This get+put runs inside one IDB transaction, which browsers
+        // serialize against the other tab's own transaction on this store, so the
+        // merge sees a consistent snapshot rather than racing the read itself.
+        let mergedTx = state.transactions;
+        let mergedTombstones = deletedTxIds;
+        if(existing && existing.deletedTxIds && typeof existing.deletedTxIds === 'object'){
+          mergedTombstones = Object.assign({}, deletedTxIds);
+          for(const id in existing.deletedTxIds){
+            const t = existing.deletedTxIds[id];
+            if(typeof t === 'number' && (!mergedTombstones[id] || t > mergedTombstones[id])) mergedTombstones[id] = t;
+          }
+          deletedTxIds = mergedTombstones;
+        }
+        if(existing && Array.isArray(existing.transactions)){
+          const byId = new Map();
+          state.transactions.forEach(t => { if(t && t.id && !mergedTombstones[t.id]) byId.set(t.id, t); });
+          existing.transactions.forEach(t => {
+            if(!t || !t.id || mergedTombstones[t.id]) return;
+            const local = byId.get(t.id);
+            if(!local){ byId.set(t.id, t); return; }
+            if(typeof t.editedAt === 'number' && typeof local.editedAt === 'number' && t.editedAt > local.editedAt){
+              byId.set(t.id, t);
+            }
+          });
+          mergedTx = [...byId.values()];
+        }
+        store.put({
+          wallets: state.wallets,
+          walletDefs: WALLET_DEFS,
+          transactions: mergedTx,
+          crisisMode: state.crisisMode,
+          autoDistribute, budgets,
+          distribution: DISTRIBUTION,
+          dismissedRecurring: Array.from(dismissedRecurring),
+          deletedTxIds: mergedTombstones,
+          subscriptions: subscriptions,
+          // mirrored so a wiped localStorage can still recover "Drive was connected"
+          // (see loadState) instead of Drive sync silently going dark with no UI cue
+          driveClientId: driveClientId,
+          savedAt: (typeof savedAt === 'number' && isFinite(savedAt)) ? savedAt : Date.now()
+        }, 'snapshot');
+      };
+      getReq.onerror = () => reject(getReq.error);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error || new Error('idb abort'));

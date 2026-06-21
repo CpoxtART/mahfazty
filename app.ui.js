@@ -1912,7 +1912,7 @@ function openWalletDetail(walletId){
       div.style.cursor = 'pointer';
       div.innerHTML = `
         <div class="info">
-          <div class="desc">${cat.icon} ${escHtml(tx.desc || cat.name)}</div>
+          <div class="desc" dir="auto">${cat.icon} ${escHtml(tx.desc || cat.name)}</div>
           <div class="meta">${date.toLocaleDateString('ar-EG',{day:'numeric',month:'short',numberingSystem:'latn'})}</div>
         </div>
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
@@ -2289,7 +2289,7 @@ function renderTxList(){
     const cat = getCategory(tx.category);
     div.innerHTML = `
       <div class="info">
-        <div class="desc">${escHtml(tx.desc || (wallet ? wallet.name : ''))}</div>
+        <div class="desc" dir="auto">${escHtml(tx.desc || (wallet ? wallet.name : ''))}</div>
         <div class="meta"><span class="ctag">${cat.icon}</span><span class="wtag">${escHtml(wallet ? wallet.name : '')}</span> ${timeStr}${_trackLinkTag(tx)}</div>
       </div>
       <div class="right">
