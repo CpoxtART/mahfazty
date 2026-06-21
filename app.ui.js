@@ -227,30 +227,30 @@ function renderWalletDefsEditor(){
       // via the small badge on the dashboard card, which users reported needing
       // time to even notice exists.
       const viewBtn = track
-        ? `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="مزامنة الرصيد الفعلي لـ ${escHtml(w.name)}" title="مزامنة الرصيد الفعلي">⚖️</button>`
-        : `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="تفاصيل ${escHtml(w.name)}" title="التفاصيل والميزانية">ⓘ</button>`;
+        ? `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:'مزامنة الرصيد الفعلي لـ', en:'Sync actual balance for'}))} ${escHtml(w.name)}" title="${escHtml(t({ar:'مزامنة الرصيد الفعلي', en:'Sync actual balance'}))}">⚖️</button>`
+        : `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:'تفاصيل', en:'Details for'}))} ${escHtml(w.name)}" title="${escHtml(t({ar:'التفاصيل والميزانية', en:'Details and budget'}))}">ⓘ</button>`;
       return `
       <div class="reorder-row">
         <div class="reorder-label">${escHtml(w.name)}</div>
         <div class="reorder-btns">
           ${viewBtn}
-          <button onclick="openWalletDefModal('${w.id}')" aria-label="تعديل ${escHtml(w.name)}">✎</button>
-          <button onclick="moveWalletDef('${w.id}',-1)" ${i===0?'disabled':''} aria-label="تحريك لأعلى">▲</button>
-          <button onclick="moveWalletDef('${w.id}',1)" ${i===list.length-1?'disabled':''} aria-label="تحريك لأسفل">▼</button>
-          <button class="rd-del" onclick="deleteWalletDef('${w.id}')" ${blockDelete?'disabled':''} aria-label="حذف ${escHtml(w.name)}">🗑</button>
+          <button onclick="openWalletDefModal('${w.id}')" aria-label="${escHtml(t({ar:'تعديل', en:'Edit'}))} ${escHtml(w.name)}">✎</button>
+          <button onclick="moveWalletDef('${w.id}',-1)" ${i===0?'disabled':''} aria-label="${escHtml(t({ar:'تحريك لأعلى', en:'Move up'}))}">▲</button>
+          <button onclick="moveWalletDef('${w.id}',1)" ${i===list.length-1?'disabled':''} aria-label="${escHtml(t({ar:'تحريك لأسفل', en:'Move down'}))}">▼</button>
+          <button class="rd-del" onclick="deleteWalletDef('${w.id}')" ${blockDelete?'disabled':''} aria-label="${escHtml(t({ar:'حذف', en:'Delete'}))} ${escHtml(w.name)}">🗑</button>
         </div>
       </div>`;
     }).join('');
   };
   host.innerHTML = `
     <div class="reorder-group">
-      <div class="reorder-gtitle">محافظ عادية (تُحتسب بالإجمالي)</div>
-      <div class="hint" style="margin:0 0 8px;">ⓘ = تفاصيل المحفظة وضبط الميزانية الشهرية.</div>
+      <div class="reorder-gtitle">${escHtml(t({ar:'محافظ عادية (تُحتسب بالإجمالي)', en:'Regular wallets (counted in total)'}))}</div>
+      <div class="hint" style="margin:0 0 8px;">ⓘ = ${escHtml(t({ar:'تفاصيل المحفظة وضبط الميزانية الشهرية.', en:'Wallet details and monthly budget settings.'}))}</div>
       ${group(false)}
     </div>
     <div class="reorder-group">
-      <div class="reorder-gtitle">محافظ تتبع (غير محتسبة)</div>
-      <div class="hint" style="margin:0 0 8px;">⚖️ = مزامنة رصيدك الفعلي لهذه المحفظة — يُسجَّل الفرق تلقائياً كمعاملة.</div>
+      <div class="reorder-gtitle">${escHtml(t({ar:'محافظ تتبع (غير محتسبة)', en:'Tracking wallets (not counted)'}))}</div>
+      <div class="hint" style="margin:0 0 8px;">⚖️ = ${escHtml(t({ar:'مزامنة رصيدك الفعلي لهذه المحفظة — يُسجَّل الفرق تلقائياً كمعاملة.', en:'Sync your actual balance for this wallet — the difference is logged automatically as a transaction.'}))}</div>
       ${group(true)}
     </div>
   `;
@@ -308,7 +308,7 @@ function moveWalletDef(id, dir){
 function openWalletDefModal(id){
   editingWalletDefId = id || null;
   const w = id ? WALLET_DEFS.find(x => x.id === id) : null;
-  document.getElementById('walletDefModalTitle').textContent = w ? '✎ تعديل المحفظة' : '➕ محفظة جديدة';
+  document.getElementById('walletDefModalTitle').textContent = w ? t('wdef.editTitle') : t('set.newWallet');
   document.getElementById('walletDefName').value = w ? w.name : '';
   setWalletDefType(w ? w.track : false);
   // type is only choosable when creating — locking it afterward avoids an
@@ -1054,7 +1054,7 @@ function renderSubscriptions(){
 function openSubModal(id){
   editingSubId = id;
   const sub = id ? subscriptions.find(s=>s.id===id) : null;
-  document.getElementById('subModalTitle').textContent = sub ? '✎ تعديل الاشتراك' : '📆 اشتراك جديد';
+  document.getElementById('subModalTitle').textContent = sub ? t('sub.editTitle') : t('sub.title');
   document.getElementById('subName').value = sub ? sub.name : '';
   document.getElementById('subAmount').value = sub ? sub.amount : '';
   document.getElementById('subBillingDay').value = sub ? (sub.billingDay||'') : '';
