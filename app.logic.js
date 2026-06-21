@@ -941,7 +941,8 @@ function exportData(){
     // device that restores this backup, instead of each device following its own system.
     dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
     theme: _currentThemeMode(),
-    accent: _currentAccent(),
+    accent: _currentAccent('day'),
+    accentDark: _currentAccent('night'),
     lang: _currentLang(),
     wallets: state.wallets,
     walletDefs: WALLET_DEFS,
@@ -1097,9 +1098,19 @@ async function applyImport(text){
   if(data.theme === 'light' || data.theme === 'dark' || data.theme === 'black' || data.theme === 'auto'){
     try{ setThemeMode(data.theme); }catch(_){ }
   }
-  if(typeof data.accent === 'string'){
-    try{ setAccent(data.accent); }catch(_){ } // setAccent validates against the known palette ids
-  }
+  // per-mode accents (day = 'accent', night = 'accentDark'). Older backups carry
+  // only 'accent' (single) — that restores into the day bucket, which is fine.
+  try{
+    const _setAcc = (val, key) => {
+      if(typeof val !== 'string') return;
+      if(val === 'gold') localStorage.removeItem(key);
+      else if(_ACCENT_IDS.indexOf(val) > -1) localStorage.setItem(key, val);
+    };
+    _setAcc(data.accent, LS_PREFIX + 'accent');
+    _setAcc(data.accentDark, LS_PREFIX + 'accentDark');
+    applyAccent();
+    _updateAccentUI(_currentAccent());
+  }catch(_){ }
   if(data.lang === 'ar' || data.lang === 'en'){
     try{ setLang(data.lang); }catch(_){ }
   }
@@ -3055,10 +3066,9 @@ window.addEventListener('storage', (e) => {
   }
   // Accent palette is cosmetic-only too — mirror the other tab's choice live
   // instead of reloading the ledger (same rationale as theme above).
-  if(e.key === LS_PREFIX + 'accent'){
-    const acc = _currentAccent();
-    applyAccent(acc);
-    _updateAccentUI(acc);
+  if(e.key === LS_PREFIX + 'accent' || e.key === LS_PREFIX + 'accentDark'){
+    applyAccent();
+    _updateAccentUI(_currentAccent());
     if(typeof renderChart === 'function') renderChart();
     if(typeof renderPieChart === 'function') renderPieChart();
     return;

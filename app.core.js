@@ -28,6 +28,16 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.12',
+    date: '2026-06-21',
+    title: 'لون مستقل لليل والنهار + استكمال الترجمة',
+    items: [
+      'جديد: صار لون التطبيق مستقلاً لكل وضع — اختر لوناً للنهاري وآخر لليلي/المطفي، والتبديل بين الأوضاع يستعيد لون كل وضع تلقائياً.',
+      'أُعيدت تسمية وضعي "فاتح/داكن" إلى "نهاري/ليلي" في الإعدادات.',
+      'استكمال ترجمة نافذة "إضافة معاملة" إلى الإنجليزية.',
+    ],
+  },
+  {
     version: 'v47.11',
     date: '2026-06-21',
     title: 'لغة إنجليزية + تحكّم أدق بوضع الليل',
@@ -586,6 +596,10 @@ function applyTheme(theme){
   if(meta) meta.setAttribute('content', isLight ? '#f4f2ed' : (isBlack ? '#0b0b0d' : '#15171c'));
   // keep the installed PWA splash/chrome color in sync with the chosen theme
   if(typeof applyManifest === 'function') applyManifest(isLight);
+  // day/night each keep their own accent — re-resolve for the bucket we just
+  // switched into, and refresh the swatch selection if Settings is open.
+  if(typeof applyAccent === 'function') applyAccent();
+  if(typeof _updateAccentUI === 'function') _updateAccentUI(_currentAccent());
 }
 // Theme MODE is one of 'light' | 'dark' | 'black' | 'auto'. 'auto' isn't stored
 // explicitly — its absence from localStorage IS the auto state, so a value written
@@ -677,13 +691,29 @@ const ACCENTS = [
   {id:'brown',    name:'بنّي',   c1:'#b88a5e', c2:'#8a6038', on:'#1f1408'},
 ];
 const _ACCENT_IDS = ACCENTS.map(a => a.id);
-function _currentAccent(){
+// The accent colour is remembered SEPARATELY for day vs night, so a user can run
+// (say) blue in the daytime light theme and purple at night — switching the theme
+// also restores that theme's own accent. 'day' = light theme; 'night' = the dark
+// and matte themes (they share one night accent). Stored keys: 'accent' (day,
+// kept for backward-compat with older single-accent backups) and 'accentDark'
+// (night). 'gold' is the default and is represented by the key being absent.
+function _accentBucket(){
+  return document.body.classList.contains('light') ? 'day' : 'night';
+}
+function _accentKey(bucket){
+  return (bucket === 'night') ? (LS_PREFIX + 'accentDark') : (LS_PREFIX + 'accent');
+}
+function _currentAccent(bucket){
+  bucket = bucket || _accentBucket();
   let a = null;
-  try{ a = localStorage.getItem(LS_PREFIX + 'accent'); }catch(e){}
+  try{ a = localStorage.getItem(_accentKey(bucket)); }catch(e){}
   return _ACCENT_IDS.indexOf(a) > -1 ? a : 'gold';
 }
-function applyAccent(id){
-  if(_ACCENT_IDS.indexOf(id) === -1) id = 'gold';
+// Resolve + apply the accent for the CURRENT theme bucket (no argument — it reads
+// whichever bucket the active theme falls into). Called on load, on accent change,
+// and at the end of every theme switch so day/night accents follow the theme.
+function applyAccent(){
+  const id = _currentAccent();
   _ACCENT_IDS.forEach(a => { if(a !== 'gold') document.body.classList.remove('accent-' + a); });
   if(id !== 'gold') document.body.classList.add('accent-' + id);
   _themeColorCache = {}; // accent changed --gold etc — drop cached colors
@@ -718,11 +748,12 @@ function renderAccentSwatches(){
 }
 function setAccent(id){
   if(_ACCENT_IDS.indexOf(id) === -1) id = 'gold';
+  const key = _accentKey(_accentBucket()); // write into the active theme's bucket
   try{
-    if(id === 'gold') localStorage.removeItem(LS_PREFIX + 'accent');
-    else localStorage.setItem(LS_PREFIX + 'accent', id);
+    if(id === 'gold') localStorage.removeItem(key);
+    else localStorage.setItem(key, id);
   }catch(e){}
-  applyAccent(id);
+  applyAccent();
   _updateAccentUI(id);
   // canvas charts bake some theme colors at draw time — redraw so any accent-tinted
   // pixels stay in sync (cheap, and future-proofs charts that adopt --gold)
@@ -730,7 +761,7 @@ function setAccent(id){
   if(typeof renderPieChart === 'function') renderPieChart();
 }
 function initAccent(){
-  applyAccent(_currentAccent());
+  applyAccent();
 }
 
 function todayISO(){

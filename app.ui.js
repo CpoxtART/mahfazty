@@ -52,9 +52,9 @@ function renderWallets(){
     const cta = document.createElement('div');
     cta.className = 'wallet-cta';
     cta.innerHTML = `
-      <div class="wallet-cta-title">👋 ابدأ رحلتك</div>
-      <div class="wallet-cta-sub">سجّل أول دخل ليتوزّع تلقائياً على محافظك حسب النِّسب.</div>
-      <button class="wallet-cta-btn" type="button" onclick="openAddDrawer(); setAddFormType('income');">＋ سجّل أول دخل</button>
+      <div class="wallet-cta-title">👋 ${escHtml(t({ar:'ابدأ رحلتك', en:'Start your journey'}))}</div>
+      <div class="wallet-cta-sub">${escHtml(t({ar:'سجّل أول دخل ليتوزّع تلقائياً على محافظك حسب النِّسب.', en:'Record your first income to auto-distribute it across your wallets by percentage.'}))}</div>
+      <button class="wallet-cta-btn" type="button" onclick="openAddDrawer(); setAddFormType('income');">＋ ${escHtml(t({ar:'سجّل أول دخل', en:'Record first income'}))}</button>
     `;
     grid.appendChild(cta);
   }

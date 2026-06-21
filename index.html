@@ -30,8 +30,9 @@ try{
   }
   if(_t==='light')document.body.classList.add('light');
   else if(_t==='black')document.body.classList.add('theme-black');
-  /* apply the saved accent palette before first paint too, so the accent doesn't flash gold→colour on load */
-  var _a=localStorage.getItem('walletTracker_accent');
+  /* apply the saved accent for THIS theme bucket before first paint (day uses
+     'accent', night uses 'accentDark') so the accent doesn't flash on load */
+  var _a=localStorage.getItem(_t==='light'?'walletTracker_accent':'walletTracker_accentDark');
   if(_a && _a!=='gold' && /^[a-z]+$/.test(_a))document.body.classList.add('accent-'+_a);
   /* apply saved language direction before first paint so an English (LTR) user
      doesn't see the RTL layout flash before the engine initialises */
@@ -234,25 +235,25 @@ try{
 <div class="add-drawer-overlay" id="addDrawerOverlay" onclick="closeAddDrawer()"></div>
 
 <!-- ===== ADD DRAWER ===== -->
-<div class="add-drawer" id="addDrawer" role="dialog" aria-modal="true" aria-label="إضافة معاملة">
+<div class="add-drawer" id="addDrawer" role="dialog" aria-modal="true" aria-label="إضافة معاملة" data-i18n-aria="drawer.addTx">
   <div class="grabber"></div>
   <div class="drawer-head">
-    <h3>➕ إضافة معاملة</h3>
-    <button class="drawer-close" onclick="closeAddDrawer()" aria-label="إغلاق الدرج">✕</button>
+    <h3 data-i18n="add.title">➕ إضافة معاملة</h3>
+    <button class="drawer-close" onclick="closeAddDrawer()" aria-label="إغلاق الدرج" data-i18n-aria="add.close">✕</button>
   </div>
   <div class="drawer-tabs">
-    <button class="active" id="drawerTab0" onclick="switchDrawerTab(0)">التفاصيل</button>
-    <button id="drawerTab1" onclick="switchDrawerTab(1)">النوع والفئة</button>
+    <button class="active" id="drawerTab0" onclick="switchDrawerTab(0)" data-i18n="add.tabDetails">التفاصيل</button>
+    <button id="drawerTab1" onclick="switchDrawerTab(1)" data-i18n="add.tabTypeCat">النوع والفئة</button>
   </div>
 
   <div class="drawer-body">
 
     <!-- Sub-tab 0: Details -->
     <div class="drawer-sub active" id="drawerSub0">
-      <label id="walletSelectLbl">المحفظة</label>
+      <label id="walletSelectLbl" data-i18n="add.wallet">المحفظة</label>
       <div class="wallet-select-wrap">
         <div class="custom-select" id="walletSelectBtn" onclick="toggleWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="walletSelectLbl">
-          <span id="walletSelectLabel">اختر محفظة</span>
+          <span id="walletSelectLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
           <span class="arrow">▾</span>
         </div>
         <div class="wallet-menu" id="walletMenuWrap"><div id="walletMenu" role="listbox"></div></div>
@@ -260,30 +261,30 @@ try{
 
       <label class="track-link-toggle">
         <input type="checkbox" id="trackLinkEnable" onchange="toggleTrackLinkEnable(this.checked)">
-        <span>احتساب هذه المعاملة على محفظة تتبع أيضاً؟</span>
+        <span data-i18n="add.trackLinkToggle">احتساب هذه المعاملة على محفظة تتبع أيضاً؟</span>
       </label>
       <div class="track-link-picker" id="trackLinkPicker" style="display:none;">
-        <label id="trackLinkLbl" for="trackLinkSelect">أي محفظة؟</label>
+        <label id="trackLinkLbl" for="trackLinkSelect" data-i18n="add.trackLinkWhich">أي محفظة؟</label>
         <select id="trackLinkSelect" class="recent-limit-select" style="width:100%;" onchange="selectTrackLink(this.value)"></select>
         <div class="hint track-link-hint" id="trackLinkHint" style="display:none; margin-top:6px;"></div>
       </div>
 
-      <label for="descInput">الوصف</label>
+      <label for="descInput" data-i18n="add.desc">الوصف</label>
       <div class="voice-input-row">
-        <input type="text" id="descInput" maxlength="120" placeholder="مثال: عشاء، راتب، مواصلات...">
-        <button type="button" class="voice-btn" id="voiceBtn" onclick="startVoiceInput()" title="إدخال صوتي" aria-label="إدخال صوتي">🎤</button>
+        <input type="text" id="descInput" maxlength="120" placeholder="مثال: عشاء، راتب، مواصلات..." data-i18n-ph="add.descPh">
+        <button type="button" class="voice-btn" id="voiceBtn" onclick="startVoiceInput()" title="إدخال صوتي" aria-label="إدخال صوتي" data-i18n-title="add.voice" data-i18n-aria="add.voice">🎤</button>
       </div>
 
-      <label>مبالغ سريعة</label>
-      <div class="quick-amounts" id="quickAmounts" role="group" aria-label="مبالغ سريعة"></div>
+      <label data-i18n="add.quickAmounts">مبالغ سريعة</label>
+      <div class="quick-amounts" id="quickAmounts" role="group" aria-label="مبالغ سريعة" data-i18n-aria="add.quickAmounts"></div>
 
       <div class="row2">
         <div>
-          <label for="amountInput">المبلغ</label>
+          <label for="amountInput" data-i18n="add.amount">المبلغ</label>
           <input type="number" id="amountInput" placeholder="0" step="any" min="0" inputmode="decimal" autocomplete="off">
         </div>
         <div>
-          <label for="dateInput">التاريخ</label>
+          <label for="dateInput" data-i18n="add.date">التاريخ</label>
           <input type="date" id="dateInput">
         </div>
       </div>
@@ -292,21 +293,21 @@ try{
     <!-- Sub-tab 1: Type + Category -->
     <div class="drawer-sub" id="drawerSub1">
       <div class="type-mini-toggle">
-        <button class="exp active" id="addTypeExp" onclick="setAddFormType('expense')">➖ مصروف</button>
-        <button class="inc" id="addTypeInc" onclick="setAddFormType('income')">➕ دخل</button>
+        <button class="exp active" id="addTypeExp" onclick="setAddFormType('expense')" data-i18n="add.typeExpense">➖ مصروف</button>
+        <button class="inc" id="addTypeInc" onclick="setAddFormType('income')" data-i18n="add.typeIncome">➕ دخل</button>
       </div>
-      <label id="categoryGridLbl">الفئة</label>
+      <label id="categoryGridLbl" data-i18n="add.category">الفئة</label>
       <div class="category-grid" id="categoryGrid" role="group" aria-labelledby="categoryGridLbl"></div>
-      <button class="btn-transfer" style="margin-bottom:8px; width:100%;" onclick="closeAddDrawer(); openTransferModal()">🔁 تحويل بين المحافظ</button>
-      <button class="btn-secondary" style="width:100%; padding:11px; font-size:13px; border:1px solid var(--line);" onclick="repeatLastTx()">⏪ تكرار آخر معاملة</button>
+      <button class="btn-transfer" style="margin-bottom:8px; width:100%;" onclick="closeAddDrawer(); openTransferModal()" data-i18n="add.transfer">🔁 تحويل بين المحافظ</button>
+      <button class="btn-secondary" style="width:100%; padding:11px; font-size:13px; border:1px solid var(--line);" onclick="repeatLastTx()" data-i18n="add.repeatLast">⏪ تكرار آخر معاملة</button>
     </div>
 
   </div><!-- /drawer-body -->
 
   <div class="drawer-submit">
     <div class="btn-row">
-      <button class="btn-expense" id="addExpenseBtn" onclick="addTx('expense')">➖ مصروف</button>
-      <button class="btn-income" id="addIncomeBtn" onclick="addTx('income')">➕ دخل</button>
+      <button class="btn-expense" id="addExpenseBtn" onclick="addTx('expense')" data-i18n="add.btnExpense">➖ مصروف</button>
+      <button class="btn-income" id="addIncomeBtn" onclick="addTx('income')" data-i18n="add.btnIncome">➕ دخل</button>
     </div>
   </div>
 </div>
@@ -403,8 +404,8 @@ try{
         <div class="sett-section-body">
           <div class="hint" style="margin:0 0 10px;" data-i18n="set.appearanceHint">اختر فاتح أو داكن، أو اتركه تلقائياً ليتناغم مع إعداد نظام جهازك ويتغيّر معه فوراً عند تبديله.</div>
           <div class="le-tabs" id="themeModeTabs" role="tablist" aria-label="وضع المظهر">
-            <button class="le-tab" data-theme-mode="light" role="tab" aria-selected="false" onclick="setThemeMode('light')">☀️ <span data-i18n="set.themeLight">فاتح</span></button>
-            <button class="le-tab" data-theme-mode="dark" role="tab" aria-selected="false" onclick="setThemeMode('dark')">🌙 <span data-i18n="set.themeDark">داكن</span></button>
+            <button class="le-tab" data-theme-mode="light" role="tab" aria-selected="false" onclick="setThemeMode('light')">☀️ <span data-i18n="set.themeLight">نهاري</span></button>
+            <button class="le-tab" data-theme-mode="dark" role="tab" aria-selected="false" onclick="setThemeMode('dark')">🌙 <span data-i18n="set.themeDark">ليلي</span></button>
             <button class="le-tab" data-theme-mode="black" role="tab" aria-selected="false" onclick="setThemeMode('black')">⚫ <span data-i18n="set.themeBlack">مطفي</span></button>
             <button class="le-tab" data-theme-mode="auto" role="tab" aria-selected="false" onclick="setThemeMode('auto')">🌗 <span data-i18n="set.themeAuto">تلقائي</span></button>
           </div>
