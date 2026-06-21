@@ -835,13 +835,11 @@ document.querySelectorAll('.modal-overlay').forEach(ov=>{
 // backing gesture — a purely decorative affordance that suggests a swipe-down-
 // to-dismiss that didn't exist. Wire it up for real (protected modals excluded,
 // same as the backdrop-tap guard above).
-document.querySelectorAll('.modal-overlay .grabber').forEach(handle=>{
-  const overlay = handle.closest('.modal-overlay');
-  const sheet = handle.closest('.modal');
-  if(!overlay || !sheet) return;
+function _wireGrabber(handle, sheet, isBlocked, doClose){
+  if(!handle || !sheet) return;
   let startY = 0, dy = 0, dragging = false;
   handle.addEventListener('touchstart', e=>{
-    if(_protectedModals.has(overlay.id)) return;
+    if(isBlocked()) return;
     startY = e.touches[0].clientY; dy = 0; dragging = true;
     sheet.style.transition = 'none';
   }, {passive:true});
@@ -854,12 +852,22 @@ document.querySelectorAll('.modal-overlay .grabber').forEach(handle=>{
     if(!dragging) return;
     dragging = false;
     sheet.style.transition = '';
-    if(dy > 80){ closeModal(overlay.id); }
+    if(dy > 80){ doClose(); }
     else { sheet.style.transform = ''; }
   };
   handle.addEventListener('touchend', finish);
   handle.addEventListener('touchcancel', finish);
+}
+document.querySelectorAll('.modal-overlay .grabber').forEach(handle=>{
+  const overlay = handle.closest('.modal-overlay');
+  const sheet = handle.closest('.modal');
+  _wireGrabber(handle, sheet, () => _protectedModals.has(overlay && overlay.id), () => closeModal(overlay.id));
 });
+// The add-transaction drawer isn't a .modal-overlay/.modal (it's the app's own
+// add-drawer/add-drawer-overlay pair with its own close function), so the
+// selector above never matched its grabber — same decorative-but-dead handle
+// bug, just missed because this is the one dialog that isn't a generic modal.
+_wireGrabber(document.querySelector('#addDrawer .grabber'), document.getElementById('addDrawer'), () => false, closeAddDrawer);
 
 // Close custom dropdowns when clicking outside
 document.addEventListener('click', function(e){

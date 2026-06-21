@@ -1360,10 +1360,13 @@
     display:flex; gap:6px; margin-bottom:10px;
   }
   .type-mini-toggle button{
-    flex:1; padding:8px; font-size:12px; font-weight:600;
+    flex:1; padding:8px; font-size:12px; font-weight:600; position:relative;
     background:var(--bg); border:1px solid var(--line); color:var(--muted);
     border-radius:var(--radius-sm); cursor:pointer; transition:background .18s, color .18s, border-color .18s;
   }
+  /* invisibly extend the ~30px button to a ~44px tap target, same pattern used
+     for the wallet info-chip — the visible compact size stays, only the hit area grows */
+  .type-mini-toggle button::after{content:''; position:absolute; inset:-8px -2px;}
   .type-mini-toggle button.active.exp{
     background:var(--red-soft); color:var(--red); border-color:rgba(227,145,143,.35);
   }
@@ -1718,7 +1721,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 .reorder-btns button.rd-del:not(:disabled):active{ background:var(--red-soft); color:var(--red); border-color:var(--red); }
 .reorder-btns button.rd-view{ color:var(--gold); border-color:var(--gold-dim); background:var(--gold-soft); }
 .reorder-btns button.rd-view:not(:disabled):active{ background:var(--card2); border-color:var(--gold); }
-.reorder-btns button:disabled{ opacity:.28; cursor:default; }
+.reorder-btns button:disabled{ opacity:.7; cursor:default; }
 .recent-limit-select{
   flex-shrink:0; background:var(--bg-elev); border:1px solid var(--line);
   color:var(--text); border-radius:var(--radius-sm); padding:6px 10px; font-size:13px;
@@ -1733,7 +1736,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 }
 .le-tabs::-webkit-scrollbar{ display:none; }
 .le-tab{
-  flex-shrink:0; display:flex; align-items:center; gap:5px;
+  flex-shrink:0; display:flex; align-items:center; gap:5px; position:relative;
   padding:7px 12px; font-size:12px; font-weight:600;
   background:none; border:none; color:var(--muted);
   border-radius:calc(var(--radius-sm) - 2px); cursor:pointer;
@@ -1741,6 +1744,9 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   transition:background .15s, color .15s, box-shadow .15s;
   touch-action:manipulation;
 }
+/* invisibly extend the ~28px tab to a ~44px tap target — the 4px .le-tabs gap
+   keeps this from overlapping a neighbouring tab's own hit zone */
+.le-tab::after{content:''; position:absolute; inset:-7px -2px;}
 .le-tab span{ font-size:11px; }
 /* The appearance picker has 4 equal options (فاتح/داكن/أسود/تلقائي) — distribute
    them evenly and let them shrink so all four fit a 320px screen without the
