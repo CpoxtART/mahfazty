@@ -1092,8 +1092,14 @@ async function applyImport(text){
   if(data.budgets && typeof data.budgets === 'object') budgets = sanitizeBudgets(data.budgets);
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
   if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
-  if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring);
-  if(data.deletedTxIds && typeof data.deletedTxIds === 'object') deletedTxIds = data.deletedTxIds;
+  if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring.filter(k => typeof k === 'string' && k));
+  if(data.deletedTxIds && typeof data.deletedTxIds === 'object' && !Array.isArray(data.deletedTxIds)){
+    deletedTxIds = {};
+    for(const id in data.deletedTxIds){
+      const t = data.deletedTxIds[id];
+      if(typeof t === 'number' && isFinite(t) && t > 0) deletedTxIds[id] = t;
+    }
+  }
   if(Array.isArray(data.subscriptions)){
     subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
@@ -2191,8 +2197,14 @@ async function adoptCloudSnapshot(cloud){
   if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
   if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
   if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
-  if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring);
-  if(cloud.deletedTxIds && typeof cloud.deletedTxIds === 'object') deletedTxIds = cloud.deletedTxIds;
+  if(Array.isArray(cloud.dismissedRecurring)) dismissedRecurring = new Set(cloud.dismissedRecurring.filter(k => typeof k === 'string' && k));
+  if(cloud.deletedTxIds && typeof cloud.deletedTxIds === 'object' && !Array.isArray(cloud.deletedTxIds)){
+    deletedTxIds = {};
+    for(const id in cloud.deletedTxIds){
+      const t = cloud.deletedTxIds[id];
+      if(typeof t === 'number' && isFinite(t) && t > 0) deletedTxIds[id] = t;
+    }
+  }
   if(Array.isArray(cloud.subscriptions)){
     subscriptions = cloud.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
