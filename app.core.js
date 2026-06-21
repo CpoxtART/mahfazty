@@ -28,6 +28,19 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.15',
+    date: '2026-06-21',
+    title: 'إصلاح تزامن الترجمة عند تبديل اللغة',
+    items: [
+      'إصلاح: لوحات الإعدادات المفتوحة (الترتيب، تعريف المحافظ، توزيع الدخل، حالة Google Drive، شبكة الفئات) كانت تبقى بلغتها القديمة عند تبديل اللغة من داخل الإعدادات، وصارت الآن تتحدّث فوراً.',
+      'إصلاح: تبويبات محرر الترتيب وعناوين الأقسام داخله كانت بالعربي دائماً حتى مع اختيار الإنجليزية — تُرجمت بالكامل.',
+      'إصلاح: أسماء الفئات (طعام، مواصلات، تسوق...) كانت لا تُترجم عند اختيار الإنجليزية — أُضيفت ترجمتها في كل مكان تظهر فيه (شبكة الإضافة والتعديل، قوائم المعاملات).',
+      'إصلاح جوهري: تنسيق التاريخ والوقت واسم اليوم/الشهر كان يستخدم التقويم العربي دائماً بغض النظر عن اللغة المختارة — صار يتبع اللغة الحالية في كل قوائم المعاملات والتقارير.',
+      'ترجمة بطاقات "تحليلات هذا الشهر" (مصروف الشهر، المقارنة بالشهر الماضي، المتوقع نهاية الشهر) إلى الإنجليزية.',
+      'ترجمة رسائل الحالات الفارغة، تسميات الفلاتر، وعناوين الوصول (aria-label) المتبقية في قوائم المعاملات والاشتراكات والتوزيع.',
+    ],
+  },
+  {
     version: 'v47.14',
     date: '2026-06-21',
     title: 'إصلاح تعارض مزامنة Drive + تحسينات لمسات وإتاحة',
@@ -335,16 +348,19 @@ function crisisWalletIds(){
   return WALLET_DEFS.filter(w => !w.track && w.id !== 'core').map(w => w.id);
 }
 
+// `name` stays the canonical Arabic string (also used as the stable fallback
+// when 'en' isn't applicable); `nameEn` is resolved through t() at lookup
+// time by getCategory()/the[_makeCatChip] grid renderer, not baked in here.
 const CATEGORIES = [
-  {id:'food',          types:['expense'],          name:'طعام وشراب',   icon:'🍽️', color:'#e3a07a'},
-  {id:'transport',     types:['expense'],          name:'مواصلات',      icon:'🚗', color:'#86adcf'},
-  {id:'shopping',      types:['expense'],          name:'تسوق',         icon:'🛍️', color:'#dcb674'},
-  {id:'bills',         types:['expense'],          name:'فواتير',       icon:'🧾', color:'#a78bd6'},
-  {id:'health',        types:['expense'],          name:'صحة',          icon:'💊', color:'#86c39a'},
-  {id:'entertainment', types:['expense'],          name:'ترفيه',        icon:'🎮', color:'#e3918f'},
-  {id:'salary',        types:['income'],           name:'راتب/دخل',     icon:'💼', color:'#7fcf9f'},
-  {id:'transfer',      types:['expense','income'], name:'تحويل',        icon:'🔁', color:'#9aa0ad'},
-  {id:'other',         types:['expense','income'], name:'أخرى',         icon:'✨', color:'#8d94a3'},
+  {id:'food',          types:['expense'],          name:'طعام وشراب',   nameEn:'Food & drinks',  icon:'🍽️', color:'#e3a07a'},
+  {id:'transport',     types:['expense'],          name:'مواصلات',      nameEn:'Transport',      icon:'🚗', color:'#86adcf'},
+  {id:'shopping',      types:['expense'],          name:'تسوق',         nameEn:'Shopping',       icon:'🛍️', color:'#dcb674'},
+  {id:'bills',         types:['expense'],          name:'فواتير',       nameEn:'Bills',          icon:'🧾', color:'#a78bd6'},
+  {id:'health',        types:['expense'],          name:'صحة',          nameEn:'Health',         icon:'💊', color:'#86c39a'},
+  {id:'entertainment', types:['expense'],          name:'ترفيه',        nameEn:'Entertainment',  icon:'🎮', color:'#e3918f'},
+  {id:'salary',        types:['income'],           name:'راتب/دخل',     nameEn:'Salary/income',  icon:'💼', color:'#7fcf9f'},
+  {id:'transfer',      types:['expense','income'], name:'تحويل',        nameEn:'Transfer',       icon:'🔁', color:'#9aa0ad'},
+  {id:'other',         types:['expense','income'], name:'أخرى',         nameEn:'Other',          icon:'✨', color:'#8d94a3'},
 ];
 const QUICK_AMOUNTS = [250, 500, 1000, 2000, 5000, 10000];
 // `let` + explicit recompute (not a one-time const filter) because WALLET_DEFS
@@ -429,23 +445,26 @@ const TAB_DEFS = {
   reports:      {icon:'📋', label:'التقارير',  panel:'tabReports'}
 };
 const DEFAULT_TAB_ORDER = ['home','transactions','analytics','reports'];
+// `label` is either an I18N_STRINGS key or an inline {ar,en} t() literal —
+// resolved lazily via t() at render time (renderLayoutEditor) so it always
+// reflects the current language instead of freezing at script-load time.
 const SECTION_DEFS = {
   home: [
-    {key:'balance', label:'💰 إجمالي المتاح'},
-    {key:'crisis',  label:'🔄 الوضع البديل'},
-    {key:'wallets', label:'👛 المحافظ'}
+    {key:'balance', label:{ar:'💰 إجمالي المتاح', en:'💰 Total available'}},
+    {key:'crisis',  label:{ar:'🔄 الوضع البديل', en:'🔄 Alternate mode'}},
+    {key:'wallets', label:{ar:'👛 المحافظ', en:'👛 Wallets'}}
   ],
   analytics: [
-    {key:'stats',         label:'📊 تحليلات الشهر'},
-    {key:'recurring',     label:'🔔 تنبيهات متكررة'},
-    {key:'export',        label:'📄 تصدير التقرير'},
-    {key:'subscriptions', label:'📆 الاشتراكات'},
-    {key:'chart',         label:'🥧 التوزيع حسب الفئة'}
+    {key:'stats',         label:'sec.monthStats'},
+    {key:'recurring',     label:{ar:'🔔 تنبيهات متكررة', en:'🔔 Recurring alerts'}},
+    {key:'export',        label:{ar:'📄 تصدير التقرير', en:'📄 Export report'}},
+    {key:'subscriptions', label:{ar:'📆 الاشتراكات', en:'📆 Subscriptions'}},
+    {key:'chart',         label:{ar:'🥧 التوزيع حسب الفئة', en:'🥧 Breakdown by category'}}
   ],
   reports: [
-    {key:'summary', label:'🧮 ملخص الدخل/المصروف'},
-    {key:'chart',   label:'📈 حركة الرصيد'},
-    {key:'list',    label:'🧾 قائمة المعاملات'}
+    {key:'summary', label:{ar:'🧮 ملخص الدخل/المصروف', en:'🧮 Income/expense summary'}},
+    {key:'chart',   label:{ar:'📈 حركة الرصيد', en:'📈 Balance flow'}},
+    {key:'list',    label:{ar:'🧾 قائمة المعاملات', en:'🧾 Transactions list'}}
   ]
 };
 let tabOrder = DEFAULT_TAB_ORDER.slice();

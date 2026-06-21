@@ -84,6 +84,16 @@ function setLang(lang){
   try{ if(typeof render === 'function') render(true); }catch(e){}
   try{ if(typeof renderChart === 'function') renderChart(); }catch(e){}
   try{ if(typeof renderPieChart === 'function') renderPieChart(); }catch(e){}
+  // Settings-modal panels render their own markup outside render()'s reach
+  // (only built on tab-open / explicit refresh), so a language switch while
+  // one is already open left it showing stale-language text until something
+  // else happened to re-trigger it.
+  try{ if(typeof renderLayoutEditor === 'function') renderLayoutEditor(); }catch(e){}
+  try{ if(typeof renderWalletDefsEditor === 'function') renderWalletDefsEditor(); }catch(e){}
+  try{ if(typeof renderDistributionEditor === 'function') renderDistributionEditor(); }catch(e){}
+  try{ if(typeof refreshDriveSettingsUI === 'function') refreshDriveSettingsUI(); }catch(e){}
+  try{ if(typeof renderCategoryGrid === 'function') renderCategoryGrid(); }catch(e){}
+  try{ if(typeof renderEditCategoryGrid === 'function') renderEditCategoryGrid(); }catch(e){}
 }
 
 function initLang(){

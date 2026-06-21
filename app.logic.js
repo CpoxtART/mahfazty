@@ -103,7 +103,7 @@ function openDistributionModal(amount){
     const warn = document.createElement('div');
     warn.className = 'hint';
     warn.style.cssText = 'color:var(--red); margin:0; font-size:13px;';
-    warn.textContent = '⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً';
+    warn.textContent = `⚠ ${t({ar:'لا توجد نسب توزيع — اضبطها في الإعدادات أولاً', en:'No distribution ratios set — set them up in Settings first'})}`;
     wrap.appendChild(warn);
   } else {
     const totalPct = activeEntries.reduce((s,d)=>s+d.pct, 0);
@@ -119,7 +119,7 @@ function openDistributionModal(amount){
       const warn = document.createElement('div');
       warn.className = 'hint';
       warn.style.cssText = 'color:var(--red); margin:8px 0 0; font-size:13px;';
-      warn.textContent = `⚠ مجموع النسب ${totalPct}% — يتجاوز 100%، راجع الإعدادات`;
+      warn.textContent = `⚠ ${t({ar:`مجموع النسب ${totalPct}% — يتجاوز 100%، راجع الإعدادات`, en:`Ratios total ${totalPct}% — over 100%, check Settings`})}`;
       wrap.appendChild(warn);
     } else if(totalPct < 100){
       // surface where the un-distributed remainder goes — it stays in the wallet
@@ -1733,7 +1733,7 @@ function refreshDriveSettingsUI(){
   if(!driveClientId){
     setupEl.style.display = 'block';
     actionsEl.style.display = 'none';
-    statusEl.textContent = 'غير مفعّل. أدخل Client ID الخاص بك للبدء.';
+    statusEl.textContent = t({ar:'غير مفعّل. أدخل Client ID الخاص بك للبدء.', en:'Not set up. Enter your Client ID to get started.'});
     setDriveIndicator('off');
     return;
   }
@@ -1741,13 +1741,13 @@ function refreshDriveSettingsUI(){
   actionsEl.style.display = 'block';
 
   if(driveAccessToken){
-    statusEl.textContent = 'متصل ✓ — البيانات تُحفظ تلقائيًا على Google Drive (مجلد بيانات التطبيق الخاص).';
+    statusEl.textContent = t({ar:'متصل ✓ — البيانات تُحفظ تلقائيًا على Google Drive (مجلد بيانات التطبيق الخاص).', en:'Connected ✓ — data is saved automatically to Google Drive (private app data folder).'});
     signInBtn.style.display = 'none';
     signedInActions.style.display = 'flex';
     if(autoSignInRow){ autoSignInRow.style.display = 'none'; } // preference no longer applies; hide
     setDriveIndicator('ok');
   } else {
-    statusEl.textContent = 'اضغط على زر أدناه أو على أيقونة ☁️ في الأعلى لتسجيل الدخول.';
+    statusEl.textContent = t({ar:'اضغط على زر أدناه أو على أيقونة ☁️ في الأعلى لتسجيل الدخول.', en:'Tap the button below or the ☁️ icon above to sign in.'});
     signInBtn.style.display = 'block';
     signedInActions.style.display = 'none';
     if(autoSignInRow) autoSignInRow.style.display = 'none';
@@ -2570,7 +2570,7 @@ function buildDailyReviewContent(){
 ============================================================ */
 function exportMonthlyReport(){
   const now = new Date();
-  const monthName = now.toLocaleDateString('ar-EG', {month:'long', year:'numeric', numberingSystem:'latn'});
+  const monthName = now.toLocaleDateString(_dateLocale(), {month:'long', year:'numeric', numberingSystem:'latn'});
   const [start, end] = monthRange(0);
 
   let totalIncome=0, totalExpense=0;
@@ -2741,7 +2741,7 @@ function applyUpdate(){
     if(driveAccessToken){ try{ driveSyncToCloud(); }catch(_){} }
   }
   const btn = document.getElementById('btnUpdateNow');
-  if(btn){ btn.disabled = true; btn.textContent = '...جاري'; }
+  if(btn){ btn.disabled = true; btn.textContent = t({ar:'...جاري', en:'Working...'}); }
   _reloadOnControllerChange = true;
   if(_pendingWorker){
     try{ _pendingWorker.postMessage({type:'SKIP_WAITING'}); }catch(e){}
@@ -2752,7 +2752,7 @@ function applyUpdate(){
 
 async function forceClearAndUpdate(){
   const btn = document.querySelector('.btn-cache-refresh');
-  if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري...'; }
+  if(btn){ btn.disabled = true; btn.textContent = `⏳ ${t({ar:'جاري...', en:'Working...'})}`; }
   try{
     // Wipe every cache bucket the browser holds for this origin
     const keys = await caches.keys();

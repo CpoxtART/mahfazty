@@ -164,7 +164,7 @@ function setWalletFilter(id){
   const chip = document.getElementById('walletFilterChip');
   if(walletFilter){
     const w = WALLET_DEFS.find(x=>x.id===walletFilter);
-    if(w) document.getElementById('walletFilterLabel').textContent = 'فلترة حسب: ' + w.name;
+    if(w) document.getElementById('walletFilterLabel').textContent = t({ar:'فلترة حسب: ', en:'Filtered by: '}) + w.name;
     chip.classList.add('show');
   } else {
     chip.classList.remove('show');
@@ -192,7 +192,7 @@ function toggleCategoryFilter(catId){
   const chip = document.getElementById('categoryFilterChip');
   if(categoryFilter){
     const cat = getCategory(categoryFilter);
-    document.getElementById('categoryFilterLabel').textContent = 'الفئة: ' + cat.icon + ' ' + cat.name;
+    document.getElementById('categoryFilterLabel').textContent = t({ar:'الفئة: ', en:'Category: '}) + cat.icon + ' ' + cat.name;
     chip.classList.add('show');
   } else {
     chip.classList.remove('show');
@@ -273,7 +273,7 @@ function refreshAfterWalletDefsChange(){
     // rename case — keep the chip label in sync with the live wallet name
     const w = WALLET_DEFS.find(x => x.id === walletFilter);
     const label = document.getElementById('walletFilterLabel');
-    if(w && label) label.textContent = 'فلترة حسب: ' + w.name;
+    if(w && label) label.textContent = t({ar:'فلترة حسب: ', en:'Filtered by: '}) + w.name;
   }
   renderWalletDefsEditor();
   renderWallets();
@@ -691,38 +691,43 @@ function applySectionOrder(){
     });
   });
 }
-// Tabs inside the layout editor (one for each reorderable group)
+// Tabs inside the layout editor (one for each reorderable group). `label` is
+// an I18N_STRINGS key or inline {ar,en} t() literal, resolved at render time
+// (see SECTION_DEFS above for why — same reasoning applies here).
 const LAYOUT_EDITOR_TABS = [
-  { id:'tab',       icon:'🗂',  label:'التبويبات' },
-  { id:'sec:home',  icon:'🏠',  label:'الرئيسي'   },
-  { id:'sec:analytics', icon:'📊', label:'تحليلات' },
-  { id:'sec:reports',   icon:'📋', label:'تقارير'  },
-  { id:'txlimit',   icon:'🧾',  label:'المعاملات'  },
+  { id:'tab',       icon:'🗂',  label:{ar:'التبويبات', en:'Tabs'} },
+  { id:'sec:home',  icon:'🏠',  label:'nav.home' },
+  { id:'sec:analytics', icon:'📊', label:'nav.analytics' },
+  { id:'sec:reports',   icon:'📋', label:'nav.reports' },
+  { id:'txlimit',   icon:'🧾',  label:'nav.transactions' },
 ];
 
 function renderLayoutEditor(){
   const host = document.getElementById('layoutEditor');
   if(!host) return;
 
+  const moveUpLabel = t({ar:'تحريك لأعلى', en:'Move up'});
+  const moveDownLabel = t({ar:'تحريك لأسفل', en:'Move down'});
   const row = (scope, key, label, idx, len) =>
     `<div class="reorder-row">
       <span class="reorder-label">${label}</span>
       <div class="reorder-btns">
-        <button onclick="moveLayout('${scope}','${key}',-1)" ${idx===0?'disabled':''} aria-label="تحريك لأعلى">▲</button>
-        <button onclick="moveLayout('${scope}','${key}',1)" ${idx===len-1?'disabled':''} aria-label="تحريك لأسفل">▼</button>
+        <button onclick="moveLayout('${scope}','${key}',-1)" ${idx===0?'disabled':''} aria-label="${moveUpLabel}">▲</button>
+        <button onclick="moveLayout('${scope}','${key}',1)" ${idx===len-1?'disabled':''} aria-label="${moveDownLabel}">▼</button>
       </div>
     </div>`;
 
   // Build the segmented tab strip
-  const tabs = LAYOUT_EDITOR_TABS.map(t =>
-    `<button class="le-tab${_layoutEditorTab===t.id?' active':''}" onclick="switchLayoutEditorTab('${t.id}')" aria-label="${t.label}">${t.icon} <span>${t.label}</span></button>`
-  ).join('');
+  const tabs = LAYOUT_EDITOR_TABS.map(td => {
+    const lbl = t(td.label);
+    return `<button class="le-tab${_layoutEditorTab===td.id?' active':''}" onclick="switchLayoutEditorTab('${td.id}')" aria-label="${lbl}">${td.icon} <span>${lbl}</span></button>`;
+  }).join('');
   let html = `<div class="le-tabs">${tabs}</div>`;
 
   // Build the active panel
   if(_layoutEditorTab === 'tab'){
     html += '<div class="reorder-group">';
-    tabOrder.forEach((k,i) => { html += row('tab', k, TAB_DEFS[k].icon+' '+TAB_DEFS[k].label, i, tabOrder.length); });
+    tabOrder.forEach((k,i) => { html += row('tab', k, TAB_DEFS[k].icon+' '+t('nav.'+k), i, tabOrder.length); });
     html += '</div>';
 
   } else if(_layoutEditorTab.startsWith('sec:')){
@@ -731,17 +736,17 @@ function renderLayoutEditor(){
     html += '<div class="reorder-group">';
     arr.forEach((k,i) => {
       const def = SECTION_DEFS[tabKey] && SECTION_DEFS[tabKey].find(s=>s.key===k);
-      html += row(_layoutEditorTab, k, def ? def.label : k, i, arr.length);
+      html += row(_layoutEditorTab, k, def ? t(def.label) : k, i, arr.length);
     });
     html += '</div>';
 
   } else if(_layoutEditorTab === 'txlimit'){
     const opts = [...new Set([10,15,20,25,30,40,50, recentTxLimit])].sort((a,b)=>a-b);
-    const optHtml = opts.map(n => `<option value="${n}"${n===recentTxLimit?' selected':''}>${n} معاملة</option>`).join('');
+    const optHtml = opts.map(n => `<option value="${n}"${n===recentTxLimit?' selected':''}>${t({ar:`${n} معاملة`, en:`${n} ${n===1?'transaction':'transactions'}`})}</option>`).join('');
     html += `<div class="reorder-group">
       <div class="reorder-row">
-        <span class="reorder-label">🧾 معاملات لكل دفعة (حد أقصى ${RECENT_TX_LIMIT_MAX})</span>
-        <select class="recent-limit-select" aria-label="عدد المعاملات المعروضة" onchange="setRecentTxLimit(parseInt(this.value,10))">${optHtml}</select>
+        <span class="reorder-label">${t({ar:`🧾 معاملات لكل دفعة (حد أقصى ${RECENT_TX_LIMIT_MAX})`, en:`🧾 Transactions per batch (max ${RECENT_TX_LIMIT_MAX})`})}</span>
+        <select class="recent-limit-select" aria-label="${t({ar:'عدد المعاملات المعروضة', en:'Number of transactions shown'})}" onchange="setRecentTxLimit(parseInt(this.value,10))">${optHtml}</select>
       </div>
     </div>`;
   }
@@ -947,7 +952,7 @@ function renderRecentTx(){
   if(countEl) countEl.textContent = all.length ? all.length : '';
 
   if(all.length === 0){
-    list.innerHTML = '<div class="empty"><span class="ic">🗂</span>لا توجد معاملات بعد — اضغط ＋ لإضافة أول معاملة</div>';
+    list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات بعد — اضغط ＋ لإضافة أول معاملة', en:'No transactions yet — tap ＋ to add your first one'})}</div>`;
     return;
   }
 
@@ -969,16 +974,16 @@ function renderRecentTx(){
       lastDay = dayStr;
       const lbl = document.createElement('div');
       lbl.className = 'tx-day-label';
-      lbl.textContent = dayStr===todayStr ? 'اليوم'
-        : dayStr===yesterdayStr ? 'أمس'
-        : date.toLocaleDateString('ar-EG',{weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
+      lbl.textContent = dayStr===todayStr ? t({ar:'اليوم', en:'Today'})
+        : dayStr===yesterdayStr ? t({ar:'أمس', en:'Yesterday'})
+        : date.toLocaleDateString(_dateLocale(),{weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
       list.appendChild(lbl);
       card = document.createElement('div');
       card.className = 'recent-card';
       card.setAttribute('role','list');
       list.appendChild(card);
     }
-    const timeStr = date.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',numberingSystem:'latn'});
+    const timeStr = date.toLocaleTimeString(_dateLocale(),{hour:'2-digit',minute:'2-digit',numberingSystem:'latn'});
     const sign = tx.type==='expense'?'-':'+';
     const cls = tx.type==='expense'?'neg':'pos';
     const row = document.createElement('div');
@@ -992,7 +997,7 @@ function renderRecentTx(){
     // scramble how a screen reader announces the rest of this label, so strip
     // those (stripBidiControls) without the unneeded HTML-entity escaping.
     row.setAttribute('aria-label',
-      `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${stripBidiControls(tx.desc) || (wallet?wallet.name:'')}، ${cat.name}، ${timeStr}`);
+      `${t(tx.type==='expense'?{ar:'مصروف',en:'Expense'}:{ar:'دخل',en:'Income'})} ${fmt(tx.amount)}${t({ar:'،',en:','})} ${stripBidiControls(tx.desc) || (wallet?wallet.name:'')}${t({ar:'،',en:','})} ${cat.name}${t({ar:'،',en:','})} ${timeStr}`);
     row.innerHTML = `
       <div class="rtx-badge" style="background:${cat.color}22; color:${cat.color};">${cat.icon}</div>
       <div class="rtx-body">
@@ -1012,7 +1017,15 @@ function renderRecentTx(){
     const more = document.createElement('button');
     more.className = 'btn-secondary';
     more.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:13px;';
-    more.textContent = `⬇ عرض ${arPlural(toShow, 'معاملة أقدم', 'معاملتين أقدم', 'معاملات أقدم', 'معاملة واحدة أقدم')}` + (remaining - toShow > 0 ? ` (${arPlural(remaining - toShow, 'متبقية', 'متبقيتان', 'متبقية', 'واحدة متبقية')})` : '');
+    const moreCountTxt = t({
+      ar: arPlural(toShow, 'معاملة أقدم', 'معاملتين أقدم', 'معاملات أقدم', 'معاملة واحدة أقدم'),
+      en: `${toShow} older ${toShow===1?'transaction':'transactions'}`,
+    });
+    const remainingTxt = remaining - toShow > 0 ? ` (${t({
+      ar: arPlural(remaining - toShow, 'متبقية', 'متبقيتان', 'متبقية', 'واحدة متبقية'),
+      en: `${remaining - toShow} remaining`,
+    })})` : '';
+    more.textContent = `⬇ ${t({ar:'عرض', en:'Show'})} ${moreCountTxt}` + remainingTxt;
     more.onclick = () => { _recentVisibleCount += recentTxLimit; renderRecentTx(); };
     list.appendChild(more);
   } else if(_recentVisibleCount > recentTxLimit && all.length > recentTxLimit){
@@ -1020,7 +1033,7 @@ function renderRecentTx(){
     const collapse = document.createElement('button');
     collapse.className = 'btn-secondary';
     collapse.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:13px;';
-    collapse.textContent = '⬆ طيّ القائمة';
+    collapse.textContent = `⬆ ${t({ar:'طيّ القائمة', en:'Collapse list'})}`;
     collapse.onclick = () => { _recentVisibleCount = recentTxLimit; renderRecentTx(); document.getElementById('tabTransactions')?.scrollIntoView({behavior:'smooth', block:'start'}); };
     list.appendChild(collapse);
   }
@@ -1036,13 +1049,13 @@ function renderSubscriptions(){
 
   if(subscriptions.length===0){
     totalEl.innerHTML = '';
-    list.innerHTML = '<div class="empty" style="padding:18px 14px;"><span class="ic">📆</span>لا توجد اشتراكات — أضف اشتراكاتك الشهرية لتتبع تكاليفها</div>';
+    list.innerHTML = `<div class="empty" style="padding:18px 14px;"><span class="ic">📆</span>${t({ar:'لا توجد اشتراكات — أضف اشتراكاتك الشهرية لتتبع تكاليفها', en:'No subscriptions — add your monthly subscriptions to track their cost'})}</div>`;
     return;
   }
 
   const active = subscriptions.filter(s=>s.active!==false);
   const monthlyTotal = round2(active.reduce((s,x)=>s+x.amount, 0));
-  totalEl.innerHTML = `إجمالي الاشتراكات الفعّالة: <b>${fmt(monthlyTotal)}</b> / شهر`;
+  totalEl.innerHTML = `${t({ar:'إجمالي الاشتراكات الفعّالة:', en:'Total active subscriptions:'})} <b>${fmt(monthlyTotal)}</b> / ${t({ar:'شهر', en:'mo'})}`;
   list.innerHTML = '';
   subscriptions.forEach(s => {
     const card = document.createElement('div');
@@ -1430,13 +1443,14 @@ function setAddFormType(type){
 
 // shared helper: make a category chip keyboard-operable (Enter/Space)
 function _makeCatChip(c, isActive, onSelect){
+  const name = t({ar: c.name, en: c.nameEn});
   const chip = document.createElement('div');
   chip.className = 'cat-chip' + (isActive ? ' active' : '');
-  chip.innerHTML = `<span class="ic">${c.icon}</span><span>${escHtml(c.name)}</span>`;
+  chip.innerHTML = `<span class="ic">${c.icon}</span><span>${escHtml(name)}</span>`;
   chip.setAttribute('role', 'button');
   chip.setAttribute('tabindex', '0');
   chip.setAttribute('aria-pressed', String(isActive));
-  chip.setAttribute('aria-label', c.name);
+  chip.setAttribute('aria-label', name);
   chip.onclick = onSelect;
   chip.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onSelect(); } };
   return chip;
@@ -1461,7 +1475,11 @@ function renderEditCategoryGrid(){
   });
 }
 function getCategory(id){
-  return CATEGORIES.find(c=>c.id===id) || CATEGORIES.find(c=>c.id==='other') || CATEGORIES[0];
+  const cat = CATEGORIES.find(c=>c.id===id) || CATEGORIES.find(c=>c.id==='other') || CATEGORIES[0];
+  // Spread so callers' `.name` reads stay translated without touching every
+  // call site — `nameEn` never gets baked into CATEGORIES itself (see its
+  // declaration) so this re-resolves on every call, always current language.
+  return { ...cat, name: t({ar: cat.name, en: cat.nameEn}) };
 }
 // Small "↪ <tracked wallet>" badge for a transaction that also moves a tracked
 // wallet, so a linked entry is recognizable in the lists. Empty string otherwise.
@@ -1542,7 +1560,7 @@ function renderPieChart(){
   }
 
   if(data.filteredLen === 0 || !(data.total > 0)){
-    wrap.innerHTML = '<div class="empty" style="flex:1;"><span class="ic">🍰</span>أول مصروف يظهر هنا موزّعاً حسب الفئة</div>';
+    wrap.innerHTML = `<div class="empty" style="flex:1;"><span class="ic">🍰</span>${t({ar:'أول مصروف يظهر هنا موزّعاً حسب الفئة', en:'Your first expense will appear here broken down by category'})}</div>`;
     return;
   }
   const { total, entries, pctMap, prevTotals } = data;
@@ -1841,7 +1859,7 @@ function updateDistTotal(){
   const el = document.getElementById('distTotalRow');
   if(!el) return;
   const display = total.toFixed(1);
-  el.textContent = 'الإجمالي: ' + display + '%';
+  el.textContent = t({ar:'الإجمالي: ', en:'Total: '}) + display + '%';
   // compare using the rounded display value so color always matches what user reads
   el.className = 'dist-total ' + (parseFloat(display) === 100 ? 'ok' : 'warn');
 }
@@ -1923,7 +1941,7 @@ function openWalletDetail(walletId){
   const list = document.getElementById('detailTxList');
   list.innerHTML = '';
   if(txs.length === 0){
-    list.innerHTML = '<div class="empty" style="padding:20px;">لا توجد معاملات لهذه المحفظة</div>';
+    list.innerHTML = `<div class="empty" style="padding:20px;">${t({ar:'لا توجد معاملات لهذه المحفظة', en:'No transactions for this wallet'})}</div>`;
   } else {
     txs.slice(0,50).forEach(tx=>{
       const cat = getCategory(tx.category);
@@ -1936,7 +1954,7 @@ function openWalletDetail(walletId){
       div.innerHTML = `
         <div class="info">
           <div class="desc" dir="auto">${cat.icon} ${escHtml(tx.desc || cat.name)}</div>
-          <div class="meta">${date.toLocaleDateString('ar-EG',{day:'numeric',month:'short',numberingSystem:'latn'})}</div>
+          <div class="meta">${date.toLocaleDateString(_dateLocale(),{day:'numeric',month:'short',numberingSystem:'latn'})}</div>
         </div>
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
       `;
@@ -1977,7 +1995,7 @@ function renderAnalytics(){
   grid.innerHTML = '';
 
   if(!state.transactions.length){
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><span class="ic">📊</span>سجّل أول معاملة من ＋ لترى تحليلاتك هنا</div>`;
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><span class="ic">📊</span>${t({ar:'سجّل أول معاملة من ＋ لترى تحليلاتك هنا', en:'Log your first transaction via ＋ to see your insights here'})}</div>`;
     return;
   }
 
@@ -2001,13 +2019,13 @@ function renderAnalytics(){
     const diff = curTotal - prevTotal;
     const pct = Math.abs(diff/prevTotal*100).toFixed(0);
     const up = diff > 0;
-    cmpHtml = `<div class="sub ${up?'up':'down'}">${up?'▲':'▼'} ${pct}% عن الشهر الماضي</div>`;
+    cmpHtml = `<div class="sub ${up?'up':'down'}">${up?'▲':'▼'} ${pct}${t({ar:'% عن الشهر الماضي', en:'% vs last month'})}</div>`;
   } else {
-    cmpHtml = `<div class="sub">لا توجد بيانات للشهر الماضي</div>`;
+    cmpHtml = `<div class="sub">${t({ar:'لا توجد بيانات للشهر الماضي', en:'No data for last month'})}</div>`;
   }
   grid.innerHTML += `
     <div class="analytics-card">
-      <div class="l">مصروف هذا الشهر</div>
+      <div class="l">${t({ar:'مصروف هذا الشهر', en:"This month's spending"})}</div>
       <div class="v">${fmt(curTotal)}</div>
       ${cmpHtml}
     </div>`;
@@ -2017,16 +2035,16 @@ function renderAnalytics(){
     const projected = dailyRate * daysInMonth;
     projHtml = `
       <div class="analytics-card">
-        <div class="l">المتوقع نهاية الشهر</div>
+        <div class="l">${t({ar:'المتوقع نهاية الشهر', en:'Expected by month end'})}</div>
         <div class="v">${fmt(projected)}</div>
-        <div class="sub">بمعدل ${fmt(dailyRate)} / يوم</div>
+        <div class="sub">${t({ar:'بمعدل', en:'At a rate of'})} ${fmt(dailyRate)} / ${t({ar:'يوم', en:'day'})}</div>
       </div>`;
   } else {
     projHtml = `
       <div class="analytics-card">
-        <div class="l">المتوقع نهاية الشهر</div>
+        <div class="l">${t({ar:'المتوقع نهاية الشهر', en:'Expected by month end'})}</div>
         <div class="v">—</div>
-        <div class="sub">يحتاج بيانات أكثر</div>
+        <div class="sub">${t({ar:'يحتاج بيانات أكثر', en:'Needs more data'})}</div>
       </div>`;
   }
   grid.innerHTML += projHtml;
@@ -2268,12 +2286,12 @@ function renderTxList(){
 
   if(filtered.length === 0){
     if(state.transactions.length === 0 && !searchQuery && currentFilter==='all'){
-      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>لا توجد معاملات بعد.<br><br>
-        <button class="btn-primary" onclick="document.querySelector('.fab-btn').click()" style="width:auto; padding:10px 20px; display:inline-block; margin-bottom:8px;">＋ أضف أول معاملة</button><br>
-        <button class="btn-secondary" onclick="openSettingsTab('data')" style="width:auto; padding:8px 16px; display:inline-block; font-size:12px;">⬆ استيراد من JSON</button>
+      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات بعد.', en:'No transactions yet.'})}<br><br>
+        <button class="btn-primary" onclick="document.querySelector('.fab-btn').click()" style="width:auto; padding:10px 20px; display:inline-block; margin-bottom:8px;">＋ ${t({ar:'أضف أول معاملة', en:'Add your first transaction'})}</button><br>
+        <button class="btn-secondary" onclick="openSettingsTab('data')" style="width:auto; padding:8px 16px; display:inline-block; font-size:12px;">⬆ ${t({ar:'استيراد من JSON', en:'Import from JSON'})}</button>
       </div>`;
     } else {
-      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>لا توجد معاملات${searchQuery ? ' مطابقة لبحثك' : ' في هذه الفترة'}</div>`;
+      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات', en:'No transactions'})}${searchQuery ? t({ar:' مطابقة لبحثك', en:' matching your search'}) : t({ar:' في هذه الفترة', en:' in this period'})}</div>`;
     }
     return;
   }
@@ -2292,7 +2310,7 @@ function renderTxList(){
       // step back one calendar day (not 24h) so DST transition days still label correctly
       const _yest = new Date(); _yest.setDate(_yest.getDate()-1);
       const isYesterday = dayKey === _yest.toDateString();
-      lbl.textContent = isToday ? 'اليوم' : isYesterday ? 'أمس' : date.toLocaleDateString('ar-EG', {weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
+      lbl.textContent = isToday ? t({ar:'اليوم', en:'Today'}) : isYesterday ? t({ar:'أمس', en:'Yesterday'}) : date.toLocaleDateString(_dateLocale(), {weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
       list.appendChild(lbl);
     }
 
@@ -2302,13 +2320,13 @@ function renderTxList(){
 
     const bg = document.createElement('div');
     bg.className = 'tx-swipe-bg';
-    bg.innerHTML = '🗑 حذف';
+    bg.innerHTML = `🗑 ${t({ar:'حذف', en:'Delete'})}`;
 
     const div = document.createElement('div');
     div.className = 'tx';
     const sign = tx.type === 'expense' ? '-' : '+';
     const cls = tx.type === 'expense' ? 'neg' : 'pos';
-    const timeStr = date.toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit', numberingSystem:'latn'});
+    const timeStr = date.toLocaleTimeString(_dateLocale(), {hour:'2-digit', minute:'2-digit', numberingSystem:'latn'});
     const cat = getCategory(tx.category);
     div.innerHTML = `
       <div class="info">
@@ -2317,7 +2335,7 @@ function renderTxList(){
       </div>
       <div class="right">
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
-        <button class="edit-btn" aria-label="تعديل">✎</button>
+        <button class="edit-btn" aria-label="${t({ar:'تعديل', en:'Edit'})}">✎</button>
       </div>
     `;
     // Accessible name for the whole row so a screen reader announces what this
@@ -2325,7 +2343,7 @@ function renderTxList(){
     // see the matching aria-label in renderRecentTx: setAttribute needs bidi
     // stripping, not HTML-escaping, since it never interprets markup.
     div.setAttribute('aria-label',
-      `${tx.type==='expense'?'مصروف':'دخل'} ${fmt(tx.amount)}، ${stripBidiControls(tx.desc) || (wallet?wallet.name:'')}، ${cat.name}، ${date.toLocaleDateString('ar-EG',{day:'numeric',month:'long',numberingSystem:'latn'})} ${timeStr}`);
+      `${t(tx.type==='expense'?{ar:'مصروف',en:'Expense'}:{ar:'دخل',en:'Income'})} ${fmt(tx.amount)}${t({ar:'،',en:','})} ${stripBidiControls(tx.desc) || (wallet?wallet.name:'')}${t({ar:'،',en:','})} ${cat.name}${t({ar:'،',en:','})} ${date.toLocaleDateString(_dateLocale(),{day:'numeric',month:'long',numberingSystem:'latn'})} ${timeStr}`);
     // `wrap` (parent) already carries role="listitem" for the list structure, so
     // this nested element can be the actual interactive control — previously it
     // was click-only, leaving keyboard/screen-reader users no way to open it.
