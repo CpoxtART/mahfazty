@@ -855,7 +855,7 @@ async function loadState(){
   const _validTx = arr => (Array.isArray(arr) ? arr : []).filter(t =>
     t && t.id && (t.type === 'income' || t.type === 'expense') &&
     typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
-    typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 &&
+    typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 && t.amount <= MAX_AMOUNT &&
     WALLET_DEFS.find(w => w.id === t.wallet));
 
   // ── Transactions: IndexedDB is the PRIMARY store (scales far past localStorage's
@@ -1041,7 +1041,7 @@ function mergeCloudData(cloud, cloudNewer){
 
   const validTx = t => t && t.id && (t.type === 'income' || t.type === 'expense') &&
     typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
-    typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 &&
+    typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 && t.amount <= MAX_AMOUNT &&
     WALLET_DEFS.find(w => w.id === t.wallet);
 
   // 1) union tombstones from both sides

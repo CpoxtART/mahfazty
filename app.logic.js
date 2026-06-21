@@ -1743,7 +1743,14 @@ function saveDriveClientId(){
     return;
   }
   driveClientId = val;
-  try{ localStorage.setItem(LS_PREFIX + 'driveClientId', val); }catch(e){}
+  try{
+    localStorage.setItem(LS_PREFIX + 'driveClientId', val);
+  }catch(e){
+    toast('⚠ فشل حفظ Client ID محليًا — لن يبقى محفوظاً بعد إعادة فتح التطبيق', true);
+    refreshDriveSettingsUI();
+    initGisClient();
+    return;
+  }
   refreshDriveSettingsUI();
   initGisClient();
   toast('✓ تم الحفظ. الآن سجّل الدخول بجوجل');
@@ -2104,7 +2111,7 @@ async function adoptCloudSnapshot(cloud){
     state.transactions = cloud.transactions.filter(tx =>
       tx && (tx.type === 'income' || tx.type === 'expense') &&
       typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
-      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 &&
+      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 && tx.amount <= MAX_AMOUNT &&
       WALLET_DEFS.find(w => w.id === tx.wallet))
       // same input-side cap as applyImport(), plus the same cent-rounding every
       // other entry point enforces (a cloud copy isn't bound by addTx's rounding)

@@ -527,11 +527,11 @@ function setTrackLinkMode(walletId, mode){
   const w = WALLET_DEFS.find(x => x.id === walletId && x.track);
   if(!w) return;
   trackLinkMode[walletId] = (mode === 'credit') ? 'credit' : 'debit';
-  saveLayoutPrefs();
+  const saved = saveLayoutPrefs();
   scheduleDriveSync();
   _updateTrackModeToggleUI(walletId);
   renderTrackLinkPicker(); // refresh the add-form hint if this wallet is selected there
-  toast(trackLinkMode[walletId] === 'credit' ? '✓ سيُحتسب كعدّاد إنفاق (يزيد)' : '✓ سيُحتسب كرصيد فعلي (ينقص)');
+  if(saved) toast(trackLinkMode[walletId] === 'credit' ? '✓ سيُحتسب كعدّاد إنفاق (يزيد)' : '✓ سيُحتسب كرصيد فعلي (ينقص)');
 }
 function _updateTrackModeToggleUI(walletId){
   const credit = trackModeFor(walletId) === 'credit';
@@ -620,6 +620,8 @@ function clampRecentLimit(n){
   if(!isFinite(n) || n < 5) return RECENT_TX_LIMIT_DEFAULT;
   return Math.min(Math.round(n), RECENT_TX_LIMIT_MAX);
 }
+// Returns true on success so callers can withhold an optimistic "saved" toast
+// on failure instead of clobbering the error toast shown here.
 function saveLayoutPrefs(){
   try{
     localStorage.setItem(LS_PREFIX + 'tabOrder', JSON.stringify(tabOrder));
@@ -628,7 +630,8 @@ function saveLayoutPrefs(){
     });
     localStorage.setItem(LS_PREFIX + 'recentTxLimit', String(recentTxLimit));
     localStorage.setItem(LS_PREFIX + 'trackLinkMode', JSON.stringify(trackLinkMode));
-  }catch(e){}
+    return true;
+  }catch(e){ toast('⚠ فشل حفظ تفضيلات الترتيب محليًا', true); return false; }
 }
 function setRecentTxLimit(n){
   recentTxLimit = clampRecentLimit(n);
@@ -797,13 +800,13 @@ function resetLayout(){
   Object.keys(SECTION_DEFS).forEach(tab => { sectionOrder[tab] = SECTION_DEFS[tab].map(s => s.key); });
   recentTxLimit = RECENT_TX_LIMIT_DEFAULT;
   _recentVisibleCount = recentTxLimit;
-  saveLayoutPrefs();
+  const saved = saveLayoutPrefs();
   scheduleDriveSync();
   renderBottomNav();
   applySectionOrder();
   renderRecentTx();
   renderLayoutEditor();
-  toast('↺ تمت استعادة الترتيب الافتراضي');
+  if(saved) toast('↺ تمت استعادة الترتيب الافتراضي');
 }
 
 /* ============================================================
@@ -1740,12 +1743,16 @@ async function doTransfer(){
 let _updateBalanceBusy = false;
 async function updateTrackedBalance(){
   if(_updateBalanceBusy || !detailWalletId) return;
-  const w = WALLET_DEFS.find(x=>x.id===detailWalletId);
+  // Snapshot now — detailWalletId is a shared global the user can change (by
+  // opening a different wallet's detail view) while this function's awaits
+  // are in flight, which would otherwise misattribute the refresh/toast below.
+  const walletId = detailWalletId;
+  const w = WALLET_DEFS.find(x=>x.id===walletId);
   if(!w){ toast('⚠ المحفظة غير موجودة', true); return; } // detailWalletId could be stale
   const newVal = parseAmount(document.getElementById('detailNewBalance').value);
   if(isNaN(newVal)){ toast('⚠ أدخل رصيد صحيح', true); return; }
 
-  const current = state.wallets[detailWalletId] ?? 0;
+  const current = state.wallets[walletId] ?? 0;
   const diff = round2(newVal - current);
   if(diff === 0){ toast('لا يوجد تغيير بالرصيد'); return; }
 
@@ -1757,7 +1764,7 @@ async function updateTrackedBalance(){
   try{
     const tx = {
       id: 'tx_'+Date.now()+'_adj'+Math.random().toString(36).slice(2,4),
-      wallet: detailWalletId,
+      wallet: walletId,
       desc: 'مزامنة رصيد ' + w.name,
       amount: Math.abs(diff),
       type: diff > 0 ? 'income' : 'expense',
@@ -1770,7 +1777,9 @@ async function updateTrackedBalance(){
     await saveBalances();
     await saveTx();
     render();
-    openWalletDetail(detailWalletId); // refresh modal in place
+    // Only snap the modal back to this wallet if the user is still on it —
+    // they may have navigated to a different wallet's detail view meanwhile.
+    if(detailWalletId === walletId) openWalletDetail(walletId);
     toast('✓ تمت مزامنة الرصيد');
   } finally {
     _updateBalanceBusy = false;
