@@ -18,7 +18,10 @@ function _buildMonthlyExpenseCache(){
     if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
     const d = new Date(tx.ts);
     if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
-      cache[tx.wallet] = (cache[tx.wallet]||0) + tx.amount;
+      // round2 per-step (not just at the end) so summing many transactions
+      // can't drift past a budget threshold by an IEEE-754 fraction of a cent
+      // (e.g. 0.10 × 300 ≠ 30 exactly in raw float math).
+      cache[tx.wallet] = round2((cache[tx.wallet]||0) + tx.amount);
     }
   });
   return cache;
@@ -431,6 +434,7 @@ function renderWalletSelect(){
     const val = state.wallets[w.id] ?? 0;
     opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
     opt.onclick = () => selectWallet(w.id);
+    opt.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); selectWallet(w.id); } };
     menu.appendChild(opt);
   });
   const wDef = WALLET_DEFS.find(w => w.id === selectedWallet);
@@ -1130,7 +1134,9 @@ function renderEditWalletSelect(){
     opt.tabIndex = 0;
     const val = state.wallets[w.id] ?? 0;
     opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
-    opt.onclick = () => { editWallet = w.id; document.getElementById('editWalletMenuWrap').classList.remove('open'); const eb = document.getElementById('editWalletBtn'); eb.classList.remove('open'); eb.setAttribute('aria-expanded','false'); renderEditWalletSelect(); };
+    const _pick = () => { editWallet = w.id; document.getElementById('editWalletMenuWrap').classList.remove('open'); const eb = document.getElementById('editWalletBtn'); eb.classList.remove('open'); eb.setAttribute('aria-expanded','false'); renderEditWalletSelect(); };
+    opt.onclick = _pick;
+    opt.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _pick(); } };
     menu.appendChild(opt);
   });
   const wDef = WALLET_DEFS.find(w => w.id === editWallet);
@@ -1638,7 +1644,7 @@ function renderTransferMenus(){
       opt.tabIndex = 0;
       const val = state.wallets[w.id] ?? 0;
       opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
-      opt.onclick = () => {
+      const _pick = () => {
         if(dir==='from') transferFrom = w.id; else transferTo = w.id;
         const k = dir==='from'?'From':'To';
         document.getElementById('transfer'+k+'MenuWrap').classList.remove('open');
@@ -1647,6 +1653,8 @@ function renderTransferMenus(){
         tb.setAttribute('aria-expanded','false');
         renderTransferMenus();
       };
+      opt.onclick = _pick;
+      opt.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _pick(); } };
       menu.appendChild(opt);
     });
     const wDef = WALLET_DEFS.find(w=>w.id===selected);
@@ -1774,7 +1782,7 @@ async function saveWalletBudget(){
   if(!detailWalletId || _saveWalletBudgetBusy) return;
   _saveWalletBudgetBusy = true;
   try{
-    const val = parseAmount(document.getElementById('detailBudgetInput').value);
+    const val = round2(parseAmount(document.getElementById('detailBudgetInput').value));
     if(!val || val <= 0){
       delete budgets[detailWalletId];
     } else {

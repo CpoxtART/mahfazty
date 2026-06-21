@@ -162,6 +162,8 @@ async function confirmDistribution(){
   const live = state.transactions.find(t => t.id === txToDistribute.id);
   if(!live){ closeModal('distributeModal'); toast('⚠ تعذّر التوزيع — لم تعد المعاملة موجودة', true); return; }
   _opInFlight++; // guard the multi-await distribution against a mid-flight reload
+  const _btn = document.getElementById('confirmDistributionBtn');
+  _setBtnSaving(_btn, true);
   try{
     await runDistribution(live, live.amount);
     closeModal('distributeModal');
@@ -169,6 +171,7 @@ async function confirmDistribution(){
     toast('✓ تم توزيع الدخل على المحافظ');
   } finally {
     _opInFlight--;
+    _setBtnSaving(_btn, false);
   }
 }
 
@@ -2632,6 +2635,13 @@ function applyUpdate(){
   // Same guard for an in-progress transaction edit.
   if(editingTxId != null){
     if(!confirm('لديك تعديل معاملة لم يُحفظ — التحديث الآن سيتجاهله. متابعة؟')) return;
+  } else if(document.querySelector('.modal-overlay.open')){
+    // Any other open dialog (تحويل/اشتراك/محفظة/توزيع الدخل، إلخ) can also hold
+    // unsaved form input the two specific checks above don't know about — the
+    // cross-tab storage listener already treats "any modal open" as unsafe to
+    // reload over (see _anyOverlayOpen below); applyUpdate() is a user-initiated
+    // reload so it asks instead of silently deferring.
+    if(!confirm('هناك نافذة مفتوحة قد تحتوي بيانات غير محفوظة — التحديث الآن سيُغلقها. متابعة؟')) return;
   }
   // Flush any pending Drive sync before the reload interrupts it.
   if(typeof driveSyncTimer !== 'undefined' && driveSyncTimer){
