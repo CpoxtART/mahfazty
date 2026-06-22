@@ -1411,6 +1411,10 @@ function toast(msg, isError){
     _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
   }
   const el = document.getElementById('saveStatus');
+  // Errors must interrupt a screen reader (assertive); routine confirmations
+  // stay polite so they don't talk over the user. Explicit aria-live overrides
+  // the element's implicit role="status" politeness.
+  el.setAttribute('aria-live', isError ? 'assertive' : 'polite');
   el.textContent = msg;
   el.style.borderColor = isError ? 'var(--red)' : 'var(--line)';
   el.style.color = isError ? 'var(--red)' : 'var(--text)';
@@ -1431,6 +1435,9 @@ function toastWithUndo(msg, undoFn){
 function toastWithAction(msg, actionLabel, fn, critical){
   if(!critical && Date.now() < _criticalToastUntil){ _queuedToast = {fn: toastWithAction, args:[msg, actionLabel, fn, critical]}; return; }
   const el = document.getElementById('saveStatus');
+  // critical warnings (e.g. data-loss) interrupt the screen reader; routine
+  // action toasts (undo) stay polite. See the matching note in toast().
+  el.setAttribute('aria-live', critical ? 'assertive' : 'polite');
   el.innerHTML = '';
   const span = document.createElement('span');
   span.textContent = msg;

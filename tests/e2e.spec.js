@@ -73,6 +73,16 @@ test('RTL/LTR layout fix: hero amount mirrors with the page direction', async ({
   expect(await align(), 'English/LTR → left-aligned (the v47.18 fix)').toBe('left');
 });
 
+test('error toasts announce assertively to screen readers', async ({ page }) => {
+  await gotoApp(page);
+  const liveAfter = (isError) => page.evaluate((e) => {
+    toast('msg', e);
+    return document.getElementById('saveStatus').getAttribute('aria-live');
+  }, isError);
+  expect(await liveAfter(true), 'error → assertive').toBe('assertive');
+  expect(await liveAfter(false), 'routine → polite').toBe('polite');
+});
+
 test('analytics & reports tabs render charts without runtime errors', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
