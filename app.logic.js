@@ -1465,7 +1465,7 @@ function hideSplash(){
    FIRST-RUN WELCOME MODAL
 ============================================================ */
 let _welcomeStep = 0;
-const _WELCOME_STEPS = 6;
+const _WELCOME_STEPS = 7;
 // Returns true iff onboarding was actually shown — callers use this (not their own
 // pre-load localStorage peek) since the answer can only be known accurately AFTER
 // loadState() has had a chance to recover data from IndexedDB (see below).

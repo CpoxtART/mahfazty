@@ -40,14 +40,20 @@ function t(key, vars){
   return s;
 }
 
-// Translate static markup: [data-i18n] sets text (or innerHTML with
-// data-i18n-html), [data-i18n-ph] placeholder, [data-i18n-aria] aria-label,
-// [data-i18n-title] title.
+// Translate static markup: [data-i18n] sets textContent, [data-i18n-html="key"]
+// sets innerHTML (the key lives in the attribute value — used by the onboarding
+// lists and the Drive conflict hint), [data-i18n-ph] placeholder, [data-i18n-aria]
+// aria-label, [data-i18n-title] title.
 function applyStaticI18n(root){
   root = root || document;
   root.querySelectorAll('[data-i18n]').forEach(function(el){
-    var v = t(el.getAttribute('data-i18n'));
-    if(el.hasAttribute('data-i18n-html')) el.innerHTML = v; else el.textContent = v;
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  // Separate selector: these carry the key in data-i18n-html itself, not in a
+  // bare data-i18n, so the walker above never matched them (every English
+  // onboarding bullet silently stayed Arabic before this).
+  root.querySelectorAll('[data-i18n-html]').forEach(function(el){
+    el.innerHTML = t(el.getAttribute('data-i18n-html'));
   });
   root.querySelectorAll('[data-i18n-ph]').forEach(function(el){ el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
   root.querySelectorAll('[data-i18n-aria]').forEach(function(el){ el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria'))); });
@@ -279,6 +285,12 @@ var I18N_STRINGS = {
   'onb.s6Li3':        { ar: '<b>🗑 احذف ما لا تحتاجه</b> — مع حماية من حذف محفظة مرتبطة برصيد أو معاملات.', en: "<b>🗑 Delete what you don't need</b> — protected from deleting a wallet tied to a balance or transactions." },
   'onb.s6Li4':        { ar: '<b>⚙ إعدادات أنظف</b> — مقسّمة إلى ٣ تبويبات: الترتيب، المحافظ، البيانات.', en: '<b>⚙ Cleaner settings</b> — split into 3 tabs: Layout, Wallets, Data.' },
   'onb.s6Note':       { ar: '💡 تبدأ بـ ١٠ محافظ جاهزة، وتخصّصها كما يناسب حياتك من ⚙ الإعدادات ← المحافظ.', en: '💡 You start with 10 ready-made wallets, and customize them to fit your life from ⚙ Settings ← Wallets.' },
+  'onb.s7Title':      { ar: 'خصّصها على ذوقك', en: 'Make it yours' },
+  'onb.s7Li1':        { ar: '<b>🌐 لغتان: عربي/English</b> — بدّلها بضغطة من زر اللغة بالأعلى.', en: '<b>🌐 Two languages: Arabic/English</b> — switch with one tap from the language button up top.' },
+  'onb.s7Li2':        { ar: '<b>🌗 المظهر</b> — فاتح أو داكن أو أسود أو تلقائي حسب جهازك.', en: '<b>🌗 Appearance</b> — light, dark, black, or auto to match your device.' },
+  'onb.s7Li3':        { ar: '<b>🎨 لون التطبيق</b> — اختر لونك المفضّل من ⚙ الإعدادات ← المظهر.', en: '<b>🎨 Accent color</b> — pick your favorite from ⚙ Settings ← Appearance.' },
+  'onb.s7Li4':        { ar: '<b>☀️ مراجعة يومية</b> — ملخّص سريع لحركة أمسك وما يستحقّ انتباهك.', en: '<b>☀️ Daily review</b> — a quick recap of yesterday and what needs your attention.' },
+  'onb.s7Note':       { ar: '💡 كل هذا اختياري — التطبيق جاهز للعمل من أول لحظة بدون أي ضبط.', en: '💡 All optional — the app works out of the box with zero setup.' },
   'onb.back':         { ar: 'رجوع', en: 'Back' },
   'onb.next':         { ar: 'التالي', en: 'Next' },
   'onb.startIncome':  { ar: '＋ سجّل أول دخل', en: '＋ Log first income' },
