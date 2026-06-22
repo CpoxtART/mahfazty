@@ -131,7 +131,8 @@ function openDistributionModal(amount){
         const note = document.createElement('div');
         note.className = 'dist-row';
         note.style.cssText = 'border-style:dashed; opacity:.85; margin-top:4px;';
-        note.innerHTML = `<span class="name">يبقى في ${srcW ? escHtml(srcW.name) : 'المحفظة'} <span class="pct">${round2(100-totalPct)}%</span></span><span class="amt">${fmt(remainder)}</span>`;
+        const remainderWalletName = srcW ? escHtml(srcW.name) : t({ar:'المحفظة', en:'the wallet'});
+        note.innerHTML = `<span class="name">${escHtml(t({ar:'يبقى في', en:'Remains in'}))} ${remainderWalletName} <span class="pct">${round2(100-totalPct)}%</span></span><span class="amt">${fmt(remainder)}</span>`;
         wrap.appendChild(note);
       }
     }
@@ -211,7 +212,7 @@ async function runDistribution(sourceTx, amount){
   const txOut = {
     id: 'tx_'+Date.now()+'_d0'+Math.random().toString(36).slice(2,7),
     wallet: sourceWalletId,
-    desc: 'توزيع الدخل على المحافظ',
+    desc: t({ar:'توزيع الدخل على المحافظ', en:'Income distributed across wallets'}),
     amount: intendedTotal,
     type: 'expense',
     category: 'transfer',
@@ -244,7 +245,7 @@ async function runDistribution(sourceTx, amount){
     const txIn = {
       id: 'tx_'+Date.now()+'_d'+(i+1)+Math.random().toString(36).slice(2,7),
       wallet: d.id,
-      desc: `حصة ${w.name} (⁦${d.pct}%⁩) من دخل`,
+      desc: t({ar:`حصة ${w.name} (⁦${d.pct}%⁩) من دخل`, en:`${w.name}'s share (${d.pct}%) of income`}),
       amount: share,
       type: 'income',
       category: 'transfer',
@@ -422,11 +423,11 @@ async function saveEdit(){
       const partnerWalletDef = WALLET_DEFS.find(w => w.id === partner.wallet);
       if(newWalletDef && partnerWalletDef){
         if(tx.type === 'expense'){
-          tx.desc = tx.desc || ('تحويل إلى ' + partnerWalletDef.name);
-          partner.desc = 'تحويل من ' + newWalletDef.name;
+          tx.desc = tx.desc || (t({ar:'تحويل إلى ', en:'Transfer to '}) + partnerWalletDef.name);
+          partner.desc = t({ar:'تحويل من ', en:'Transfer from '}) + newWalletDef.name;
         } else {
-          tx.desc = tx.desc || ('تحويل من ' + partnerWalletDef.name);
-          partner.desc = 'تحويل إلى ' + newWalletDef.name;
+          tx.desc = tx.desc || (t({ar:'تحويل من ', en:'Transfer from '}) + partnerWalletDef.name);
+          partner.desc = t({ar:'تحويل إلى ', en:'Transfer to '}) + newWalletDef.name;
         }
       }
       applyTxToBalance(partner, +1);
@@ -931,7 +932,7 @@ function updateSettingsStats(){
   const cacheEl = document.getElementById('statCacheVer');
   if(cacheEl){
     caches.keys().then(keys => {
-      cacheEl.textContent = keys.length ? keys.join(', ') : 'لا يوجد كاش';
+      cacheEl.textContent = keys.length ? keys.join(', ') : t({ar:'لا يوجد كاش', en:'No cache'});
     }).catch(()=>{ cacheEl.textContent = '—'; });
   }
 }
@@ -995,7 +996,7 @@ function importFromFile(event){
     // into it freezes the main thread while the browser lays out the text.
     const jsonArea = document.getElementById('jsonArea');
     if(jsonArea) jsonArea.value = (typeof result === 'string' && result.length <= 256 * 1024)
-      ? result : '/* تم تحميل ملف كبير — يُستورَد مباشرةً دون معاينة */';
+      ? result : t({ar:'/* تم تحميل ملف كبير — يُستورَد مباشرةً دون معاينة */', en:'/* Large file loaded — imported directly without preview */'});
     applyImport(result);
   };
   reader.onerror = () => toast(t({ar:'⚠ تعذّر قراءة الملف', en:'⚠ Could not read the file'}), true);
@@ -1670,11 +1671,11 @@ function setDriveIndicator(state_){
     return;
   }
   const map = {
-    idle:    {icon:'☁️', label:'جاهز',   color:'var(--muted)'},
-    syncing: {icon:'🔄', label:'يزامن',  color:'var(--blue)'},
-    ok:      {icon:'✅', label:'متزامن', color:'var(--green)'},
-    error:   {icon:'⚠️', label:'خطأ',    color:'var(--red)'},
-    offline: {icon:'📡', label:'غير متصل', color:'var(--muted)'}
+    idle:    {icon:'☁️', label:t({ar:'جاهز',   en:'Ready'}),    color:'var(--muted)'},
+    syncing: {icon:'🔄', label:t({ar:'يزامن',  en:'Syncing'}),  color:'var(--blue)'},
+    ok:      {icon:'✅', label:t({ar:'متزامن', en:'Synced'}),   color:'var(--green)'},
+    error:   {icon:'⚠️', label:t({ar:'خطأ',    en:'Error'}),    color:'var(--red)'},
+    offline: {icon:'📡', label:t({ar:'غير متصل', en:'Offline'}), color:'var(--muted)'}
   };
   const cfg = map[state_] || map.idle;
   const clickable = (state_ === 'idle' || state_ === 'error'); // tap to sign in when disconnected (signing in also needs network, so 'offline' stays non-clickable)
@@ -1700,11 +1701,11 @@ function setDriveIndicator(state_){
   const badge = { idle:'', syncing:'🔄', ok:'✓', error:'!', offline:'⨯' }[state_] || '';
   el.innerHTML = `<span class="drive-ind-ic">${state_ === 'offline' ? '📡' : '☁️'}</span>${badge ? `<span class="drive-ind-badge">${badge}</span>` : ''}`;
   const fullLabel = {
-    idle: 'مزامنة Drive: جاهز — اضغط لتسجيل الدخول',
-    syncing: 'مزامنة Drive: جاري المزامنة...',
-    ok: 'مزامنة Drive: متزامن ✓',
-    error: 'مزامنة Drive: خطأ — اضغط لتسجيل الدخول مجدداً',
-    offline: 'مزامنة Drive: غير متصل بالإنترنت — سيتم المزامنة تلقائياً عند العودة للاتصال'
+    idle: t({ar:'مزامنة Drive: جاهز — اضغط لتسجيل الدخول', en:'Drive sync: ready — tap to sign in'}),
+    syncing: t({ar:'مزامنة Drive: جاري المزامنة...', en:'Drive sync: syncing...'}),
+    ok: t({ar:'مزامنة Drive: متزامن ✓', en:'Drive sync: synced ✓'}),
+    error: t({ar:'مزامنة Drive: خطأ — اضغط لتسجيل الدخول مجدداً', en:'Drive sync: error — tap to sign in again'}),
+    offline: t({ar:'مزامنة Drive: غير متصل بالإنترنت — سيتم المزامنة تلقائياً عند العودة للاتصال', en:'Drive sync: offline — will sync automatically when back online'})
   }[state_] || cfg.label;
   el.title = fullLabel;
   el.setAttribute('aria-label', fullLabel);
@@ -2308,18 +2309,19 @@ async function driveSyncFromCloud(isInitial, interactive){
     // destructive "keep cloud vs keep local" decision, so it must render
     // identically across platforms regardless of ICU bidi quirks.
     const fmtWhen = ms => {
-      if(!ms || !isFinite(ms)) return 'غير معروف';
+      if(!ms || !isFinite(ms)) return t({ar:'غير معروف', en:'Unknown'});
       const d = new Date(ms);
       return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     };
     const cloudCount = (cloud.transactions || []).length;
     const localCount = state.transactions.length;
     const newer = cloudTime > localTime ? 'cloud' : (localTime > cloudTime ? 'local' : '');
-    const tag = side => newer === side ? ' <b style="color:var(--green)">(الأحدث)</b>' : '';
+    const tag = side => newer === side ? ` <b style="color:var(--green)">(${t({ar:'الأحدث', en:'newer'})})</b>` : '';
+    const opCount = n => t({ar:arPlural(n, 'عملية', 'عمليتين', 'عمليات'), en:`${n} ${n===1?'operation':'operations'}`});
     const info = document.getElementById('conflictInfo');
     if(info) info.innerHTML =
-      `☁️ <b>Drive</b>: ${arPlural(cloudCount, 'عملية', 'عمليتين', 'عمليات')} · ${escHtml(fmtWhen(cloudTime))}${tag('cloud')}<br>` +
-      `📱 <b>المحلية</b>: ${arPlural(localCount, 'عملية', 'عمليتين', 'عمليات')} · ${escHtml(fmtWhen(localTime))}${tag('local')}`;
+      `☁️ <b>Drive</b>: ${opCount(cloudCount)} · ${escHtml(fmtWhen(cloudTime))}${tag('cloud')}<br>` +
+      `📱 <b>${t({ar:'المحلية', en:'Local'})}</b>: ${opCount(localCount)} · ${escHtml(fmtWhen(localTime))}${tag('local')}`;
     openModal('driveConflictModal');
   }catch(e){
     _handleDriveSyncError(e);
@@ -2526,9 +2528,14 @@ function buildDailyReviewContent(){
 
   let lines = [];
   if(yCount > 0 || yIncome > 0){
-    lines.push(`📅 <b style="color:var(--text)">أمس:</b> صرفت <b style="color:var(--red)">${fmt(yExpense)}</b> على ${arPlural(yCount, 'معاملة', 'معاملتين', 'معاملات')}${yIncome>0?` · دخل <b style="color:var(--green)">${fmt(yIncome)}</b>`:''}`);
+    const txWord = t({ar:arPlural(yCount, 'معاملة', 'معاملتين', 'معاملات'), en:`${yCount} ${yCount===1?'transaction':'transactions'}`});
+    const incomePart = yIncome>0 ? t({ar:` · دخل <b style="color:var(--green)">${fmt(yIncome)}</b>`, en:` · income <b style="color:var(--green)">${fmt(yIncome)}</b>`}) : '';
+    lines.push(t({
+      ar: `📅 <b style="color:var(--text)">أمس:</b> صرفت <b style="color:var(--red)">${fmt(yExpense)}</b> على ${txWord}${incomePart}`,
+      en: `📅 <b style="color:var(--text)">Yesterday:</b> you spent <b style="color:var(--red)">${fmt(yExpense)}</b> on ${txWord}${incomePart}`,
+    }));
   } else {
-    lines.push(`📅 لم تُسجَّل معاملات أمس.`);
+    lines.push(t({ar:'📅 لم تُسجَّل معاملات أمس.', en:'📅 No transactions recorded yesterday.'}));
   }
 
   // budget warnings — skip wallets currently merged into the crisis combined
@@ -2541,9 +2548,15 @@ function buildDailyReviewContent(){
     const spent = monthlyExpenseForWallet(w.id);
     const budget = budgets[w.id];
     if(spent >= budget){
-      lines.push(`🔴 محفظة <b style="color:var(--text)">${escHtml(w.name)}</b> تجاوزت ميزانيتها الشهرية (${fmt(spent)} / ${fmt(budget)}).`);
+      lines.push(t({
+        ar: `🔴 محفظة <b style="color:var(--text)">${escHtml(w.name)}</b> تجاوزت ميزانيتها الشهرية (${fmt(spent)} / ${fmt(budget)}).`,
+        en: `🔴 Wallet <b style="color:var(--text)">${escHtml(w.name)}</b> exceeded its monthly budget (${fmt(spent)} / ${fmt(budget)}).`,
+      }));
     } else if(spent >= budget*0.8){
-      lines.push(`🟡 محفظة <b style="color:var(--text)">${escHtml(w.name)}</b> قاربت حد ميزانيتها (${fmt(spent)} / ${fmt(budget)}).`);
+      lines.push(t({
+        ar: `🟡 محفظة <b style="color:var(--text)">${escHtml(w.name)}</b> قاربت حد ميزانيتها (${fmt(spent)} / ${fmt(budget)}).`,
+        en: `🟡 Wallet <b style="color:var(--text)">${escHtml(w.name)}</b> is close to its budget limit (${fmt(spent)} / ${fmt(budget)}).`,
+      }));
     }
   });
 
@@ -2559,14 +2572,21 @@ function buildDailyReviewContent(){
   });
   if(dueSubs.length > 0){
     const dueTotal = round2(dueSubs.reduce((s,x) => s + (Number(x.amount) || 0), 0));
-    const dueNames = dueSubs.map(s => escHtml(s.name)).join('، ');
-    lines.push(`📆 اشتراكات تُحسم اليوم: <b style="color:var(--text)">${dueNames}</b> · إجمالي: <b style="color:var(--red)">${fmt(dueTotal)}</b>`);
+    const dueNames = dueSubs.map(s => escHtml(s.name)).join(t({ar:'، ', en:', '}));
+    lines.push(t({
+      ar: `📆 اشتراكات تُحسم اليوم: <b style="color:var(--text)">${dueNames}</b> · إجمالي: <b style="color:var(--red)">${fmt(dueTotal)}</b>`,
+      en: `📆 Subscriptions due today: <b style="color:var(--text)">${dueNames}</b> · total: <b style="color:var(--red)">${fmt(dueTotal)}</b>`,
+    }));
   }
 
   // pending recurring suggestions
   const recurring = detectRecurring();
   if(recurring.length > 0){
-    lines.push(`🔁 لديك ${arPlural(recurring.length, 'معاملة متكررة محتملة', 'معاملتان متكررتان محتملتان', 'معاملات متكررة محتملة', 'معاملة واحدة متكررة محتملة')} بانتظار مراجعتك (تبويب تحليلات).`);
+    const n = recurring.length;
+    lines.push(t({
+      ar: `🔁 لديك ${arPlural(n, 'معاملة متكررة محتملة', 'معاملتان متكررتان محتملتان', 'معاملات متكررة محتملة', 'معاملة واحدة متكررة محتملة')} بانتظار مراجعتك (تبويب تحليلات).`,
+      en: `🔁 You have ${n} potential recurring ${n===1?'transaction':'transactions'} waiting for review (Analytics tab).`,
+    }));
   }
 
   if(lines.length === 1 && yCount===0 && yIncome===0) return null;
@@ -2596,26 +2616,27 @@ function exportMonthlyReport(){
     }
   });
 
-  let report = `📊 تقرير محفظتيييي — ${monthName}\n`;
+  const appName = t({ar:'محفظتيييي', en:'Mahfazty'});
+  let report = `📊 ${t({ar:`تقرير ${appName} — ${monthName}`, en:`${appName} report — ${monthName}`})}\n`;
   report += `${'─'.repeat(28)}\n`;
-  report += `الدخل: ${fmt(totalIncome)}\n`;
-  report += `المصروف: ${fmt(totalExpense)}\n`;
-  report += `الصافي: ${fmt(totalIncome-totalExpense)}\n\n`;
+  report += `${t({ar:'الدخل', en:'Income'})}: ${fmt(totalIncome)}\n`;
+  report += `${t({ar:'المصروف', en:'Expense'})}: ${fmt(totalExpense)}\n`;
+  report += `${t({ar:'الصافي', en:'Net'})}: ${fmt(totalIncome-totalExpense)}\n\n`;
 
-  report += `حسب الفئة:\n`;
+  report += `${t({ar:'حسب الفئة', en:'By category'})}:\n`;
   Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).forEach(([catId,amt])=>{
     const cat = getCategory(catId);
     report += `  ${cat.icon} ${cat.name}: ${fmt(amt)}\n`;
   });
 
-  report += `\nأرصدة المحافظ:\n`;
+  report += `\n${t({ar:'أرصدة المحافظ', en:'Wallet balances'})}:\n`;
   WALLET_DEFS.forEach(w=>{
     report += `  ${w.track?'🏦':'💰'} ${w.name}: ${fmt(state.wallets[w.id] ?? 0)}\n`;
   });
 
-  report += `\n📱 محفظتيييي 🙂‍↔️`;
+  report += `\n📱 ${appName} 🙂‍↔️`;
 
-  const shareData = { title: `تقرير محفظتيييي — ${monthName}`, text: report };
+  const shareData = { title: t({ar:`تقرير ${appName} — ${monthName}`, en:`${appName} report — ${monthName}`}), text: report };
   if(navigator.share && (!navigator.canShare || navigator.canShare(shareData))){
     navigator.share(shareData).catch(e=>{
       // AbortError = user dismissed the native share sheet without picking a
@@ -2647,7 +2668,7 @@ function downloadReport(report){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'تقرير-محفظتيييي-' + todayISO() + '.txt';
+  a.download = t({ar:'تقرير-محفظتيييي-', en:'Mahfazty-report-'}) + todayISO() + '.txt';
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -2664,9 +2685,11 @@ function buildManifestBlob(isLight){
   // installed PWA's OS chrome/splash color drifts from what the in-app UI shows.
   const themeColor = isLight ? '#f4f2ed' : '#15171c';
   const scopeUrl = new URL('.', location.href).pathname;
+  const lang = _currentLang();
+  const appName = t({ar:'محفظتيييي', en:'Mahfazty'});
   const manifest = {
-    name: 'محفظتيييي',
-    short_name: 'محفظتيييي',
+    name: appName,
+    short_name: appName,
     start_url: scopeUrl,
     // the manifest is served as a blob: URL, so its own "directory" is meaningless —
     // without an explicit scope the browser can't derive one from the blob URL,
@@ -2677,8 +2700,8 @@ function buildManifestBlob(isLight){
     background_color: themeColor,
     theme_color: themeColor,
     orientation: 'portrait',
-    dir: 'rtl',
-    lang: 'ar',
+    dir: _langDir(lang),
+    lang: lang,
     icons: [
       {
         src: 'data:image/svg+xml,' + encodeURIComponent(

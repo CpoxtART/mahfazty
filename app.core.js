@@ -28,6 +28,19 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.17',
+    date: '2026-06-22',
+    title: 'تدقيق شامل جديد: تجربة عربي/إنجليزي وتطابق الهوية',
+    items: [
+      'ترجمة عشرات النصوص المتبقية التي كانت بالعربي فقط حتى مع اختيار الإنجليزية: نافذة "المراجعة اليومية" بالكامل، نص التقرير الشهري القابل للمشاركة، مؤشر وتعارض مزامنة Drive، أسماء ألوان التطبيق (الإعدادات ← المظهر)، بطاقات الاشتراكات والمعاملات المتكررة، وأزرار "عرض المزيد".',
+      'إصلاح: تلميح زر تبديل المظهر (الوضع الفاتح/الداكن) كان يظهر بالعربي دائماً بغض النظر عن اللغة المختارة.',
+      'إصلاح: تنبيه "تعذّر حفظ البيانات" الحرج (عند امتلاء التخزين) لم يكن مُترجماً.',
+      'إصلاح جوهري: التطبيق المثبَّت (PWA) كان يحمل اسماً واتجاهاً عربياً (RTL) ثابتاً في بياناته الوصفية بغض النظر عن اللغة المختارة — صار الآن يتبع اللغة الحالية فوراً عند تبديلها، بما يشمل اسم الأيقونة على الشاشة الرئيسية.',
+      'إصلاح: اسم ملف تقرير الشهر المُنزَّل كان بالعربي دائماً حتى عند مشاركة تقرير بالإنجليزية.',
+      'توحيد شكل علامة النسبة بالكروت المدمجة (الوضع البديل) مع بقية التطبيق.',
+    ],
+  },
+  {
     version: 'v47.16',
     date: '2026-06-21',
     title: 'ترجمة كل رسائل التنبيهات وصناديق التأكيد',
@@ -644,7 +657,7 @@ function applyTheme(theme){
   const btn = document.getElementById('themeToggle');
   if(btn){
     btn.textContent = isLight ? '🌙' : '☀️';
-    btn.title = isLight ? 'التبديل للوضع الداكن' : 'التبديل للوضع الفاتح';
+    btn.title = isLight ? t({ar:'التبديل للوضع الداكن', en:'Switch to dark mode'}) : t({ar:'التبديل للوضع الفاتح', en:'Switch to light mode'});
   }
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', isLight ? '#f4f2ed' : (isBlack ? '#0b0b0d' : '#15171c'));
@@ -736,13 +749,13 @@ function initTheme(){
 // triple here is ONLY the swatch preview gradient shown in Settings; the authored,
 // contrast-tuned applied colors live in CSS so they can differ per light/dark.
 const ACCENTS = [
-  {id:'gold',     name:'ذهبي',   c1:'#dcb674', c2:'#b88c46', on:'#241d0d'},
-  {id:'sapphire', name:'ياقوتي', c1:'#6fa0f0', c2:'#4178d0', on:'#08152b'},
-  {id:'emerald',  name:'زمردي',  c1:'#54bd8a', c2:'#2f8a63', on:'#052016'},
-  {id:'amethyst', name:'بنفسجي', c1:'#a987e6', c2:'#7d56c8', on:'#160a2a'},
-  {id:'rose',     name:'وردي',   c1:'#e985a4', c2:'#c25c7f', on:'#2a0f18'},
-  {id:'teal',     name:'فيروزي', c1:'#46c2c2', c2:'#2a9393', on:'#042020'},
-  {id:'brown',    name:'بنّي',   c1:'#b88a5e', c2:'#8a6038', on:'#1f1408'},
+  {id:'gold',     name:'ذهبي',   nameEn:'Gold',     c1:'#dcb674', c2:'#b88c46', on:'#241d0d'},
+  {id:'sapphire', name:'ياقوتي', nameEn:'Sapphire', c1:'#6fa0f0', c2:'#4178d0', on:'#08152b'},
+  {id:'emerald',  name:'زمردي',  nameEn:'Emerald',  c1:'#54bd8a', c2:'#2f8a63', on:'#052016'},
+  {id:'amethyst', name:'بنفسجي', nameEn:'Amethyst', c1:'#a987e6', c2:'#7d56c8', on:'#160a2a'},
+  {id:'rose',     name:'وردي',   nameEn:'Rose',     c1:'#e985a4', c2:'#c25c7f', on:'#2a0f18'},
+  {id:'teal',     name:'فيروزي', nameEn:'Teal',     c1:'#46c2c2', c2:'#2a9393', on:'#042020'},
+  {id:'brown',    name:'بنّي',   nameEn:'Brown',    c1:'#b88a5e', c2:'#8a6038', on:'#1f1408'},
 ];
 const _ACCENT_IDS = ACCENTS.map(a => a.id);
 // The accent colour is remembered SEPARATELY for day vs night, so a user can run
@@ -791,8 +804,9 @@ function renderAccentSwatches(){
     b.dataset.accent = a.id;
     b.setAttribute('role', 'radio');
     b.setAttribute('aria-checked', a.id === cur ? 'true' : 'false');
-    b.setAttribute('aria-label', a.name);
-    b.title = a.name;
+    const swatchName = t({ar: a.name, en: a.nameEn});
+    b.setAttribute('aria-label', swatchName);
+    b.title = swatchName;
     b.style.background = 'linear-gradient(150deg,' + a.c1 + ',' + a.c2 + ')';
     b.style.setProperty('--sw-on', a.on);
     b.onclick = () => setAccent(a.id);
@@ -940,7 +954,7 @@ async function loadState(){
     // Corrupted locally and no usable IDB copy to recover from — the app is
     // about to fall back to default wallets, so say so instead of silently
     // dropping the user's custom wallet setup with zero indication why.
-    toast('⚠ تعذّرت قراءة بيانات المحافظ محليًا — تم الرجوع للمحافظ الافتراضية', true);
+    toast(t({ar:'⚠ تعذّرت قراءة بيانات المحافظ محليًا — تم الرجوع للمحافظ الافتراضية', en:'⚠ Could not read wallet data locally — fell back to default wallets'}), true);
   }
   const _idbTime = (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0;
   let _lsTx = null;
@@ -980,7 +994,7 @@ async function loadState(){
     if(_idb.driveClientId && !localStorage.getItem(LS_PREFIX + 'driveClientId')){
       try{ localStorage.setItem(LS_PREFIX + 'driveClientId', _idb.driveClientId); }catch(e){}
     }
-    if(!_lsHadBalances && state.transactions.length) toast('✓ تمت استعادة البيانات من النسخ الاحتياطي');
+    if(!_lsHadBalances && state.transactions.length) toast(t({ar:'✓ تمت استعادة البيانات من النسخ الاحتياطي', en:'✓ Data restored from backup'}));
   } else if(Array.isArray(_lsTx)){
     // Legacy localStorage copy (older version) or IDB unavailable — adopt it; the
     // idbBackup below migrates it into IndexedDB.
@@ -1007,7 +1021,7 @@ async function loadState(){
   const _hadPriorData = _lsLastEdit > 0 || _lsDataEdit > 0 || _lsHadBalances;
   const _idbLockedOut = _idbOpenFailed && state.transactions.length === 0 && _hadPriorData;
   if(_idbLockedOut){
-    try{ toast('⚠ تعذّر فتح قاعدة البيانات — أغلق نسخ التطبيق الأخرى المفتوحة ثم أعد التحميل', true); }catch(e){}
+    try{ toast(t({ar:'⚠ تعذّر فتح قاعدة البيانات — أغلق نسخ التطبيق الأخرى المفتوحة ثم أعد التحميل', en:'⚠ Could not open the database — close other open copies of the app, then reload'}), true); }catch(e){}
   }
 
   // Persist the consistent state into IndexedDB, then (only once confirmed) drop the
@@ -1181,7 +1195,7 @@ function reconcileBalances(){
 // resolution compares dataEdit so a pref-only change (crisis toggle, layout) can't
 // make a stale local copy "win" over fresher cloud transaction data.
 function stampDataEdit(ts){ try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(ts)); }catch(e){} }
-async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', true); } stampDataEdit(ts); scheduleDriveSync(); scheduleIdbBackup(ts); }
+async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast(t({ar:'⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', en:'⚠ Local save failed — saving to the backup copy'}), true); } stampDataEdit(ts); scheduleDriveSync(); scheduleIdbBackup(ts); }
 async function saveTx(){
   _allTxSortedCache = null;
   const ts = Date.now();
@@ -1206,7 +1220,7 @@ function _pruneRecurringDismissals(){
   );
   for(const k of dismissedRecurring){ if(!live.has(k)) dismissedRecurring.delete(k); }
 }
-async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); pruneTombstones(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION, deletedTxIds: deletedTxIds})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast('⚠ فشل حفظ الإعدادات محليًا', true); } scheduleDriveSync(); scheduleIdbBackup(ts); }
+async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); pruneTombstones(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION, deletedTxIds: deletedTxIds})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast(t({ar:'⚠ فشل حفظ الإعدادات محليًا', en:'⚠ Failed to save settings locally'}), true); } scheduleDriveSync(); scheduleIdbBackup(ts); }
 // clamp a subscription's billing day into 1–31 so corrupt data can't produce
 // "يوم 99" that never matches the daily-review check
 function _normalizeSub(x){
@@ -1229,23 +1243,23 @@ function loadSubs(idbSnapshot){
       subscriptions = idbSnapshot.subscriptions
         .filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0)
         .map(_normalizeSub);
-      toast('⚠ تعذّرت قراءة الاشتراكات محليًا — تم استرجاعها من النسخة الاحتياطية', true);
+      toast(t({ar:'⚠ تعذّرت قراءة الاشتراكات محليًا — تم استرجاعها من النسخة الاحتياطية', en:'⚠ Could not read subscriptions locally — recovered from the backup copy'}), true);
     } else {
       subscriptions = [];
-      toast('⚠ تعذّرت قراءة الاشتراكات المحفوظة، تم البدء بقائمة فارغة', true);
+      toast(t({ar:'⚠ تعذّرت قراءة الاشتراكات المحفوظة، تم البدء بقائمة فارغة', en:'⚠ Could not read saved subscriptions — starting with an empty list'}), true);
     }
   }
 }
 async function saveSubs(){
   const ts = Date.now();
-  try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(subscriptions)); }catch(e){ toast('⚠ فشل حفظ الاشتراكات محليًا', true); }
+  try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(subscriptions)); }catch(e){ toast(t({ar:'⚠ فشل حفظ الاشتراكات محليًا', en:'⚠ Failed to save subscriptions locally'}), true); }
   stampDataEdit(ts);
   scheduleDriveSync();
   scheduleIdbBackup(ts);
 }
 async function saveWalletDefs(){
   const ts = Date.now();
-  try{ localStorage.setItem(LS_PREFIX + 'walletDefs', JSON.stringify(WALLET_DEFS)); }catch(e){ toast('⚠ فشل حفظ بيانات المحافظ محليًا', true); }
+  try{ localStorage.setItem(LS_PREFIX + 'walletDefs', JSON.stringify(WALLET_DEFS)); }catch(e){ toast(t({ar:'⚠ فشل حفظ بيانات المحافظ محليًا', en:'⚠ Failed to save wallet data locally'}), true); }
   stampDataEdit(ts);
   scheduleDriveSync();
   scheduleIdbBackup(ts);
@@ -1368,7 +1382,7 @@ async function idbBackup(savedAt){
       if(!_persistFailWarned){
         _persistFailWarned = true;
         try{
-          toastWithAction('⚠ تعذّر حفظ البيانات على هذا الجهاز — صدّرها الآن قبل إغلاق التطبيق', 'تصدير الآن', () => { try{ exportData(); }catch(e){} }, true);
+          toastWithAction(t({ar:'⚠ تعذّر حفظ البيانات على هذا الجهاز — صدّرها الآن قبل إغلاق التطبيق', en:'⚠ Couldn\'t save data on this device — export it now before closing the app'}), t({ar:'تصدير الآن', en:'Export now'}), () => { try{ exportData(); }catch(e){} }, true);
         }catch(__){}
       }
     }
@@ -1434,6 +1448,6 @@ function toggleCrisis(){
   saveConfig();
   render();
   haptic(15);
-  toast(state.crisisMode ? '🔄 تم تفعيل الوضع البديل' : '✓ تم إيقاف الوضع البديل');
+  toast(state.crisisMode ? t({ar:'🔄 تم تفعيل الوضع البديل', en:'🔄 Crisis mode enabled'}) : t({ar:'✓ تم إيقاف الوضع البديل', en:'✓ Crisis mode disabled'}));
 }
 

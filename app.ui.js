@@ -4,6 +4,7 @@
 function getWalletPctLabel(w){
   const d = DISTRIBUTION.find(x=>x.id===w.id);
   if(d) return d.pct + '%';
+  if(w.track) return t({ar:'تتبع', en:'Track'});
   return w.pct;
 }
 
@@ -94,14 +95,14 @@ function renderWallets(){
     // track wallets are not counted in spendable — say so persistently on the card
     // (the hover title never shows on touch), so users stop wondering why the total
     // doesn't include Cards/Cash.
-    const trackTag = w.track ? `<div class="track-tag">تتبع · غير محتسب</div>` : '';
+    const trackTag = w.track ? `<div class="track-tag">${t({ar:'تتبع · غير محتسب', en:'Track · not counted'})}</div>` : '';
     // Track wallets' badge shows their live share of all money across every
     // wallet (⚖️) — same gold chip style every other wallet badge uses, still
     // a button that opens the balance-sync screen on tap.
     const trackSharePct = grandTotal > 0 ? Math.round((val/grandTotal)*100) : 0;
     const pctBtn = w.track
-      ? `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="مزامنة الرصيد الفعلي لـ ${escHtml(w.name)} — ${trackSharePct}% من إجمالي محافظك" title="مزامنة الرصيد الفعلي">⚖️ ${trackSharePct}%</div>`
-      : `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="تفاصيل ${escHtml(w.name)}" title="التفاصيل">ⓘ ${escHtml(getWalletPctLabel(w))}</div>`;
+      ? `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:`مزامنة الرصيد الفعلي لـ ${w.name} — ${trackSharePct}% من إجمالي محافظك`, en:`Sync actual balance for ${w.name} — ${trackSharePct}% of your total wallets`}))}" title="${escHtml(t({ar:'مزامنة الرصيد الفعلي', en:'Sync actual balance'}))}">⚖️ ${trackSharePct}%</div>`
+      : `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:`تفاصيل ${w.name}`, en:`Details for ${w.name}`}))}" title="${escHtml(t({ar:'التفاصيل', en:'Details'}))}">ⓘ ${escHtml(getWalletPctLabel(w))}</div>`;
     div.innerHTML = `
       <div class="top">
         <div class="name">${escHtml(w.name)}</div>
@@ -112,7 +113,7 @@ function renderWallets(){
       ${trackTag}
       ${budgetHtml}
     `;
-    div.title = w.track ? (w.name + ' — رقم تتبع فقط، غير مُحتسب بالإجمالي المتاح للصرف') : '';
+    div.title = w.track ? t({ar:`${w.name} — رقم تتبع فقط، غير مُحتسب بالإجمالي المتاح للصرف`, en:`${w.name} — a tracking number only, not counted in the total available to spend`}) : '';
     div.onclick = () => setWalletFilter(w.id);
     div.onkeydown = (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); setWalletFilter(w.id); } };
     grid.appendChild(div);
@@ -135,8 +136,8 @@ function renderWallets(){
     div.className = 'wallet crisis-combined';
     div.innerHTML = `
       <div class="top">
-        <div class="name">الاحتياطي البديل (مدمج)</div>
-        <div class="pct">٪${crisisPct}</div>
+        <div class="name">${escHtml(t({ar:'الاحتياطي البديل (مدمج)', en:'Crisis reserve (merged)'}))}</div>
+        <div class="pct">${crisisPct}%</div>
       </div>
       <div class="val">${fmt(crisisTotal)}</div>
     `;
@@ -438,7 +439,7 @@ function renderWalletSelect(){
     menu.appendChild(opt);
   });
   const wDef = WALLET_DEFS.find(w => w.id === selectedWallet);
-  document.getElementById('walletSelectLabel').textContent = wDef ? wDef.name : 'اختر محفظة';
+  document.getElementById('walletSelectLabel').textContent = wDef ? wDef.name : t({ar:'اختر محفظة', en:'Choose a wallet'});
 }
 function toggleWalletMenu(){
   const wrap = document.getElementById('walletMenuWrap');
@@ -494,8 +495,8 @@ function renderTrackLinkPicker(){
       const credit = trackModeFor(selectedTrackWallet) === 'credit';
       hint.style.display = 'block';
       hint.textContent = credit
-        ? `↪ سيزيد رقم «${w ? w.name : ''}» بقيمة المصروف تلقائياً (عدّاد إنفاق). غيّر السلوك من تفاصيل المحفظة ⓘ.`
-        : `↪ سينقص رصيد «${w ? w.name : ''}» بقيمة المصروف تلقائياً (رصيد فعلي). غيّر السلوك من تفاصيل المحفظة ⓘ.`;
+        ? t({ar:`↪ سيزيد رقم «${w ? w.name : ''}» بقيمة المصروف تلقائياً (عدّاد إنفاق). غيّر السلوك من تفاصيل المحفظة ⓘ.`, en:`↪ "${w ? w.name : ''}" will automatically increase by the expense amount (spending counter). Change this behavior from wallet details ⓘ.`})
+        : t({ar:`↪ سينقص رصيد «${w ? w.name : ''}» بقيمة المصروف تلقائياً (رصيد فعلي). غيّر السلوك من تفاصيل المحفظة ⓘ.`, en:`↪ "${w ? w.name : ''}" balance will automatically decrease by the expense amount (actual balance). Change this behavior from wallet details ⓘ.`});
     } else {
       hint.style.display = 'none';
       hint.textContent = '';
@@ -1063,10 +1064,10 @@ function renderSubscriptions(){
     card.innerHTML = `
       <div class="sub-info">
         <div class="sub-name">${escHtml(s.name)}</div>
-        <div class="sub-meta">يوم ${s.billingDay||'—'} من كل شهر${s.active===false?' · (متوقف)':''}</div>
+        <div class="sub-meta">${escHtml(t({ar:`يوم ${s.billingDay||'—'} من كل شهر`, en:`Day ${s.billingDay||'—'} of every month`}))}${s.active===false?escHtml(t({ar:' · (متوقف)', en:' · (paused)'})):''}</div>
       </div>
       <div class="sub-amt">-${fmt(s.amount)}</div>
-      <button class="sub-edit" aria-label="تعديل الاشتراك">✎</button>`;
+      <button class="sub-edit" aria-label="${escHtml(t({ar:'تعديل الاشتراك', en:'Edit subscription'}))}">✎</button>`;
     card.querySelector('.sub-edit').onclick = () => openSubModal(s.id);
     list.appendChild(card);
   });
@@ -1162,7 +1163,7 @@ function renderEditWalletSelect(){
     menu.appendChild(opt);
   });
   const wDef = WALLET_DEFS.find(w => w.id === editWallet);
-  document.getElementById('editWalletLabel').textContent = wDef ? wDef.name : 'اختر محفظة';
+  document.getElementById('editWalletLabel').textContent = wDef ? wDef.name : t({ar:'اختر محفظة', en:'Choose a wallet'});
 }
 function toggleEditWalletMenu(){
   const wrap = document.getElementById('editWalletMenuWrap');
@@ -1407,7 +1408,7 @@ function renderQuickAmounts(){
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = fmt(amt);
-    btn.setAttribute('aria-label', 'مبلغ سريع: ' + fmt(amt));
+    btn.setAttribute('aria-label', t({ar:'مبلغ سريع: ', en:'Quick amount: '}) + fmt(amt));
     btn.onclick = () => {
       const input = document.getElementById('amountInput');
       input.value = amt;
@@ -1568,7 +1569,7 @@ function renderPieChart(){
   const containerW = document.getElementById('pieContent')?.parentElement?.clientWidth || 320;
   const size = Math.min(120, Math.max(80, Math.round(containerW * 0.3)));
   const r = Math.round(size * 0.46), cx = size/2, cy = size/2;
-  let html = `<canvas id="pieCanvas" width="${size}" height="${size}" style="width:${size}px;height:${size}px;" role="img" aria-label="مخطط دائري لتوزيع المصروفات حسب الفئة"></canvas>`;
+  let html = `<canvas id="pieCanvas" width="${size}" height="${size}" style="width:${size}px;height:${size}px;" role="img" aria-label="${escHtml(t({ar:'مخطط دائري لتوزيع المصروفات حسب الفئة', en:'Pie chart of expenses by category'}))}"></canvas>`;
   html += '<div class="pie-legend">';
   entries.forEach(([catId, amt]) => {
     const cat = getCategory(catId);
@@ -1583,10 +1584,10 @@ function renderPieChart(){
           cmpHtml = `<span class="cat-cmp ${up?'up':'down'}">${up?'▲':'▼'}${Math.abs(diff).toFixed(0)}%</span>`;
         }
       } else if(amt > 0){
-        cmpHtml = `<span class="cat-cmp up">جديد</span>`;
+        cmpHtml = `<span class="cat-cmp up">${escHtml(t({ar:'جديد', en:'New'}))}</span>`;
       }
     }
-    html += `<div class="row cat-row" data-cat="${escHtml(catId)}" role="button" tabindex="0" aria-label="تصفية حسب ${escHtml(cat.name)}"><span class="sw" style="background:${escHtml(cat.color)}"></span><span class="name">${escHtml(cat.icon)} ${escHtml(cat.name)}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
+    html += `<div class="row cat-row" data-cat="${escHtml(catId)}" role="button" tabindex="0" aria-label="${escHtml(t({ar:`تصفية حسب ${cat.name}`, en:`Filter by ${cat.name}`}))}"><span class="sw" style="background:${escHtml(cat.color)}"></span><span class="name">${escHtml(cat.icon)} ${escHtml(cat.name)}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
   });
   html += '</div>';
   wrap.innerHTML = html;
@@ -1685,7 +1686,7 @@ function renderTransferMenus(){
       menu.appendChild(opt);
     });
     const wDef = WALLET_DEFS.find(w=>w.id===selected);
-    document.getElementById('transfer'+(dir==='from'?'From':'To')+'Label').textContent = wDef ? wDef.name : 'اختر محفظة';
+    document.getElementById('transfer'+(dir==='from'?'From':'To')+'Label').textContent = wDef ? wDef.name : t({ar:'اختر محفظة', en:'Choose a wallet'});
   });
 }
 function toggleTransferMenu(dir){
@@ -1732,11 +1733,11 @@ async function doTransfer(){
     const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
     const txOut = {
       id: 'tx_'+Date.now()+'_a'+Math.random().toString(36).slice(2,5),
-      wallet: transferFrom, desc: 'تحويل إلى ' + toName, amount: amt, type:'expense', category:'transfer', ts, link: linkId
+      wallet: transferFrom, desc: t({ar:'تحويل إلى ', en:'Transfer to '}) + toName, amount: amt, type:'expense', category:'transfer', ts, link: linkId
     };
     const txIn = {
       id: 'tx_'+Date.now()+'_b'+Math.random().toString(36).slice(2,5),
-      wallet: transferTo, desc: 'تحويل من ' + fromName, amount: amt, type:'income', category:'transfer', ts: ts+1, link: linkId
+      wallet: transferTo, desc: t({ar:'تحويل من ', en:'Transfer from '}) + fromName, amount: amt, type:'income', category:'transfer', ts: ts+1, link: linkId
     };
 
     state.transactions.push(txOut, txIn);
@@ -1787,7 +1788,7 @@ async function updateTrackedBalance(){
     const tx = {
       id: 'tx_'+Date.now()+'_adj'+Math.random().toString(36).slice(2,4),
       wallet: walletId,
-      desc: 'مزامنة رصيد ' + w.name,
+      desc: t({ar:'مزامنة رصيد ', en:'Balance sync '}) + w.name,
       amount: Math.abs(diff),
       type: diff > 0 ? 'income' : 'expense',
       category: 'adjustment', // excluded from pie chart and recurring detection
@@ -2117,11 +2118,11 @@ function renderRecurring(){
     const card = document.createElement('div');
     card.className = 'recurring-card';
     card.innerHTML = `
-      <div class="title">🔁 معاملة متكررة محتملة</div>
-      <div class="desc">${cat.icon} "${escHtml(s.desc)}" — تكررت ${s.count} مرات بمتوسط ${fmt(s.avg)} (${escHtml(wallet?wallet.name:'')})</div>
+      <div class="title">🔁 ${escHtml(t({ar:'معاملة متكررة محتملة', en:'Potential recurring transaction'}))}</div>
+      <div class="desc">${cat.icon} "${escHtml(s.desc)}" — ${escHtml(t({ar:`تكررت ${s.count} مرات بمتوسط ${fmt(s.avg)}`, en:`Repeated ${s.count} times, averaging ${fmt(s.avg)}`}))} (${escHtml(wallet?wallet.name:'')})</div>
       <div class="actions">
-        <button class="btn-secondary" data-dismiss="${escHtml(s.key)}">تجاهل</button>
-        <button class="btn-primary" data-remind="${escHtml(s.key)}">⏰ سجّلها الآن</button>
+        <button class="btn-secondary" data-dismiss="${escHtml(s.key)}">${escHtml(t({ar:'تجاهل', en:'Dismiss'}))}</button>
+        <button class="btn-primary" data-remind="${escHtml(s.key)}">⏰ ${escHtml(t({ar:'سجّلها الآن', en:'Record it now'}))}</button>
       </div>
     `;
     card.querySelector('[data-dismiss]').onclick = () => {
@@ -2371,8 +2372,14 @@ function renderTxList(){
     const toShow = Math.min(remaining, 50);
     const afterLoad = remaining - toShow;
     more.textContent = afterLoad > 0
-      ? `⬇ عرض ${arPlural(toShow, 'معاملة', 'معاملتين', 'معاملات')} (${arPlural(afterLoad, 'ستبقى مخفية', 'ستبقيان مخفيتين', 'ستبقى مخفية', 'واحدة ستبقى مخفية')})`
-      : `⬇ عرض ${arPlural(toShow, 'المعاملة المتبقية', 'المعاملتين المتبقيتين', 'المعاملات المتبقية', 'المعاملة المتبقية')}`;
+      ? t({
+          ar: `⬇ عرض ${arPlural(toShow, 'معاملة', 'معاملتين', 'معاملات')} (${arPlural(afterLoad, 'ستبقى مخفية', 'ستبقيان مخفيتين', 'ستبقى مخفية', 'واحدة ستبقى مخفية')})`,
+          en: `⬇ Show ${toShow} more ${toShow===1?'transaction':'transactions'} (${afterLoad} will remain hidden)`,
+        })
+      : t({
+          ar: `⬇ عرض ${arPlural(toShow, 'المعاملة المتبقية', 'المعاملتين المتبقيتين', 'المعاملات المتبقية', 'المعاملة المتبقية')}`,
+          en: `⬇ Show the remaining ${toShow} ${toShow===1?'transaction':'transactions'}`,
+        });
     more.onclick = () => { _txVisibleCount += 50; renderTxList(); };
     list.appendChild(more);
   }

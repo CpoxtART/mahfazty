@@ -94,6 +94,12 @@ function setLang(lang){
   try{ if(typeof refreshDriveSettingsUI === 'function') refreshDriveSettingsUI(); }catch(e){}
   try{ if(typeof renderCategoryGrid === 'function') renderCategoryGrid(); }catch(e){}
   try{ if(typeof renderEditCategoryGrid === 'function') renderEditCategoryGrid(); }catch(e){}
+  // installed-PWA manifest bakes in name/dir/lang at build time — refresh it so
+  // the home-screen name and text direction follow the newly chosen language.
+  try{ if(typeof applyManifest === 'function') applyManifest(document.body.classList.contains('light')); }catch(e){}
+  // theme-toggle button's tooltip text is set inside applyTheme() and otherwise
+  // wouldn't refresh until the next manual theme change.
+  try{ if(typeof applyTheme === 'function' && typeof _resolveThemeMode === 'function' && typeof _currentThemeMode === 'function') applyTheme(_resolveThemeMode(_currentThemeMode())); }catch(e){}
 }
 
 function initLang(){
