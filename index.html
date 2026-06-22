@@ -958,9 +958,13 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 })();
 </script>
 <!-- app split into 3 ordered classic scripts (shared global scope, equivalent to
-     the old single app.js). Load order matters: core → ui → logic (bootstrap). -->
+     the old single app.js). Load order matters: core → ui → drive → logic
+     (bootstrap). app.drive.js holds the Google Drive sync feature split out of
+     app.logic.js; it must precede app.logic.js so its declarations are in scope
+     when app.logic.js's bottom-of-file init runs. -->
 <script src="i18n.js"></script>
 <script src="app.core.js"></script>
 <script src="app.ui.js"></script>
+<script src="app.drive.js"></script>
 <script src="app.logic.js"></script>
 </body></html>

@@ -17,6 +17,8 @@ test('boots in Arabic/RTL without runtime errors', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.locator('.hero .amount')).toBeVisible();
   expect(errors, 'no uncaught page errors on boot').toEqual([]);
+  // guards the app.drive.js split: its declarations must be in scope across files
+  expect(await page.evaluate(() => typeof driveSignIn)).toBe('function');
 });
 
 test('language switch flips direction and content to English/LTR', async ({ page }) => {
