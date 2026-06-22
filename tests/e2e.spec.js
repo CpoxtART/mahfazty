@@ -29,6 +29,38 @@ test('language switch flips direction and content to English/LTR', async ({ page
   await expect(page.locator('.hero .label')).toContainText(/available/i);
 });
 
+test('onboarding bullets (data-i18n-html) translate to English', async ({ page }) => {
+  // Locks the v47.22 fix: the static translator used to match only [data-i18n]
+  // and treat data-i18n-html as a boolean, so every onboarding bullet — whose
+  // key lives in data-i18n-html="key" — silently stayed Arabic in English mode.
+  await page.addInitScript(() => {
+    // do NOT mark welcome as seen here — we need the onboarding markup present
+    // (it's translated even while hidden, which is exactly what we're asserting).
+  });
+  await page.goto('/index.html');
+  await page.waitForFunction(() => typeof window.setLang === 'function');
+
+  await page.evaluate(() => window.setLang('en'));
+
+  // A known English bullet must be present...
+  await expect(page.locator('.onb-slide [data-i18n-html="onb.s7Li1"]'))
+    .toContainText(/Two languages/i);
+
+  // ...and NO onboarding bullet may still contain Arabic-script characters.
+  const arabicLeftovers = await page.evaluate(() => {
+    const arabic = /[؀-ۿ]/;
+    return Array.from(document.querySelectorAll('.onb-slide [data-i18n-html]'))
+      .filter((el) => arabic.test(el.textContent || ''))
+      .map((el) => el.getAttribute('data-i18n-html'));
+  });
+  expect(arabicLeftovers, 'all onboarding bullets render English in EN mode').toEqual([]);
+
+  // round-trips back to Arabic
+  await page.evaluate(() => window.setLang('ar'));
+  await expect(page.locator('.onb-slide [data-i18n-html="onb.s7Li1"]'))
+    .toContainText(/لغتان/);
+});
+
 test('RTL/LTR layout fix: hero amount mirrors with the page direction', async ({ page }) => {
   await gotoApp(page);
   const align = () => page.evaluate(() =>
