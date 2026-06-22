@@ -1,0 +1,35 @@
+name: tests
+
+# The app ships as plain static files (no build step); this workflow only runs
+# the test suite added under tests/. Unit tests are fast and dependency-free;
+# the e2e job spins up the static app in a real browser.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  unit:
+    name: unit (pure logic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # node:test is built in and the unit tests have no dependencies, so no
+      # install step is needed here — keeps this job near-instant.
+      - run: node --test "tests/*.test.js"
+
+  e2e:
+    name: e2e (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

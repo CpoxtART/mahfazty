@@ -1,0 +1,5 @@
+# Test tooling only — the app itself has no build step and ships as-is.
+node_modules/
+playwright-report/
+test-results/
+.DS_Store
