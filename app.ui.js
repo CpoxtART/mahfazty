@@ -1058,13 +1058,21 @@ function renderSubscriptions(){
   const monthlyTotal = round2(active.reduce((s,x)=>s+x.amount, 0));
   totalEl.innerHTML = `${t({ar:'إجمالي الاشتراكات الفعّالة:', en:'Total active subscriptions:'})} <b>${fmt(monthlyTotal)}</b> / ${t({ar:'شهر', en:'mo'})}`;
   list.innerHTML = '';
+  // last day of the CURRENT month — a billingDay beyond it (e.g. 31 in a 30-day
+  // month) actually fires on this value instead (see the matching cap in
+  // buildDailyReviewContent's due-today check), so the card hints at that instead
+  // of showing a day that won't exist this month and looking like it never fires.
+  const _subsLastDayThisMonth = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
   subscriptions.forEach(s => {
     const card = document.createElement('div');
     card.className = 'sub-card'+(s.active===false?' inactive':'');
+    const dayNote = (s.billingDay && s.billingDay > _subsLastDayThisMonth)
+      ? t({ar:` (هذا الشهر: ${_subsLastDayThisMonth})`, en:` (this month: ${_subsLastDayThisMonth})`})
+      : '';
     card.innerHTML = `
       <div class="sub-info">
         <div class="sub-name">${escHtml(s.name)}</div>
-        <div class="sub-meta">${escHtml(t({ar:`يوم ${s.billingDay||'—'} من كل شهر`, en:`Day ${s.billingDay||'—'} of every month`}))}${s.active===false?escHtml(t({ar:' · (متوقف)', en:' · (paused)'})):''}</div>
+        <div class="sub-meta">${escHtml(t({ar:`يوم ${s.billingDay||'—'} من كل شهر`, en:`Day ${s.billingDay||'—'} of every month`}) + dayNote)}${s.active===false?escHtml(t({ar:' · (متوقف)', en:' · (paused)'})):''}</div>
       </div>
       <div class="sub-amt">-${fmt(s.amount)}</div>
       <button class="sub-edit" aria-label="${escHtml(t({ar:'تعديل الاشتراك', en:'Edit subscription'}))}">✎</button>`;

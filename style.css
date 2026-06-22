@@ -1758,3 +1758,25 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
   background:var(--card); color:var(--gold);
   box-shadow:0 1px 4px rgba(0,0,0,.18);
 }
+
+/* A few elements force direction:ltr so digits always read left-to-right
+   (correct in both languages), but their text-align/gradient-direction/
+   transform-origin were hardcoded for RTL (Arabic) layout only. In English
+   (dir="ltr") mode these need to mirror so numbers, progress bars and the
+   section-title fade line align with the rest of the now-LTR page instead
+   of looking detached/backwards on the wrong side. */
+html[dir="ltr"] .hero .amount,
+html[dir="ltr"] .wallet .val,
+html[dir="ltr"] .budget-label{
+  text-align:left;
+}
+html[dir="ltr"] .wallet .bar i{
+  transform-origin:left center;
+  background:linear-gradient(to right, var(--gold), var(--gold-dim));
+}
+html[dir="ltr"] .wallet.track .bar i{
+  background:linear-gradient(to right, var(--blue), var(--blue-dim));
+}
+html[dir="ltr"] .section-title::after{
+  background:linear-gradient(to right, var(--line-soft), transparent);
+}
