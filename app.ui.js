@@ -75,7 +75,7 @@ function renderWallets(){
     div.className = 'wallet' + (w.track ? ' track' : '') + (val < 0 ? ' neg-val' : '') + (walletFilter===w.id ? ' active-filter' : '');
     div.setAttribute('role','button');
     div.setAttribute('tabindex','0');
-    div.setAttribute('aria-pressed', walletFilter===w.id);
+    div.setAttribute('aria-pressed', String(walletFilter===w.id));
     const pctWidth = w.track ? 100 : Math.min(100, Math.max(2, (val/barMax)*100));
 
     let budgetHtml = '';
@@ -144,7 +144,7 @@ function renderWallets(){
     grid.appendChild(div);
   }
 
-  document.getElementById('walletCount').textContent = defs.length + (state.crisisMode?1:0);
+  document.getElementById('walletCount').textContent = String(defs.length + (state.crisisMode?1:0));
 
   const totalEl = document.getElementById('totalSpendable');
   if(prevSpendable !== null && prevSpendable !== spendable){
@@ -446,7 +446,7 @@ function toggleWalletMenu(){
   const btn = document.getElementById('walletSelectBtn');
   const isOpen = wrap.classList.toggle('open');
   btn.classList.toggle('open', isOpen);
-  btn.setAttribute('aria-expanded', isOpen);
+  btn.setAttribute('aria-expanded', String(isOpen));
 }
 function selectWallet(id){
   selectedWallet = id;
@@ -1178,7 +1178,7 @@ function toggleEditWalletMenu(){
   const btn = document.getElementById('editWalletBtn');
   const isOpen = wrap.classList.toggle('open');
   btn.classList.toggle('open', isOpen);
-  btn.setAttribute('aria-expanded', isOpen);
+  btn.setAttribute('aria-expanded', String(isOpen));
 }
 function setEditType(type){
   editType = type;
@@ -1384,7 +1384,7 @@ function applyVoiceTranscript(text){
 
   if(amount !== null){
     const amtEl = document.getElementById('amountInput');
-    amtEl.value = amount;
+    amtEl.value = String(amount);
     amtEl.dispatchEvent(new Event('input')); // sync quick-amount button highlight
   }
   if(desc){
@@ -1419,7 +1419,7 @@ function renderQuickAmounts(){
     btn.setAttribute('aria-label', t({ar:'مبلغ سريع: ', en:'Quick amount: '}) + fmt(amt));
     btn.onclick = () => {
       const input = document.getElementById('amountInput');
-      input.value = amt;
+      input.value = String(amt);
       document.querySelectorAll('#quickAmounts button').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
     };
@@ -1556,7 +1556,7 @@ function toggleTransferMenu(dir){
   const btn = document.getElementById('transfer'+key+'Btn');
   const isOpen = wrap.classList.toggle('open');
   btn.classList.toggle('open', isOpen);
-  btn.setAttribute('aria-expanded', isOpen);
+  btn.setAttribute('aria-expanded', String(isOpen));
 }
 
 let _doTransferBusy = false;
@@ -1796,7 +1796,7 @@ function openWalletDetail(walletId){
     if(t.category==='transfer' || t.category==='adjustment') return;
     t.type==='income' ? inc+=t.amount : exp+=t.amount;
   });
-  document.getElementById('detailCount').textContent = txs.length;
+  document.getElementById('detailCount').textContent = String(txs.length);
   document.getElementById('detailIncome').textContent = fmt(inc);
   document.getElementById('detailExpense').textContent = fmt(exp);
 
@@ -1994,7 +1994,7 @@ function renderRecurring(){
     card.querySelector('[data-remind]').onclick = () => {
       document.getElementById('descInput').value = s.desc;
       const amtEl = document.getElementById('amountInput');
-      amtEl.value = round2(s.avg);
+      amtEl.value = String(round2(s.avg));
       amtEl.dispatchEvent(new Event('input')); // sync quick-amount highlight
       selectedWallet = s.wallet;
       // recurring suggestions are always expenses — ensure form is in expense mode

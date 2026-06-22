@@ -28,6 +28,14 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.21',
+    date: '2026-06-22',
+    title: 'تحسين داخلي: فحص الأنواع (type-checking)',
+    items: [
+      'إضافة فحص أنواع آلي (TypeScript بوضع الفحص فقط، بدون أي build) يكتشف الأخطاء البرمجية وقت الكتابة — مع توثيق أنواع الدوال المالية الحرجة. كما تم تشديد بضعة مواضع كانت تعتمد على التحويل الضمني للأنواع لتصير صريحة (سلوك مطابق تماماً، أمتن مستقبلاً).',
+    ],
+  },
+  {
     version: 'v47.20',
     date: '2026-06-22',
     title: 'تحسين داخلي: تنظيم كود الرسوم البيانية',
@@ -532,6 +540,11 @@ let _reloadOnControllerChange = false;
 /* ============================================================
    FORMAT HELPERS
 ============================================================ */
+/**
+ * Format a number as a 2-decimal display string with thousands separators.
+ * @param {number} n
+ * @returns {string}
+ */
 function fmt(n){
   if(isNaN(n) || !isFinite(n)) return '0.00';
   // collapse -0 and sub-cent negatives so they never render as "-0.00"
@@ -550,6 +563,15 @@ function fmt(n){
 // lead with an adjective ("متبقية") or a verb ("ستبقى مخفية") need واحدة placed
 // differently, or have no noun to attach to at all — pass the fully-formed
 // phrase via `singularOne` for those instead of relying on the default.
+/**
+ * Build a grammatically-correct Arabic "<count> <noun>" phrase.
+ * @param {number} count
+ * @param {string} singular  bare noun, reused as-is for the 11+ form
+ * @param {string} dual
+ * @param {string} plural
+ * @param {string} [singularOne]  fully-formed phrase for the count===1 case
+ * @returns {string}
+ */
 function arPlural(count, singular, dual, plural, singularOne){
   const n = Math.abs(Number(count) || 0);
   if(n === 1) return singularOne || `${singular} واحدة`;
@@ -562,8 +584,8 @@ function arPlural(count, singular, dual, plural, singularOne){
 // separators to ASCII so amount fields accept numbers typed on Arabic keyboards.
 function normalizeDigits(str){
   return String(str == null ? '' : str)
-    .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x0660) // Arabic-Indic digits
-    .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x06F0) // Extended (Persian) digits
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660)) // Arabic-Indic digits
+    .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0)) // Extended (Persian) digits
     .replace(/[٫]/g, '.')   // Arabic decimal separator
     .replace(/[٬,]/g, '');  // Arabic + Latin thousands separators
 }
@@ -572,6 +594,12 @@ function normalizeDigits(str){
 // hex notation ("1e9", "0x10") and values beyond a sane money ceiling. Returns
 // NaN on any rejection so every caller's existing isFinite/isNaN guard catches it.
 const MAX_AMOUNT = 1e12; // one trillion — well above any realistic single entry
+/**
+ * Parse a user-entered money string, rejecting junk (scientific/hex notation,
+ * out-of-range values) by returning NaN.
+ * @param {string} str
+ * @returns {number} the parsed value, or NaN on any rejection
+ */
 function parseAmount(str){
   const norm = normalizeDigits(str);
   if(/[a-zA-Z]/.test(norm)) return NaN; // block 1e9 / 0x10 / Infinity / NaN-style strings

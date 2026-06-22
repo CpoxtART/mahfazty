@@ -275,6 +275,11 @@ async function runDistribution(sourceTx, amount){
   await saveTx();
 }
 
+/**
+ * Round a money value to 2 decimals, correcting binary-float misrounding.
+ * @param {number} n
+ * @returns {number}
+ */
 function round2(n){
   // Plain Math.round(n*100)/100 misrounds values like 1.005 → 1 (should be
   // 1.01) because 1.005*100 is actually 100.49999... in binary float. The

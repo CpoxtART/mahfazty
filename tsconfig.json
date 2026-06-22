@@ -1,0 +1,19 @@
+{
+  "// note": "Type-CHECKING only — the app ships as plain .js with no build step. tsc never emits; it just catches real mistakes (typos, undefined calls, bad arg counts) at write-time. Lenient on purpose so a vanilla codebase stays green without a TS migration.",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"],
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["*.js", "globals.d.ts"],
+  "// exclude-note": "sw.js runs in the ServiceWorker global scope (self/clients/skipWaiting), which conflicts with the DOM Window lib used for the app files — checked separately would need its own config, so it's left out here.",
+  "exclude": ["node_modules", "tests", "playwright.config.js", "sw.js"]
+}
