@@ -67,8 +67,16 @@ function loadApp() {
   // here) onto the context so the test file can reach them.
   src += `
     globalThis.__exports = {
+      // pure helpers
       round2, fmt, arPlural, normalizeDigits, parseAmount,
-      escHtml, stripBidiControls, monthRange, sanitizeDistribution, sanitizeBudgets,
+      escHtml, stripBidiControls, monthRange,
+      // import/data-integrity sanitizers (arg-based, pure)
+      sanitizeDistribution, sanitizeBudgets, sanitizeWalletDefs,
+      sanitizeOrder, sanitizeTrackLinkMode, buildTxTs, parseArabicNumber,
+      // state-dependent money/derivation functions, plus a live state ref and the
+      // default WALLET_DEFS so tests can stage a scenario then assert.
+      reconcileBalances, sumExpenses,
+      state, WALLET_DEFS,
     };`;
 
   // The app's top-level loadState() may reject against the stubs — that's

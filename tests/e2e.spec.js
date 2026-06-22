@@ -41,6 +41,32 @@ test('RTL/LTR layout fix: hero amount mirrors with the page direction', async ({
   expect(await align(), 'English/LTR → left-aligned (the v47.18 fix)').toBe('left');
 });
 
+test('analytics & reports tabs render charts without runtime errors', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await gotoApp(page);
+
+  // seed a little history so the charts/reports have something to draw
+  await page.evaluate(() => {
+    const now = Date.now();
+    state.transactions = [
+      { id: 't1', wallet: 'core', type: 'income', category: 'salary', amount: 1000, ts: now - 86400000 },
+      { id: 't2', wallet: 'core', type: 'expense', category: 'food', amount: 120, ts: now - 3600000 },
+      { id: 't3', wallet: 'core', type: 'expense', category: 'transport', amount: 40, ts: now - 1800000 },
+    ];
+    state.wallets.core = 840;
+    if (typeof render === 'function') render();
+  });
+
+  await page.evaluate(() => window.switchTab('analytics'));
+  await expect(page.locator('#pieCanvas')).toBeVisible();
+
+  await page.evaluate(() => window.switchTab('reports'));
+  await expect(page.locator('#chartCanvas')).toBeVisible();
+
+  expect(errors, 'no errors while rendering analytics/reports').toEqual([]);
+});
+
 test('income distribution conserves money exactly (no rounding drift)', async ({ page }) => {
   await gotoApp(page);
 
