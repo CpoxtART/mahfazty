@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v47.27';
+const CACHE = 'mhfzty-v47.28';
 // Note: sw.js itself is intentionally NOT precached — the browser fetches and
 // byte-compares it directly to drive updates; caching it via the Cache API is a
 // no-op at best and can interfere with that update check.
@@ -16,12 +16,11 @@ self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE).then(c =>
       Promise.all(PRECACHE.map(url => c.add(url).catch(() => {})))
-    )
+    ).then(() => self.skipWaiting())
+    // skipWaiting() is inside the chain so it runs AFTER all assets are cached —
+    // calling it outside (before the Promise resolves) would let the SW claim
+    // clients and serve requests from a partially-populated cache.
   );
-  // Skip the waiting phase so the new SW activates immediately after install,
-  // without requiring the user to approve. The page reloads automatically via
-  // the controllerchange listener in app.logic.js (setupPWA).
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
