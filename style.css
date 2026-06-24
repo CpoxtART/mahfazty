@@ -203,7 +203,7 @@
       radial-gradient(800px 500px at 10% 0%, rgba(134,173,207,.05), transparent 50%),
       var(--bg);
     color:var(--text);
-    padding:16px 14px calc(96px + env(safe-area-inset-bottom));
+    padding:16px 14px calc(74px + env(safe-area-inset-bottom));
     max-width:540px;
     margin:0 auto;
     line-height:1.5;
@@ -1077,7 +1077,7 @@
   #saveStatus{
     position:fixed; bottom:calc(16px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%) translateY(8px);
     background:var(--card2); color:var(--text); border:1px solid var(--line);
-    padding:10px 20px; border-radius:var(--radius-pill); font-size:12px; z-index:1100;
+    padding:10px 20px; border-radius:var(--radius-pill); font-size:12px; z-index:2000;
     transition:opacity .25s var(--ease), transform .25s var(--ease); opacity:0; pointer-events:none;
     display:flex; align-items:center; justify-content:center; gap:7px; font-weight:600;
     box-shadow:var(--shadow-strong);

@@ -49,7 +49,7 @@ function renderWallets(){
   // First-run guidance: a brand-new app has every balance at 0, which reads as
   // "broken" rather than "empty". Show a friendly CTA that points at the natural
   // first action — recording income (which then auto-distributes into the wallets).
-  if(state.transactions.length === 0 && !state.crisisMode){
+  if(state.transactions.length === 0 && !state.crisisMode && WALLET_DEFS.every(w => (state.wallets[w.id] ?? 0) === 0)){
     const cta = document.createElement('div');
     cta.className = 'wallet-cta';
     cta.innerHTML = `
@@ -335,7 +335,7 @@ async function saveWalletDefModal(){
   const nameInput = document.getElementById('walletDefName');
   const name = stripBidiControls(nameInput.value).trim().slice(0,40);
   if(!name){ toast(t({ar:'⚠ أدخل اسم المحفظة', en:'⚠ Enter a wallet name'}), true); nameInput.focus(); return; }
-  if(WALLET_DEFS.some(w => w.id !== editingWalletDefId && w.name === name)){
+  if(WALLET_DEFS.some(w => w.id !== editingWalletDefId && w.name.toLowerCase() === name.toLowerCase())){
     toast(t({ar:'⚠ يوجد محفظة بهذا الاسم بالفعل', en:'⚠ A wallet with this name already exists'}), true); nameInput.focus(); return;
   }
 
@@ -1638,6 +1638,7 @@ async function updateTrackedBalance(){
   if(!w){ toast(t({ar:'⚠ المحفظة غير موجودة', en:'⚠ Wallet not found'}), true); return; } // detailWalletId could be stale
   const newVal = parseAmount(document.getElementById('detailNewBalance').value);
   if(isNaN(newVal)){ toast(t({ar:'⚠ أدخل رصيد صحيح', en:'⚠ Enter a valid balance'}), true); return; }
+  if(newVal < 0){ toast(t({ar:'⚠ الرصيد لا يمكن أن يكون سالبًا', en:'⚠ Balance cannot be negative'}), true); return; }
 
   const current = state.wallets[walletId] ?? 0;
   const diff = round2(newVal - current);
@@ -1752,9 +1753,11 @@ async function saveDistribution(){
   if(parseFloat(total.toFixed(1)) !== 100){
     if(!(total > 0)){ toast(t({ar:'⚠ أدخل نِسبًا صحيحة أولاً', en:'⚠ Enter valid ratios first'}), true); return; }
     if(!confirm(t({ar:`الإجمالي ${total.toFixed(1)}% وليس 100%.\n\nسيتم تعديل النسب تلقائيًا لتصبح 100% مع الحفاظ على تناسبها. متابعة؟`, en:`Total is ${total.toFixed(1)}%, not 100%.\n\nRatios will be auto-adjusted to 100% while keeping their proportions. Continue?`}))) return;
-    normalizeDistribution();
-    renderDistributionEditor(); // reflect the normalized values back into the inputs
   }
+  // always normalize before saving — even when total already rounds to 100% via
+  // toFixed(1), raw float accumulation (e.g. 99.95...) can persist otherwise.
+  normalizeDistribution();
+  renderDistributionEditor(); // reflect the normalized values back into the inputs
   await saveConfig();
   renderWallets();
   toast(t({ar:'✓ تم حفظ النسب (المجموع 100٪)', en:'✓ Ratios saved (total 100%)'}));
@@ -1918,10 +1921,9 @@ function renderAnalytics(){
 let _recurringCache = null;
 let _recurringCacheSig = '';
 function detectRecurring(){
-  // _recurringCache is nulled on every render(); this inner sig only guards
-  // against duplicate calls within the same render cycle (e.g. from renderWallets
-  // and renderRecurring both running). descLen was O(n) and redundant here.
-  const sig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size + '|' + subscriptions.length;
+  // _txMutationStamp is included so in-place edits (amount/desc change on the
+  // same last-tx-id) are detected without relying on render() to null the cache.
+  const sig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size + '|' + subscriptions.length + '|' + _txMutationStamp;
   if(sig === _recurringCacheSig && _recurringCache) return _recurringCache;
   _recurringCacheSig = sig;
 
@@ -1944,6 +1946,7 @@ function detectRecurring(){
   function matchesTrackedSub(desc, avg){
     const normDesc = normalizeSearch(desc);
     return trackedSubs.some(s =>
+      s.amount > 0 &&
       (normDesc.includes(s.name) || s.name.includes(normDesc)) &&
       Math.abs(avg - s.amount) / s.amount < 0.15
     );

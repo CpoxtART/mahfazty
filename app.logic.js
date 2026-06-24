@@ -67,7 +67,6 @@ async function addTx(type){
 
     await saveBalances();
     await saveTx();
-    render();
     // Signal closeAddDrawer() to skip history.back() when it's followed immediately
     // by openModal(distributeModal) — the flag is checked inside closeAddDrawer()
     // so the drawer's history entry gets replaced atomically instead of back()+push().
@@ -79,12 +78,15 @@ async function addTx(type){
     toast(type==='expense' ? t({ar:'✓ تم تسجيل المصروف', en:'✓ Expense recorded'}) : t({ar:'✓ تم تسجيل الدخل', en:'✓ Income recorded'}));
 
     // auto-distribution flow for income
-    if(type === 'income' && tx.category !== 'transfer'){
-      if(autoDistribute){
-        await runDistribution(tx, amountVal);
-        render(); // reflect the distributed shares (render above ran before distribution)
-        toast(t({ar:'🔄 تم توزيع الدخل تلقائيًا', en:'🔄 Income auto-distributed'}));
-      } else {
+    if(type === 'income' && tx.category !== 'transfer' && autoDistribute){
+      await runDistribution(tx, amountVal);
+      // single render after distribution completes — skips an intermediate render
+      // that would paint the income-only state before the distribution legs exist
+      render();
+      toast(t({ar:'🔄 تم توزيع الدخل تلقائيًا', en:'🔄 Income auto-distributed'}));
+    } else {
+      render(); // expenses and manual-distribution incomes render once right here
+      if(type === 'income' && tx.category !== 'transfer'){
         pendingIncomeTx = tx;
         openDistributionModal(amountVal); // _pushOverlayHistory() will replaceState (flag already set)
         _nextPushOverlayReplaces = false;  // safety reset if openModal wasn't reached
@@ -105,7 +107,8 @@ function openDistributionModal(amount){
   document.getElementById('distAmountLabel').textContent = fmt(amount);
   const wrap = document.getElementById('distBreakdown');
   wrap.innerHTML = '';
-  const activeEntries = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
+  const _srcId = pendingIncomeTx && pendingIncomeTx.wallet;
+  const activeEntries = DISTRIBUTION.filter(d => d && d.pct > 0 && d.id !== _srcId && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
   if(activeEntries.length === 0){
     const warn = document.createElement('div');
     warn.className = 'hint';
@@ -155,7 +158,6 @@ function skipDistribution(){
 }
 
 async function confirmDistribution(){
-  _txMutationStamp++;
   saveAutoDistributePref();
   if(!pendingIncomeTx) { closeModal('distributeModal'); return; }
   const hasActive = DISTRIBUTION.some(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
@@ -163,6 +165,9 @@ async function confirmDistribution(){
     toast(t({ar:'⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً', en:'⚠ No distribution ratios set — set them up in Settings first'}), true);
     return;
   }
+  // _txMutationStamp is incremented only after ALL early-return guards pass — no
+  // unnecessary cache invalidation when confirmDistribution() is a no-op
+  _txMutationStamp++;
   const txToDistribute = pendingIncomeTx;
   pendingIncomeTx = null; // clear early so double-tap cannot trigger a second distribution
   // re-find by id: a cross-tab reload could have replaced state.transactions, leaving
@@ -200,8 +205,9 @@ async function runDistribution(sourceTx, amount){
   const linkId = 'lnk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
 
   // Only spendable wallets with a positive share participate — never route
-  // distributed income into a track-only wallet (uber/cards/cash)
-  const active = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
+  // distributed income into a track-only wallet (uber/cards/cash), and never
+  // route it back into the source wallet (that would double-credit the income).
+  const active = DISTRIBUTION.filter(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track && x.id !== sourceWalletId));
   const totalPct = active.reduce((s,d)=> s + d.pct, 0);
   // never distribute more than the income itself (caps any >100% misconfiguration)
   const intendedTotal = round2(Math.min(amount, amount * totalPct / 100));
@@ -209,8 +215,8 @@ async function runDistribution(sourceTx, amount){
   // nothing to distribute — leave the income where it landed, don't withdraw
   if(intendedTotal <= 0){ await saveBalances(); await saveTx(); return; }
 
-  // Link the originating income too, so deleting any leg removes the whole
-  // income+distribution group and balances stay consistent.
+  // Link the originating income AFTER the early-return guard — no point stamping
+  // a link that would immediately be stripped by stripOrphanLinks() on zero distribution.
   sourceTx.link = linkId;
 
   // Withdraw only the portion that will actually be distributed. Any
@@ -253,7 +259,7 @@ async function runDistribution(sourceTx, amount){
     const txIn = {
       id: 'tx_'+Date.now()+'_d'+(i+1)+Math.random().toString(36).slice(2,7),
       wallet: d.id,
-      desc: t({ar:`حصة ${w.name} (⁦${d.pct}%⁩) من دخل`, en:`${w.name}'s share (${d.pct}%) of income`}),
+      desc: t({ar:`حصة ⁦${w.name}⁩ (⁦${d.pct}%⁩) من دخل`, en:`${w.name}'s share (${d.pct}%) of income`}),
       amount: share,
       type: 'income',
       category: 'transfer',
@@ -1173,6 +1179,9 @@ async function applyImport(text){
     const _now = Date.now();
     stripOrphanedDistributionLegs(state.transactions).forEach(t => { deletedTxIds[t.id] = _now; });
   }
+  // Orphan-stripping may have removed transactions that the backup's stored balances
+  // still included — recompute from the surviving transaction list to stay consistent.
+  reconcileBalances();
   if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
   if(data.budgets && typeof data.budgets === 'object') budgets = sanitizeBudgets(data.budgets);
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
@@ -2082,7 +2091,9 @@ function render(force){
   if(!force && sig === _renderSig) return; // nothing visual changed
   _renderSig = sig;
   _monthlyExpenseCache = null; // invalidate budget bars per-render
-  _recurringCache = null; // invalidate so edited tx amounts are re-evaluated
+  // _recurringCache is intentionally NOT nulled here — detectRecurring()'s sig now
+  // includes _txMutationStamp, which already captures all mutations. Nulling here
+  // caused a full O(n) re-scan on every filter change / crisis toggle / etc.
   // invalidate content caches keyed only on length/last-id — edits (amount,
   // desc, date, wallet, category) don't change those, so they must be reset
   // here to reflect in-place edits in the list, chart, analytics and hero.
@@ -2378,3 +2389,14 @@ document.addEventListener('wheel', e => {
     e.preventDefault();
   }
 }, {passive:false});
+
+// bfcache restore: when the browser revives a frozen page from the Back/Forward cache,
+// JS variables are from the frozen snapshot but the history stack may reflect
+// navigation that happened since — _overlayHistDepth can be out of sync and cause
+// Back to expel the user from the app instead of closing an overlay. Re-derive it
+// from the restored history state so the two stay consistent.
+window.addEventListener('pageshow', e => {
+  if(e.persisted){
+    _overlayHistDepth = (history.state && history.state._mahfaztyOverlay) ? (history.state.depth || 1) : 0;
+  }
+});
