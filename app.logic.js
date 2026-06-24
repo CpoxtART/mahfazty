@@ -224,7 +224,8 @@ async function runDistribution(sourceTx, amount){
     type: 'expense',
     category: 'transfer',
     ts: ts+1,
-    link: linkId
+    link: linkId,
+    _distributionLeg: true // marks this as a distribution withdrawal so orphan-detection can find it if the source income is later deleted
   };
   state.transactions.push(txOut);
   applyTxToBalance(txOut, +1);
@@ -257,7 +258,8 @@ async function runDistribution(sourceTx, amount){
       type: 'income',
       category: 'transfer',
       ts: ts+2+i,
-      link: linkId
+      link: linkId,
+      _distributionLeg: true
     };
     state.transactions.push(txIn);
     applyTxToBalance(txIn, +1);
@@ -551,6 +553,11 @@ async function deleteTx(id){
       removed.push(tx);
     });
     if(!removed.length) return;
+
+    // Sweep for distribution legs whose income source was just removed (or whose
+    // link was previously lost via merge, leaving withdrawal+deposits stranded).
+    const orphanedLegs = stripOrphanedDistributionLegs(state.transactions);
+    orphanedLegs.forEach(t => { applyTxToBalance(t, -1); removed.push(t); });
 
     // record tombstones so the deletion propagates on multi-device merge sync
     const now = Date.now();
@@ -1041,6 +1048,54 @@ function stripOrphanLinks(txList){
   txList.forEach(tx => { if(tx.link && counts[tx.link] < 2) delete tx.link; });
 }
 
+// Remove distribution legs (withdrawal + deposits) whose income source is missing.
+// This happens when a sync/merge strips the source tx's `link` property — deleteTx
+// then removes only the source, leaving the withdrawal+deposits to inflate/deflate
+// balances permanently.  Returns the array of removed transactions (caller must
+// reverse-apply them via applyTxToBalance).
+function stripOrphanedDistributionLegs(txList){
+  // For each link group: track whether a non-leg income source exists,
+  // and whether any leg is explicitly marked _distributionLeg.
+  const sourceLinks = new Set();
+  const linkInfo = {};
+  txList.forEach(t => {
+    if(!t.link) return;
+    if(!linkInfo[t.link]) linkInfo[t.link] = {exp:0, inc:0, marked:false, hasSource:false};
+    if(t._distributionLeg || t.category === 'transfer'){
+      if(t.type === 'expense') linkInfo[t.link].exp++;
+      else linkInfo[t.link].inc++;
+      if(t._distributionLeg) linkInfo[t.link].marked = true;
+    } else {
+      // non-transfer/non-leg tx with a link = the income source itself
+      linkInfo[t.link].hasSource = true;
+      sourceLinks.add(t.link);
+    }
+  });
+  const orphanLinks = new Set();
+  Object.keys(linkInfo).forEach(link => {
+    if(sourceLinks.has(link)) return; // source present — group is intact
+    const info = linkInfo[link];
+    if(info.marked){
+      // explicitly tagged distribution leg with no source → definitely orphaned
+      orphanLinks.add(link);
+    } else if(info.exp > 0 && (info.inc === 0 || info.inc >= 2)){
+      // heuristic for old data: withdrawal-only OR withdrawal + ≥2 deposits
+      // (1 exp + 1 inc could be a regular two-leg transfer — leave it alone)
+      orphanLinks.add(link);
+    }
+  });
+  if(!orphanLinks.size) return [];
+  const removed = [];
+  for(let i = txList.length - 1; i >= 0; i--){
+    const t = txList[i];
+    if(t.link && orphanLinks.has(t.link)){
+      txList.splice(i, 1);
+      removed.push(t);
+    }
+  }
+  return removed;
+}
+
 async function applyImport(text){
   let data;
   try{ data = JSON.parse(text); }
@@ -1114,6 +1169,10 @@ async function applyImport(text){
   // a future delete of that transaction doesn't cascade to nothing and leave
   // the balance adjustment unapplied.
   stripOrphanLinks(state.transactions);
+  {
+    const _now = Date.now();
+    stripOrphanedDistributionLegs(state.transactions).forEach(t => { deletedTxIds[t.id] = _now; });
+  }
   if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
   if(data.budgets && typeof data.budgets === 'object') budgets = sanitizeBudgets(data.budgets);
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
@@ -1272,6 +1331,17 @@ async function clearBalancesAndTx(){
 // Self-healing repair: recompute balances from the transaction ledger (0 + Σ).
 // Shows the detected drift first so the user knows exactly what will change.
 async function repairBalancesFromLedger(){
+  // Remove any orphaned distribution legs before computing the expected balances,
+  // otherwise the dry-run will conclude "already correct" despite the bad state.
+  {
+    const _now = Date.now();
+    const _orphans = stripOrphanedDistributionLegs(state.transactions);
+    if(_orphans.length){
+      _orphans.forEach(t => { applyTxToBalance(t, -1); deletedTxIds[t.id] = _now; });
+      await saveBalances();
+      await saveTx();
+    }
+  }
   // dry run on a snapshot to preview the diff without committing
   const before = {};
   WALLET_DEFS.forEach(w => before[w.id] = parseFloat(state.wallets[w.id]) || 0);

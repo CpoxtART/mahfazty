@@ -28,6 +28,15 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.26',
+    date: '2026-06-24',
+    title: 'إصلاح حرج: رصيد المحفظة الأساسية يصبح سالبًا بعد حذف معاملة التوزيع',
+    items: [
+      'إصلاح (حرج): حذف معاملة الدخل المصدر بعد التوزيع (إذا فُقد رابط link عبر مزامنة/دمج) كان يُبقي سحب التوزيع والودائع في السجل دون مصدرها، مما يجعل رصيد المحفظة الأساسية سالبًا. الإصلاح: دالة stripOrphanedDistributionLegs تكتشف هذه الأرجل المعزولة وتحذفها مع عكس أثرها على الرصيد، وتُستدعى عند الحذف والتحميل والاستيراد والدمج وإصلاح الرصيد.',
+      'إصلاح: دمج البيانات (Drive وIDB) الآن يحافظ على خاصية link في المعاملة المحلية إذا كانت النسخة الواردة تفتقر إليها، مما يمنع السباق الزمني (race condition) الذي كان يفصل معاملة الدخل عن مجموعة التوزيع.',
+    ],
+  },
+  {
     version: 'v47.25',
     date: '2026-06-24',
     title: 'إصلاح حرج: "وزّعه الآن" كان يخرج المستخدم من التطبيق',
@@ -1104,6 +1113,10 @@ async function loadState(){
   // transfer/distribution dropped by the validity filter). Clear the dangling
   // link so a later delete doesn't try to cascade to a partner that isn't there.
   stripOrphanLinks(state.transactions);
+  if(typeof stripOrphanedDistributionLegs === 'function'){
+    const _now = Date.now();
+    stripOrphanedDistributionLegs(state.transactions).forEach(t => { deletedTxIds[t.id] = _now; });
+  }
   _allTxSortedCache = null; // freshly replaced array — drop the sorted cache
 
   // If the DB couldn't be opened (blocked by another tab / corrupt) and we ended up
@@ -1219,11 +1232,19 @@ function mergeCloudData(cloud, cloudNewer){
     const local = byId.get(t.id);
     if(!local){ byId.set(t.id, t); added++; return; }
     if(typeof t.editedAt === 'number' && typeof local.editedAt === 'number' && t.editedAt > local.editedAt){
-      byId.set(t.id, t);
+      // Preserve the local link if the incoming version lost it (e.g. older snapshot
+      // from before distribution ran).  Without this guard a Drive sync arriving
+      // seconds after runDistribution would strip the link, turning the income source
+      // into a standalone tx whose delete later orphans the withdrawal+deposits.
+      byId.set(t.id, local.link && !t.link ? {...t, link: local.link} : t);
     }
   });
   state.transactions = [...byId.values()];
   stripOrphanLinks(state.transactions);
+  if(typeof stripOrphanedDistributionLegs === 'function'){
+    const _now = Date.now();
+    stripOrphanedDistributionLegs(state.transactions).forEach(t => { deletedTxIds[t.id] = _now; });
+  }
   _allTxSortedCache = null;
 
   // 4) merge subscriptions by id (union; cloud wins on a true id clash)
@@ -1427,7 +1448,8 @@ async function idbBackup(savedAt){
             const local = byId.get(t.id);
             if(!local){ byId.set(t.id, t); return; }
             if(typeof t.editedAt === 'number' && typeof local.editedAt === 'number' && t.editedAt > local.editedAt){
-              byId.set(t.id, t);
+              // Preserve link from local if the IDB snapshot lost it
+              byId.set(t.id, local.link && !t.link ? {...t, link: local.link} : t);
             }
           });
           mergedTx = [...byId.values()];
