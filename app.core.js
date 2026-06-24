@@ -28,6 +28,14 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.27',
+    date: '2026-06-24',
+    title: 'تحديث تلقائي: لم يعد التطبيق يطلب موافقة لتطبيق التحديثات',
+    items: [
+      'تغيير: Service Worker الجديد يُفعَّل فورًا عند تثبيته (skipWaiting) دون انتظار موافقة المستخدم — الصفحة تُعاد تحميلها تلقائيًا عند تسلّمه للتحكم.',
+    ],
+  },
+  {
     version: 'v47.26',
     date: '2026-06-24',
     title: 'إصلاح حرج: رصيد المحفظة الأساسية يصبح سالبًا بعد حذف معاملة التوزيع',

@@ -2006,45 +2006,29 @@ function setupPWA(){
 
   if(!('serviceWorker' in navigator)) return;
 
-  // Suppress the banner on the load immediately after a user-triggered update
-  // to avoid showing it again for the same SW version.
-  const justUpdated = !!sessionStorage.getItem('_swJustUpdated');
-  sessionStorage.removeItem('_swJustUpdated');
+  // Capture whether a SW was already controlling this page at load time.
+  // Distinguishes a first install (no old SW → no reload needed) from an
+  // update (old SW swapped out → reload to load fresh assets).
+  const hadController = !!navigator.serviceWorker.controller;
 
   try{
-    // updateViaCache:'none' → the browser always re-fetches sw.js from the network
-    // (never the HTTP cache) when checking for updates, so a new version is detected
-    // reliably instead of being masked by a stale cached sw.js. This is the main fix
-    // for the "update banner shows up late" problem.
+    // updateViaCache:'none' → the browser always re-fetches sw.js from the
+    // network (never the HTTP cache) so a new version is detected reliably.
     navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
       .then(reg => {
         _swRegistration = reg;
-
-        if(reg.waiting && !justUpdated){
-          _pendingWorker = reg.waiting;
-          showUpdateBanner();
-        }
-
-        reg.addEventListener('updatefound', () => {
-          const worker = reg.installing;
-          if(!worker) return;
-          worker.addEventListener('statechange', () => {
-            if(worker.state === 'installed' && navigator.serviceWorker.controller && !justUpdated){
-              _pendingWorker = worker;
-              showUpdateBanner();
-            }
-          });
-        });
-
-        // Trigger an explicit check right away, then poll every 15 min while the app
-        // stays open, so long-running sessions pick up a new version promptly.
+        // Trigger an explicit check right away, then poll every 15 min so
+        // long-running sessions pick up a new version promptly.
         checkForSWUpdate(true);
         setInterval(checkForSWUpdate, 15 * 60 * 1000);
       })
       .catch(e => console.warn('SW registration failed:', e));
 
+    // sw.js calls skipWaiting() on install, so the new SW activates on its own.
+    // Reload as soon as it takes control — but only when updating (hadController),
+    // not on a first install where the page already loaded without a SW.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if(_reloadOnControllerChange){
+      if(hadController){
         sessionStorage.setItem('_swJustUpdated', '1');
         window.location.reload();
       }
