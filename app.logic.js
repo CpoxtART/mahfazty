@@ -68,6 +68,12 @@ async function addTx(type){
     await saveBalances();
     await saveTx();
     render();
+    // Signal closeAddDrawer() to skip history.back() when it's followed immediately
+    // by openModal(distributeModal) — the flag is checked inside closeAddDrawer()
+    // so the drawer's history entry gets replaced atomically instead of back()+push().
+    if(type === 'income' && tx.category !== 'transfer' && !autoDistribute && addDrawerOpen){
+      _nextPushOverlayReplaces = true;
+    }
     closeAddDrawer();
     haptic(15); // brief confirm pulse on a successful entry
     toast(type==='expense' ? t({ar:'✓ تم تسجيل المصروف', en:'✓ Expense recorded'}) : t({ar:'✓ تم تسجيل الدخل', en:'✓ Income recorded'}));
@@ -80,7 +86,8 @@ async function addTx(type){
         toast(t({ar:'🔄 تم توزيع الدخل تلقائيًا', en:'🔄 Income auto-distributed'}));
       } else {
         pendingIncomeTx = tx;
-        openDistributionModal(amountVal);
+        openDistributionModal(amountVal); // _pushOverlayHistory() will replaceState (flag already set)
+        _nextPushOverlayReplaces = false;  // safety reset if openModal wasn't reached
       }
     }
   } finally {
@@ -611,9 +618,22 @@ let _inPopstateClose = false; // true while popstate's own close is unwinding (s
 // second popstate — which is ALSO ours — would be wrongly treated as a real
 // user navigation and close the parent overlay underneath.
 let _suppressPopstateCloseCount = 0;
+// When true, the next _pushOverlayHistory() call will REPLACE the current history
+// entry (replaceState) instead of pushing a new one. Used by addTx() when it needs
+// to atomically swap the add-drawer's history entry for the distribution modal's
+// entry, avoiding the history.back()+pushState() race that would otherwise consume
+// the modal entry and later navigate the user completely off the page.
+let _nextPushOverlayReplaces = false;
 function _pushOverlayHistory(){
-  _overlayHistDepth++;
-  history.pushState({ _mahfaztyOverlay: true, depth: _overlayHistDepth }, '');
+  if(_nextPushOverlayReplaces){
+    _nextPushOverlayReplaces = false;
+    // Replace mode: swap the current overlay entry for the new modal's entry.
+    // _overlayHistDepth stays the same — we're replacing, not adding.
+    history.replaceState({ _mahfaztyOverlay: true, depth: _overlayHistDepth }, '');
+  } else {
+    _overlayHistDepth++;
+    history.pushState({ _mahfaztyOverlay: true, depth: _overlayHistDepth }, '');
+  }
 }
 function _popOverlayHistory(){
   if(_overlayHistDepth <= 0) return;

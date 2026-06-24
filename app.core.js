@@ -28,6 +28,14 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.25',
+    date: '2026-06-24',
+    title: 'إصلاح حرج: "وزّعه الآن" كان يخرج المستخدم من التطبيق',
+    items: [
+      'إصلاح (حرج): الضغط على "وزّعه الآن" في مودال توزيع الدخل كان يُخرج المستخدم من التطبيق تمامًا إلى صفحة خارجية — بسبب سباق (race condition) بين history.back() من إغلاق السحب وhistory.pushState() من فتح المودال، مما كان يُربك عداد التاريخ ويجعل history.back() التالي يتجاوز حدود التطبيق. الإصلاح: استبدال المعادلة back()+push() بعملية history.replaceState() ذرية تستبدل entry السحب مباشرةً بـ entry المودال.',
+    ],
+  },
+  {
     version: 'v47.24',
     date: '2026-06-24',
     title: 'إصلاح 4 أخطاء: المراجعة اليومية، شارة المحفظة، حقل الرصيد، المعاملات المتكررة',

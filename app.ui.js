@@ -884,7 +884,10 @@ function closeAddDrawer(){
   // A pending voice recognition would otherwise keep listening in the background
   // and silently fill the (now hidden) desc/amount fields whenever it resolves.
   if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} }
-  if(wasOpen) _popOverlayHistory();
+  // Skip _popOverlayHistory() when addTx() is atomically swapping this drawer entry
+  // for a modal entry via replaceState — calling history.back() here would race with
+  // the modal's pushState/replaceState and navigate the user off the page.
+  if(wasOpen && !_nextPushOverlayReplaces) _popOverlayHistory();
   // restore focus to whatever triggered the drawer (mirrors closeModal)
   const _retFocus = _focusStack.pop();
   if(_retFocus && typeof _retFocus.focus === 'function'){
