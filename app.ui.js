@@ -99,7 +99,7 @@ function renderWallets(){
     // Track wallets' badge shows their live share of all money across every
     // wallet (⚖️) — same gold chip style every other wallet badge uses, still
     // a button that opens the balance-sync screen on tap.
-    const trackSharePct = grandTotal > 0 ? Math.round((val/grandTotal)*100) : 0;
+    const trackSharePct = grandTotal > 0 ? Math.max(0, Math.round((val/grandTotal)*100)) : 0;
     const pctBtn = w.track
       ? `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:`مزامنة الرصيد الفعلي لـ ${w.name} — ${trackSharePct}% من إجمالي محافظك`, en:`Sync actual balance for ${w.name} — ${trackSharePct}% of your total wallets`}))}" title="${escHtml(t({ar:'مزامنة الرصيد الفعلي', en:'Sync actual balance'}))}">⚖️ ${trackSharePct}%</div>`
       : `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:`تفاصيل ${w.name}`, en:`Details for ${w.name}`}))}" title="${escHtml(t({ar:'التفاصيل', en:'Details'}))}">ⓘ ${escHtml(getWalletPctLabel(w))}</div>`;
@@ -1782,7 +1782,7 @@ function openWalletDetail(walletId){
   if(w.track){
     updateWrap.style.display = 'block';
     budgetWrap.style.display = 'none';
-    document.getElementById('detailNewBalance').value = currentVal;
+    document.getElementById('detailNewBalance').value = (currentVal || 0).toFixed(2);
     _updateTrackModeToggleUI(walletId); // sync the "linked expense → ينقص/يزيد" toggle
   } else {
     updateWrap.style.display = 'none';
@@ -1960,9 +1960,10 @@ function detectRecurring(){
     const avg = amounts.reduce((a,b)=>a+b,0)/amounts.length;
     const variance = avg > 0 && amounts.every(a => Math.abs(a-avg)/avg < 0.15);
     if(!variance) return;
-    if(matchesTrackedSub(txs[0].desc, avg)) return;
+    const latest = txs.reduce((a,b) => b.ts > a.ts ? b : a);
+    if(matchesTrackedSub(latest.desc, avg)) return;
 
-    suggestions.push({ key, desc: txs[0].desc, avg, count: txs.length, wallet: txs[0].wallet, category: txs[0].category });
+    suggestions.push({ key, desc: latest.desc, avg, count: txs.length, wallet: latest.wallet, category: latest.category });
     // key = "desc\x00walletId" — dismiss per wallet so same desc in two wallets shows two suggestions
   });
   _recurringCache = suggestions.slice(0,3);

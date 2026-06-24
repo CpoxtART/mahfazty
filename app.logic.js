@@ -1574,12 +1574,19 @@ function buildDailyReviewContent(){
 
   let lines = [];
   if(yCount > 0 || yIncome > 0){
-    const txWord = t({ar:arPlural(yCount, 'معاملة', 'معاملتين', 'معاملات'), en:`${yCount} ${yCount===1?'transaction':'transactions'}`});
     const incomePart = yIncome>0 ? t({ar:` · دخل <b style="color:var(--green)">${fmt(yIncome)}</b>`, en:` · income <b style="color:var(--green)">${fmt(yIncome)}</b>`}) : '';
-    lines.push(t({
-      ar: `📅 <b style="color:var(--text)">أمس:</b> صرفت <b style="color:var(--red)">${fmt(yExpense)}</b> على ${txWord}${incomePart}`,
-      en: `📅 <b style="color:var(--text)">Yesterday:</b> you spent <b style="color:var(--red)">${fmt(yExpense)}</b> on ${txWord}${incomePart}`,
-    }));
+    if(yCount > 0){
+      const txWord = t({ar:arPlural(yCount, 'معاملة', 'معاملتين', 'معاملات'), en:`${yCount} ${yCount===1?'transaction':'transactions'}`});
+      lines.push(t({
+        ar: `📅 <b style="color:var(--text)">أمس:</b> صرفت <b style="color:var(--red)">${fmt(yExpense)}</b> على ${txWord}${incomePart}`,
+        en: `📅 <b style="color:var(--text)">Yesterday:</b> you spent <b style="color:var(--red)">${fmt(yExpense)}</b> on ${txWord}${incomePart}`,
+      }));
+    } else {
+      lines.push(t({
+        ar: `📅 <b style="color:var(--text)">أمس:</b> لم تُسجَّل مصروفات${incomePart}`,
+        en: `📅 <b style="color:var(--text)">Yesterday:</b> no expenses recorded${incomePart}`,
+      }));
+    }
   } else {
     lines.push(t({ar:'📅 لم تُسجَّل معاملات أمس.', en:'📅 No transactions recorded yesterday.'}));
   }
