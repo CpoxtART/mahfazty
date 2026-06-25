@@ -28,6 +28,14 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.30',
+    date: '2026-06-25',
+    title: 'الوضع البديل: يُظهر الآن محفظتي الأساسيات والاحتياطي فقط',
+    items: [
+      'تغيير: الوضع البديل يُظهر الآن محفظة Core Expenses + محفظة Reserve فقط (بالإضافة لمحافظ التتبع) — بدلاً من إظهار الأساسيات فقط.',
+    ],
+  },
+  {
     version: 'v47.29',
     date: '2026-06-25',
     title: 'إصلاح حرج: قائمة المحافظ في نموذج الإضافة لا تتغير عند تفعيل الوضع البديل',
@@ -485,12 +493,12 @@ function maxWalletVal(){
   });
   return m;
 }
-// In emergency mode the whole "second half" (everything except Core Expenses)
-// merges into one unified emergency reserve. Computed live (not a fixed id list)
-// so a user-added regular wallet automatically joins the merge instead of being
-// left stranded outside both the Core card and the combined crisis card.
+// In crisis/alternative mode only Core Expenses and Reserve stay visible —
+// the rest of the budget wallets (wishlist, growth, joy, …) are hidden.
+// Computed live (not a fixed id list) so user-added wallets automatically
+// join the hidden set without needing manual additions here.
 function crisisWalletIds(){
-  return WALLET_DEFS.filter(w => !w.track && w.id !== 'core').map(w => w.id);
+  return WALLET_DEFS.filter(w => !w.track && w.id !== 'core' && w.id !== 'reserve').map(w => w.id);
 }
 
 // `name` stays the canonical Arabic string (also used as the stable fallback
