@@ -28,6 +28,22 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.30',
+    date: '2026-06-25',
+    title: 'الوضع البديل: يُظهر الآن محفظتي الأساسيات والاحتياطي فقط',
+    items: [
+      'تغيير: الوضع البديل يُظهر الآن محفظة Core Expenses + محفظة Reserve فقط (بالإضافة لمحافظ التتبع) — بدلاً من إظهار الأساسيات فقط.',
+    ],
+  },
+  {
+    version: 'v47.29',
+    date: '2026-06-25',
+    title: 'إصلاح حرج: قائمة المحافظ في نموذج الإضافة لا تتغير عند تفعيل الوضع البديل',
+    items: [
+      'إصلاح (حرج): عند تفعيل الوضع البديل، كانت قائمة اختيار المحفظة في نموذج تسجيل المصروف/الدخل تعرض كل المحافظ بدلاً من المحافظ المتاحة في الوضع البديل فقط — الإصلاح: recomputeSelectableWallets تراعي الآن حالة الوضع البديل وتُستدعى عند تفعيله/إيقافه وعند تحميل التطبيق.',
+    ],
+  },
+  {
     version: 'v47.28',
     date: '2026-06-24',
     title: 'إصلاح شامل: أمان التوزيع، دقة الأرقام، استقرار التطبيق وتحسينات UX',
@@ -477,12 +493,12 @@ function maxWalletVal(){
   });
   return m;
 }
-// In emergency mode the whole "second half" (everything except Core Expenses)
-// merges into one unified emergency reserve. Computed live (not a fixed id list)
-// so a user-added regular wallet automatically joins the merge instead of being
-// left stranded outside both the Core card and the combined crisis card.
+// In crisis/alternative mode only Core Expenses and Reserve stay visible —
+// the rest of the budget wallets (wishlist, growth, joy, …) are hidden.
+// Computed live (not a fixed id list) so user-added wallets automatically
+// join the hidden set without needing manual additions here.
 function crisisWalletIds(){
-  return WALLET_DEFS.filter(w => !w.track && w.id !== 'core').map(w => w.id);
+  return WALLET_DEFS.filter(w => !w.track && w.id !== 'core' && w.id !== 'reserve').map(w => w.id);
 }
 
 // `name` stays the canonical Arabic string (also used as the stable fallback
@@ -501,9 +517,17 @@ const CATEGORIES = [
 ];
 const QUICK_AMOUNTS = [250, 500, 1000, 2000, 5000, 10000];
 // `let` + explicit recompute (not a one-time const filter) because WALLET_DEFS
-// can grow/shrink at runtime once wallets become user-editable.
+// can grow/shrink at runtime once wallets become user-editable, and crisis mode
+// hides the non-core spendable wallets so the add-form dropdown must match.
 let SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track);
-function recomputeSelectableWallets(){ SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track); }
+function recomputeSelectableWallets(){
+  const crisisIds = state.crisisMode ? new Set(crisisWalletIds()) : null;
+  SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && (!crisisIds || !crisisIds.has(w.id)));
+  // If the currently selected wallet was hidden by the mode change, fall back to the first available
+  if(SELECTABLE_WALLETS.length && !SELECTABLE_WALLETS.find(w => w.id === selectedWallet)){
+    selectedWallet = SELECTABLE_WALLETS[0].id;
+  }
+}
 
 // Wallets that participate in automatic income distribution, with their share %
 const DEFAULT_DISTRIBUTION = [
@@ -1184,6 +1208,9 @@ async function loadState(){
   if(_di) _di.value = todayISO();
   capDateInputsToToday();
   loadSubs(_idb);
+  // Rebuild the wallet dropdown to match the restored crisis-mode state — if the
+  // app last closed in crisis mode, SELECTABLE_WALLETS must exclude the hidden wallets.
+  recomputeSelectableWallets();
   render(true);
 }
 
@@ -1589,6 +1616,8 @@ function toggleCrisis(){
   }
   const _ct = document.getElementById('crisisToggle');
   if(_ct) _ct.setAttribute('aria-checked', state.crisisMode ? 'true' : 'false'); // may be hidden via layout editor
+  // Rebuild the wallet dropdown so it only shows wallets visible in the current mode
+  recomputeSelectableWallets();
   // crisis flips the spendable total by the reserve amount — that's not a real
   // money movement, so snap to the new value instead of count-up animating across it
   prevSpendable = null;
