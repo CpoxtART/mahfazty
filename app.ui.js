@@ -68,7 +68,9 @@ function renderWallets(){
   const barMax = maxWalletVal();
 
   defs.forEach(w => {
-    const val = state.wallets[w.id] ?? 0;
+    const val = (w.crisisOnly && state.crisisMode)
+      ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
+      : (state.wallets[w.id] ?? 0);
     if(!w.track) spendable += val;
     const div = document.createElement('div');
     div.className = 'wallet' + (w.track ? ' track' : '') + (val < 0 ? ' neg-val' : '') + (walletFilter===w.id ? ' active-filter' : '');
@@ -101,7 +103,7 @@ function renderWallets(){
     const trackSharePct = grandTotal > 0 ? Math.max(0, Math.round((val/grandTotal)*100)) : 0;
     const pctBtn = w.track
       ? `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:`مزامنة الرصيد الفعلي لـ ${w.name} — ${trackSharePct}% من إجمالي محافظك`, en:`Sync actual balance for ${w.name} — ${trackSharePct}% of your total wallets`}))}" title="${escHtml(t({ar:'مزامنة الرصيد الفعلي', en:'Sync actual balance'}))}">⚖️ ${trackSharePct}%</div>`
-      : `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:`تفاصيل ${w.name}`, en:`Details for ${w.name}`}))}" title="${escHtml(t({ar:'التفاصيل', en:'Details'}))}">ⓘ ${escHtml(getWalletPctLabel(w))}</div>`;
+      : `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:`تفاصيل ${w.name}`, en:`Details for ${w.name}`}))}" title="${escHtml(t({ar:'التفاصيل', en:'Details'}))}">ⓘ ${escHtml(w.crisisOnly && state.crisisMode ? crisisWalletIds().reduce((s,id)=>{const wd=WALLET_DEFS.find(x=>x.id===id);return s+(wd?(parseFloat(getWalletPctLabel(wd))||0):0);},0)+'%' : getWalletPctLabel(w))}</div>`;
     div.innerHTML = `
       <div class="top">
         <div class="name">${escHtml(w.name)}</div>
@@ -118,32 +120,7 @@ function renderWallets(){
     grid.appendChild(div);
   });
 
-  if(state.crisisMode){
-    const crisisIds = crisisWalletIds();
-    let crisisTotal = 0;
-    crisisIds.forEach(id => crisisTotal += (state.wallets[id] ?? 0));
-    spendable += crisisTotal; // crisis reserve is part of total liquidity in emergency mode
-    // derive the combined percentage from each merged wallet's LIVE distribution
-    // share (getWalletPctLabel, same source the individual cards use) — reading
-    // the static w.pct field here would go stale the moment a user edits the
-    // auto-distribute % editor, or never reflect a custom wallet's real share.
-    const crisisPct = crisisIds.reduce((s,id)=>{
-      const w = WALLET_DEFS.find(x=>x.id===id);
-      return s + (w ? (parseFloat(getWalletPctLabel(w)) || 0) : 0);
-    }, 0);
-    const div = document.createElement('div');
-    div.className = 'wallet crisis-combined';
-    div.innerHTML = `
-      <div class="top">
-        <div class="name">${escHtml(t({ar:'الاحتياطي البديل (مدمج)', en:'Crisis reserve (merged)'}))}</div>
-        <div class="pct">${crisisPct}%</div>
-      </div>
-      <div class="val">${fmt(crisisTotal)}</div>
-    `;
-    grid.appendChild(div);
-  }
-
-  document.getElementById('walletCount').textContent = String(defs.length + (state.crisisMode?1:0));
+  document.getElementById('walletCount').textContent = String(defs.length);
 
   const totalEl = document.getElementById('totalSpendable');
   if(prevSpendable !== null && prevSpendable !== spendable){
@@ -421,7 +398,12 @@ async function deleteWalletDefModal(){
 ============================================================ */
 let _walletSelectSig = '';
 function renderWalletSelect(){
-  const sig = selectedWallet + '|' + SELECTABLE_WALLETS.map(w => w.id + ':' + (state.wallets[w.id]??0)).join(',');
+  const sig = selectedWallet + '|' + SELECTABLE_WALLETS.map(w => {
+    const v = (w.crisisOnly && state.crisisMode)
+      ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
+      : (state.wallets[w.id] ?? 0);
+    return w.id + ':' + v;
+  }).join(',');
   if(sig === _walletSelectSig) return;
   _walletSelectSig = sig;
   const menu = document.getElementById('walletMenu');
@@ -431,7 +413,9 @@ function renderWalletSelect(){
     opt.className = 'opt' + (w.id === selectedWallet ? ' selected' : '');
     opt.setAttribute('role','option');
     opt.tabIndex = 0; // keyboard-reachable when the menu is open
-    const val = state.wallets[w.id] ?? 0;
+    const val = (w.crisisOnly && state.crisisMode)
+      ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
+      : (state.wallets[w.id] ?? 0);
     opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
     opt.onclick = () => selectWallet(w.id);
     opt.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); selectWallet(w.id); } };

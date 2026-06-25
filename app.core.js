@@ -29,6 +29,15 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.34',
+    date: '2026-06-25',
+    title: 'إصلاح: رصيد محفظة Merged Reserve يظهر صفراً في الوضع البديل',
+    items: [
+      'إصلاح: بطاقة "الاحتياطي المدمج" في شبكة المحافظ ومنتقي الإضافة كانت تعرض رصيد crisis_fund فقط (0.00) بدلاً من مجموع المحافظ المخفية (wishlist + growth + investments + joy + giving) + رصيد crisis_fund.',
+      'تغيير: حُذفت بطاقة "الاحتياطي البديل (مدمج)" الإضافية — بطاقة Merged Reserve الموجودة أصبحت تعرض الرصيد الكامل مباشرةً.',
+    ],
+  },
+  {
     version: 'v47.33',
     date: '2026-06-25',
     title: 'بانر التحديث يظهر ويُحدِّث تلقائياً + إشعار بعد التحديث في الإعدادات',
