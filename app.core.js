@@ -12,7 +12,7 @@ const WALLET_DEFS = [
   {id:'joy',         name:'Joy of Life',         initial:0, track:false, pct:'10%'},
   {id:'giving',      name:'Giving',              initial:0, track:false, pct:'5%'},
   // crisisOnly: hidden in normal mode, appears only when crisis/alternative mode is active
-  {id:'crisis_fund', name:'الاحتياطي المدمج',   initial:0, track:false, crisisOnly:true},
+  {id:'crisis_fund', name:'Merged Reserve',      initial:0, track:false, crisisOnly:true},
   {id:'uber',        name:'Uber',                initial:0, track:true,  pct:'تتبع'},
   {id:'cards',       name:'Bank Cards',          initial:0, track:true,  pct:'تتبع'},
   {id:'cash',        name:'Cash',                initial:0, track:true,  pct:'تتبع'},
@@ -28,6 +28,16 @@ const WALLET_DEFS = [
 // whole number — v47.1, v47.2, v47.3, ... up to v47.99 — then roll over to
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
+  {
+    version: 'v47.32',
+    date: '2026-06-25',
+    title: 'إصلاح: Merged Reserve لا تظهر في قائمة المحافظ عند الإضافة في الوضع البديل',
+    items: [
+      'إصلاح: sanitizeWalletDefs كانت تحذف خاصية crisisOnly عند إعادة تحميل المحافظ المحفوظة — النتيجة: crisis_fund تختفي من قائمة الإضافة في الوضع البديل.',
+      'إصلاح: applyWalletDefs تضمن الآن وجود crisis_fund دائماً حتى لو ملف الحفظ القديم لا يحتويها.',
+      'تغيير: اسم المحفظة أصبح "Merged Reserve" بالإنجليزية.',
+    ],
+  },
   {
     version: 'v47.31',
     date: '2026-06-25',
@@ -456,7 +466,7 @@ function sanitizeWalletDefs(arr){
     const name = typeof w.name === 'string' ? stripBidiControls(w.name).trim().slice(0,40) : '';
     if(!id || !name || seen.has(id)) return;
     seen.add(id);
-    out.push({id, name, initial:0, track: !!w.track, pct: typeof w.pct === 'string' ? w.pct : (w.track ? 'تتبع' : '0%')});
+    out.push({id, name, initial:0, track: !!w.track, pct: typeof w.pct === 'string' ? w.pct : (w.track ? 'تتبع' : '0%'), ...(w.crisisOnly ? {crisisOnly:true} : {})});
   });
   // Every screen that lets the user pick a spendable wallet (add form, transfers)
   // assumes at least one non-track wallet exists — a corrupt/edited blob with only
@@ -470,6 +480,13 @@ function sanitizeWalletDefs(arr){
 function applyWalletDefs(clean){
   WALLET_DEFS.length = 0;
   clean.forEach(w => WALLET_DEFS.push(w));
+  // crisis_fund may be absent from wallet defs saved before v47.31 — always
+  // ensure it exists, inserted before track wallets to preserve display order.
+  if(!WALLET_DEFS.find(w => w.id === 'crisis_fund')){
+    const firstTrack = WALLET_DEFS.findIndex(w => w.track);
+    const pos = firstTrack === -1 ? WALLET_DEFS.length : firstTrack;
+    WALLET_DEFS.splice(pos, 0, {id:'crisis_fund', name:'Merged Reserve', initial:0, track:false, crisisOnly:true});
+  }
   recomputeSelectableWallets();
 }
 // Custom wallets (added via Settings → إدارة المحافظ) are loaded synchronously
