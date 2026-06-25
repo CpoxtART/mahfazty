@@ -844,7 +844,7 @@
     color:var(--muted);
     font-weight:600;
     padding:10px 6px;
-    min-height:40px; /* keep a comfortable tap target despite the small font/padding */
+    min-height:44px; /* 44px minimum touch target */
     font-size:12px;
     white-space:nowrap;
     transition: background .2s var(--ease), color .2s, border-color .2s;

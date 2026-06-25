@@ -651,6 +651,7 @@ async function driveSyncToCloud(){
       exportedAt: new Date().toISOString(),
       dataEditedAt: dataEditedAtVal,
       wallets: state.wallets,
+      walletDefs: WALLET_DEFS,
       transactions: state.transactions,
       crisisMode: state.crisisMode,
       autoDistribute: autoDistribute,
@@ -740,8 +741,10 @@ async function adoptCloudSnapshot(cloud){
     });
   }
   if(Array.isArray(cloud.transactions)){ // harden against a crafted non-array value
+    const _seenIds = new Set();
     state.transactions = cloud.transactions.filter(tx =>
-      tx && (tx.type === 'income' || tx.type === 'expense') &&
+      tx && typeof tx.id === 'string' && tx.id && !_seenIds.has(tx.id) && _seenIds.add(tx.id) &&
+      (tx.type === 'income' || tx.type === 'expense') &&
       typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
       typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 && tx.amount <= MAX_AMOUNT &&
       WALLET_DEFS.find(w => w.id === tx.wallet))

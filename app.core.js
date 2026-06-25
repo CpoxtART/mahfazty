@@ -5,7 +5,7 @@
 const LS_PREFIX = 'walletTracker_';
 
 const WALLET_DEFS = [
-  {id:'core',        name:'Core Expenses',       initial:0, track:false, pct:'50%'},
+  {id:'core',        name:'Core Expenses',       initial:0, track:false, pct:'55%'},
   {id:'wishlist',    name:'Wishlist',            initial:0, track:false, pct:'10%'},
   {id:'growth',      name:'Growth',              initial:0, track:false, pct:'10%'},
   {id:'investments', name:'Investments',         initial:0, track:false, pct:'10%'},
@@ -28,6 +28,35 @@ const WALLET_DEFS = [
 // whole number — v47.1, v47.2, v47.3, ... up to v47.99 — then roll over to
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
+  {
+    version: 'v47.35',
+    date: '2026-06-25',
+    title: 'تحليل عميق: 24 إصلاحاً لأخطاء المنطق والأداء وتجربة المستخدم',
+    items: [
+      'إصلاح حرج: driveSyncToCloud كانت تُرسل البيانات بدون walletDefs — المحافظ المخصصة كانت تُفقد على الأجهزة الأخرى عبر Drive.',
+      'إصلاح حرج: sanitizeWalletDefs تتحقق الآن من صيغة id المحفظة (أحرف آمنة فقط) للحماية من XSS في ملفات النسخ الاحتياطية المُعدَّلة.',
+      'إصلاح عالٍ: applyWalletDefs تُصحح الآن crisis_fund التي تفتقر لـ crisisOnly في النسخ القديمة بدلاً من تجاهلها.',
+      'إصلاح عالٍ: saveBalances لا تُحدِّث dataEdit إذا فشل الحفظ بسبب امتلاء التخزين — يمنع IDB الأحدث من أن يُهزم بنسخة فارغة.',
+      'إصلاح عالٍ: applyImport تختم الآن dataEdit بالوقت الحالي بدلاً من وقت النسخة الاحتياطية — يمنع Drive من إعادة دمج البيانات السحابية فوق الاستيراد الجديد.',
+      'إصلاح عالٍ: adoptCloudSnapshot تتحقق الآن من حقل id في كل معاملة وتزيل المكررات (كما في applyImport).',
+      'إصلاح عالٍ: toggleCrisis تُصفِّي walletFilter عند الخروج من الوضع البديل إذا كانت تشير لمحفظة crisisOnly مخفية.',
+      'إصلاح عالٍ: controllerchange لا يُعيد تحميل سوى النافذة التي أطلقت التحديث — باقي النوافذ لا تُعاد تلقائياً.',
+      'إصلاح: reconcileBalances تستخدم round2 بدلاً من Math.round لمنع تراكم أخطاء التقريب.',
+      'إصلاح: loadState تدمج tombstones من IDB مع localStorage (union merge) بدلاً من تجاهل IDB عند وجود أي tombstone محلي.',
+      'إصلاح: parseAmount ترفض الآن المدخلات ذات النقطتين مثل 1.2.3 بدلاً من تمريرها كـ 1.2.',
+      'إصلاح: showUpdateBanner لا تُنشئ timer مزدوجاً إذا استُدعيت مرتين قبل ظهور الـ CSS class.',
+      'إصلاح: dismissUpdate تُصفِّي _pendingWorker لمنع الإشارة لـ SW قديم بعد رفض التحديث.',
+      'إصلاح: matchesTrackedSub تتجاهل الاشتراكات التي يصبح اسمها فارغاً بعد التطبيع.',
+      'إصلاح: barMax في شبكة المحافظ يحتسب القيمة المدمجة لـ crisis_fund في الوضع البديل.',
+      'إصلاح: openWalletDetail يطبق round2 على إجمالي الدخل والمصروف.',
+      'إصلاح: exportMonthlyReport وبuildDailyReviewContent يستخدمان round2 في التجميع.',
+      'إصلاح: _initQuickAmountSync يستخدم parseAmount للمقارنة بدلاً من parseFloat يدوياً.',
+      'إصلاح: normalizeDigits تحوِّل الإشارة السالبة Unicode (−) إلى ASCII hyphen.',
+      'إصلاح: نسبة core في WALLET_DEFS صُحِّحت من 50% إلى 55%.',
+      'إصلاح: remainderPct في نافذة التوزيع محسوبة من نفس الأساس لمنع عرض 0%.',
+      'تحسين: زر فلاتر التقارير min-height أصبح 44px (معيار touch target).',
+    ],
+  },
   {
     version: 'v47.34',
     date: '2026-06-25',
@@ -483,7 +512,7 @@ function sanitizeWalletDefs(arr){
     // (which doesn't need HTML-escaping but is still vulnerable to display
     // corruption from a name like "Cash‮hsac").
     const name = typeof w.name === 'string' ? stripBidiControls(w.name).trim().slice(0,40) : '';
-    if(!id || !name || seen.has(id)) return;
+    if(!id || !/^[a-zA-Z0-9_\-]+$/.test(id) || !name || seen.has(id)) return;
     seen.add(id);
     out.push({id, name, initial:0, track: !!w.track, pct: typeof w.pct === 'string' ? w.pct : (w.track ? 'تتبع' : '0%'), ...(w.crisisOnly ? {crisisOnly:true} : {})});
   });
@@ -501,10 +530,13 @@ function applyWalletDefs(clean){
   clean.forEach(w => WALLET_DEFS.push(w));
   // crisis_fund may be absent from wallet defs saved before v47.31 — always
   // ensure it exists, inserted before track wallets to preserve display order.
-  if(!WALLET_DEFS.find(w => w.id === 'crisis_fund')){
+  const cfIdx = WALLET_DEFS.findIndex(w => w.id === 'crisis_fund');
+  if(cfIdx === -1){
     const firstTrack = WALLET_DEFS.findIndex(w => w.track);
     const pos = firstTrack === -1 ? WALLET_DEFS.length : firstTrack;
-    WALLET_DEFS.splice(pos, 0, {id:'crisis_fund', name:'Merged Reserve', initial:0, track:false, crisisOnly:true});
+    WALLET_DEFS.splice(pos, 0, {id:'crisis_fund', name:'Merged Reserve', initial:0, track:false, crisisOnly:true, pct:'0%'});
+  } else if(!WALLET_DEFS[cfIdx].crisisOnly){
+    WALLET_DEFS[cfIdx] = {...WALLET_DEFS[cfIdx], crisisOnly: true};
   }
   recomputeSelectableWallets();
 }
@@ -738,6 +770,7 @@ function arPlural(count, singular, dual, plural, singularOne){
 // separators to ASCII so amount fields accept numbers typed on Arabic keyboards.
 function normalizeDigits(str){
   return String(str == null ? '' : str)
+    .replace(/−/g, '-')  // Unicode minus → ASCII hyphen-minus
     .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660)) // Arabic-Indic digits
     .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0)) // Extended (Persian) digits
     .replace(/[٫]/g, '.')   // Arabic decimal separator
@@ -757,6 +790,7 @@ const MAX_AMOUNT = 1e12; // one trillion — well above any realistic single ent
 function parseAmount(str){
   const norm = normalizeDigits(str);
   if(/[a-zA-Z]/.test(norm)) return NaN; // block 1e9 / 0x10 / Infinity / NaN-style strings
+  if((norm.match(/\./g) || []).length > 1) return NaN; // reject "1.2.3"
   const v = parseFloat(norm);
   if(!isFinite(v) || Math.abs(v) > MAX_AMOUNT) return NaN;
   return v;
@@ -1191,7 +1225,12 @@ async function loadState(){
       if(Array.isArray(_idb.dismissedRecurring)) dismissedRecurring = new Set(_idb.dismissedRecurring);
       if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = sanitizeDistribution(_idb.distribution);
     }
-    if(_idb.deletedTxIds && typeof _idb.deletedTxIds === 'object' && !Object.keys(deletedTxIds).length) deletedTxIds = _idb.deletedTxIds;
+    if(_idb.deletedTxIds && typeof _idb.deletedTxIds === 'object' && !Array.isArray(_idb.deletedTxIds)){
+      for(const id in _idb.deletedTxIds){
+        const t = _idb.deletedTxIds[id];
+        if(typeof t === 'number' && (!deletedTxIds[id] || t > deletedTxIds[id])) deletedTxIds[id] = t;
+      }
+    }
     if(Array.isArray(_idb.subscriptions)){
       try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(_idb.subscriptions)); }catch(e){}
     }
@@ -1403,13 +1442,13 @@ function reconcileBalances(){
     if(computed[tx.wallet] === undefined) return; // skip unknown/track wallet ids
     const amt = parseFloat(tx.amount);
     if(!isFinite(amt)) return;
-    computed[tx.wallet] = Math.round((computed[tx.wallet] + (tx.type === 'expense' ? -amt : amt)) * 100) / 100;
+    computed[tx.wallet] = round2(computed[tx.wallet] + (tx.type === 'expense' ? -amt : amt));
   });
   WALLET_DEFS.forEach(w => {
     if(w.track) return; // leave manually-tracked balances untouched
     const before = parseFloat(state.wallets[w.id]) || 0;
     const after = computed[w.id];
-    if(Math.abs(after - before) >= 0.005) diff[w.id] = Math.round((after - before) * 100) / 100;
+    if(Math.abs(after - before) >= 0.005) diff[w.id] = round2(after - before);
     state.wallets[w.id] = after;
   });
   return diff;
@@ -1420,7 +1459,20 @@ function reconcileBalances(){
 // resolution compares dataEdit so a pref-only change (crisis toggle, layout) can't
 // make a stale local copy "win" over fresher cloud transaction data.
 function stampDataEdit(ts){ try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(ts)); }catch(e){} }
-async function saveBalances(){ const ts = Date.now(); try{ localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets)); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast(t({ar:'⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', en:'⚠ Local save failed — saving to the backup copy'}), true); } stampDataEdit(ts); scheduleDriveSync(); scheduleIdbBackup(ts); }
+async function saveBalances(){
+  const ts = Date.now();
+  let lsOk = false;
+  try{
+    localStorage.setItem(LS_PREFIX + 'balances', JSON.stringify(state.wallets));
+    localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts));
+    lsOk = true;
+  }catch(e){
+    toast(t({ar:'⚠ فشل الحفظ المحلي — يتم الحفظ في النسخة الاحتياطية', en:'⚠ Local save failed — saving to the backup copy'}), true);
+  }
+  if(lsOk) stampDataEdit(ts);
+  scheduleDriveSync();
+  scheduleIdbBackup(ts);
+}
 async function saveTx(){
   _allTxSortedCache = null;
   const ts = Date.now();
@@ -1663,8 +1715,12 @@ async function idbRestore(){
 
 function toggleCrisis(){
   state.crisisMode = !state.crisisMode;
-  if(state.crisisMode && walletFilter && crisisWalletIds().includes(walletFilter)){
-    walletFilter = null;
+  if(walletFilter){
+    const _wf = WALLET_DEFS.find(x => x.id === walletFilter);
+    const _hidden = state.crisisMode
+      ? crisisWalletIds().includes(walletFilter)
+      : (_wf && _wf.crisisOnly);
+    if(_hidden) walletFilter = null;
   }
   const _ct = document.getElementById('crisisToggle');
   if(_ct) _ct.setAttribute('aria-checked', state.crisisMode ? 'true' : 'false'); // may be hidden via layout editor

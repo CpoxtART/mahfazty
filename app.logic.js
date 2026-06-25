@@ -136,13 +136,14 @@ function openDistributionModal(amount){
       // the income landed in, which is otherwise invisible to the user
       const srcId = pendingIncomeTx && pendingIncomeTx.wallet;
       const srcW = WALLET_DEFS.find(x => x.id === srcId);
-      const remainder = round2(amount * (100 - totalPct) / 100);
+      const remainderPct = round2(100 - totalPct);
+      const remainder = round2(amount * remainderPct / 100);
       if(remainder > 0){
         const note = document.createElement('div');
         note.className = 'dist-row';
         note.style.cssText = 'border-style:dashed; opacity:.85; margin-top:4px;';
         const remainderWalletName = srcW ? escHtml(srcW.name) : t({ar:'المحفظة', en:'the wallet'});
-        note.innerHTML = `<span class="name">${escHtml(t({ar:'يبقى في', en:'Remains in'}))} ${remainderWalletName} <span class="pct">${round2(100-totalPct)}%</span></span><span class="amt">${fmt(remainder)}</span>`;
+        note.innerHTML = `<span class="name">${escHtml(t({ar:'يبقى في', en:'Remains in'}))} ${remainderWalletName} <span class="pct">${remainderPct}%</span></span><span class="amt">${fmt(remainder)}</span>`;
         wrap.appendChild(note);
       }
     }
@@ -1222,9 +1223,7 @@ async function applyImport(text){
   if(data.lang === 'ar' || data.lang === 'en'){
     try{ setLang(data.lang); }catch(_){ }
   }
-  if(typeof data.dataEditedAt === 'number' && data.dataEditedAt > 0){
-    try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(data.dataEditedAt)); }catch(_){ }
-  }
+  try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(Date.now())); }catch(_){ }
   prevSpendable = null; // reset animation baseline after full data replacement
 
   await saveBalances();
@@ -1666,8 +1665,8 @@ function buildDailyReviewContent(){
     // exclude transfers AND manual balance adjustments so "أمس" matches the
     // income/expense totals shown everywhere else in the app
     if(tx.ts >= yStart && tx.ts < yEnd && tx.category!=='transfer' && tx.category!=='adjustment'){
-      if(tx.type==='expense'){ yExpense += tx.amount; yCount++; }
-      else { yIncome += tx.amount; }
+      if(tx.type==='expense'){ yExpense = round2(yExpense + tx.amount); yCount++; }
+      else { yIncome = round2(yIncome + tx.amount); }
     }
   });
 
@@ -1760,11 +1759,11 @@ function exportMonthlyReport(){
     // tx would be bucketed under "أخرى" and the report totals would diverge from
     // the in-app income/expense summary the user sees
     if(tx.ts < start || tx.ts >= end || tx.category==='transfer' || tx.category==='adjustment') return;
-    if(tx.type==='income') totalIncome += tx.amount;
+    if(tx.type==='income') totalIncome = round2(totalIncome + tx.amount);
     else {
-      totalExpense += tx.amount;
+      totalExpense = round2(totalExpense + tx.amount);
       const c = tx.category || 'other';
-      catTotals[c] = (catTotals[c]||0) + tx.amount;
+      catTotals[c] = round2((catTotals[c]||0) + tx.amount);
     }
   });
 
@@ -1885,9 +1884,11 @@ function applyManifest(isLight){
 }
 /* ─── PWA Update Banner ─── */
 let _updateBannerTimer = null;
+let _updateBannerShowing = false;
 function showUpdateBanner(){
   const el = document.getElementById('updateBanner');
-  if(!el || el.classList.contains('show')) return;
+  if(!el || _updateBannerShowing) return;
+  _updateBannerShowing = true;
   const laterBtn = document.getElementById('btnUpdateLater');
   const nowBtn   = document.getElementById('btnUpdateNow');
   if(laterBtn) laterBtn.onclick = dismissUpdate;
@@ -1898,11 +1899,10 @@ function showUpdateBanner(){
 }
 function dismissUpdate(){
   clearTimeout(_updateBannerTimer); _updateBannerTimer = null;
+  _updateBannerShowing = false;
+  _pendingWorker = null;
   const el = document.getElementById('updateBanner');
   if(el) el.classList.remove('show');
-  // A dismissed update is still pending — mark settings so the user can
-  // see there's something new waiting (changelogDot already handles this
-  // once the page reloads; here we just surface it in the current session).
   _updateChangelogDot();
 }
 function applyUpdate(){
@@ -1931,6 +1931,7 @@ function applyUpdate(){
     if(driveAccessToken){ try{ driveSyncToCloud(); }catch(_){} }
   }
   clearTimeout(_updateBannerTimer); _updateBannerTimer = null;
+  _updateBannerShowing = false;
   const btn = document.getElementById('btnUpdateNow');
   if(btn){ btn.disabled = true; btn.textContent = t({ar:'...جاري', en:'Working...'}); }
   _reloadOnControllerChange = true;
@@ -2055,7 +2056,7 @@ function setupPWA(){
 
     // When the new SW takes control (after skipWaiting), reload to serve fresh assets.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if(hadController){
+      if(hadController && _reloadOnControllerChange){
         sessionStorage.setItem('_swJustUpdated', '1');
         window.location.reload();
       }

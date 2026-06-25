@@ -65,7 +65,13 @@ function renderWallets(){
     ? WALLET_DEFS.filter(w => !crisisWalletIds().includes(w.id))  // crisis: hide budget wallets, show crisis_fund
     : WALLET_DEFS.filter(w => !w.crisisOnly);                      // normal: hide crisis_fund
 
-  const barMax = maxWalletVal();
+  let barMax = 1;
+  defs.forEach(w => {
+    const _bv = (w.crisisOnly && state.crisisMode)
+      ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
+      : (state.wallets[w.id] ?? 0);
+    if(!w.track && _bv > barMax) barMax = _bv;
+  });
 
   defs.forEach(w => {
     const val = (w.crisisOnly && state.crisisMode)
@@ -1416,7 +1422,7 @@ function _initQuickAmountSync(){
   document.getElementById('amountInput').addEventListener('input', ()=>{
     const v = parseAmount(document.getElementById('amountInput').value);
     document.querySelectorAll('#quickAmounts button').forEach(b=>{
-      b.classList.toggle('active', parseFloat(b.textContent.replace(/,/g,'')) === v);
+      b.classList.toggle('active', parseAmount(b.textContent) === v);
     });
   });
 }
@@ -1786,8 +1792,8 @@ function openWalletDetail(walletId){
     t.type==='income' ? inc+=t.amount : exp+=t.amount;
   });
   document.getElementById('detailCount').textContent = String(txs.length);
-  document.getElementById('detailIncome').textContent = fmt(inc);
-  document.getElementById('detailExpense').textContent = fmt(exp);
+  document.getElementById('detailIncome').textContent = fmt(round2(inc));
+  document.getElementById('detailExpense').textContent = fmt(round2(exp));
 
   const list = document.getElementById('detailTxList');
   list.innerHTML = '';
@@ -1925,9 +1931,10 @@ function detectRecurring(){
   // Tracked subscriptions the user already accepted shouldn't be re-suggested —
   // compare normalized name + amount within 15% (same tolerance as the variance
   // check below) so the matching transaction group is skipped entirely.
-  const trackedSubs = subscriptions.map(s => ({ name: normalizeSearch(s.name), amount: s.amount }));
+  const trackedSubs = subscriptions.map(s => ({ name: normalizeSearch(s.name), amount: s.amount })).filter(s => s.name.length > 0);
   function matchesTrackedSub(desc, avg){
     const normDesc = normalizeSearch(desc);
+    if(!normDesc) return false;
     return trackedSubs.some(s =>
       s.amount > 0 &&
       (normDesc.includes(s.name) || s.name.includes(normDesc)) &&
