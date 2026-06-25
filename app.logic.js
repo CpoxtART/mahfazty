@@ -1884,19 +1884,26 @@ function applyManifest(isLight){
   }catch(e){}
 }
 /* ─── PWA Update Banner ─── */
+let _updateBannerTimer = null;
 function showUpdateBanner(){
   const el = document.getElementById('updateBanner');
   if(!el || el.classList.contains('show')) return;
-  // Wire buttons via JS — more reliable than inline onclick across all browsers
   const laterBtn = document.getElementById('btnUpdateLater');
   const nowBtn   = document.getElementById('btnUpdateNow');
   if(laterBtn) laterBtn.onclick = dismissUpdate;
   if(nowBtn)   nowBtn.onclick   = applyUpdate;
   requestAnimationFrame(()=> requestAnimationFrame(()=> el.classList.add('show')));
+  // Auto-apply after 8 s if user doesn't interact — "يحدث من وحده"
+  _updateBannerTimer = setTimeout(() => applyUpdate(), 8000);
 }
 function dismissUpdate(){
+  clearTimeout(_updateBannerTimer); _updateBannerTimer = null;
   const el = document.getElementById('updateBanner');
   if(el) el.classList.remove('show');
+  // A dismissed update is still pending — mark settings so the user can
+  // see there's something new waiting (changelogDot already handles this
+  // once the page reloads; here we just surface it in the current session).
+  _updateChangelogDot();
 }
 function applyUpdate(){
   // Don't silently discard a half-typed transaction on reload.
@@ -1923,14 +1930,15 @@ function applyUpdate(){
     clearTimeout(driveSyncTimer); driveSyncTimer = null;
     if(driveAccessToken){ try{ driveSyncToCloud(); }catch(_){} }
   }
+  clearTimeout(_updateBannerTimer); _updateBannerTimer = null;
   const btn = document.getElementById('btnUpdateNow');
   if(btn){ btn.disabled = true; btn.textContent = t({ar:'...جاري', en:'Working...'}); }
   _reloadOnControllerChange = true;
   if(_pendingWorker){
     try{ _pendingWorker.postMessage({type:'SKIP_WAITING'}); }catch(e){}
   }
-  // Reload after 2s — covers browsers where controllerchange is unreliable
-  setTimeout(() => window.location.reload(), 2000);
+  // Fallback reload — covers browsers where controllerchange is unreliable
+  setTimeout(() => window.location.reload(), 3000);
 }
 
 async function forceClearAndUpdate(){
@@ -2026,6 +2034,18 @@ function setupPWA(){
     navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
       .then(reg => {
         _swRegistration = reg;
+        // Watch for a new SW installing — show the update banner as soon as
+        // it reaches "installed" (caching complete, waiting for skipWaiting).
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if(!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
+            if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+              _pendingWorker = newWorker;
+              showUpdateBanner();
+            }
+          });
+        });
         // Trigger an explicit check right away, then poll every 15 min so
         // long-running sessions pick up a new version promptly.
         checkForSWUpdate(true);
@@ -2033,9 +2053,7 @@ function setupPWA(){
       })
       .catch(e => console.warn('SW registration failed:', e));
 
-    // sw.js calls skipWaiting() on install, so the new SW activates on its own.
-    // Reload as soon as it takes control — but only when updating (hadController),
-    // not on a first install where the page already loaded without a SW.
+    // When the new SW takes control (after skipWaiting), reload to serve fresh assets.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if(hadController){
         sessionStorage.setItem('_swJustUpdated', '1');
@@ -2196,6 +2214,16 @@ renderBottomNav();
 applySectionOrder();
 setupPWA();
 _updateChangelogDot();
+// After a SW-triggered reload, show a brief "تم التحديث" toast so the user
+// knows the new version is now active, then surface the changelog dot in Settings.
+if(sessionStorage.getItem('_swJustUpdated')){
+  sessionStorage.removeItem('_swJustUpdated');
+  setTimeout(() => {
+    const v = CHANGELOG[0]?.version || '';
+    toast(t({ar:`✓ تم التحديث${v ? ' إلى ' + v : ''} — افتح الإعدادات لعرض الجديد 🎉`, en:`✓ Updated${v ? ' to ' + v : ''} — open Settings to see what's new 🎉`}));
+    _updateChangelogDot();
+  }, 900);
+}
 loadState().then(()=>{
   hideSplash();
   // initDrive() must run AFTER loadState() resolves, not alongside it: loadState()

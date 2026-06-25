@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v47.32';
+const CACHE = 'mhfzty-v47.33';
 // Note: sw.js itself is intentionally NOT precached — the browser fetches and
 // byte-compares it directly to drive updates; caching it via the Cache API is a
 // no-op at best and can interfere with that update check.
@@ -13,13 +13,13 @@ const PRECACHE = [
 self.addEventListener('install', e => {
   // Cache each file independently — addAll() is all-or-nothing and a single
   // transient 404 would sink offline support for every other file.
+  // skipWaiting() is NOT called here — the page shows an update banner and
+  // either the user clicks "تحديث الآن" or the banner auto-applies after ~8s,
+  // both of which post a SKIP_WAITING message handled below.
   e.waitUntil(
     caches.open(CACHE).then(c =>
       Promise.all(PRECACHE.map(url => c.add(url).catch(() => {})))
-    ).then(() => self.skipWaiting())
-    // skipWaiting() is inside the chain so it runs AFTER all assets are cached —
-    // calling it outside (before the Promise resolves) would let the SW claim
-    // clients and serve requests from a partially-populated cache.
+    )
   );
 });
 
