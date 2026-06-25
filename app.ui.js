@@ -60,11 +60,10 @@ function renderWallets(){
     grid.appendChild(cta);
   }
 
-  let defs = WALLET_DEFS;
-  if(state.crisisMode){
-    const crisisIds = crisisWalletIds();
-    defs = WALLET_DEFS.filter(w => !crisisIds.includes(w.id));
-  }
+  // Normal mode hides crisisOnly wallets (they only appear in crisis/alternative mode)
+  let defs = state.crisisMode
+    ? WALLET_DEFS.filter(w => !crisisWalletIds().includes(w.id))  // crisis: hide budget wallets, show crisis_fund
+    : WALLET_DEFS.filter(w => !w.crisisOnly);                      // normal: hide crisis_fund
 
   const barMax = maxWalletVal();
 
