@@ -5,16 +5,17 @@
 const LS_PREFIX = 'walletTracker_';
 
 const WALLET_DEFS = [
-  {id:'core',        name:'Core Expenses',  initial:0, track:false, pct:'50%'},
-  {id:'wishlist',    name:'Wishlist',       initial:0, track:false, pct:'10%'},
-  {id:'growth',      name:'Growth',         initial:0, track:false, pct:'10%'},
-  {id:'investments', name:'Investments',    initial:0, track:false, pct:'10%'},
-  {id:'joy',         name:'Joy of Life',    initial:0, track:false, pct:'10%'},
-  {id:'giving',      name:'Giving',         initial:0, track:false, pct:'5%'},
-  {id:'reserve',     name:'Reserve',        initial:0, track:false, pct:'5%'},
-  {id:'uber',        name:'Uber',           initial:0, track:true,  pct:'تتبع'},
-  {id:'cards',       name:'Bank Cards',     initial:0, track:true,  pct:'تتبع'},
-  {id:'cash',        name:'Cash',           initial:0, track:true,  pct:'تتبع'},
+  {id:'core',        name:'Core Expenses',       initial:0, track:false, pct:'50%'},
+  {id:'wishlist',    name:'Wishlist',            initial:0, track:false, pct:'10%'},
+  {id:'growth',      name:'Growth',              initial:0, track:false, pct:'10%'},
+  {id:'investments', name:'Investments',         initial:0, track:false, pct:'10%'},
+  {id:'joy',         name:'Joy of Life',         initial:0, track:false, pct:'10%'},
+  {id:'giving',      name:'Giving',              initial:0, track:false, pct:'5%'},
+  // crisisOnly: hidden in normal mode, appears only when crisis/alternative mode is active
+  {id:'crisis_fund', name:'الاحتياطي المدمج',   initial:0, track:false, crisisOnly:true},
+  {id:'uber',        name:'Uber',                initial:0, track:true,  pct:'تتبع'},
+  {id:'cards',       name:'Bank Cards',          initial:0, track:true,  pct:'تتبع'},
+  {id:'cash',        name:'Cash',                initial:0, track:true,  pct:'تتبع'},
 ];
 
 // Manually curated "what's new" log shown from Settings → 📋 ما الجديد؟.
@@ -27,6 +28,16 @@ const WALLET_DEFS = [
 // whole number — v47.1, v47.2, v47.3, ... up to v47.99 — then roll over to
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
+  {
+    version: 'v47.31',
+    date: '2026-06-25',
+    title: 'الوضع البديل: محفظة "الاحتياطي المدمج" تظهر فقط عند التفعيل',
+    items: [
+      'جديد: محفظة "الاحتياطي المدمج" (crisis_fund) مخفية في الوضع العادي وتظهر تلقائيًا فقط عند تفعيل الوضع البديل — يمكن تسجيل المعاملات إليها مباشرةً.',
+      'تغيير: حذف محفظة Reserve — نسبة التوزيع الخاصة بها (5%) أُضيفت إلى Core Expenses (أصبحت 55%).',
+      'تغيير: الوضع البديل يعرض الآن: Core Expenses + الاحتياطي المدمج + محافظ التتبع فقط.',
+    ],
+  },
   {
     version: 'v47.30',
     date: '2026-06-25',
@@ -493,12 +504,12 @@ function maxWalletVal(){
   });
   return m;
 }
-// In crisis/alternative mode only Core Expenses and Reserve stay visible —
-// the rest of the budget wallets (wishlist, growth, joy, …) are hidden.
-// Computed live (not a fixed id list) so user-added wallets automatically
-// join the hidden set without needing manual additions here.
+// In crisis/alternative mode the budget wallets (wishlist, growth, joy, giving, …)
+// are hidden and replaced by the single crisis_fund wallet.
+// crisisOnly wallets are intentionally excluded from this list — they are NOT hidden
+// in crisis mode (they become visible precisely when crisis mode is on).
 function crisisWalletIds(){
-  return WALLET_DEFS.filter(w => !w.track && w.id !== 'core' && w.id !== 'reserve').map(w => w.id);
+  return WALLET_DEFS.filter(w => !w.track && w.id !== 'core' && !w.crisisOnly).map(w => w.id);
 }
 
 // `name` stays the canonical Arabic string (also used as the stable fallback
@@ -518,12 +529,18 @@ const CATEGORIES = [
 const QUICK_AMOUNTS = [250, 500, 1000, 2000, 5000, 10000];
 // `let` + explicit recompute (not a one-time const filter) because WALLET_DEFS
 // can grow/shrink at runtime once wallets become user-editable, and crisis mode
-// hides the non-core spendable wallets so the add-form dropdown must match.
-let SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track);
+// changes which wallets are visible so the add-form dropdown must match.
+let SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !w.crisisOnly);
 function recomputeSelectableWallets(){
-  const crisisIds = state.crisisMode ? new Set(crisisWalletIds()) : null;
-  SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && (!crisisIds || !crisisIds.has(w.id)));
-  // If the currently selected wallet was hidden by the mode change, fall back to the first available
+  if(state.crisisMode){
+    const crisisIds = new Set(crisisWalletIds());
+    // crisis mode: show core + crisisOnly wallets (crisis_fund), hide normal budget wallets
+    SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !crisisIds.has(w.id));
+  } else {
+    // normal mode: hide crisisOnly wallets (they only make sense in crisis context)
+    SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !w.crisisOnly);
+  }
+  // If the currently selected wallet is no longer available, fall back to the first one
   if(SELECTABLE_WALLETS.length && !SELECTABLE_WALLETS.find(w => w.id === selectedWallet)){
     selectedWallet = SELECTABLE_WALLETS[0].id;
   }
@@ -531,13 +548,12 @@ function recomputeSelectableWallets(){
 
 // Wallets that participate in automatic income distribution, with their share %
 const DEFAULT_DISTRIBUTION = [
-  {id:'core',        pct:50},
+  {id:'core',        pct:55},
   {id:'wishlist',    pct:10},
   {id:'growth',      pct:10},
   {id:'investments', pct:10},
   {id:'joy',         pct:10},
   {id:'giving',      pct:5},
-  {id:'reserve',     pct:5},
 ];
 let DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
 
