@@ -88,8 +88,8 @@ async function addTx(type){
       render(); // expenses and manual-distribution incomes render once right here
       if(type === 'income' && tx.category !== 'transfer'){
         pendingIncomeTx = tx;
-        openDistributionModal(amountVal); // _pushOverlayHistory() will replaceState (flag already set)
-        _nextPushOverlayReplaces = false;  // safety reset if openModal wasn't reached
+        try{ openDistributionModal(amountVal); } // _pushOverlayHistory() will replaceState (flag already set)
+        finally{ _nextPushOverlayReplaces = false; } // reset even if openDistributionModal throws
       }
     }
   } finally {
@@ -318,7 +318,7 @@ function sanitizeBudgets(obj){
   if(obj && typeof obj === 'object'){
     WALLET_DEFS.forEach(w => {
       const v = parseFloat(obj[w.id]);
-      if(isFinite(v) && v > 0) out[w.id] = v;
+      if(isFinite(v) && v > 0 && v <= MAX_AMOUNT) out[w.id] = round2(v);
     });
   }
   return out;
@@ -401,13 +401,13 @@ async function saveEdit(){
   const _saveBtn = document.getElementById('saveEditBtn');
   _setBtnSaving(_saveBtn, true, t({ar:'⏳ جارٍ الحفظ...', en:'⏳ Saving...'}));
   try{
-  _txMutationStamp++;
   const tx = state.transactions.find(t=>t.id===editingTxId);
   if(!tx){
     toast(t({ar:'⚠ المعاملة لم تعد موجودة — ربما حُذفت من تبويب آخر', en:'⚠ This transaction no longer exists — it may have been deleted from another tab'}), true);
     closeModal('editModal');
     return;
   }
+  _txMutationStamp++; // after early-return guards so rejected saves don't invalidate caches
 
   const newAmount = round2(parseAmount(document.getElementById('editAmount').value)); // cent precision — match display, avoid sub-cent drift
   // Defense in depth: only block when the amount actually changed — desc/date/type/
@@ -525,7 +525,11 @@ function repeatLastTx(){
   document.getElementById('amountInput').value = (Number(last.amount) || 0).toFixed(2);
   document.getElementById('amountInput').dispatchEvent(new Event('input'));
   document.getElementById('dateInput').value = todayISO();
-  if(!WALLET_DEFS.find(w=>w.id===last.wallet)?.track){
+  // Skip selecting the previous wallet if it is a track wallet OR a crisisOnly
+  // wallet that's currently hidden (crisis mode off) — prevents silently writing
+  // a new transaction into an invisible wallet.
+  const _lastWDef = WALLET_DEFS.find(w=>w.id===last.wallet);
+  if(!_lastWDef?.track && !(_lastWDef?.crisisOnly && !state.crisisMode)){
     selectedWallet = last.wallet;
     renderWalletSelect();
   }
@@ -616,8 +620,13 @@ async function undoDelete(){
       delete deletedTxIds[tx.id]; // un-tombstone: the delete was undone
     });
     await saveBalances();
+    // saveConfig FIRST to persist tombstone removal — if we crash after saveConfig
+    // but before saveTx, the tx is absent from IDB but the tombstone is gone, so
+    // on reload the user sees an empty undo (recoverable). If we persisted saveTx
+    // first and crashed before saveConfig, the tx would be in IDB but still
+    // tombstoned, causing it to be silently filtered out on reload (data loss).
+    await saveConfig();
     await saveTx();
-    await saveConfig(); // persist tombstone removal
     render();
     toast(removed.length > 1 ? t({ar:'↩️ تم استرجاع الحركات', en:'↩️ Entries restored'}) : t({ar:'↩️ تم استرجاع المعاملة', en:'↩️ Transaction restored'}));
   } finally {
@@ -864,16 +873,16 @@ function closeModal(id){
       if(b){ b.classList.remove('open'); b.setAttribute('aria-expanded','false'); }
     });
   }
-  // restore focus to whatever triggered this modal (pop the stack)
-  const _retFocus = _focusStack.pop();
-  if(_retFocus && typeof _retFocus.focus === 'function'){
-    try{ _retFocus.focus({preventScroll:true}); }catch(_){}
+  // Only restore focus and pop overlay history when the modal was actually open —
+  // calling closeModal() on an already-closed modal must not pop a focus entry that
+  // belongs to a DIFFERENT modal currently open (corrupts multi-modal focus chain).
+  if(wasOpen){
+    const _retFocus = _focusStack.pop();
+    if(_retFocus && typeof _retFocus.focus === 'function'){
+      try{ _retFocus.focus({preventScroll:true}); }catch(_){}
+    }
+    _popOverlayHistory();
   }
-  // Closed via X/cancel/backdrop/save — NOT via the back button — so the history
-  // entry pushed on open is still sitting there. Consume it with history.back()
-  // so the stack doesn't accumulate an orphaned entry per modal opened+closed
-  // (would otherwise force the user to hit back N extra times to actually leave).
-  if(wasOpen) _popOverlayHistory();
 }
 // Modals that hold unsaved form input must NOT close on an accidental
 // backdrop tap (common on mobile) — only their explicit buttons close them.
@@ -910,9 +919,18 @@ function _wireGrabber(handle, sheet, isBlocked, doClose){
   const finish = () => {
     if(!dragging) return;
     dragging = false;
-    sheet.style.transition = '';
-    if(dy > 80){ doClose(); }
-    else { sheet.style.transform = ''; }
+    if(dy > 80){
+      sheet.style.transition = '';
+      doClose();
+    } else {
+      // Re-enable CSS transition BEFORE clearing transform so the snap-back
+      // animates. Setting transition='' and transform='' in the same frame
+      // lets the browser batch them and skip the animation (no transition to
+      // interpolate from). The rAF ensures the paint cycle sees the transition
+      // restored first, then applies the transform reset in the next frame.
+      sheet.style.transition = '';
+      requestAnimationFrame(() => { sheet.style.transform = ''; });
+    }
   };
   handle.addEventListener('touchend', finish);
   handle.addEventListener('touchcancel', finish);
@@ -2113,7 +2131,7 @@ function computeRenderSig(){
     JSON.stringify(state.wallets),
     currentFilter, walletFilter, categoryFilter, searchQuery,
     state.crisisMode, _sigBudgets,
-    _sigDist, autoDistribute,
+    _sigDist, autoDistribute, currentTab,
     dismissedRecurring.size,
     _txMutationStamp
   ].join('|');
@@ -2317,6 +2335,7 @@ document.addEventListener('visibilitychange', () => {
 // device already has their offline edits when nothing has actually synced.
 window.addEventListener('offline', () => {
   if(driveAccessToken) setDriveIndicator('offline');
+  toast(t({ar:'⚠ انقطع الاتصال — سيُستأنف المزامنة تلقائياً عند عودة الاتصال', en:'⚠ You\'re offline — sync will resume automatically when reconnected'}), true);
 });
 window.addEventListener('online', () => {
   // reconnecting is the best moment to push anything that piled up while offline,

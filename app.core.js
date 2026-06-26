@@ -29,6 +29,32 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.37',
+    date: '2026-06-26',
+    title: 'تحليل عميق (الجولة الثالثة): 19 إصلاحاً من زوايا تحليلية جديدة',
+    items: [
+      'إصلاح عالٍ: repeatLastTx لا تختار محفظة crisisOnly (كـ crisis_fund) إذا كانت مخفية في الوضع العادي — كانت تكتب المعاملة إلى محفظة غير مرئية بصمت.',
+      'إصلاح عالٍ: undoDelete تحفظ saveConfig (إزالة الـ tombstone) قبل saveTx — يمنع crash بين الحفظين من إعادة إخفاء المعاملة المُستعادة عند إعادة التحميل.',
+      'إصلاح متوسط: saveEdit لا تُبطل _txMutationStamp عند حالات الإرجاع المبكر (معاملة غير موجودة أو مبلغ غير صحيح) — يمنع إبطال كاش غير ضروري.',
+      'إصلاح متوسط: closeModal وcloseAddDrawer لا تسحبان من _focusStack إذا كان الـ overlay مغلقاً أصلاً — يمنع تلف تسلسل التركيز عند استدعائهما على overlay مغلق.',
+      'إصلاح متوسط: انقطاع الإنترنت يُظهر الآن toast للمستخدم بدلاً من تحديث مؤشر Drive الصامت فقط.',
+      'إصلاح متوسط: renderRecentTx تحترم الآن walletFilter وcategoryFilter وsearchQuery — تبويب المعاملات يعكس الفلتر النشط بدلاً من عرض كل المعاملات دائماً.',
+      'إصلاح متوسط: setWalletFilter وclearWalletFilter يُحدِّثان قائمة تبويب المعاملات فور تغيير الفلتر.',
+      'إصلاح متوسط: onSearchInput وclearSearch يُحدِّثان تبويب المعاملات عند البحث من تلك الشاشة.',
+      'إصلاح متوسط: saveWalletBudget تتحقق من وجود المحفظة — محفظة محذوفة من تبويب آخر أثناء فتح نافذة التفاصيل تُغلق بتنبيه بدلاً من استثناء صامت.',
+      'إصلاح متوسط: قائمة تفاصيل المحفظة تُظهر الآن تلميح "X معاملة أقدم" عند تجاوز 50 معاملة.',
+      'إصلاح متوسط-منخفض: computeRenderSig تشمل currentTab — تحديثات cross-tab لن تتخطى إعادة الرسم بعد تغيير التبويب مع بيانات ثابتة.',
+      'إصلاح متوسط-منخفض: loadState تستخدم round2() بدلاً من Math.round()*100/100 في ثلاثة مواضع — يزيل انجراف IEEE-754 عند استعادة الأرصدة.',
+      'إصلاح متوسط-منخفض: saveConfig ترجع true/false — المُستدعيات يمكنها الآن الكشف عن فشل الحفظ.',
+      'إصلاح متوسط-منخفض: _pruneRecurringDismissals تحد الحجم بـ 200 مدخل — يمنع تجاوز حصة localStorage عندما تطابق جميع الأنماط معاملات حية.',
+      'إصلاح منخفض: _wireGrabber — snap-back يستخدم rAF لضمان تفعيل CSS transition قبل إعادة transform، يمنع الحركة المتقطعة عند touchcancel.',
+      'إصلاح منخفض: _nextPushOverlayReplaces = false في try/finally — يُضمن إعادة الضبط حتى لو openDistributionModal رمى استثناءً.',
+      'إصلاح منخفض: sanitizeBudgets تحد القيم بـ MAX_AMOUNT وتطبق round2 — تمنع قيم ضخمة من إظهار شريط ميزانية صفري دائماً.',
+      'إصلاح منخفض: نص المجموع في مركز مخطط الدائرة مُقيَّد بحدود الثقب الداخلي — أرقام كبيرة لا تتجاوز الحلقة بعد الآن.',
+      'إصلاح منخفض: _heroStatsSig تشمل _txMutationStamp — كاش إحصائيات البطل يبطل دائماً عند أي تعديل (حماية إضافية لأي مسار يستدعيها مباشرةً).',
+    ],
+  },
+  {
     version: 'v47.36',
     date: '2026-06-26',
     title: 'تحليل عميق (الجولة الثانية): 20 إصلاحاً من زوايا تحليلية جديدة',
@@ -1147,7 +1173,7 @@ async function loadState(){
       WALLET_DEFS.forEach(w => {
         if(saved[w.id] !== undefined){
           const v = parseFloat(saved[w.id]);
-          if(isFinite(v)) state.wallets[w.id] = Math.round(v*100)/100;
+          if(isFinite(v)) state.wallets[w.id] = round2(v);
         }
       });
       _lsHadBalances = true;
@@ -1213,7 +1239,7 @@ async function loadState(){
         WALLET_DEFS.forEach(w => {
           if(_idb.wallets[w.id] !== undefined){
             const v = parseFloat(_idb.wallets[w.id]);
-            if(isFinite(v)) state.wallets[w.id] = Math.round(v*100)/100;
+            if(isFinite(v)) state.wallets[w.id] = round2(v);
           }
         });
       }
@@ -1239,7 +1265,7 @@ async function loadState(){
       WALLET_DEFS.forEach(w => {
         if(_idb.wallets[w.id] !== undefined){
           const v = parseFloat(_idb.wallets[w.id]);
-          if(isFinite(v)) state.wallets[w.id] = Math.round(v*100)/100;
+          if(isFinite(v)) state.wallets[w.id] = round2(v);
         }
       });
     }
@@ -1521,8 +1547,24 @@ function _pruneRecurringDismissals(){
       .filter(k => k.charAt(0) !== '\x00') // drop empty-description keys
   );
   for(const k of dismissedRecurring){ if(!live.has(k)) dismissedRecurring.delete(k); }
+  // Hard cap so a user with 200+ unique recurring patterns never exhausts localStorage
+  // quota (all keys match live transactions so the live-set pruning above removes nothing)
+  while(dismissedRecurring.size > 200) dismissedRecurring.delete(dismissedRecurring.values().next().value);
 }
-async function saveConfig(){ const ts = Date.now(); _pruneRecurringDismissals(); pruneTombstones(); try{ localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION, deletedTxIds: deletedTxIds})); localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts)); }catch(e){ toast(t({ar:'⚠ فشل حفظ الإعدادات محليًا', en:'⚠ Failed to save settings locally'}), true); } scheduleDriveSync(); scheduleIdbBackup(ts); }
+async function saveConfig(){
+  const ts = Date.now();
+  _pruneRecurringDismissals();
+  pruneTombstones();
+  let ok = false;
+  try{
+    localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION, deletedTxIds: deletedTxIds}));
+    localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts));
+    ok = true;
+  }catch(e){ toast(t({ar:'⚠ فشل حفظ الإعدادات محليًا', en:'⚠ Failed to save settings locally'}), true); }
+  scheduleDriveSync();
+  scheduleIdbBackup(ts);
+  return ok;
+}
 // clamp a subscription's billing day into 1–31 so corrupt data can't produce
 // "يوم 99" that never matches the daily-review check
 function _normalizeSub(x){

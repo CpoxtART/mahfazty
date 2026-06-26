@@ -150,7 +150,14 @@ function renderPieChart(){
     pieFontPx--;
     ctx.font = `600 ${pieFontPx}px system-ui,sans-serif`;
   }
+  // Clip to the donut hole so extremely long numbers (e.g. corrupted imports)
+  // can't bleed into the ring even when the font-shrink loop hits the 7px floor.
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+  ctx.clip();
   ctx.fillText(totalLabel, cx, cy + 1);
+  ctx.restore();
 }
 
 

@@ -153,6 +153,7 @@ function setWalletFilter(id){
     chip.classList.remove('show');
   }
   renderWallets();
+  if(currentTab === 'transactions') renderRecentTx();
   renderTxList();
   renderChart();
   renderPieChart();
@@ -163,6 +164,7 @@ function clearWalletFilter(){
   _txVisibleCount = 50;
   document.getElementById('walletFilterChip').classList.remove('show');
   renderWallets();
+  if(currentTab === 'transactions') renderRecentTx();
   renderTxList();
   renderChart();
   renderPieChart();
@@ -887,10 +889,14 @@ function closeAddDrawer(){
   // for a modal entry via replaceState — calling history.back() here would race with
   // the modal's pushState/replaceState and navigate the user off the page.
   if(wasOpen && !_nextPushOverlayReplaces) _popOverlayHistory();
-  // restore focus to whatever triggered the drawer (mirrors closeModal)
-  const _retFocus = _focusStack.pop();
-  if(_retFocus && typeof _retFocus.focus === 'function'){
-    try{ _retFocus.focus({preventScroll:true}); }catch(_){}
+  // Only restore focus when the drawer was actually open — mirrors the closeModal
+  // fix: popping the stack on an already-closed drawer corrupts the focus chain for
+  // any other overlay that's currently open.
+  if(wasOpen){
+    const _retFocus = _focusStack.pop();
+    if(_retFocus && typeof _retFocus.focus === 'function'){
+      try{ _retFocus.focus({preventScroll:true}); }catch(_){}
+    }
   }
 }
 function toggleAddDrawer(){
@@ -925,7 +931,7 @@ function getAllTxSorted(){
 function updateHeroStats(){
   const now = new Date();
   const last = state.transactions[state.transactions.length-1];
-  const _hSig = state.transactions.length + '|' + (last ? last.id : '') + '|' + now.getMonth() + '|' + now.getFullYear() + '|' + state.crisisMode;
+  const _hSig = state.transactions.length + '|' + (last ? last.id : '') + '|' + now.getMonth() + '|' + now.getFullYear() + '|' + state.crisisMode + '|' + _txMutationStamp;
   if(_hSig !== _heroStatsSig || !_heroStatsCache){
     let mIncome=0, mExpense=0;
     state.transactions.forEach(tx=>{
@@ -948,8 +954,12 @@ function renderRecentTx(){
   const list = document.getElementById('recentTxList');
   if(!list) return;
   list.innerHTML = '';
-  // Full chronological log of every transaction (newest first), grouped by day.
-  const all = getAllTxSorted();
+  // Full chronological log of transactions (newest first), grouped by day.
+  // getFilteredTx() applies walletFilter, categoryFilter and searchQuery so
+  // tapping a wallet card or searching updates the transactions tab list too.
+  // Note: getFilteredTx() also applies currentFilter (time range) — when it's
+  // 'all' (the default) every transaction passes, which is correct here.
+  const all = getFilteredTx();
 
   const countEl = document.getElementById('txLogCount');
   if(countEl) countEl.textContent = all.length ? all.length : '';
@@ -1681,6 +1691,13 @@ async function updateTrackedBalance(){
 let _saveWalletBudgetBusy = false;
 async function saveWalletBudget(){
   if(!detailWalletId || _saveWalletBudgetBusy) return;
+  // Guard against a wallet deleted from another tab while this detail modal was
+  // open (cross-tab storage listener skips loadState while any modal is open).
+  if(!WALLET_DEFS.find(x => x.id === detailWalletId)){
+    toast(t({ar:'⚠ المحفظة لم تعد موجودة', en:'⚠ Wallet no longer exists'}), true);
+    closeModal('walletDetailModal');
+    return;
+  }
   _saveWalletBudgetBusy = true;
   try{
     const raw = document.getElementById('detailBudgetInput').value.trim();
@@ -1854,6 +1871,16 @@ function openWalletDetail(walletId){
       div.onclick = () => openEdit(tx.id);
       list.appendChild(div);
     });
+    if(txs.length > 50){
+      const hint = document.createElement('div');
+      hint.style.cssText = 'padding:10px 16px; font-size:12px; color:var(--muted); text-align:center;';
+      const extra = txs.length - 50;
+      hint.textContent = t({
+        ar: `… ${extra} معاملة أقدم — افتح تبويب المعاملات لرؤية الكل`,
+        en: `… ${extra} older ${extra === 1 ? 'transaction' : 'transactions'} — open the Transactions tab to see all`,
+      });
+      list.appendChild(hint);
+    }
   }
   openModal('walletDetailModal');
 }
@@ -2111,13 +2138,18 @@ function onSearchInput(){
   document.getElementById('searchBox').classList.toggle('has-text', raw.length > 0);
   _txVisibleCount = 50;
   clearTimeout(_searchDebounce);
-  _searchDebounce = setTimeout(()=>{ renderTxList(); scrollToTxList(); }, 150);
+  _searchDebounce = setTimeout(()=>{
+    if(currentTab === 'transactions') renderRecentTx();
+    renderTxList();
+    if(currentTab === 'reports') scrollToTxList();
+  }, 150);
 }
 function clearSearch(){
   searchQuery = '';
   document.getElementById('searchInput').value = '';
   document.getElementById('searchBox').classList.remove('has-text');
   _txVisibleCount = 50;
+  if(currentTab === 'transactions') renderRecentTx();
   renderTxList();
 }
 
