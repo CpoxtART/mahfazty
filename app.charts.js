@@ -220,7 +220,7 @@ function renderChart(){
 
   ctx.beginPath();
   points.forEach((p,i)=>{
-    const x = padX + (w * i/(points.length-1));
+    const x = padX + (w * i / Math.max(1, points.length - 1)); // Math.max(1,...) guards against divide-by-zero
     const y = yOf(p);
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });

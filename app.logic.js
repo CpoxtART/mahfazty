@@ -79,11 +79,11 @@ async function addTx(type){
 
     // auto-distribution flow for income
     if(type === 'income' && tx.category !== 'transfer' && autoDistribute){
-      await runDistribution(tx, amountVal);
+      const _distributed = await runDistribution(tx, amountVal);
       // single render after distribution completes — skips an intermediate render
       // that would paint the income-only state before the distribution legs exist
       render();
-      toast(t({ar:'🔄 تم توزيع الدخل تلقائيًا', en:'🔄 Income auto-distributed'}));
+      if(_distributed) toast(t({ar:'🔄 تم توزيع الدخل تلقائيًا', en:'🔄 Income auto-distributed'}));
     } else {
       render(); // expenses and manual-distribution incomes render once right here
       if(type === 'income' && tx.category !== 'transfer'){
@@ -214,7 +214,7 @@ async function runDistribution(sourceTx, amount){
   const intendedTotal = round2(Math.min(amount, amount * totalPct / 100));
 
   // nothing to distribute — leave the income where it landed, don't withdraw
-  if(intendedTotal <= 0){ await saveBalances(); await saveTx(); return; }
+  if(intendedTotal <= 0){ await saveBalances(); await saveTx(); return false; }
 
   // Link the originating income AFTER the early-return guard — no point stamping
   // a link that would immediately be stripped by stripOrphanLinks() on zero distribution.
@@ -289,6 +289,7 @@ async function runDistribution(sourceTx, amount){
 
   await saveBalances();
   await saveTx();
+  return true;
 }
 
 /**
@@ -363,7 +364,7 @@ function openEdit(id){
   // distributed. Lock the amount field for this case; desc/date/category/type
   // remain editable since they don't affect balances.
   _editingDistSource = !!(tx.link && tx.category !== 'transfer' &&
-    state.transactions.filter(t => t.link === tx.link && t.id !== tx.id).length > 1);
+    state.transactions.filter(t => t.link === tx.link && t.id !== tx.id).length >= 1);
   document.getElementById('editTypeToggle').style.display = _editingTransferLeg ? 'none' : '';
   document.getElementById('editCategorySection').style.display = _editingTransferLeg ? 'none' : '';
   document.getElementById('editTransferHint').style.display = _editingTransferLeg ? 'block' : 'none';
@@ -382,6 +383,9 @@ function openEdit(id){
   // different from the partner leg and silently desync the pair's balances.
   _ewb.style.pointerEvents = _editingTransferLeg ? 'none' : '';
   _ewb.style.opacity = _editingTransferLeg ? '.55' : '';
+  // Also lock via tabIndex/aria so keyboard navigation can't bypass the CSS-only lock
+  _ewb.tabIndex = _editingTransferLeg ? -1 : 0;
+  _ewb.setAttribute('aria-disabled', String(!!_editingTransferLeg));
   document.getElementById('editDesc').value = tx.desc || '';
   document.getElementById('editAmount').value = (Number(tx.amount) || 0).toFixed(2); // match the 2-decimal display used everywhere else
   const d = new Date(tx.ts);
@@ -405,17 +409,13 @@ async function saveEdit(){
     return;
   }
 
-  // Defense in depth: the amount field is disabled in the UI for this case
-  // (see openEdit), but guard here too in case of stale state — editing the
-  // amount of an already-distributed income source has no path to rebalance
-  // the withdrawal + per-wallet deposit legs already created from the OLD
-  // amount, which would otherwise desync the source tx from the money moved.
-  if(_editingDistSource){
+  const newAmount = round2(parseAmount(document.getElementById('editAmount').value)); // cent precision — match display, avoid sub-cent drift
+  // Defense in depth: only block when the amount actually changed — desc/date/type/
+  // category edits are safe and must not be locked out alongside the amount field.
+  if(_editingDistSource && newAmount !== round2(tx.amount)){
     toast(t({ar:'⚠ هذه المعاملة موزعة على محافظ أخرى — احذفها وأضفها من جديد لتغيير المبلغ', en:'⚠ This transaction is distributed across other wallets — delete and re-add it to change the amount'}), true);
     return;
   }
-
-  const newAmount = round2(parseAmount(document.getElementById('editAmount').value)); // cent precision — match display, avoid sub-cent drift
   if(!isFinite(newAmount) || newAmount <= 0){
     toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true);
     return;
@@ -424,6 +424,9 @@ async function saveEdit(){
     toast(t({ar:'⚠ محفظة غير صالحة', en:'⚠ Invalid wallet'}), true);
     return;
   }
+  // Transfer leg wallet cannot change — keyboard navigation can bypass the CSS
+  // pointerEvents:none lock set in openEdit(), so enforce it here too.
+  if(_editingTransferLeg) editWallet = tx.wallet;
 
   // reverse old effect
   applyTxToBalance(tx, -1);
@@ -501,8 +504,11 @@ async function saveEdit(){
 
 async function deleteFromEdit(){
   if(!editingTxId) return;
-  await deleteTx(editingTxId);
-  closeModal('editModal');
+  try{
+    await deleteTx(editingTxId);
+  } finally {
+    closeModal('editModal');
+  }
 }
 
 function repeatLastTx(){
@@ -542,6 +548,16 @@ let _undoTimer = null;
 async function deleteTx(id){
   const target = state.transactions.find(t => t.id === id);
   if(!target) return;
+  // Block deletion of a distribution LEG — it would cascade-delete the entire
+  // linked group including the original income, which is almost never what the
+  // user intends. Direct them to delete the source income to remove the whole group.
+  if(target._distributionLeg && target.link){
+    const hasSource = state.transactions.some(t => t.link === target.link && !t._distributionLeg && t.category !== 'transfer');
+    if(hasSource){
+      toast(t({ar:'⚠ هذه المعاملة جزء من توزيع دخل — احذف معاملة الدخل الأصلية لإزالة كل التوزيع', en:'⚠ This is part of an income distribution — delete the original income entry to remove the entire distribution'}), true);
+      return;
+    }
+  }
   _txMutationStamp++;
   _opInFlight++;
   try{
@@ -795,6 +811,7 @@ function openModal(id){
   // modal (and the on-screen keyboard) is open on mobile
   document.body.style.overflow = 'hidden';
   if(id==='settingsModal'){
+    if(typeof _distDraft !== 'undefined') _distDraft = null; // fresh draft each time settings opens
     updateSettingsStats();
     document.getElementById('driveClientId').value = driveClientId;
     refreshDriveSettingsUI();
@@ -822,13 +839,15 @@ function closeModal(id){
   if(!_anyOverlayOpen()){ document.body.style.overflow = ''; _setBackgroundHidden(false); }
   if(id === 'editModal'){
     editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id;
+    _editingDistSource = false; _editingTransferLeg = false; // reset so the next openEdit() starts clean
     // ensure wallet dropdown is fully closed so stale 'open' state can't persist across edits
     const ewWrap = document.getElementById('editWalletMenuWrap');
     const ewBtn  = document.getElementById('editWalletBtn');
     if(ewWrap) ewWrap.classList.remove('open');
-    if(ewBtn){ ewBtn.classList.remove('open'); ewBtn.setAttribute('aria-expanded','false'); }
+    if(ewBtn){ ewBtn.classList.remove('open'); ewBtn.setAttribute('aria-expanded','false'); ewBtn.tabIndex = 0; ewBtn.removeAttribute('aria-disabled'); }
   }
   if(id === 'distributeModal') pendingIncomeTx = null;
+  if(id === 'settingsModal' && typeof _distDraft !== 'undefined') _distDraft = null; // discard unsaved dist edits
   if(id === 'walletDetailModal') detailWalletId = null;
   if(id === 'subModal') editingSubId = null;
   if(id === 'transferModal'){
@@ -1169,6 +1188,15 @@ async function applyImport(text){
       amount: round2(tx.amount)
     }));
     _droppedTx = incoming.length - state.transactions.length;
+    // Clean up orphaned trackWallet refs — a wallet deleted on another device may
+    // still be referenced if the backup predates that deletion. Leaving them causes
+    // applyTxToBalance to silently skip the secondary effect on an unknown wallet.
+    const _validTrackIds = new Set(WALLET_DEFS.filter(w => w.track).map(w => w.id));
+    state.transactions.forEach(tx => {
+      if(tx.trackWallet && !_validTrackIds.has(tx.trackWallet)){
+        delete tx.trackWallet; delete tx.trackSign;
+      }
+    });
   }
 
   // Strip orphaned link IDs — if only one leg of a linked transfer/distribution
@@ -1316,6 +1344,7 @@ async function clearBalancesAndTx(){
     clearTimeout(_undoTimer); _lastDeleted = null;
     const now = Date.now();
     state.transactions.forEach(t => { if(t && t.id) deletedTxIds[t.id] = now; });
+    pruneTombstones(); // trim expired entries after bulk addition to stay under quota
     state.transactions = [];
     WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
     state.crisisMode = false;
@@ -1428,6 +1457,7 @@ async function wipeAll(){
   // (the old behaviour) let a cloud/other-device copy resurrect everything.
   const _wipeNow = Date.now();
   state.transactions.forEach(t => { if(t && t.id) deletedTxIds[t.id] = _wipeNow; });
+  pruneTombstones(); // trim expired entries so the bulk addition doesn't push config over quota
   WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
   state.transactions = [];
   state.crisisMode = false;

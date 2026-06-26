@@ -246,6 +246,7 @@ function renderWalletDefsEditor(){
 function refreshAfterWalletDefsChange(){
   _walletSelectSig = '';
   _editWalletSelectSig = '';
+  _distDraft = null; // wallet structure changed — rebuild draft from updated DISTRIBUTION
   // A deleted wallet can never have transactions (deleteWalletDef enforces
   // that), so an active filter pointing at it would otherwise leave the tx
   // list permanently empty with a stale filter chip the user has no obvious
@@ -284,6 +285,15 @@ function moveWalletDef(id, dir){
   let gi = 0;
   const reordered = WALLET_DEFS.map(x => x.track === w.track ? byId.get(groupIds[gi++]) : x);
   applyWalletDefs(reordered);
+  // Keep DISTRIBUTION row order in sync with the new wallet order so the
+  // distribution editor matches the wallet card grid visually.
+  if(!w.track){
+    const distById = new Map(DISTRIBUTION.map(d => [d.id, d]));
+    const newOrder = reordered.filter(x => !x.track && !x.crisisOnly).map(x => x.id);
+    DISTRIBUTION = newOrder.filter(id => distById.has(id)).map(id => distById.get(id));
+    // keep any DISTRIBUTION entries without a matching wallet (stale config safety)
+    distById.forEach((d, did) => { if(!newOrder.includes(did)) DISTRIBUTION.push(d); });
+  }
   saveWalletDefs();
   refreshAfterWalletDefsChange();
 }
@@ -551,7 +561,7 @@ function switchTab(tab){
   });
   // Build the target tab's content fresh (render() skips hidden tabs to stay
   // fast at scale, so each tab is (re)rendered the moment it becomes visible).
-  if(tab === 'transactions') renderRecentTx();
+  if(tab === 'transactions'){ _recentVisibleCount = recentTxLimit; renderRecentTx(); }
   if(tab === 'analytics'){
     renderAnalytics(); renderRecurring(); renderSubscriptions();
     requestAnimationFrame(()=> renderPieChart());
@@ -1096,7 +1106,7 @@ async function saveSubModal(){
   const billingDay = parseInt(normalizeDigits(dayInput.value), 10); // normalize Arabic-Indic digits (numeric keyboards often default to them)
   const active = document.getElementById('subActive')?.checked !== false;
   if(!name){ toast(t({ar:'⚠ أدخل اسم الاشتراك', en:'⚠ Enter a subscription name'}), true); nameInput.focus(); return; }
-  if(subscriptions.some(s => s.id !== editingSubId && s.name === name)){
+  if(subscriptions.some(s => s.id !== editingSubId && s.name.toLowerCase() === name.toLowerCase())){
     toast(t({ar:'⚠ يوجد اشتراك بهذا الاسم بالفعل', en:'⚠ A subscription with this name already exists'}), true); nameInput.focus(); return;
   }
   if(!isFinite(amount)||amount<=0){ toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true); amountInput.focus(); return; }
@@ -1570,7 +1580,10 @@ async function doTransfer(){
     const fromWallet = WALLET_DEFS.find(w=>w.id===transferFrom);
     const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
     if(!fromWallet || !toWallet){ toast(t({ar:'⚠ محفظة غير صحيحة', en:'⚠ Invalid wallet'}), true); return; }
-    const fromBalance = state.wallets[transferFrom] ?? 0;
+    // For crisis_fund in crisis mode, available = combined balance of all merged wallets
+    const fromBalance = (fromWallet.crisisOnly && state.crisisMode)
+      ? crisisWalletIds().reduce((s, cid) => s + (state.wallets[cid] ?? 0), 0) + (state.wallets[transferFrom] ?? 0)
+      : (state.wallets[transferFrom] ?? 0);
     if(!fromWallet.track && round2(fromBalance - amt) < 0){
       toast(t({ar:`⚠ الرصيد غير كافٍ — المتاح: ${fmt(Math.max(0, fromBalance))}`, en:`⚠ Insufficient balance — available: ${fmt(Math.max(0, fromBalance))}`}), true);
       return;
@@ -1670,12 +1683,21 @@ async function saveWalletBudget(){
   if(!detailWalletId || _saveWalletBudgetBusy) return;
   _saveWalletBudgetBusy = true;
   try{
-    const val = round2(parseAmount(document.getElementById('detailBudgetInput').value));
-    if(!val || val <= 0){
+    const raw = document.getElementById('detailBudgetInput').value.trim();
+    if(raw === ''){
+      // Explicit clear: user blanked the field to remove the budget
       delete budgets[detailWalletId];
-    } else {
-      budgets[detailWalletId] = val;
+      await saveConfig();
+      renderWallets();
+      toast(t({ar:'✓ تم حذف الميزانية', en:'✓ Budget removed'}));
+      return;
     }
+    const val = round2(parseAmount(raw));
+    if(!isFinite(val) || val <= 0){
+      toast(t({ar:'⚠ أدخل ميزانية صحيحة أو اتركها فارغة لحذفها', en:'⚠ Enter a valid budget or leave it empty to remove it'}), true);
+      return;
+    }
+    budgets[detailWalletId] = val;
     await saveConfig();
     renderWallets();
     toast(t({ar:'✓ تم حفظ الميزانية', en:'✓ Budget saved'}));
@@ -1684,10 +1706,16 @@ async function saveWalletBudget(){
   }
 }
 
+// Staging draft for the distribution editor — changes are isolated here until
+// the user taps Save. Cleared on settings close/cancel so edits don't leak.
+let _distDraft = null;
+
 function renderDistributionEditor(){
+  // Create a fresh draft snapshot if none exists (first open or after cancel/save)
+  if(!_distDraft) _distDraft = DISTRIBUTION.map(d=>({...d}));
   const wrap = document.getElementById('distributionEditor');
   wrap.innerHTML = '';
-  DISTRIBUTION.forEach((d,i)=>{
+  _distDraft.forEach((d,i)=>{
     const w = WALLET_DEFS.find(x=>x.id===d.id);
     const row = document.createElement('div');
     row.className = 'dist-edit-row';
@@ -1697,7 +1725,10 @@ function renderDistributionEditor(){
       <span class="pct-sign">%</span>
     `;
     row.querySelector('input').oninput = (e)=>{
-      DISTRIBUTION[i].pct = Math.min(100, Math.max(0, parseAmount(e.target.value) || 0));
+      const clamped = Math.min(100, Math.max(0, parseAmount(e.target.value) || 0));
+      _distDraft[i].pct = clamped;
+      // Sync the display to the clamped value so what the user sees = what will be saved
+      if((parseAmount(e.target.value) || 0) !== clamped) e.target.value = String(clamped);
       updateDistTotal();
     };
     wrap.appendChild(row);
@@ -1710,7 +1741,7 @@ function renderDistributionEditor(){
 }
 
 function updateDistTotal(){
-  const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
+  const total = (_distDraft || DISTRIBUTION).reduce((s,d)=>s+(d.pct||0), 0);
   const el = document.getElementById('distTotalRow');
   if(!el) return;
   const display = total.toFixed(1);
@@ -1724,28 +1755,32 @@ function updateDistTotal(){
 // distribution breakdown can never show shares that exceed (or fall short of) the
 // income — the old "save anyway at 95%/120%" path misled that preview.
 function normalizeDistribution(){
-  const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
+  const arr = _distDraft || DISTRIBUTION;
+  const total = arr.reduce((s,d)=>s+(d.pct||0), 0);
   if(!(total > 0)) return false;
-  DISTRIBUTION.forEach(d=>{ d.pct = Math.round(((d.pct||0)/total)*1000)/10; }); // one decimal
-  const acc = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
+  arr.forEach(d=>{ d.pct = Math.round(((d.pct||0)/total)*1000)/10; }); // one decimal
+  const acc = arr.reduce((s,d)=>s+(d.pct||0), 0);
   const residual = Math.round((100 - acc) * 10) / 10;
   if(residual !== 0){
     let maxIdx = 0;
-    DISTRIBUTION.forEach((d,i)=>{ if((d.pct||0) > (DISTRIBUTION[maxIdx].pct||0)) maxIdx = i; });
-    DISTRIBUTION[maxIdx].pct = Math.round((DISTRIBUTION[maxIdx].pct + residual) * 10) / 10;
+    arr.forEach((d,i)=>{ if((d.pct||0) > (arr[maxIdx].pct||0)) maxIdx = i; });
+    arr[maxIdx].pct = Math.round((arr[maxIdx].pct + residual) * 10) / 10;
   }
   return true;
 }
 
 async function saveDistribution(){
-  const total = DISTRIBUTION.reduce((s,d)=>s+(d.pct||0), 0);
+  if(!_distDraft) return;
+  const total = _distDraft.reduce((s,d)=>s+(d.pct||0), 0);
   if(parseFloat(total.toFixed(1)) !== 100){
     if(!(total > 0)){ toast(t({ar:'⚠ أدخل نِسبًا صحيحة أولاً', en:'⚠ Enter valid ratios first'}), true); return; }
     if(!confirm(t({ar:`الإجمالي ${total.toFixed(1)}% وليس 100%.\n\nسيتم تعديل النسب تلقائيًا لتصبح 100% مع الحفاظ على تناسبها. متابعة؟`, en:`Total is ${total.toFixed(1)}%, not 100%.\n\nRatios will be auto-adjusted to 100% while keeping their proportions. Continue?`}))) return;
   }
-  // always normalize before saving — even when total already rounds to 100% via
-  // toFixed(1), raw float accumulation (e.g. 99.95...) can persist otherwise.
+  // always normalize before saving (even when total rounds to 100%, raw float can differ)
   normalizeDistribution();
+  // commit the validated+normalized draft to the live DISTRIBUTION array
+  _distDraft.forEach((d, i) => { if(i < DISTRIBUTION.length) DISTRIBUTION[i].pct = d.pct; });
+  _distDraft = null; // draft committed — a new open will build a fresh snapshot
   renderDistributionEditor(); // reflect the normalized values back into the inputs
   await saveConfig();
   renderWallets();
@@ -1758,6 +1793,7 @@ function resetDistribution(){
   // keep custom regular wallets in the editor (DEFAULT only covers factory ones)
   const extra = WALLET_DEFS.filter(w => !w.track && !DISTRIBUTION.find(d => d.id === w.id)).map(w => ({id: w.id, pct: 0}));
   if(extra.length) DISTRIBUTION = DISTRIBUTION.concat(extra);
+  _distDraft = null; // discard any in-progress draft so the editor picks up the reset values
   renderDistributionEditor();
   saveConfig();
   renderWallets();
@@ -1833,12 +1869,13 @@ function monthRange(monthsAgo){
   return [start, end];
 }
 
-function sumExpenses(start, end, categoryId){
+function sumExpenses(start, end, categoryId, wFilter){
   let total = 0;
   state.transactions.forEach(tx=>{
     if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
     if(tx.ts < start || tx.ts >= end) return;
     if(categoryId && tx.category !== categoryId) return;
+    if(wFilter && tx.wallet !== wFilter) return;
     total += tx.amount;
   });
   return round2(total); // collapse float-accumulation residue before it feeds projections
@@ -1859,10 +1896,10 @@ function renderAnalytics(){
   const [curStart, curEnd] = monthRange(0);
   const [prevStart, prevEnd] = monthRange(1);
 
-  // cache analytics totals — expensive full-scan, only recompute when txs change
-  const aSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + curStart;
+  // cache analytics totals — expensive full-scan, only recompute when txs or filter change
+  const aSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + curStart + '|' + (walletFilter||'');
   if(aSig !== _analyticsSig || !_analyticsCache){
-    _analyticsCache = { cur: sumExpenses(curStart, curEnd), prev: sumExpenses(prevStart, prevEnd) };
+    _analyticsCache = { cur: sumExpenses(curStart, curEnd, null, walletFilter), prev: sumExpenses(prevStart, prevEnd, null, walletFilter) };
     _analyticsSig = aSig;
   }
   const curTotal = _analyticsCache.cur;
