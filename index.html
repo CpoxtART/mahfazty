@@ -100,6 +100,17 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     </div>
   </div>
 
+  <div class="ui-sec" data-sec="quicknotes">
+    <div class="qn-banner" id="quickNotesBanner" onclick="openQuickNotes()" role="button" tabindex="0" aria-labelledby="qnBannerTitle" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openQuickNotes();}">
+      <div class="label"><span class="ic">📝</span>
+        <div><span id="qnBannerTitle" data-i18n="qn.bannerTitle">ملاحظات سريعة ← معاملات</span>
+          <small data-i18n="qn.bannerHint">اكتب ملاحظاتك بحرية والبرنامج يحوّلها معاملات تلقائيًا</small>
+        </div>
+      </div>
+      <span class="qn-banner-cta" id="qnBannerBadge" data-i18n="qn.bannerCta">افتح</span>
+    </div>
+  </div>
+
   <div class="ui-sec" data-sec="wallets">
     <div class="section-title"><span data-i18n="home.wallets">المحافظ</span> <span class="count" id="walletCount"></span></div>
     <div class="wallets" id="walletsGrid"></div>
@@ -638,6 +649,35 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   </div>
 </div>
 
+<!-- ===== QUICK NOTES → TRANSACTIONS MODAL ===== -->
+<div class="modal-overlay" role="dialog" aria-modal="true" id="quickNotesModal" aria-labelledby="qnTitle">
+  <div class="modal">
+    <div class="grabber"></div>
+    <h3 id="qnTitle" data-i18n="qn.title">📝 ملاحظات سريعة ← معاملات</h3>
+    <div class="hint" style="margin-top:0;" data-i18n="qn.intro">اكتب كل معاملة في سطر مستقل: الوصف ثم السعر. البرنامج يحوّلها لمعاملات جاهزة تراجعها قبل الحفظ — بدون إدخال يدوي لكل واحدة.</div>
+    <textarea id="qnNotes" class="qn-notes" rows="6" placeholder="قهوة ١٥&#10;بنزين ٥٠&#10;غداء مطعم ٤٥&#10;راتب ٥٠٠٠ +" data-i18n-ph="qn.ph" oninput="onQuickNotesInput()" enterkeyhint="enter" autocomplete="off"></textarea>
+    <div class="qn-sidehint" data-i18n-html="qn.sideHint">💡 سطر لكل معاملة: اكتب <b>ما هي المعاملة وسعرها</b> (مثل «قهوة ١٥»). أضِف <b>+</b> في آخر السطر أو اكتب «راتب/دخل» لتسجيلها كدخل.</div>
+
+    <label data-i18n="qn.walletLbl">المحفظة المستهدفة</label>
+    <div class="qn-wallet-chips" id="qnWalletChips"></div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('quickNotesModal')" data-i18n="common.close">إغلاق</button>
+      <button class="btn-primary" id="qnParseBtn" onclick="parseQuickNotesPreview()" data-i18n="qn.parse">🔎 حوّل لمعاملات</button>
+    </div>
+
+    <div id="qnPreviewWrap" style="display:none;">
+      <div class="section-title" style="margin-top:8px;"><span data-i18n="qn.previewTitle">معاينة المعاملات</span> <span class="count" id="qnPreviewCount"></span></div>
+      <div class="hint" style="margin-top:0;" data-i18n="qn.previewHint">عدّل الوصف أو المبلغ، بدّل النوع (＋/－)، أو احذف أي سطر قبل الحفظ.</div>
+      <div id="qnPreviewList" class="qn-preview-list"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="cancelQuickNotesPreview()" data-i18n="common.cancel">إلغاء</button>
+        <button class="btn-primary" id="qnConfirmBtn" onclick="commitQuickNotes()" data-i18n="qn.confirm">✓ سجّل الكل</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== WALLET DETAIL MODAL ===== -->
 <div class="modal-overlay" role="dialog" aria-modal="true" id="walletDetailModal">
   <div class="modal">
@@ -771,8 +811,21 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <p class="onb-note" data-i18n="onb.s5Note">🎨 ورتّب التبويبات وحجم القوائم من ⚙ الإعدادات كما يحلو لك.</p>
       </div>
 
-      <!-- Slide 6: customizable wallets + cleaner settings -->
+      <!-- Slide: quick notes → transactions -->
       <div class="onb-slide" data-step="5">
+        <div class="onb-ic">📝</div>
+        <h3 class="onb-title" data-i18n="onb.sNotesTitle">دوّن سريعًا… والباقي علينا</h3>
+        <p class="onb-body" data-i18n="onb.sNotesBody">ما عندك وقت تدخل كل معاملة لحظة بلحظة؟ اكتب ملاحظاتك بحرية — سطر لكل معاملة (الوصف وسعره) — والبرنامج يحوّلها معاملات جاهزة تراجعها بضغطة.</p>
+        <div class="onb-pills">
+          <span class="onb-pill" data-i18n="onb.notesPill1">قهوة ١٥</span>
+          <span class="onb-pill" data-i18n="onb.notesPill2">بنزين ٥٠</span>
+          <span class="onb-pill" data-i18n="onb.notesPill3">راتب ٥٠٠٠ +</span>
+        </div>
+        <p class="onb-note" data-i18n="onb.sNotesNote">📝 تلقاه في البانر بالصفحة الرئيسية تحت «الوضع البديل».</p>
+      </div>
+
+      <!-- Slide 6: customizable wallets + cleaner settings -->
+      <div class="onb-slide" data-step="6">
         <div class="onb-ic">🏦</div>
         <h3 class="onb-title" data-i18n="onb.s6Title">محافظك… على ذوقك</h3>
         <ul class="onb-list">
@@ -785,7 +838,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       </div>
 
       <!-- Slide 7: personalization — language, appearance, accent, daily review -->
-      <div class="onb-slide" data-step="6">
+      <div class="onb-slide" data-step="7">
         <div class="onb-ic">🎨</div>
         <h3 class="onb-title" data-i18n="onb.s7Title">خصّصها على ذوقك</h3>
         <ul class="onb-list">

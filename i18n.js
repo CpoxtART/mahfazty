@@ -137,6 +137,20 @@ var I18N_STRINGS = {
   'home.altModeHint': { ar: 'دمج الاحتياطي الثاني (٥٠٪) في احتياطي موحّد واحد', en: 'Merge the second reserve (50%) into one unified reserve' },
   'home.wallets':     { ar: 'المحافظ', en: 'Wallets' },
 
+  // ── quick notes → transactions ──
+  'qn.bannerTitle':   { ar: 'ملاحظات سريعة ← معاملات', en: 'Quick notes → transactions' },
+  'qn.bannerHint':    { ar: 'اكتب ملاحظاتك بحرية والبرنامج يحوّلها معاملات تلقائيًا', en: 'Jot freely — the app turns your notes into transactions' },
+  'qn.bannerCta':     { ar: 'افتح', en: 'Open' },
+  'qn.title':         { ar: '📝 ملاحظات سريعة ← معاملات', en: '📝 Quick notes → transactions' },
+  'qn.intro':         { ar: 'اكتب كل معاملة في سطر مستقل: الوصف ثم السعر. البرنامج يحوّلها لمعاملات جاهزة تراجعها قبل الحفظ — بدون إدخال يدوي لكل واحدة.', en: 'Write one transaction per line: description then price. The app turns them into ready transactions you review before saving — no manual entry for each.' },
+  'qn.ph':            { ar: 'قهوة ١٥\nبنزين ٥٠\nغداء مطعم ٤٥\nراتب ٥٠٠٠ +', en: 'Coffee 15\nGas 50\nLunch 45\nSalary 5000 +' },
+  'qn.sideHint':      { ar: '💡 سطر لكل معاملة: اكتب <b>ما هي المعاملة وسعرها</b> (مثل «قهوة ١٥»). أضِف <b>+</b> في آخر السطر أو اكتب «راتب/دخل» لتسجيلها كدخل.', en: '💡 One line per transaction: write <b>what it is and its price</b> (e.g. “Coffee 15”). Add <b>+</b> at the end or write “salary/income” to record it as income.' },
+  'qn.walletLbl':     { ar: 'المحفظة المستهدفة', en: 'Target wallet' },
+  'qn.parse':         { ar: '🔎 حوّل لمعاملات', en: '🔎 Convert to transactions' },
+  'qn.previewTitle':  { ar: 'معاينة المعاملات', en: 'Transactions preview' },
+  'qn.previewHint':   { ar: 'عدّل الوصف أو المبلغ، بدّل النوع (＋/－)، أو احذف أي سطر قبل الحفظ.', en: 'Edit the description or amount, toggle the type (＋/－), or remove any line before saving.' },
+  'qn.confirm':       { ar: '✓ سجّل الكل', en: '✓ Record all' },
+
   // ── tabs / sections ──
   'sec.txLog':        { ar: 'سجل المعاملات', en: 'Transaction log' },
   'sec.monthStats':   { ar: '📊 تحليلات الشهر', en: '📊 This month’s insights' },
@@ -279,6 +293,12 @@ var I18N_STRINGS = {
   'onb.s5Li4':        { ar: '<b>🔁 كرّر آخر عملية</b> — أعد إدخال مصروف معتاد بضغطة وحدة.', en: '<b>🔁 Repeat last transaction</b> — re-enter a usual expense in one tap.' },
   'onb.s5Li5':        { ar: '<b>📤 تقرير شهري جاهز</b> — شاركه أو نزّله بضغطة من 📊 التحليلات.', en: '<b>📤 Ready monthly report</b> — share or download it in a tap from 📊 Insights.' },
   'onb.s5Note':       { ar: '🎨 ورتّب التبويبات وحجم القوائم من ⚙ الإعدادات كما يحلو لك.', en: '🎨 Reorder the tabs and list sizes from ⚙ Settings however you like.' },
+  'onb.sNotesTitle':  { ar: 'دوّن سريعًا… والباقي علينا', en: 'Jot it down… we’ll do the rest' },
+  'onb.sNotesBody':   { ar: 'ما عندك وقت تدخل كل معاملة لحظة بلحظة؟ اكتب ملاحظاتك بحرية — سطر لكل معاملة (الوصف وسعره) — والبرنامج يحوّلها معاملات جاهزة تراجعها بضغطة.', en: 'No time to log every transaction on the spot? Jot freely — one line per transaction (description and price) — and the app turns them into ready transactions you review in a tap.' },
+  'onb.notesPill1':   { ar: 'قهوة ١٥', en: 'Coffee 15' },
+  'onb.notesPill2':   { ar: 'بنزين ٥٠', en: 'Gas 50' },
+  'onb.notesPill3':   { ar: 'راتب ٥٠٠٠ +', en: 'Salary 5000 +' },
+  'onb.sNotesNote':   { ar: '📝 تلقاه في البانر بالصفحة الرئيسية تحت «الوضع البديل».', en: '📝 Find it in the banner on the home page, under “Alternate mode”.' },
   'onb.s6Title':      { ar: 'محافظك… على ذوقك', en: 'Your wallets… your way' },
   'onb.s6Li1':        { ar: '<b>➕ أضِف محافظ جديدة</b> — عادية (تُحتسب بالإجمالي) أو تتبّع فقط.', en: "<b>➕ Add new wallets</b> — regular (counted in the total) or tracking-only." },
   'onb.s6Li2':        { ar: '<b>✏️ عدّل الأسماء ورتّب</b> — كل مجموعة على حدة بأسهم أعلى/أسفل.', en: '<b>✏️ Edit names and reorder</b> — each group separately with up/down arrows.' },

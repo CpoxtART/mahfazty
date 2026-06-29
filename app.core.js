@@ -29,6 +29,19 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.39',
+    date: '2026-06-29',
+    title: 'جديد: ملاحظات سريعة ← معاملات (تحويل تلقائي من نص حر)',
+    items: [
+      'جديد: بانر «ملاحظات سريعة ← معاملات» في الصفحة الرئيسية (تحت الوضع البديل) — اكتب ملاحظاتك بحرية، سطر لكل معاملة (الوصف وسعره)، والبرنامج يحوّلها معاملات جاهزة.',
+      'جديد: محرّك تحليل ذكي يقتبس المبلغ والوصف من كل سطر، ويخمّن الفئة تلقائيًا (طعام/مواصلات/فواتير…)، ويكتشف الدخل عبر علامة + أو كلمات مثل «راتب/دخل».',
+      'جديد: شاشة معاينة قبل الحفظ — عدّل الوصف أو المبلغ، بدّل النوع (دخل/مصروف)، أو احذف أي سطر، ثم سجّل الكل دفعةً واحدة.',
+      'جديد: مسوّدة الملاحظات تُحفظ تلقائيًا وتبقى عبر إعادة التشغيل والأجهزة — دوّن طوال اليوم وحوّلها وقت ما يناسبك. شارة على البانر تعرض عدد الأسطر المعلّقة.',
+      'جديد: شريحة اختيار المحفظة المستهدفة، ودعم كامل للأرقام العربية، وتوزيع الدخل تلقائيًا إذا كان مفعّلًا.',
+      'جديد: شريحة شرح للميزة في جولة الترحيب بأول فتح للبرنامج.',
+    ],
+  },
+  {
     version: 'v47.38',
     date: '2026-06-29',
     title: 'تحليل عميق (الجولة الرابعة): إصلاحات مزامنة واستيراد وأداء من زوايا جديدة',
@@ -764,9 +777,10 @@ const DEFAULT_TAB_ORDER = ['home','transactions','analytics','reports'];
 // reflects the current language instead of freezing at script-load time.
 const SECTION_DEFS = {
   home: [
-    {key:'balance', label:{ar:'💰 إجمالي المتاح', en:'💰 Total available'}},
-    {key:'crisis',  label:{ar:'🔄 الوضع البديل', en:'🔄 Alternate mode'}},
-    {key:'wallets', label:{ar:'👛 المحافظ', en:'👛 Wallets'}}
+    {key:'balance',    label:{ar:'💰 إجمالي المتاح', en:'💰 Total available'}},
+    {key:'crisis',     label:{ar:'🔄 الوضع البديل', en:'🔄 Alternate mode'}},
+    {key:'quicknotes', label:{ar:'📝 ملاحظات سريعة', en:'📝 Quick notes'}},
+    {key:'wallets',    label:{ar:'👛 المحافظ', en:'👛 Wallets'}}
   ],
   analytics: [
     {key:'stats',         label:'sec.monthStats'},

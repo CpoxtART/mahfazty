@@ -292,6 +292,250 @@ async function runDistribution(sourceTx, amount){
   return true;
 }
 
+/* ============================================================
+   QUICK NOTES → TRANSACTIONS
+   A free-form jot box for when there's no time/space to fill the full
+   add form per transaction. The user types one transaction per line
+   ("description price", with "+" or an income keyword marking income),
+   the app parses each line into a reviewable/editable row, and commits
+   them all at once. The raw notes draft is persisted so it can be built
+   up across the day and only converted when convenient.
+============================================================ */
+let _qnWallet = null;        // chosen target wallet id for the parsed rows
+let _qnPreview = [];         // current parsed/preview rows
+let _quickNotesDraft = '';   // persisted free-form notes text
+let _qnCommitBusy = false;
+
+// keyword → category guesses (matched against normalizeSearch so Arabic
+// orthographic variants and casing fold together). Bilingual on purpose.
+const _QN_CAT_KEYWORDS = [
+  {cat:'food',          words:['قهوه','قهوة','كوفي','كافيه','شاي','فطور','غداء','عشاء','اكل','طعام','مطعم','برجر','بيتزا','وجبه','عصير','حلى','coffee','cafe','food','lunch','dinner','breakfast','restaurant','meal','snack','juice']},
+  {cat:'transport',     words:['بنزين','وقود','تكسي','اوبر','كريم','مواصلات','سياره','سيارة','باص','قطار','رحله','رحلة','تذكره','تذكرة','gas','fuel','taxi','uber','careem','transport','bus','train','ride','ticket']},
+  {cat:'shopping',      words:['تسوق','ملابس','سوق','متجر','حذاء','قميص','هديه','هدية','عبايه','shopping','clothes','store','mall','shoes','gift']},
+  {cat:'bills',         words:['فاتوره','فاتورة','فواتير','كهرباء','ماء','مويه','نت','انترنت','جوال','اتصالات','ايجار','إيجار','bill','bills','electricity','water','internet','phone','mobile','rent']},
+  {cat:'health',        words:['دواء','صيدليه','صيدلية','دكتور','طبيب','مستشفى','عياده','عيادة','صحه','صحة','تحليل','pharmacy','doctor','hospital','clinic','health','medicine']},
+  {cat:'entertainment', words:['لعبه','لعبة','العاب','سينما','فيلم','ترفيه','اشتراك','نتفلكس','نتفليكس','game','games','cinema','movie','netflix','spotify','subscription','entertainment']},
+  {cat:'salary',        words:['راتب','مرتب','دخل','مدخول','مكافاه','مكافأة','salary','income','wage','payroll','bonus']},
+];
+// independent income detection (a line is income if it ends with/contains "+"
+// or names an income-type concept) — keep in sync with the salary keywords above
+const _QN_INCOME_WORDS = ['راتب','مرتب','دخل','مدخول','ايداع','إيداع','استرجاع','مكافاه','مكافأة','salary','income','deposit','refund','bonus','payroll'];
+
+function _qnNorm(s){ return (typeof normalizeSearch === 'function') ? normalizeSearch(s) : String(s||'').toLowerCase().trim(); }
+function _qnGuessCategory(desc, type){
+  const d = _qnNorm(desc);
+  if(d){
+    for(const grp of _QN_CAT_KEYWORDS){
+      if(grp.cat === 'salary' && type !== 'income') continue; // salary words only apply to income rows
+      if(grp.words.some(w => d.includes(_qnNorm(w)))) return grp.cat;
+    }
+  }
+  return type === 'income' ? 'salary' : 'other';
+}
+
+// Matches a number token in either ASCII, Arabic-Indic (٠-٩) or Persian (۰-۹)
+// digits, with an optional decimal part. Used on the ORIGINAL line (not the
+// space-stripped normalizeDigits output) so the description keeps its spaces.
+const _QN_NUM_RE = /[\d٠-٩۰-۹]+(?:[.,٫][\d٠-٩۰-۹]+)?/g;
+// Parse free-form text into transaction candidates — one per non-empty line.
+function parseQuickNotes(text){
+  const rows = [];
+  String(text == null ? '' : text).split('\n').forEach(rawLine => {
+    const line = rawLine.trim();
+    if(!line) return;
+    const normSearch = _qnNorm(line);
+    const isIncome = /\+/.test(line) || _QN_INCOME_WORDS.some(w => normSearch.includes(_qnNorm(w)));
+    const type = isIncome ? 'income' : 'expense';
+    const nums = line.match(_QN_NUM_RE);
+    if(!nums || !nums.length){
+      // no price on the line — keep it as an invalid row so the user notices it
+      // wasn't captured, instead of silently dropping it
+      rows.push({raw:line, desc:line.replace(/\+/g,' ').replace(/\s+/g,' ').trim(), amount:NaN, type, category:_qnGuessCategory(line, type), valid:false});
+      return;
+    }
+    const amtRaw = nums[nums.length-1];           // amount = last number (description comes first)
+    const amount = round2(parseAmount(amtRaw));   // parseAmount folds Arabic/Persian digits itself
+    // description = the ORIGINAL line minus the LAST number token and any + markers
+    let desc = line;
+    const idx = desc.lastIndexOf(amtRaw);
+    if(idx >= 0) desc = desc.slice(0, idx) + desc.slice(idx + amtRaw.length);
+    desc = desc.replace(/\+/g,' ').replace(/\s+/g,' ').trim();
+    desc = desc.replace(/(ريال|ر\.?\s?س|درهم|دينار|جنيه|sar|usd|riyal|\$)\s*$/i,'').trim(); // drop a trailing currency word
+    const valid = isFinite(amount) && amount > 0;
+    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid});
+  });
+  return rows;
+}
+
+function loadQuickNotesDraft(){
+  try{ _quickNotesDraft = localStorage.getItem(LS_PREFIX + 'quickNotes') || ''; }catch(e){ _quickNotesDraft = ''; }
+}
+function saveQuickNotesDraft(){
+  try{ localStorage.setItem(LS_PREFIX + 'quickNotes', _quickNotesDraft); }catch(e){}
+}
+function updateQuickNotesBadge(){
+  const badge = document.getElementById('qnBannerBadge');
+  const banner = document.getElementById('quickNotesBanner');
+  const lines = _quickNotesDraft.split('\n').map(l=>l.trim()).filter(Boolean).length;
+  if(badge){
+    badge.textContent = lines ? (t({ar:'مسودة', en:'Draft'}) + ' · ' + lines) : t({ar:'افتح', en:'Open'});
+    badge.classList.toggle('has-draft', lines > 0);
+  }
+  if(banner) banner.classList.toggle('has-draft', lines > 0);
+}
+
+function renderQnWalletChips(){
+  const wrap = document.getElementById('qnWalletChips');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  SELECTABLE_WALLETS.forEach(w => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'qn-chip' + (w.id === _qnWallet ? ' active' : '');
+    chip.textContent = w.name;
+    chip.setAttribute('aria-pressed', String(w.id === _qnWallet));
+    chip.onclick = () => { _qnWallet = w.id; renderQnWalletChips(); };
+    wrap.appendChild(chip);
+  });
+}
+
+function openQuickNotes(){
+  recomputeSelectableWallets(); // keep the chip list in sync with crisis mode / custom wallets
+  const ta = document.getElementById('qnNotes');
+  if(ta) ta.value = _quickNotesDraft;
+  if(!_qnWallet || !SELECTABLE_WALLETS.find(w => w.id === _qnWallet)){
+    _qnWallet = (SELECTABLE_WALLETS[0] && SELECTABLE_WALLETS[0].id) || (WALLET_DEFS[0] && WALLET_DEFS[0].id) || null;
+  }
+  _qnPreview = [];
+  const pw = document.getElementById('qnPreviewWrap'); if(pw) pw.style.display = 'none';
+  renderQnWalletChips();
+  openModal('quickNotesModal');
+}
+
+function onQuickNotesInput(){
+  const ta = document.getElementById('qnNotes');
+  _quickNotesDraft = ta ? ta.value : '';
+  saveQuickNotesDraft();
+  updateQuickNotesBadge();
+}
+
+function parseQuickNotesPreview(){
+  const ta = document.getElementById('qnNotes');
+  const text = ta ? ta.value : '';
+  _quickNotesDraft = text; saveQuickNotesDraft(); updateQuickNotesBadge();
+  const rows = parseQuickNotes(text);
+  if(!rows.length){ toast(t({ar:'⚠ اكتب ملاحظة واحدة على الأقل', en:'⚠ Write at least one note'}), true); return; }
+  _qnPreview = rows;
+  renderQuickNotesPreview();
+  const pw = document.getElementById('qnPreviewWrap'); if(pw) pw.style.display = 'block';
+  if(pw) try{ pw.scrollIntoView({behavior:'smooth', block:'nearest'}); }catch(_){}
+}
+
+function cancelQuickNotesPreview(){
+  _qnPreview = [];
+  const pw = document.getElementById('qnPreviewWrap'); if(pw) pw.style.display = 'none';
+}
+
+function renderQuickNotesPreview(){
+  const list = document.getElementById('qnPreviewList');
+  if(!list) return;
+  list.innerHTML = '';
+  const validCount = _qnPreview.filter(r => r.valid).length;
+  const cEl = document.getElementById('qnPreviewCount');
+  if(cEl) cEl.textContent = validCount ? validCount : '';
+  _qnPreview.forEach((r, i) => {
+    const cat = getCategory(r.category);
+    const row = document.createElement('div');
+    row.className = 'qn-row' + (r.valid ? '' : ' invalid');
+    row.innerHTML =
+      `<button type="button" class="qn-type ${r.type}" data-i="${i}" aria-label="${escHtml(t({ar:'بدّل النوع', en:'Toggle type'}))}">${r.type === 'income' ? '＋' : '－'}</button>` +
+      `<span class="qn-row-cat" title="${escHtml(cat.name)}">${cat.icon}</span>` +
+      `<input class="qn-row-desc" data-i="${i}" value="${escHtml(r.desc)}" placeholder="${escHtml(t({ar:'الوصف', en:'Description'}))}" autocomplete="off">` +
+      `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off">` +
+      `<button type="button" class="qn-row-del" data-i="${i}" aria-label="${escHtml(t({ar:'حذف', en:'Remove'}))}">✕</button>`;
+    list.appendChild(row);
+  });
+  // Desc/amount inputs only mutate the model (no re-render → keeps focus while
+  // typing). Type-toggle and delete re-render because they change row structure.
+  list.querySelectorAll('.qn-type').forEach(btn => btn.onclick = () => {
+    const i = +btn.dataset.i;
+    _qnPreview[i].type = _qnPreview[i].type === 'income' ? 'expense' : 'income';
+    _qnPreview[i].category = _qnGuessCategory(_qnPreview[i].desc, _qnPreview[i].type);
+    renderQuickNotesPreview();
+  });
+  list.querySelectorAll('.qn-row-desc').forEach(inp => inp.oninput = () => { _qnPreview[+inp.dataset.i].desc = inp.value; });
+  list.querySelectorAll('.qn-row-amt').forEach(inp => inp.oninput = () => {
+    const i = +inp.dataset.i;
+    const v = round2(parseAmount(inp.value));
+    _qnPreview[i].amount = v;
+    _qnPreview[i].valid = isFinite(v) && v > 0;
+    inp.closest('.qn-row').classList.toggle('invalid', !_qnPreview[i].valid);
+  });
+  list.querySelectorAll('.qn-row-del').forEach(btn => btn.onclick = () => {
+    _qnPreview.splice(+btn.dataset.i, 1);
+    renderQuickNotesPreview();
+  });
+}
+
+async function commitQuickNotes(){
+  if(_qnCommitBusy) return;
+  const committable = _qnPreview.filter(r => r.valid && isFinite(r.amount) && r.amount > 0);
+  if(!committable.length){ toast(t({ar:'⚠ لا توجد معاملات صالحة — كل سطر يحتاج سعرًا', en:'⚠ No valid transactions — each line needs a price'}), true); return; }
+  if(!_qnWallet || !WALLET_DEFS.find(w => w.id === _qnWallet)){ toast(t({ar:'⚠ اختر محفظة مستهدفة', en:'⚠ Choose a target wallet'}), true); return; }
+  _qnCommitBusy = true;
+  _opInFlight++;
+  _txMutationStamp++;
+  const _btn = document.getElementById('qnConfirmBtn');
+  _setBtnSaving(_btn, true, t({ar:'⏳ جارٍ الحفظ...', en:'⏳ Saving...'}));
+  try{
+    const baseTs = Date.now();
+    const incomeTxs = [];
+    committable.forEach((r, k) => {
+      let category = r.type === 'income' ? (r.category === 'salary' ? 'salary' : 'other') : normalizeCategory(r.category);
+      // ensure the resolved category actually supports this type (guards a bad guess)
+      const cdef = getCategory(category);
+      if(!cdef || !cdef.types || !cdef.types.includes(r.type)) category = (r.type === 'income' ? 'salary' : 'other');
+      const tx = {
+        id: 'tx_' + baseTs + '_qn' + k + '_' + Math.random().toString(36).slice(2,6),
+        wallet: _qnWallet,
+        desc: String(r.desc || '').slice(0,120),
+        amount: round2(r.amount),
+        type: r.type,
+        category: category,
+        // stagger ts by index so the bulk batch keeps a stable, distinct order
+        ts: Math.min(baseTs + k, Date.now())
+      };
+      state.transactions.push(tx);
+      applyTxToBalance(tx, +1);
+      if(tx.type === 'income' && tx.category !== 'transfer') incomeTxs.push(tx);
+    });
+    await saveBalances();
+    await saveTx();
+    // Auto-distribute income legs only when the user already enabled it — bulk
+    // entry shouldn't pop a distribution modal per income line.
+    if(autoDistribute && incomeTxs.length){
+      for(const inc of incomeTxs){
+        const live = state.transactions.find(t => t.id === inc.id);
+        if(live) await runDistribution(live, live.amount);
+      }
+    }
+    // Notes consumed — clear the draft so they're not re-imported next time.
+    _quickNotesDraft = ''; saveQuickNotesDraft();
+    const ta = document.getElementById('qnNotes'); if(ta) ta.value = '';
+    _qnPreview = [];
+    updateQuickNotesBadge();
+    render();
+    closeModal('quickNotesModal');
+    haptic(15);
+    const n = committable.length;
+    toast(t({ar:`✓ تم تسجيل ${n} معاملة`, en:`✓ Recorded ${n} transaction${n===1?'':'s'}`}));
+  } finally {
+    _qnCommitBusy = false;
+    _opInFlight--;
+    _setBtnSaving(_btn, false);
+  }
+}
+
 /**
  * Round a money value to 2 decimals, correcting binary-float misrounding.
  * @param {number} n
@@ -898,7 +1142,7 @@ function closeModal(id){
 }
 // Modals that hold unsaved form input must NOT close on an accidental
 // backdrop tap (common on mobile) — only their explicit buttons close them.
-const _protectedModals = new Set(['editModal','transferModal','distributeModal','walletDetailModal',
+const _protectedModals = new Set(['editModal','transferModal','distributeModal','walletDetailModal','quickNotesModal',
   // driveConflictModal has no cancel path — the user MUST pick a side via
   // resolveConflict(); a backdrop tap dismissing it silently would leave the
   // conflict unresolved with no indication the sync never completed.
@@ -1651,7 +1895,7 @@ function hideSplash(){
    FIRST-RUN WELCOME MODAL
 ============================================================ */
 let _welcomeStep = 0;
-const _WELCOME_STEPS = 7;
+const _WELCOME_STEPS = 8;
 // Returns true iff onboarding was actually shown — callers use this (not their own
 // pre-load localStorage peek) since the answer can only be known accurately AFTER
 // loadState() has had a chance to recover data from IndexedDB (see below).
@@ -2308,6 +2552,8 @@ if(sessionStorage.getItem('_swJustUpdated')){
 }
 loadState().then(()=>{
   hideSplash();
+  loadQuickNotesDraft();    // restore any unconverted quick-notes draft
+  updateQuickNotesBadge();  // reflect its line count on the home banner
   // initDrive() must run AFTER loadState() resolves, not alongside it: loadState()
   // may restore driveClientId from the IndexedDB snapshot when localStorage was
   // wiped (see the recovery block above), but that restore happens past loadState's
@@ -2428,6 +2674,14 @@ window.addEventListener('storage', (e) => {
   // re-translate static markup, flip direction, and re-render dynamic UI.
   if(e.key === _LANG_LS){
     setLang(_currentLang());
+    return;
+  }
+  // Quick-notes draft is free-form scratch text (not ledger data) and is written
+  // on every keystroke — reloading the whole ledger for it would thrash other
+  // tabs. Just refresh the in-memory draft + the home banner badge.
+  if(e.key === LS_PREFIX + 'quickNotes'){
+    loadQuickNotesDraft();
+    updateQuickNotesBadge();
     return;
   }
   // Layout prefs (tab/section order, recent-tx page size) are cosmetic-only and

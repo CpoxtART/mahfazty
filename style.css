@@ -411,6 +411,62 @@
   .crisis-toggle.active .switch{background:var(--red);}
   .crisis-toggle.active .switch::after{transform:translateX(19px);}
 
+  /* ================= QUICK NOTES → TRANSACTIONS ================= */
+  /* Banner mirrors the crisis-toggle look so it reads as a sibling control */
+  .qn-banner{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:16px; cursor:pointer;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+  }
+  .qn-banner:active{transform:scale(.99);}
+  .qn-banner.has-draft{ border-color:var(--gold); }
+  .qn-banner .label{font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px;}
+  .qn-banner .label .ic{font-size:16px;}
+  .qn-banner .label small{display:block; font-size:11px; color:var(--muted); font-weight:400; margin-top:2px;}
+  .qn-banner-cta{
+    flex-shrink:0; font-size:12px; font-weight:600; color:var(--gold);
+    background:var(--gold-soft); border:1px solid var(--gold);
+    border-radius:var(--radius-pill); padding:5px 14px; white-space:nowrap;
+  }
+  .qn-banner-cta.has-draft{ color:var(--on-gold); background:var(--gold); }
+  .qn-notes{
+    width:100%; resize:vertical; min-height:120px; line-height:1.9;
+    font-family:inherit; font-size:14px;
+  }
+  .qn-sidehint{
+    font-size:12px; color:var(--muted); line-height:1.8; margin:8px 0 4px;
+    background:var(--card); border:1px dashed var(--line); border-radius:var(--radius-sm); padding:10px 12px;
+  }
+  .qn-sidehint b{ color:var(--text); font-weight:600; }
+  .qn-wallet-chips{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 4px; }
+  .qn-chip{
+    font-size:12px; font-weight:600; padding:7px 14px; border-radius:var(--radius-pill);
+    background:var(--card); border:1px solid var(--line); color:var(--muted); cursor:pointer;
+    transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+  .qn-chip.active{ background:var(--gold-soft); border-color:var(--gold); color:var(--gold); }
+  .qn-preview-list{ display:flex; flex-direction:column; gap:8px; margin:10px 0; max-height:40vh; overflow-y:auto; }
+  .qn-row{
+    display:flex; align-items:center; gap:8px;
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius-sm); padding:8px 10px;
+  }
+  .qn-row.invalid{ border-color:var(--red); background:var(--red-soft); }
+  .qn-type{
+    flex:0 0 auto; width:32px; height:32px; border-radius:8px; font-size:16px; font-weight:700;
+    border:1px solid var(--line); cursor:pointer; line-height:1; background:transparent;
+  }
+  .qn-type.income{ color:var(--green); border-color:var(--green); }
+  .qn-type.expense{ color:var(--red); border-color:var(--red); }
+  .qn-row-cat{ flex:0 0 auto; font-size:18px; }
+  .qn-row-desc{ flex:1 1 auto; min-width:0; margin:0; padding:7px 10px; font-size:13px; }
+  .qn-row-amt{ flex:0 0 84px; width:84px; margin:0; padding:7px 8px; font-size:13px; text-align:center; }
+  .qn-row-del{
+    flex:0 0 auto; width:30px; height:30px; border-radius:8px; border:none; background:transparent;
+    color:var(--muted); font-size:15px; cursor:pointer;
+  }
+  .qn-row-del:hover{ color:var(--red); }
+
   /* ================= SECTION TITLES ================= */
   .section-title{
     font-size:12px;
