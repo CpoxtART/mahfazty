@@ -564,15 +564,19 @@ function switchTab(tab){
   // Build the target tab's content fresh (render() skips hidden tabs to stay
   // fast at scale, so each tab is (re)rendered the moment it becomes visible).
   if(tab === 'transactions'){ _recentVisibleCount = recentTxLimit; renderRecentTx(); }
+  // cancel any chart rAF still pending from a previous rapid tab switch so we
+  // don't paint a canvas for a tab that's no longer visible
+  if(_tabChartRaf) cancelAnimationFrame(_tabChartRaf);
   if(tab === 'analytics'){
     renderAnalytics(); renderRecurring(); renderSubscriptions();
-    requestAnimationFrame(()=> renderPieChart());
+    _tabChartRaf = requestAnimationFrame(()=>{ _tabChartRaf = null; renderPieChart(); });
   }
   if(tab === 'reports'){
     renderTxList();
-    requestAnimationFrame(()=> renderChart());
+    _tabChartRaf = requestAnimationFrame(()=>{ _tabChartRaf = null; renderChart(); });
   }
 }
+let _tabChartRaf = null;
 
 /* ============================================================
    v9.4: CUSTOMIZABLE LAYOUT — tab order + section order
@@ -1628,6 +1632,8 @@ async function doTransfer(){
   if(!isFinite(amt) || amt <= 0){ toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true); amountInput.focus(); return; }
   if(!transferFrom || !transferTo){ toast(t({ar:'⚠ اختر المحفظتين أولاً', en:'⚠ Choose both wallets first'}), true); return; }
   if(transferFrom === transferTo){ toast(t({ar:'⚠ اختر محفظتين مختلفتين', en:'⚠ Choose two different wallets'}), true); return; }
+  // cross-op write guard (see commitQuickNotes) — block interleaving with another in-flight write
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   _doTransferBusy = true;
   _txMutationStamp++; // only once committed past validation — invalid taps shouldn't bump it
   _opInFlight++;
@@ -1644,7 +1650,7 @@ async function doTransfer(){
       ? crisisWalletIds().reduce((s, cid) => s + (state.wallets[cid] ?? 0), 0) + (state.wallets[transferFrom] ?? 0)
       : (state.wallets[transferFrom] ?? 0);
     if(!fromWallet.track && round2(fromBalance - amt) < 0){
-      toast(t({ar:`⚠ الرصيد غير كافٍ — المتاح: ${fmt(Math.max(0, fromBalance))}`, en:`⚠ Insufficient balance — available: ${fmt(Math.max(0, fromBalance))}`}), true);
+      toast(t({ar:`⚠ الرصيد غير كافٍ — المتاح: ⁦${fmt(Math.max(0, fromBalance))}⁩`, en:`⚠ Insufficient balance — available: ${fmt(Math.max(0, fromBalance))}`}), true);
       return;
     }
     // Track wallets are intentionally exempt from the overdraft block above (they're
@@ -1704,6 +1710,8 @@ async function updateTrackedBalance(){
   const current = state.wallets[walletId] ?? 0;
   const diff = round2(newVal - current);
   if(diff === 0){ toast(t({ar:'لا يوجد تغيير بالرصيد', en:'No change to the balance'})); return; }
+  // cross-op write guard (see commitQuickNotes) — block interleaving with another in-flight write
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
 
   _updateBalanceBusy = true;
   _opInFlight++;

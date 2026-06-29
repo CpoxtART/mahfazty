@@ -4,6 +4,9 @@
 let _addTxBusy = false;
 async function addTx(type){
   if(_addTxBusy) return;
+  // cross-op write guard (see commitQuickNotes): don't start a write while another
+  // mutation is mid-flight across an await — prevents interleaved balance writes
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   _addTxBusy = true;
   _opInFlight++;
   _txMutationStamp++;
@@ -337,12 +340,20 @@ function _qnGuessCategory(desc, type){
 // digits, with an optional decimal part. Used on the ORIGINAL line (not the
 // space-stripped normalizeDigits output) so the description keeps its spaces.
 const _QN_NUM_RE = /[\d٠-٩۰-۹]+(?:[.,٫][\d٠-٩۰-۹]+)?/g;
+// Cap the batch so a pasted wall of text can't build thousands of preview rows
+// (each row is several DOM nodes + handlers) and freeze the main thread. 300 is
+// far beyond any realistic "jot a few transactions" session.
+const QN_MAX_LINES = 300;
+let _qnTruncated = false; // set when the last parse hit the cap (surfaced as a toast)
 // Parse free-form text into transaction candidates — one per non-empty line.
 function parseQuickNotes(text){
   const rows = [];
-  String(text == null ? '' : text).split('\n').forEach(rawLine => {
+  _qnTruncated = false;
+  const lines = String(text == null ? '' : text).split('\n');
+  for(const rawLine of lines){
+    if(rows.length >= QN_MAX_LINES){ _qnTruncated = true; break; }
     const line = rawLine.trim();
-    if(!line) return;
+    if(!line) continue;
     const normSearch = _qnNorm(line);
     const isIncome = /\+/.test(line) || _QN_INCOME_WORDS.some(w => normSearch.includes(_qnNorm(w)));
     const type = isIncome ? 'income' : 'expense';
@@ -351,7 +362,7 @@ function parseQuickNotes(text){
       // no price on the line — keep it as an invalid row so the user notices it
       // wasn't captured, instead of silently dropping it
       rows.push({raw:line, desc:line.replace(/\+/g,' ').replace(/\s+/g,' ').trim(), amount:NaN, type, category:_qnGuessCategory(line, type), valid:false});
-      return;
+      continue;
     }
     const amtRaw = nums[nums.length-1];           // amount = last number (description comes first)
     const amount = round2(parseAmount(amtRaw));   // parseAmount folds Arabic/Persian digits itself
@@ -363,7 +374,7 @@ function parseQuickNotes(text){
     desc = desc.replace(/(ريال|ر\.?\s?س|درهم|دينار|جنيه|sar|usd|riyal|\$)\s*$/i,'').trim(); // drop a trailing currency word
     const valid = isFinite(amount) && amount > 0;
     rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid});
-  });
+  }
   return rows;
 }
 
@@ -432,6 +443,7 @@ function parseQuickNotesPreview(){
   _quickNotesDraft = text; saveQuickNotesDraft(); updateQuickNotesBadge();
   const rows = parseQuickNotes(text);
   if(!rows.length){ toast(t({ar:'⚠ اكتب ملاحظة واحدة على الأقل', en:'⚠ Write at least one note'}), true); return; }
+  if(_qnTruncated){ toast(t({ar:`⚠ تجاوزت ${QN_MAX_LINES} سطر — عُرض أول ${QN_MAX_LINES} فقط`, en:`⚠ Over ${QN_MAX_LINES} lines — showing the first ${QN_MAX_LINES} only`}), true); }
   _qnPreview = rows;
   const pw = document.getElementById('qnPreviewWrap'); if(pw) pw.style.display = 'block';
   renderQuickNotesPreview();
@@ -529,11 +541,36 @@ function renderQuickNotesPreview(){
   });
 }
 
+// Re-read the persisted wallet ids so a commit can't target a wallet that was
+// deleted in another tab while this modal was open — the cross-tab storage
+// listener defers reloads while a modal is open, so in-memory WALLET_DEFS may be
+// stale, and a tx on a since-deleted wallet would be silently dropped on the next
+// load (_validTx). Falls back to the in-memory set if the read fails.
+function _qnFreshWalletIds(){
+  try{
+    const raw = localStorage.getItem(LS_PREFIX + 'walletDefs');
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        const ids = arr.map(w => w && w.id).filter(Boolean);
+        if(ids.length) return new Set(ids);
+      }
+    }
+  }catch(e){}
+  return new Set(WALLET_DEFS.map(w => w.id));
+}
 async function commitQuickNotes(){
   if(_qnCommitBusy) return;
+  // cross-op write guard: refuse to start while another mutation is mid-flight
+  // (each write path has its own busy flag, but none blocked the others across an
+  // await — two interleaving writers could corrupt balances)
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   const committable = _qnPreview.filter(r => r.valid && isFinite(r.amount) && r.amount > 0);
   if(!committable.length){ toast(t({ar:'⚠ لا توجد معاملات صالحة — كل سطر يحتاج سعرًا', en:'⚠ No valid transactions — each line needs a price'}), true); return; }
-  if(!_qnWallet || !WALLET_DEFS.find(w => w.id === _qnWallet)){ toast(t({ar:'⚠ اختر محفظة مستهدفة', en:'⚠ Choose a target wallet'}), true); return; }
+  const validIds = _qnFreshWalletIds();
+  const fallbackWallet = validIds.has(_qnWallet) ? _qnWallet
+    : ((SELECTABLE_WALLETS.find(w => validIds.has(w.id)) || WALLET_DEFS.find(w => validIds.has(w.id)) || {}).id);
+  if(!fallbackWallet){ toast(t({ar:'⚠ اختر محفظة مستهدفة', en:'⚠ Choose a target wallet'}), true); return; }
   _qnCommitBusy = true;
   _opInFlight++;
   _txMutationStamp++;
@@ -541,28 +578,35 @@ async function commitQuickNotes(){
   _setBtnSaving(_btn, true, t({ar:'⏳ جارٍ الحفظ...', en:'⏳ Saving...'}));
   try{
     const baseTs = Date.now();
+    const n = committable.length;
     const incomeTxs = [];
+    let _reassigned = 0;
     committable.forEach((r, k) => {
       let category = r.type === 'income' ? (r.category === 'salary' ? 'salary' : 'other') : normalizeCategory(r.category);
       // ensure the resolved category actually supports this type (guards a bad guess)
       const cdef = getCategory(category);
       if(!cdef || !cdef.types || !cdef.types.includes(r.type)) category = (r.type === 'income' ? 'salary' : 'other');
-      // per-row wallet, falling back to the top default if a row's pick went stale
-      const rowWallet = (r.wallet && WALLET_DEFS.find(w => w.id === r.wallet)) ? r.wallet : _qnWallet;
+      // per-row wallet, validated against the freshest persisted defs; a row whose
+      // wallet vanished (deleted in another tab) falls back to the default so the
+      // tx targets a real wallet instead of being dropped on the next load
+      let rowWallet = r.wallet;
+      if(!rowWallet || !validIds.has(rowWallet)){ rowWallet = fallbackWallet; if(r.wallet && r.wallet !== fallbackWallet) _reassigned++; }
       const tx = {
-        id: 'tx_' + baseTs + '_qn' + k + '_' + Math.random().toString(36).slice(2,6),
+        id: 'tx_' + baseTs + '_qn' + k + '_' + Math.random().toString(36).slice(2,7),
         wallet: rowWallet,
         desc: String(r.desc || '').slice(0,120),
         amount: round2(r.amount),
         type: r.type,
         category: category,
-        // stagger ts by index so the bulk batch keeps a stable, distinct order
-        ts: Math.min(baseTs + k, Date.now())
+        // distinct, ascending, never-future timestamps: [baseTs-(n-1) .. baseTs]
+        // (the old Math.min(baseTs+k, now) collapsed to identical ts in fast loops)
+        ts: baseTs - (n - 1 - k)
       };
       state.transactions.push(tx);
       applyTxToBalance(tx, +1);
       if(tx.type === 'income' && tx.category !== 'transfer') incomeTxs.push(tx);
     });
+    if(_reassigned){ toast(t({ar:`ℹ️ ${_reassigned} سطر حُوّل للمحفظة الافتراضية (تغيّرت المحافظ في مكان آخر)`, en:`ℹ️ ${_reassigned} line(s) moved to the default wallet (wallets changed elsewhere)`}), true); }
     await saveBalances();
     await saveTx();
     // Auto-distribute income legs only when the user already enabled it — bulk
@@ -581,7 +625,6 @@ async function commitQuickNotes(){
     render();
     closeModal('quickNotesModal');
     haptic(15);
-    const n = committable.length;
     toast(t({ar:`✓ تم تسجيل ${n} معاملة`, en:`✓ Recorded ${n} transaction${n===1?'':'s'}`}));
   } finally {
     _qnCommitBusy = false;
@@ -694,6 +737,8 @@ function openEdit(id){
 let _saveEditBusy = false;
 async function saveEdit(){
   if(_saveEditBusy) return; // double-tap guard: a second tap before the first
+  // cross-op write guard (see commitQuickNotes) — block interleaving with another in-flight write
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   _saveEditBusy = true;     // completes would reverse+reapply the balance twice
   _opInFlight++;
   const _saveBtn = document.getElementById('saveEditBtn');
@@ -862,6 +907,8 @@ async function deleteTx(id){
       return;
     }
   }
+  // cross-op write guard (see commitQuickNotes) — block interleaving with another in-flight write
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   _txMutationStamp++;
   _opInFlight++;
   try{
@@ -1772,12 +1819,15 @@ function checkBalanceDrift(){
     if(computed[tx.wallet] === undefined) return;
     const amt = parseFloat(tx.amount);
     if(!isFinite(amt)) return;
-    computed[tx.wallet] = Math.round((computed[tx.wallet] + (tx.type === 'expense' ? -amt : amt)) * 100) / 100;
+    // round2 (not Math.round*100/100) so this matches reconcileBalances/repair
+    // exactly — otherwise a .5-edge value could flag a phantom drift the repair
+    // tool then "fixes" to no visible effect, re-nagging the user.
+    computed[tx.wallet] = round2(computed[tx.wallet] + (tx.type === 'expense' ? -amt : amt));
   });
   let totalDrift = 0;
   Object.keys(computed).forEach(id => {
     const before = parseFloat(state.wallets[id]) || 0;
-    if(Math.abs(computed[id] - before) >= 0.01) totalDrift = Math.round((totalDrift + Math.abs(computed[id] - before)) * 100) / 100;
+    if(Math.abs(computed[id] - before) >= 0.01) totalDrift = round2(totalDrift + Math.abs(computed[id] - before));
   });
   if(totalDrift === 0) return;
   const sig = String(totalDrift);
@@ -2324,6 +2374,7 @@ function applyUpdate(){
 async function forceClearAndUpdate(){
   const btn = document.querySelector('.btn-cache-refresh');
   if(btn){ btn.disabled = true; btn.textContent = `⏳ ${t({ar:'جاري...', en:'Working...'})}`; }
+  _reloadOnControllerChange = true; // also reload via controllerchange if the new SW takes over before our explicit reload below
   try{
     // Wipe every cache bucket the browser holds for this origin
     const keys = await caches.keys();

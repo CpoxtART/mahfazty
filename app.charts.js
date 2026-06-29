@@ -133,7 +133,10 @@ function renderPieChart(){
   // total label in center
   const isLightPie = document.body.classList.contains('light');
   const fmtPieShort = n => {
-    if(n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+    // thresholds use the rounded boundary (999.5k/999.5M) so a value like 999,950
+    // promotes to "1M" instead of rendering the impossible "1000K"
+    if(n >= 999.5e6) return (n/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
+    if(n >= 999.5e3) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
     if(n >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
     return Math.round(n).toLocaleString('en-US');
   };
@@ -277,7 +280,9 @@ function renderChart(){
   const fmtShort = n => {
     const abs = Math.abs(n);
     const s = n < 0 ? '-' : '';
-    if(abs >= 1e6) return s + (abs/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+    // rounded boundaries (999.5k/999.5M) prevent "1000K"/"1000M" at the edges
+    if(abs >= 999.5e6) return s + (abs/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
+    if(abs >= 999.5e3) return s + (abs/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
     if(abs >= 1e3) return s + (abs/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
     return s + Math.round(abs);
   };
