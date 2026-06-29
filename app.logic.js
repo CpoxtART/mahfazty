@@ -328,45 +328,6 @@ const _QN_CAT_KEYWORDS = [
 // or names an income-type concept) — keep in sync with the salary keywords above
 const _QN_INCOME_WORDS = ['راتب','مرتب','دخل','مدخول','ايداع','إيداع','استرجاع','مكافاه','مكافأة','salary','income','deposit','refund','bonus','payroll'];
 
-// Short aliases so the default (English-named) wallets are reachable by an Arabic
-// token after "@" — e.g. "@كاش" → cash. Custom wallets are matched by their own name.
-const _QN_WALLET_ALIASES = {
-  cash:  ['كاش','نقد','نقدا','نقدي','cash'],
-  cards: ['بطاقه','بطاقة','بطاقات','فيزا','ماستر','بنك','بنكي','بنكيه','card','cards','visa','bank'],
-  uber:  ['اوبر','أوبر','كريم','تكسي','uber','careem','taxi'],
-  core:  ['اساسي','أساسي','اساسيات','core'],
-  wishlist: ['رغبات','امنيات','wishlist','wish'],
-  growth: ['نمو','تطوير','growth'],
-  investments: ['استثمار','استثمارات','invest','investments'],
-  joy: ['متعه','متعة','ترفيه','joy'],
-  giving: ['عطاء','صدقه','صدقة','زكاه','زكاة','giving','charity'],
-};
-// Resolve a free-text token (after "@") to a wallet id — searching BOTH the
-// primary (budget) wallets and the tracking wallets — or null. The caller routes
-// the result by kind: a budget id sets the line's primary wallet, a track id sets
-// its tracking wallet. Custom wallets match by their own name; the defaults also
-// match the Arabic aliases below.
-function _qnResolveWallet(token){
-  const tk = _qnNorm(token);
-  if(!tk) return null;
-  const pool = SELECTABLE_WALLETS.concat(trackWalletDefs()); // budget + track
-  // 1) exact name, then contains, against every wallet (covers custom names)
-  let contains = null;
-  for(const w of pool){
-    const wn = _qnNorm(w.name);
-    if(!wn) continue;
-    if(wn === tk) return w.id;
-    if(!contains && (wn.includes(tk) || tk.includes(wn))) contains = w.id;
-  }
-  if(contains) return contains;
-  // 2) built-in aliases (only if that wallet currently exists in the pool)
-  for(const id in _QN_WALLET_ALIASES){
-    if(!pool.find(w => w.id === id)) continue;
-    if(_QN_WALLET_ALIASES[id].some(a => { const na = _qnNorm(a); return na === tk || tk.includes(na); })) return id;
-  }
-  return null;
-}
-
 function _qnNorm(s){ return (typeof normalizeSearch === 'function') ? normalizeSearch(s) : String(s||'').toLowerCase().trim(); }
 function _qnGuessCategory(desc, type){
   const d = _qnNorm(desc);
@@ -388,67 +349,36 @@ const _QN_NUM_RE = /[\d٠-٩۰-۹]+(?:[.,٫][\d٠-٩۰-۹]+)?/g;
 // far beyond any realistic "jot a few transactions" session.
 const QN_MAX_LINES = 300;
 let _qnTruncated = false; // set when the last parse hit the cap (surfaced as a toast)
-// Strip every "@token" from a line, routing each resolved wallet to either the
-// primary (budget) slot or the track slot. Returns {work, primary, track}.
-function _qnExtractWallets(line){
-  let work = line, primary = null, track = null;
-  // iterate all @tokens (a line can carry both a primary and a track, e.g.
-  // "@رغبات @كاش قهوة 15")
-  work = work.replace(/@\s*([^\s@]+)/g, (m, tok) => {
-    const wid = _qnResolveWallet(tok);
-    if(!wid) return m; // not a wallet — leave it in the description
-    if(isTrackWallet(wid)){ if(!track) track = wid; } else { if(!primary) primary = wid; }
-    return ' ';
-  });
-  return { work: work.replace(/\s+/g, ' ').trim(), primary, track };
-}
-// Parse free-form text into transaction candidates — one per non-empty line.
-// Wallet assignment BEFORE conversion (so you don't edit 20 rows by hand):
-//   • a header line that is just a wallet ref — "@كاش" / "@رغبات" / "كاش:" — sets
-//     the wallet for every following line until the next header. A budget name
-//     sets the PRIMARY wallet; a tracking name sets the TRACK wallet.
-//   • an inline "@wallet" anywhere on a line overrides just that line (routed the
-//     same way; a line can set both a primary and a track).
+// Parse free-form text into transaction candidates — one per non-empty line:
+// "description price" ("+" or an income keyword marks it as income). Wallets are
+// NOT chosen in the text — each line becomes a preview row with its OWN primary +
+// tracking dropdowns (defaults applied at render: primary = the default chip,
+// tracking = none). Simple and clean: no markers to type.
 function parseQuickNotes(text){
   const rows = [];
   _qnTruncated = false;
-  let curPrimary = null, curTrack = null; // header-scoped wallets
   const lines = String(text == null ? '' : text).split('\n');
   for(const rawLine of lines){
     if(rows.length >= QN_MAX_LINES){ _qnTruncated = true; break; }
     const line = rawLine.trim();
     if(!line) continue;
-    const hasNumber = /[\d٠-٩۰-۹]/.test(line); // simple digit presence
-    // Header line (no price): "@wallet" or "wallet:" → set the scope wallet(s).
-    if(!hasNumber){
-      const hm = line.match(/^@\s*(.+)$/) || line.match(/^(.+?)\s*[:：]$/);
-      if(hm){
-        const wid = _qnResolveWallet(hm[1]);
-        if(wid){ if(isTrackWallet(wid)) curTrack = wid; else curPrimary = wid; continue; }
-      }
-    }
-    // Per-line "@wallet" overrides (primary and/or track); strip them from the text.
-    const ext = _qnExtractWallets(line);
-    const work = ext.work;
-    const rowPrimary = ext.primary || curPrimary || null; // null → preview uses the default chip
-    const rowTrack   = ext.track   || curTrack   || null; // null → no tracking link
-    const normSearch = _qnNorm(work);
-    const isIncome = /\+/.test(work) || _QN_INCOME_WORDS.some(w => normSearch.includes(_qnNorm(w)));
+    const normSearch = _qnNorm(line);
+    const isIncome = /\+/.test(line) || _QN_INCOME_WORDS.some(w => normSearch.includes(_qnNorm(w)));
     const type = isIncome ? 'income' : 'expense';
-    const nums = work.match(_QN_NUM_RE);
+    const nums = line.match(_QN_NUM_RE);
     if(!nums || !nums.length){
-      rows.push({raw:line, desc:work.replace(/\+/g,' ').replace(/\s+/g,' ').trim(), amount:NaN, type, category:_qnGuessCategory(work, type), valid:false, wallet:rowPrimary, track:rowTrack});
+      rows.push({raw:line, desc:line.replace(/\+/g,' ').replace(/\s+/g,' ').trim(), amount:NaN, type, category:_qnGuessCategory(line, type), valid:false, wallet:null, track:null});
       continue;
     }
     const amtRaw = nums[nums.length-1];           // amount = last number (description comes first)
     const amount = round2(parseAmount(amtRaw));   // parseAmount folds Arabic/Persian digits itself
-    let desc = work;
+    let desc = line;
     const idx = desc.lastIndexOf(amtRaw);
     if(idx >= 0) desc = desc.slice(0, idx) + desc.slice(idx + amtRaw.length);
     desc = desc.replace(/\+/g,' ').replace(/\s+/g,' ').trim();
     desc = desc.replace(/(ريال|ر\.?\s?س|درهم|دينار|جنيه|sar|usd|riyal|\$)\s*$/i,'').trim(); // drop a trailing currency word
     const valid = isFinite(amount) && amount > 0;
-    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid, wallet:rowPrimary, track:rowTrack});
+    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid, wallet:null, track:null});
   }
   return rows;
 }

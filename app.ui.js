@@ -465,10 +465,8 @@ function selectWallet(id){
    without making the tracked wallet the direct source of the transaction.
 ============================================================ */
 function renderTrackLinkPicker(){
-  const toggle = document.getElementById('trackLinkEnable');
-  const picker = document.getElementById('trackLinkPicker');
   const select = document.getElementById('trackLinkSelect');
-  if(!toggle || !picker || !select) return;
+  if(!select) return;
 
   // A stale id (e.g. carried over from a repeated tx whose tracked wallet was
   // since deleted/changed in a cloud merge) must not leave the form silently
@@ -477,17 +475,21 @@ function renderTrackLinkPicker(){
     selectedTrackWallet = null;
   }
 
+  // Always-visible dropdown (no enable toggle) — first option is "no tracking",
+  // then every tracking wallet. The user picks directly, like the primary wallet.
   select.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = t({ar:'بدون تتبّع', en:'No tracking'});
+  select.appendChild(none);
   WALLET_DEFS.filter(w => w.track).forEach(w => {
     const opt = document.createElement('option');
     opt.value = w.id;
     opt.textContent = w.name;
     select.appendChild(opt);
   });
-
-  toggle.checked = !!selectedTrackWallet;
-  picker.style.display = selectedTrackWallet ? '' : 'none';
-  if(selectedTrackWallet) select.value = selectedTrackWallet;
+  select.value = selectedTrackWallet || '';
+  select.classList.toggle('has-track', !!selectedTrackWallet); // blue once a wallet is chosen
 
   const hint = document.getElementById('trackLinkHint');
   if(hint){
@@ -496,29 +498,13 @@ function renderTrackLinkPicker(){
       const credit = trackModeFor(selectedTrackWallet) === 'credit';
       hint.style.display = 'block';
       hint.textContent = credit
-        ? t({ar:`↪ سيزيد رقم «${w ? w.name : ''}» بقيمة المصروف تلقائياً (عدّاد إنفاق). غيّر السلوك من تفاصيل المحفظة ⓘ.`, en:`↪ "${w ? w.name : ''}" will automatically increase by the expense amount (spending counter). Change this behavior from wallet details ⓘ.`})
-        : t({ar:`↪ سينقص رصيد «${w ? w.name : ''}» بقيمة المصروف تلقائياً (رصيد فعلي). غيّر السلوك من تفاصيل المحفظة ⓘ.`, en:`↪ "${w ? w.name : ''}" balance will automatically decrease by the expense amount (actual balance). Change this behavior from wallet details ⓘ.`});
+        ? t({ar:`↪ سيزيد رقم «${w ? w.name : ''}» بقيمة المعاملة تلقائياً (عدّاد إنفاق). غيّر السلوك من تفاصيل المحفظة ⓘ.`, en:`↪ "${w ? w.name : ''}" will automatically increase by the amount (spending counter). Change this behavior from wallet details ⓘ.`})
+        : t({ar:`↪ سينقص رصيد «${w ? w.name : ''}» بقيمة المعاملة تلقائياً (رصيد فعلي). غيّر السلوك من تفاصيل المحفظة ⓘ.`, en:`↪ "${w ? w.name : ''}" balance will automatically decrease by the amount (actual balance). Change this behavior from wallet details ⓘ.`});
     } else {
       hint.style.display = 'none';
       hint.textContent = '';
     }
   }
-}
-// Checking the box reveals the wallet picker and defaults it to whatever is
-// already selected (or the first tracked wallet); unchecking clears the link
-// entirely rather than just hiding it, so a hidden stale selection can't
-// silently re-apply later.
-function toggleTrackLinkEnable(enabled){
-  if(enabled){
-    const firstTrack = WALLET_DEFS.find(w => w.track);
-    selectedTrackWallet = (firstTrack && WALLET_DEFS.find(w => w.id === selectedTrackWallet && w.track))
-      ? selectedTrackWallet
-      : (firstTrack ? firstTrack.id : null);
-  } else {
-    selectedTrackWallet = null;
-  }
-  renderTrackLinkPicker();
-  haptic(6);
 }
 function selectTrackLink(id){
   selectedTrackWallet = id || null;

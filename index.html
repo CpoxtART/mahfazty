@@ -274,15 +274,9 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <div class="wallet-menu" id="walletMenuWrap"><div id="walletMenu" role="listbox"></div></div>
       </div>
 
-      <label class="track-link-toggle">
-        <input type="checkbox" id="trackLinkEnable" onchange="toggleTrackLinkEnable(this.checked)">
-        <span data-i18n="add.trackLinkToggle">احتساب هذه المعاملة على محفظة تتبع أيضاً؟</span>
-      </label>
-      <div class="track-link-picker" id="trackLinkPicker" style="display:none;">
-        <label id="trackLinkLbl" for="trackLinkSelect" data-i18n="add.trackLinkWhich">أي محفظة؟</label>
-        <select id="trackLinkSelect" class="recent-limit-select" style="width:100%;" onchange="selectTrackLink(this.value)"></select>
-        <div class="hint track-link-hint" id="trackLinkHint" style="display:none; margin-top:6px;"></div>
-      </div>
+      <label id="trackLinkLbl" for="trackLinkSelect" data-i18n="add.trackLinkLbl">🏦 محفظة التتبّع</label>
+      <select id="trackLinkSelect" class="track-link-select" onchange="selectTrackLink(this.value)" aria-labelledby="trackLinkLbl"></select>
+      <div class="hint track-link-hint" id="trackLinkHint" style="display:none; margin-top:6px;"></div>
 
       <label for="descInput" data-i18n="add.desc">الوصف</label>
       <div class="voice-input-row">
