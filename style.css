@@ -66,6 +66,14 @@
     --fs-md:14px;  --fs-lg:15px;  --fs-xl:16px; --fs-2xl:17px; --fs-3xl:18px;
     --fs-4xl:19px; --fs-5xl:20px;
     --bd:1px; /* standard hairline border width — used everywhere instead of mixing 1px/1.5px */
+    /* Money-value tiers — a monetary amount is one semantic element (bold, tabular,
+       LTR) so its size should follow MEANING, not where it happens to sit. Four
+       tiers replace the old ad-hoc 38/19/17/16/15/14 spread: the secondary stat
+       values (detail/analytics/summary) all collapse onto one --money-sm. */
+    --money-hero:38px; /* the single headline balance */
+    --money-lg:var(--fs-4xl);  /* 19px — the prominent value on a wallet card */
+    --money-sm:var(--fs-xl);   /* 16px — any secondary stat value */
+    --money-xs:var(--fs-md);   /* 14px — the amount inside a transaction row */
     --shadow: 0 8px 28px rgba(0,0,0,.35);
     --shadow-strong: 0 10px 34px rgba(0,0,0,.5);
     --ease: cubic-bezier(.22,.61,.36,1);
@@ -344,7 +352,7 @@
   .hero .label::before{content:'◆'; color:var(--gold); font-size:var(--fs-3xs);}
   .hero .amount{
     font-family:var(--serif);
-    font-size:38px; font-weight:700;
+    font-size:var(--money-hero); font-weight:700;
     color:var(--gold);
     letter-spacing:.5px;
     direction:ltr; text-align:right;
@@ -590,7 +598,7 @@
   .wallet.crisis-combined .pct:active{ transform:none; }
   /* invisibly extend the ⓘ tap target to ~44px without enlarging the visible pill */
   .wallet .pct::after{content:''; position:absolute; inset:-14px -10px;}
-  .wallet .val{font-size:var(--fs-4xl); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; text-align:right; transition: color .25s; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .wallet .val{font-size:var(--money-lg); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; text-align:right; transition: color .25s; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .track-tag{display:inline-block; margin-top:7px; font-size:var(--fs-2xs); font-weight:600; color:var(--blue); background:var(--blue-soft); border-radius:var(--radius-xs); padding:2px 7px; letter-spacing:.2px;}
   .wallet.track .val{color:var(--blue);}
   .wallet.neg-val .val{color:var(--red);}
@@ -628,7 +636,7 @@
     padding:14px;
   }
   .analytics-card .l{font-size:var(--fs-xs); color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; font-weight:600;}
-  .analytics-card .v{font-size:var(--fs-xl); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .analytics-card .v{font-size:var(--money-sm); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   /* mixes Arabic words with an embedded number ("بمعدل 45.20 / يوم") — plaintext
      bidi isolates the digit run correctly without forcing the whole line ltr
      (which would reverse the surrounding Arabic word order) */
@@ -921,7 +929,7 @@
     padding:14px; text-align:center;
   }
   .detail-stat .l{font-size:var(--fs-2xs); color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; font-weight:600;}
-  .detail-stat .v{font-size:var(--fs-2xl); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .detail-stat .v{font-size:var(--money-sm); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .detail-tx-list{display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto; overscroll-behavior:contain;}
 
   /* distribution breakdown */
@@ -1034,7 +1042,7 @@
   }
   .summary-card:active{transform:scale(.97);}
   .summary-card .l{font-size:var(--fs-xs); color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; font-weight:600;}
-  .summary-card .v{font-size:var(--fs-lg); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .summary-card .v{font-size:var(--money-sm); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .summary-card.in .v{color:var(--green);}
   .summary-card.out .v{color:var(--red);}
   .summary-card.net .v{color:var(--gold);}
@@ -1158,7 +1166,7 @@
     background:var(--bg-elev); border-radius:var(--radius-xs); padding:1px 6px; font-size:var(--fs-2xs); color:var(--muted);
   }
   .tx .right{display:flex; align-items:center; gap:4px;}
-  .tx .amount{font-size:var(--fs-md); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr;}
+  .tx .amount{font-size:var(--money-xs); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr;}
   .tx .amount.neg{color:var(--red);}
   .tx .amount.pos{color:var(--green);}
   .tx .edit-btn{
