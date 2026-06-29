@@ -915,7 +915,7 @@
   .pie-legend .sw{width:10px; height:10px; border-radius:3px; flex-shrink:0;}
   .pie-legend .name{flex:1; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .pie-legend .pct{color:var(--muted); font-variant-numeric: tabular-nums; direction:ltr;}
-  .cat-cmp{font-size:var(--fs-2xs); font-weight:700; padding:1px 5px; border-radius:var(--radius-xs); flex-shrink:0;}
+  .cat-cmp{font-size:var(--fs-2xs); font-weight:700; padding:1px 5px; border-radius:var(--radius-xs); flex-shrink:0; unicode-bidi:plaintext;}
   .cat-cmp.up{color:var(--red); background:rgba(227,145,143,.12);}
   .cat-cmp.down{color:var(--green); background:rgba(134,195,154,.12);}
 
