@@ -387,13 +387,20 @@ function updateQuickNotesBadge(){
 function renderQnWalletChips(){
   const wrap = document.getElementById('qnWalletChips');
   if(!wrap) return;
+  // single-choice group — expose it as a radiogroup so screen readers announce
+  // "selected" semantics instead of independent toggle buttons.
+  wrap.setAttribute('role','radiogroup');
+  wrap.setAttribute('aria-label', t({ar:'المحفظة الافتراضية', en:'Default wallet'}));
   wrap.innerHTML = '';
   SELECTABLE_WALLETS.forEach(w => {
+    const sel = (w.id === _qnWallet);
     const chip = document.createElement('button');
     chip.type = 'button';
-    chip.className = 'qn-chip' + (w.id === _qnWallet ? ' active' : '');
+    chip.className = 'qn-chip' + (sel ? ' active' : '');
     chip.textContent = w.name;
-    chip.setAttribute('aria-pressed', String(w.id === _qnWallet));
+    chip.title = w.name; // long names truncate via CSS ellipsis; expose full name on hover
+    chip.setAttribute('role','radio');
+    chip.setAttribute('aria-checked', String(sel));
     chip.onclick = () => { _qnWallet = w.id; renderQnWalletChips(); };
     wrap.appendChild(chip);
   });
@@ -426,9 +433,16 @@ function parseQuickNotesPreview(){
   const rows = parseQuickNotes(text);
   if(!rows.length){ toast(t({ar:'⚠ اكتب ملاحظة واحدة على الأقل', en:'⚠ Write at least one note'}), true); return; }
   _qnPreview = rows;
-  renderQuickNotesPreview();
   const pw = document.getElementById('qnPreviewWrap'); if(pw) pw.style.display = 'block';
-  if(pw) try{ pw.scrollIntoView({behavior:'smooth', block:'nearest'}); }catch(_){}
+  renderQuickNotesPreview();
+  // move focus into the freshly-revealed preview (its heading) so keyboard and
+  // screen-reader users are taken to the new region instead of being stranded on
+  // the parse button with no announcement that N rows appeared.
+  if(pw){
+    try{ pw.scrollIntoView({behavior:'smooth', block:'nearest'}); }catch(_){}
+    const heading = pw.querySelector('.section-title');
+    if(heading){ heading.setAttribute('tabindex','-1'); try{ heading.focus({preventScroll:true}); }catch(_){} }
+  }
 }
 
 function cancelQuickNotesPreview(){
@@ -439,10 +453,25 @@ function cancelQuickNotesPreview(){
 function renderQuickNotesPreview(){
   const list = document.getElementById('qnPreviewList');
   if(!list) return;
+  // All rows removed → don't leave a confusing empty box: collapse the preview
+  // and send focus back to the notes box so the user can edit and re-convert.
+  if(!_qnPreview.length){
+    cancelQuickNotesPreview();
+    const ta = document.getElementById('qnNotes');
+    if(ta) try{ ta.focus(); }catch(_){}
+    return;
+  }
   list.innerHTML = '';
   const validCount = _qnPreview.filter(r => r.valid).length;
   const cEl = document.getElementById('qnPreviewCount');
-  if(cEl) cEl.textContent = validCount ? validCount : '';
+  // always show "valid / total" (not blank at 0) so the user understands why the
+  // save button may be disabled
+  if(cEl) cEl.textContent = validCount + ' / ' + _qnPreview.length;
+  const confirmBtn = document.getElementById('qnConfirmBtn');
+  if(confirmBtn){
+    confirmBtn.disabled = (validCount === 0);
+    confirmBtn.setAttribute('aria-disabled', String(validCount === 0));
+  }
   _qnPreview.forEach((r, i) => {
     // each row carries its OWN target wallet (defaults to the top chip choice),
     // so the user can send some lines to one wallet and others to another.
@@ -450,19 +479,23 @@ function renderQuickNotesPreview(){
     const cat = getCategory(r.category);
     const opts = SELECTABLE_WALLETS.map(w =>
       `<option value="${escHtml(w.id)}"${w.id === r.wallet ? ' selected' : ''}>${escHtml(w.name)}</option>`).join('');
+    const typeLabel = r.type === 'income'
+      ? t({ar:'النوع: دخل — اضغط للتبديل إلى مصروف', en:'Type: income — tap to switch to expense'})
+      : t({ar:'النوع: مصروف — اضغط للتبديل إلى دخل', en:'Type: expense — tap to switch to income'});
     const row = document.createElement('div');
     row.className = 'qn-row' + (r.valid ? '' : ' invalid');
     row.innerHTML =
       `<div class="qn-row-top">` +
-        `<button type="button" class="qn-type ${r.type}" data-i="${i}" aria-label="${escHtml(t({ar:'بدّل النوع', en:'Toggle type'}))}">${r.type === 'income' ? '＋' : '－'}</button>` +
+        `<button type="button" class="qn-type ${r.type}" data-i="${i}" aria-label="${escHtml(typeLabel)}" aria-pressed="${r.type === 'income'}">${r.type === 'income' ? '＋' : '－'}</button>` +
         `<input class="qn-row-desc" data-i="${i}" value="${escHtml(r.desc)}" placeholder="${escHtml(t({ar:'الوصف', en:'Description'}))}" autocomplete="off">` +
-        `<button type="button" class="qn-row-del" data-i="${i}" aria-label="${escHtml(t({ar:'حذف', en:'Remove'}))}">✕</button>` +
+        `<button type="button" class="qn-row-del" data-i="${i}" aria-label="${escHtml(t({ar:'حذف هذا السطر', en:'Remove this line'}))}">✕</button>` +
       `</div>` +
       `<div class="qn-row-bottom">` +
-        `<span class="qn-row-cat" title="${escHtml(cat.name)}">${cat.icon}</span>` +
+        `<span class="qn-row-cat" role="img" aria-label="${escHtml(cat.name)}" title="${escHtml(cat.name)}">${cat.icon}</span>` +
         `<select class="qn-row-wallet" data-i="${i}" aria-label="${escHtml(t({ar:'محفظة هذا السطر', en:'Wallet for this line'}))}">${opts}</select>` +
-        `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off">` +
-      `</div>`;
+        `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off" aria-invalid="${!r.valid}" aria-label="${escHtml(t({ar:'المبلغ', en:'Amount'}))}">` +
+      `</div>` +
+      (r.valid ? '' : `<div class="qn-row-warn">⚠ ${escHtml(t({ar:'أضِف سعرًا لهذا السطر', en:'Add a price for this line'}))}</div>`);
     list.appendChild(row);
   });
   // Desc/amount/wallet inputs only mutate the model (no re-render → keeps focus
@@ -481,6 +514,14 @@ function renderQuickNotesPreview(){
     _qnPreview[i].amount = v;
     _qnPreview[i].valid = isFinite(v) && v > 0;
     inp.closest('.qn-row').classList.toggle('invalid', !_qnPreview[i].valid);
+    inp.setAttribute('aria-invalid', String(!_qnPreview[i].valid));
+    // refresh the "valid / total" count + save-button state without a full
+    // re-render (would steal focus mid-typing)
+    const vc = _qnPreview.filter(r => r.valid).length;
+    const cEl = document.getElementById('qnPreviewCount');
+    if(cEl) cEl.textContent = vc + ' / ' + _qnPreview.length;
+    const cb = document.getElementById('qnConfirmBtn');
+    if(cb){ cb.disabled = (vc === 0); cb.setAttribute('aria-disabled', String(vc === 0)); }
   });
   list.querySelectorAll('.qn-row-del').forEach(btn => btn.onclick = () => {
     _qnPreview.splice(+btn.dataset.i, 1);
