@@ -400,6 +400,83 @@ function updateQuickNotesBadge(){
   if(banner) banner.classList.toggle('has-draft', lines > 0);
 }
 
+/* ============================================================
+   SHARED IN-PAGE WALLET PICKER
+   One reusable floating menu (NOT the OS native <select>) so every wallet
+   dropdown — the add-form tracking control and the two per-line pickers in
+   quick-notes — opens the same elegant in-page list as the primary wallet.
+============================================================ */
+let _wpAnchor = null, _wpOnPick = null;
+function _walletPopEl(){
+  let pop = document.getElementById('walletPop');
+  if(!pop){
+    pop = document.createElement('div');
+    pop.id = 'walletPop';
+    pop.className = 'wallet-pop';
+    pop.setAttribute('role', 'listbox');
+    pop.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(pop);
+  }
+  return pop;
+}
+function closeWalletPop(){
+  const pop = document.getElementById('walletPop');
+  if(pop){ pop.classList.remove('open'); pop.setAttribute('aria-hidden', 'true'); pop.innerHTML = ''; }
+  if(_wpAnchor){ _wpAnchor.classList.remove('open'); _wpAnchor.setAttribute('aria-expanded', 'false'); }
+  _wpAnchor = null; _wpOnPick = null;
+}
+// items: [{id, name, bal?}]. onPick(id) fires on selection.
+function openWalletPop(anchor, items, currentId, onPick){
+  if(!anchor) return;
+  if(_wpAnchor === anchor){ closeWalletPop(); return; } // tapping the open anchor closes it
+  closeWalletPop();
+  const pop = _walletPopEl();
+  pop.innerHTML = '';
+  items.forEach(it => {
+    const o = document.createElement('div');
+    o.className = 'opt' + (it.id === currentId ? ' selected' : '');
+    o.setAttribute('role', 'option');
+    o.tabIndex = 0;
+    o.innerHTML = (it.bal != null)
+      ? `<span>${escHtml(it.name)}</span><span class="bal">${escHtml(it.bal)}</span>`
+      : `<span>${escHtml(it.name)}</span>`;
+    const pick = () => { const f = _wpOnPick; closeWalletPop(); if(f) f(it.id); };
+    o.onclick = pick;
+    o.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick(); } };
+    pop.appendChild(o);
+  });
+  _wpAnchor = anchor; _wpOnPick = onPick;
+  anchor.classList.add('open'); anchor.setAttribute('aria-expanded', 'true');
+  // fixed-position under the anchor (or above it if there's no room below)
+  const r = anchor.getBoundingClientRect();
+  pop.style.left = Math.round(r.left) + 'px';
+  pop.style.width = Math.round(r.width) + 'px';
+  pop.classList.add('open');
+  pop.setAttribute('aria-hidden', 'false');
+  const popH = Math.min(pop.scrollHeight, 300);
+  const below = window.innerHeight - r.bottom;
+  if(below >= popH + 8 || below >= r.top){ pop.style.top = Math.round(r.bottom + 4) + 'px'; pop.style.bottom = 'auto'; }
+  else { pop.style.bottom = Math.round(window.innerHeight - r.top + 4) + 'px'; pop.style.top = 'auto'; }
+  const sel = pop.querySelector('.opt.selected') || pop.querySelector('.opt');
+  if(sel) try{ sel.focus({preventScroll:true}); }catch(_){}
+}
+// dismiss on outside click / Escape / scroll / resize
+document.addEventListener('click', (e) => {
+  if(_wpAnchor && !_wpAnchor.contains(e.target)){
+    const pop = document.getElementById('walletPop');
+    if(!pop || !pop.contains(e.target)) closeWalletPop();
+  }
+}, true);
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && _wpAnchor){ closeWalletPop(); e.stopPropagation(); } }, true);
+window.addEventListener('scroll', () => { if(_wpAnchor) closeWalletPop(); }, true);
+window.addEventListener('resize', () => { if(_wpAnchor) closeWalletPop(); });
+// Add-form tracking-wallet picker (opens the shared menu).
+function openTrackPicker(anchor){
+  const items = [{id:'', name:t({ar:'بدون تتبّع', en:'No tracking'})}]
+    .concat(WALLET_DEFS.filter(w => w.track).map(w => ({id:w.id, name:w.name})));
+  openWalletPop(anchor, items, selectedTrackWallet || '', (id) => { selectTrackLink(id); });
+}
+
 function renderQnWalletChips(){
   const wrap = document.getElementById('qnWalletChips');
   if(!wrap) return;
@@ -496,15 +573,15 @@ function renderQuickNotesPreview(){
     if(!r.wallet || !SELECTABLE_WALLETS.find(w => w.id === r.wallet)) r.wallet = _qnWallet;
     if(r.track && !tracks.find(w => w.id === r.track)) r.track = null;
     const cat = getCategory(r.category);
-    const primaryOpts = SELECTABLE_WALLETS.map(w =>
-      `<option value="${escHtml(w.id)}"${w.id === r.wallet ? ' selected' : ''}>${escHtml(w.name)}</option>`).join('');
-    const trackOpts = `<option value=""${!r.track ? ' selected' : ''}>${escHtml(t({ar:'بدون تتبّع', en:'No tracking'}))}</option>` +
-      tracks.map(w => `<option value="${escHtml(w.id)}"${w.id === r.track ? ' selected' : ''}>${escHtml(w.name)}</option>`).join('');
+    const primaryName = (SELECTABLE_WALLETS.find(w => w.id === r.wallet) || {}).name || t({ar:'اختر محفظة', en:'Choose a wallet'});
+    const trackName = r.track ? ((tracks.find(w => w.id === r.track) || {}).name || '') : t({ar:'بدون تتبّع', en:'No tracking'});
     const typeLabel = r.type === 'income'
       ? t({ar:'النوع: دخل — اضغط للتبديل إلى مصروف', en:'Type: income — tap to switch to expense'})
       : t({ar:'النوع: مصروف — اضغط للتبديل إلى دخل', en:'Type: expense — tap to switch to income'});
     const row = document.createElement('div');
     row.className = 'qn-row' + (r.valid ? '' : ' invalid');
+    // Both wallet controls are in-page custom dropdowns (NOT native <select>) —
+    // they open the shared wallet popup, matching the primary-wallet widget.
     row.innerHTML =
       `<div class="qn-row-top">` +
         `<button type="button" class="qn-type ${r.type}" data-i="${i}" aria-label="${escHtml(typeLabel)}" aria-pressed="${r.type === 'income'}">${r.type === 'income' ? '＋' : '－'}</button>` +
@@ -514,18 +591,18 @@ function renderQuickNotesPreview(){
       `<div class="qn-row-bottom">` +
         `<span class="qn-row-cat" role="img" aria-label="${escHtml(cat.name)}" title="${escHtml(cat.name)}">${cat.icon}</span>` +
         `<span class="qn-wlabel" aria-hidden="true">👛</span>` +
-        `<select class="qn-row-wallet" data-i="${i}" aria-label="${escHtml(t({ar:'المحفظة الرئيسية لهذا السطر', en:'Primary wallet for this line'}))}">${primaryOpts}</select>` +
+        `<div class="custom-select qn-cs qn-cs-primary" data-i="${i}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="${escHtml(t({ar:'المحفظة الرئيسية لهذا السطر', en:'Primary wallet for this line'}))}"><span class="qn-cs-label">${escHtml(primaryName)}</span><span class="arrow">▾</span></div>` +
         `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off" aria-invalid="${!r.valid}" aria-label="${escHtml(t({ar:'المبلغ', en:'Amount'}))}">` +
       `</div>` +
       (tracks.length ? `<div class="qn-row-track-row">` +
         `<span class="qn-wlabel" aria-hidden="true">🏦</span>` +
-        `<select class="qn-row-track${r.track ? ' has-track' : ''}" data-i="${i}" aria-label="${escHtml(t({ar:'محفظة التتبّع لهذا السطر (اختياري)', en:'Tracking wallet for this line (optional)'}))}">${trackOpts}</select>` +
+        `<div class="custom-select qn-cs qn-cs-track${r.track ? ' has-track' : ''}" data-i="${i}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="${escHtml(t({ar:'محفظة التتبّع لهذا السطر (اختياري)', en:'Tracking wallet for this line (optional)'}))}"><span class="qn-cs-label">${escHtml(trackName)}</span><span class="arrow">▾</span></div>` +
       `</div>` : '') +
       (r.valid ? '' : `<div class="qn-row-warn">⚠ ${escHtml(t({ar:'أضِف سعرًا لهذا السطر', en:'Add a price for this line'}))}</div>`);
     list.appendChild(row);
   });
-  // Desc/amount/wallet inputs only mutate the model (no re-render → keeps focus
-  // while typing). Type-toggle and delete re-render because they change structure.
+  // Desc/amount inputs only mutate the model (no re-render → keeps focus while
+  // typing). Type-toggle and delete re-render because they change structure.
   list.querySelectorAll('.qn-type').forEach(btn => btn.onclick = () => {
     const i = +btn.dataset.i;
     _qnPreview[i].type = _qnPreview[i].type === 'income' ? 'expense' : 'income';
@@ -533,11 +610,28 @@ function renderQuickNotesPreview(){
     renderQuickNotesPreview();
   });
   list.querySelectorAll('.qn-row-desc').forEach(inp => inp.oninput = () => { _qnPreview[+inp.dataset.i].desc = inp.value; });
-  list.querySelectorAll('.qn-row-wallet').forEach(sel => sel.onchange = () => { _qnPreview[+sel.dataset.i].wallet = sel.value; });
-  list.querySelectorAll('.qn-row-track').forEach(sel => sel.onchange = () => {
-    _qnPreview[+sel.dataset.i].track = sel.value || null;
-    sel.classList.toggle('has-track', !!sel.value);
-  });
+  // Primary wallet: open the shared in-page popup, update model + label on pick.
+  const _qnPick = (btn, open) => { btn.onclick = open; btn.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); open(); } }; };
+  list.querySelectorAll('.qn-cs-primary').forEach(btn => _qnPick(btn, () => {
+    const i = +btn.dataset.i;
+    const items = SELECTABLE_WALLETS.map(w => ({ id:w.id, name:w.name, bal: fmt(state.wallets[w.id] ?? 0) }));
+    openWalletPop(btn, items, _qnPreview[i].wallet, (id) => {
+      _qnPreview[i].wallet = id;
+      btn.querySelector('.qn-cs-label').textContent = (SELECTABLE_WALLETS.find(w => w.id === id) || {}).name || '';
+    });
+  }));
+  // Tracking wallet: same popup, "no tracking" first; blue once chosen.
+  const _trk = trackWalletDefs();
+  list.querySelectorAll('.qn-cs-track').forEach(btn => _qnPick(btn, () => {
+    const i = +btn.dataset.i;
+    const items = [{ id:'', name:t({ar:'بدون تتبّع', en:'No tracking'}) }]
+      .concat(_trk.map(w => ({ id:w.id, name:w.name, bal: fmt(state.wallets[w.id] ?? 0) })));
+    openWalletPop(btn, items, _qnPreview[i].track || '', (id) => {
+      _qnPreview[i].track = id || null;
+      btn.classList.toggle('has-track', !!id);
+      btn.querySelector('.qn-cs-label').textContent = id ? ((_trk.find(w => w.id === id) || {}).name || '') : t({ar:'بدون تتبّع', en:'No tracking'});
+    });
+  }));
   list.querySelectorAll('.qn-row-amt').forEach(inp => inp.oninput = () => {
     const i = +inp.dataset.i;
     const v = round2(parseAmount(inp.value));

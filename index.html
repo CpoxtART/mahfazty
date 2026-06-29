@@ -274,8 +274,11 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <div class="wallet-menu" id="walletMenuWrap"><div id="walletMenu" role="listbox"></div></div>
       </div>
 
-      <label id="trackLinkLbl" for="trackLinkSelect" data-i18n="add.trackLinkLbl">🏦 محفظة التتبّع</label>
-      <select id="trackLinkSelect" class="track-link-select" onchange="selectTrackLink(this.value)" aria-labelledby="trackLinkLbl"></select>
+      <label id="trackLinkLbl" data-i18n="add.trackLinkLbl">🏦 محفظة التتبّع</label>
+      <div class="custom-select track-cs" id="trackSelectBtn" onclick="openTrackPicker(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTrackPicker(this);}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="trackLinkLbl">
+        <span id="trackSelectLabel">بدون تتبّع</span>
+        <span class="arrow">▾</span>
+      </div>
       <div class="hint track-link-hint" id="trackLinkHint" style="display:none; margin-top:6px;"></div>
 
       <label for="descInput" data-i18n="add.desc">الوصف</label>

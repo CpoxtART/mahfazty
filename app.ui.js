@@ -465,8 +465,9 @@ function selectWallet(id){
    without making the tracked wallet the direct source of the transaction.
 ============================================================ */
 function renderTrackLinkPicker(){
-  const select = document.getElementById('trackLinkSelect');
-  if(!select) return;
+  const btn = document.getElementById('trackSelectBtn');
+  const label = document.getElementById('trackSelectLabel');
+  if(!btn || !label) return;
 
   // A stale id (e.g. carried over from a repeated tx whose tracked wallet was
   // since deleted/changed in a cloud merge) must not leave the form silently
@@ -475,21 +476,12 @@ function renderTrackLinkPicker(){
     selectedTrackWallet = null;
   }
 
-  // Always-visible dropdown (no enable toggle) — first option is "no tracking",
-  // then every tracking wallet. The user picks directly, like the primary wallet.
-  select.innerHTML = '';
-  const none = document.createElement('option');
-  none.value = '';
-  none.textContent = t({ar:'بدون تتبّع', en:'No tracking'});
-  select.appendChild(none);
-  WALLET_DEFS.filter(w => w.track).forEach(w => {
-    const opt = document.createElement('option');
-    opt.value = w.id;
-    opt.textContent = w.name;
-    select.appendChild(opt);
-  });
-  select.value = selectedTrackWallet || '';
-  select.classList.toggle('has-track', !!selectedTrackWallet); // blue once a wallet is chosen
+  // In-page custom dropdown (same widget as the primary wallet, blue variant) —
+  // shows the chosen tracking wallet or "no tracking"; the list opens via
+  // openTrackPicker → the shared wallet popup (not the OS native list).
+  const tw = selectedTrackWallet ? WALLET_DEFS.find(x => x.id === selectedTrackWallet) : null;
+  label.textContent = tw ? tw.name : t({ar:'بدون تتبّع', en:'No tracking'});
+  btn.classList.toggle('has-track', !!selectedTrackWallet); // blue once a wallet is chosen
 
   const hint = document.getElementById('trackLinkHint');
   if(hint){

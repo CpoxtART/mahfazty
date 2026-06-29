@@ -500,34 +500,24 @@
   }
   .qn-row-desc{ flex:1 1 auto; min-width:0; }
   .qn-row-amt{ flex:0 1 76px; width:76px; min-width:60px; text-align:center; }
-  .qn-row-desc:focus, .qn-row-amt:focus, .qn-row-wallet:focus{ outline:none; border-color:var(--gold); box-shadow:var(--focus-ring); }
-  .qn-row-wallet{
-    flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 8px; font-size:var(--fs-base); font-weight:600;
-    /* gold-tinted so it reads as an interactive per-line control (the wallet for
-       THIS transaction), not a flat read-only field. */
-    background:var(--gold-soft); color:var(--gold); border:1px solid var(--gold-dim); border-radius:var(--radius-sm); cursor:pointer;
-    /* color-scheme makes the NATIVE option list render in the theme's colors —
-       without it the opened list was white/unreadable in dark mode. */
-    color-scheme:dark;
-  }
-  /* all themed wallet selects: their popup option list must follow the theme */
-  body.light .qn-row-wallet, body.light .qn-row-track, body.light .track-link-select{ color-scheme:light; }
+  .qn-row-desc:focus, .qn-row-amt:focus{ outline:none; border-color:var(--gold); box-shadow:var(--focus-ring); }
+  /* In-page custom-dropdown buttons (NOT native <select>) — they open the shared
+     wallet popup, same widget as the primary wallet picker. Sized to fit the row. */
+  .qn-cs{ flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 10px; font-size:var(--fs-base); font-weight:600; }
+  .qn-cs .qn-cs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .qn-cs.qn-cs-primary{ background:var(--gold-soft); color:var(--gold); border-color:var(--gold-dim); }
+  .qn-cs.qn-cs-primary .arrow{ color:var(--gold); }
+  /* the SECOND control: optional tracking wallet — neutral when "No tracking",
+     blue (the app's track-wallet color) once a tracking wallet is chosen. */
+  .qn-row-track-row{ display:flex; align-items:center; gap:8px; }
+  .qn-cs.qn-cs-track{ background:var(--bg); color:var(--muted); border:1px dashed var(--line); }
+  .qn-cs.qn-cs-track.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); }
+  .qn-cs.qn-cs-track.has-track .arrow{ color:var(--blue); }
   .qn-row-del{
     position:relative; flex:0 0 auto; width:34px; height:34px; border-radius:var(--radius-xs); border:none; background:transparent;
     color:var(--muted); font-size:var(--fs-lg); cursor:pointer;
   }
   .qn-row-del:hover{ color:var(--red); }
-  /* the SECOND control: optional tracking wallet — neutral when "No tracking",
-     blue (the app's track-wallet color) once a tracking wallet is chosen, so it
-     reads as distinct from the gold PRIMARY dropdown above it. */
-  .qn-row-track-row{ display:flex; align-items:center; gap:8px; }
-  .qn-row-track{
-    flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 8px; font-size:var(--fs-base);
-    background:var(--bg); color:var(--muted); border:1px dashed var(--line); border-radius:var(--radius-sm); cursor:pointer;
-    color-scheme:dark; /* readable native option list in dark mode */
-  }
-  .qn-row-track.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); font-weight:600; }
-  .qn-row-track:focus{ outline:none; border-color:var(--blue); box-shadow:var(--focus-ring); }
   /* explicit reason for an invalid row — color alone (the red border) fails
      WCAG 1.4.1 and says nothing to a screen reader */
   .qn-row-warn{ font-size:var(--fs-sm); color:var(--red); font-weight:600; padding:0 2px; }
@@ -909,17 +899,37 @@
   .cat-chip .ic{font-size:var(--fs-2xl);}
   .cat-chip.active{border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold);}
 
-  /* Tracking-wallet picker (add form): an always-visible dropdown — the SECOND
-     wallet control, distinct from the primary (gold) custom-select. Neutral/dashed
-     when "No tracking", blue (the app's track-wallet color) once one is chosen. */
-  .track-link-select{
-    width:100%; margin-bottom:4px; padding:12px 14px; font-family:inherit; font-size:16px;
-    background:var(--bg); color:var(--muted); border:1px dashed var(--line); border-radius:var(--radius-sm); cursor:pointer;
-    color-scheme:dark; /* readable native option list in dark mode */
-  }
-  .track-link-select.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); font-weight:600; }
-  .track-link-select:focus{ outline:none; border-color:var(--blue); box-shadow:var(--focus-ring); }
+  /* Tracking-wallet picker (add form): an in-page custom dropdown (same widget as
+     the primary wallet), distinct blue — dashed/neutral when "No tracking", solid
+     blue once a wallet is chosen. Opens the shared wallet popup, not a native list. */
+  .track-cs{ margin-bottom:4px; background:var(--bg); color:var(--muted); border:1px dashed var(--line); }
+  .track-cs.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); font-weight:600; }
+  .track-cs.has-track .arrow{ color:var(--blue); }
+  .track-cs.open{ border-color:var(--blue); box-shadow:var(--focus-ring); }
   .track-link-hint{ color:var(--muted); font-size:var(--fs-sm); line-height:1.6; }
+
+  /* Shared in-page wallet popup (the floating list every wallet dropdown opens —
+     primary, tracking, and the quick-notes per-line pickers — instead of the OS
+     native <select> list). Themed, so it's readable in dark/light/black. */
+  .wallet-pop{
+    position:fixed; z-index:3000; display:none;
+    background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-sm);
+    box-shadow:var(--shadow-strong); max-height:300px; overflow-y:auto;
+    -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+  }
+  .wallet-pop.open{ display:block; animation:popIn var(--dur-fast) var(--ease); }
+  @keyframes popIn{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
+  .wallet-pop .opt{
+    padding:12px 14px; font-size:var(--fs-base); cursor:pointer;
+    border-bottom:1px solid var(--line-soft);
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    transition: background .1s;
+  }
+  .wallet-pop .opt:last-child{ border-bottom:none; }
+  .wallet-pop .opt span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wallet-pop .opt .bal{ color:var(--muted); font-size:var(--fs-sm); font-variant-numeric:tabular-nums; direction:ltr; flex-shrink:0; }
+  .wallet-pop .opt:hover, .wallet-pop .opt:focus{ background:var(--card2); outline:none; }
+  .wallet-pop .opt.selected{ background:var(--gold-soft); color:var(--gold); }
 
   /* per-wallet link direction toggle (wallet detail) */
   .track-mode-block{ margin-top:12px; }
