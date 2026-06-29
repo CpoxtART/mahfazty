@@ -491,7 +491,7 @@
   .qn-type.income{ color:var(--green); border-color:var(--green); }
   .qn-type.expense{ color:var(--red); border-color:var(--red); }
   .qn-row-cat{ flex:0 0 auto; font-size:var(--fs-3xl); width:24px; text-align:center; }
-  .qn-wicon{ flex:0 0 auto; font-size:var(--fs-lg); opacity:.9; } /* signals the dropdown next to it is THIS line's wallet */
+  .qn-wlabel{ flex:0 0 auto; width:22px; text-align:center; font-size:var(--fs-lg); opacity:.9; } /* 👛 primary / 🏦 track marker before each dropdown */
   /* desc/amt/wallet are built without a type attr, so the generic .modal input
      rule never matches them — theme them explicitly here */
   .qn-row-desc, .qn-row-amt{
@@ -517,6 +517,16 @@
     color:var(--muted); font-size:var(--fs-lg); cursor:pointer;
   }
   .qn-row-del:hover{ color:var(--red); }
+  /* the SECOND control: optional tracking wallet — neutral when "No tracking",
+     blue (the app's track-wallet color) once a tracking wallet is chosen, so it
+     reads as distinct from the gold PRIMARY dropdown above it. */
+  .qn-row-track-row{ display:flex; align-items:center; gap:8px; }
+  .qn-row-track{
+    flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 8px; font-size:var(--fs-base);
+    background:var(--bg); color:var(--muted); border:1px dashed var(--line); border-radius:var(--radius-sm); cursor:pointer;
+  }
+  .qn-row-track.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); font-weight:600; }
+  .qn-row-track:focus{ outline:none; border-color:var(--blue); box-shadow:var(--focus-ring); }
   /* explicit reason for an invalid row — color alone (the red border) fails
      WCAG 1.4.1 and says nothing to a screen reader */
   .qn-row-warn{ font-size:var(--fs-sm); color:var(--red); font-weight:600; padding:0 2px; }

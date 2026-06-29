@@ -29,6 +29,17 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.49',
+    date: '2026-06-29',
+    title: 'نموذج محافظ موحّد: رئيسي + تتبّع في كل مكان (تصحيح تناسق الملاحظات)',
+    items: [
+      'تصحيح: أُرجعت محافظ التتبّع من منتقي المحفظة الرئيسية — صارت تُعيَّن من قسمها الخاص (تتبّع) كما في نموذج الإضافة، فلا خلط.',
+      'تناسق: في معاينة الملاحظات السريعة صار لكل سطر قائمتان ثابتتان مثل نموذج الإضافة: <b>👛 المحفظة الرئيسية</b> (ذهبية) و<b>🏦 محفظة تتبّع</b> اختيارية (زرقاء).',
+      'تحسين: الصيغة @المحفظة صارت ذكية — اسم محفظة ميزانية يضبط الرئيسية، واسم محفظة تتبّع يضبط التتبّع تلقائيًا، ويمكن الاثنان في سطر واحد (مثال: «@رغبات @كاش قهوة ١٥»). تعمل كعناوين تنطبق على ما تحتها أو داخل السطر.',
+      'إصلاح: تلميح المعاينة كان يُظهر وسوم <b> كنص؛ صار يُعرض منسّقًا.',
+    ],
+  },
+  {
     version: 'v47.48',
     date: '2026-06-29',
     title: 'محافظ التتبع صارت أساسية + فرز محافظ الملاحظات قبل التحويل + إصلاح قصّ الأسماء بالوضع البديل',
@@ -781,29 +792,29 @@ const QUICK_AMOUNTS = [250, 500, 1000, 2000, 5000, 10000];
 // `let` + explicit recompute (not a one-time const filter) because WALLET_DEFS
 // can grow/shrink at runtime once wallets become user-editable, and crisis mode
 // changes which wallets are visible so the add-form dropdown must match.
-// Track wallets (Uber/Cards/Cash) are now FIRST-CLASS selectable targets — they
-// appear in the add-form dropdown and the quick-notes wallet pickers for both
-// income and expense, appended after the budget wallets. Their track semantics
-// are unchanged: still excluded from the spendable total, from reconcileBalances,
-// and from auto-distribution (income recorded INTO a track wallet is not split).
-let SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !w.crisisOnly).concat(WALLET_DEFS.filter(w => w.track));
+// PRIMARY selectable wallets are budget wallets only — tracking wallets
+// (Uber/Cards/Cash) are NOT primary targets; they're assigned via the SEPARATE
+// "track wallet" control (the add-form link, and the per-line track dropdown in
+// quick-notes), consistently. This keeps one clear model everywhere: a primary
+// (budget) wallet + an optional tracking wallet.
+let SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !w.crisisOnly);
 function recomputeSelectableWallets(){
-  let base;
   if(state.crisisMode){
     const crisisIds = new Set(crisisWalletIds());
     // crisis mode: show core + crisisOnly wallets (crisis_fund), hide normal budget wallets
-    base = WALLET_DEFS.filter(w => !w.track && !crisisIds.has(w.id));
+    SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !crisisIds.has(w.id));
   } else {
     // normal mode: hide crisisOnly wallets (they only make sense in crisis context)
-    base = WALLET_DEFS.filter(w => !w.track && !w.crisisOnly);
+    SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !w.crisisOnly);
   }
-  SELECTABLE_WALLETS = base.concat(WALLET_DEFS.filter(w => w.track)); // track wallets last
   // If the currently selected wallet is no longer available, fall back to the first one
   if(SELECTABLE_WALLETS.length && !SELECTABLE_WALLETS.find(w => w.id === selectedWallet)){
     selectedWallet = SELECTABLE_WALLETS[0].id;
   }
 }
 function isTrackWallet(id){ const w = WALLET_DEFS.find(x => x.id === id); return !!(w && w.track); }
+// The tracking wallets (for the secondary "track" control). Order matches WALLET_DEFS.
+function trackWalletDefs(){ return WALLET_DEFS.filter(w => w.track); }
 
 // Wallets that participate in automatic income distribution, with their share %
 const DEFAULT_DISTRIBUTION = [

@@ -341,23 +341,27 @@ const _QN_WALLET_ALIASES = {
   joy: ['متعه','متعة','ترفيه','joy'],
   giving: ['عطاء','صدقه','صدقة','زكاه','زكاة','giving','charity'],
 };
-// Resolve a free-text token (after "@") to a SELECTABLE wallet id, or null.
+// Resolve a free-text token (after "@") to a wallet id — searching BOTH the
+// primary (budget) wallets and the tracking wallets — or null. The caller routes
+// the result by kind: a budget id sets the line's primary wallet, a track id sets
+// its tracking wallet. Custom wallets match by their own name; the defaults also
+// match the Arabic aliases below.
 function _qnResolveWallet(token){
   const tk = _qnNorm(token);
   if(!tk) return null;
-  // 1) exact, then contains, against the live selectable wallet names (covers
-  //    custom wallets too)
+  const pool = SELECTABLE_WALLETS.concat(trackWalletDefs()); // budget + track
+  // 1) exact name, then contains, against every wallet (covers custom names)
   let contains = null;
-  for(const w of SELECTABLE_WALLETS){
+  for(const w of pool){
     const wn = _qnNorm(w.name);
     if(!wn) continue;
     if(wn === tk) return w.id;
     if(!contains && (wn.includes(tk) || tk.includes(wn))) contains = w.id;
   }
   if(contains) return contains;
-  // 2) built-in aliases (only if that wallet is currently selectable)
+  // 2) built-in aliases (only if that wallet currently exists in the pool)
   for(const id in _QN_WALLET_ALIASES){
-    if(!SELECTABLE_WALLETS.find(w => w.id === id)) continue;
+    if(!pool.find(w => w.id === id)) continue;
     if(_QN_WALLET_ALIASES[id].some(a => { const na = _qnNorm(a); return na === tk || tk.includes(na); })) return id;
   }
   return null;
@@ -384,57 +388,67 @@ const _QN_NUM_RE = /[\d٠-٩۰-۹]+(?:[.,٫][\d٠-٩۰-۹]+)?/g;
 // far beyond any realistic "jot a few transactions" session.
 const QN_MAX_LINES = 300;
 let _qnTruncated = false; // set when the last parse hit the cap (surfaced as a toast)
+// Strip every "@token" from a line, routing each resolved wallet to either the
+// primary (budget) slot or the track slot. Returns {work, primary, track}.
+function _qnExtractWallets(line){
+  let work = line, primary = null, track = null;
+  // iterate all @tokens (a line can carry both a primary and a track, e.g.
+  // "@رغبات @كاش قهوة 15")
+  work = work.replace(/@\s*([^\s@]+)/g, (m, tok) => {
+    const wid = _qnResolveWallet(tok);
+    if(!wid) return m; // not a wallet — leave it in the description
+    if(isTrackWallet(wid)){ if(!track) track = wid; } else { if(!primary) primary = wid; }
+    return ' ';
+  });
+  return { work: work.replace(/\s+/g, ' ').trim(), primary, track };
+}
 // Parse free-form text into transaction candidates — one per non-empty line.
 // Wallet assignment BEFORE conversion (so you don't edit 20 rows by hand):
-//   • a header line that is just a wallet ref — "@كاش" or "كاش:" — sets the wallet
-//     for every following line until the next header.
-//   • an inline "@wallet" anywhere on a line overrides just that line.
+//   • a header line that is just a wallet ref — "@كاش" / "@رغبات" / "كاش:" — sets
+//     the wallet for every following line until the next header. A budget name
+//     sets the PRIMARY wallet; a tracking name sets the TRACK wallet.
+//   • an inline "@wallet" anywhere on a line overrides just that line (routed the
+//     same way; a line can set both a primary and a track).
 function parseQuickNotes(text){
   const rows = [];
   _qnTruncated = false;
-  let currentWallet = null; // header-scoped wallet for subsequent lines
+  let curPrimary = null, curTrack = null; // header-scoped wallets
   const lines = String(text == null ? '' : text).split('\n');
   for(const rawLine of lines){
     if(rows.length >= QN_MAX_LINES){ _qnTruncated = true; break; }
     const line = rawLine.trim();
     if(!line) continue;
-    const hasNumber = /[\d٠-٩۰-۹]/.test(line); // simple digit presence (avoids the global _QN_NUM_RE lastIndex pitfall)
-    // Header line (no price): "@wallet" or "wallet:" → set the scope wallet.
+    const hasNumber = /[\d٠-٩۰-۹]/.test(line); // simple digit presence
+    // Header line (no price): "@wallet" or "wallet:" → set the scope wallet(s).
     if(!hasNumber){
       const hm = line.match(/^@\s*(.+)$/) || line.match(/^(.+?)\s*[:：]$/);
       if(hm){
         const wid = _qnResolveWallet(hm[1]);
-        if(wid){ currentWallet = wid; continue; }
+        if(wid){ if(isTrackWallet(wid)) curTrack = wid; else curPrimary = wid; continue; }
       }
     }
-    // Per-line "@wallet" override (anywhere on the line); strip it from the text.
-    let work = line, lineWallet = null;
-    const am = work.match(/@\s*([^\s@]+)/);
-    if(am){
-      const wid = _qnResolveWallet(am[1]);
-      if(wid){ lineWallet = wid; work = (work.slice(0, am.index) + ' ' + work.slice(am.index + am[0].length)).trim(); }
-    }
-    const rowWallet = lineWallet || currentWallet || null; // null → preview uses the default chip
+    // Per-line "@wallet" overrides (primary and/or track); strip them from the text.
+    const ext = _qnExtractWallets(line);
+    const work = ext.work;
+    const rowPrimary = ext.primary || curPrimary || null; // null → preview uses the default chip
+    const rowTrack   = ext.track   || curTrack   || null; // null → no tracking link
     const normSearch = _qnNorm(work);
     const isIncome = /\+/.test(work) || _QN_INCOME_WORDS.some(w => normSearch.includes(_qnNorm(w)));
     const type = isIncome ? 'income' : 'expense';
     const nums = work.match(_QN_NUM_RE);
     if(!nums || !nums.length){
-      // no price on the line — keep it as an invalid row so the user notices it
-      // wasn't captured, instead of silently dropping it
-      rows.push({raw:line, desc:work.replace(/\+/g,' ').replace(/\s+/g,' ').trim(), amount:NaN, type, category:_qnGuessCategory(work, type), valid:false, wallet:rowWallet});
+      rows.push({raw:line, desc:work.replace(/\+/g,' ').replace(/\s+/g,' ').trim(), amount:NaN, type, category:_qnGuessCategory(work, type), valid:false, wallet:rowPrimary, track:rowTrack});
       continue;
     }
     const amtRaw = nums[nums.length-1];           // amount = last number (description comes first)
     const amount = round2(parseAmount(amtRaw));   // parseAmount folds Arabic/Persian digits itself
-    // description = the work text minus the LAST number token and any + markers
     let desc = work;
     const idx = desc.lastIndexOf(amtRaw);
     if(idx >= 0) desc = desc.slice(0, idx) + desc.slice(idx + amtRaw.length);
     desc = desc.replace(/\+/g,' ').replace(/\s+/g,' ').trim();
     desc = desc.replace(/(ريال|ر\.?\s?س|درهم|دينار|جنيه|sar|usd|riyal|\$)\s*$/i,'').trim(); // drop a trailing currency word
     const valid = isFinite(amount) && amount > 0;
-    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid, wallet:rowWallet});
+    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid, wallet:rowPrimary, track:rowTrack});
   }
   return rows;
 }
@@ -545,13 +559,17 @@ function renderQuickNotesPreview(){
     confirmBtn.disabled = (validCount === 0);
     confirmBtn.setAttribute('aria-disabled', String(validCount === 0));
   }
+  const tracks = trackWalletDefs();
   _qnPreview.forEach((r, i) => {
-    // each row carries its OWN target wallet (defaults to the top chip choice),
-    // so the user can send some lines to one wallet and others to another.
+    // Two consistent controls per row (mirrors the add form): a PRIMARY (budget)
+    // wallet, and an OPTIONAL tracking wallet.
     if(!r.wallet || !SELECTABLE_WALLETS.find(w => w.id === r.wallet)) r.wallet = _qnWallet;
+    if(r.track && !tracks.find(w => w.id === r.track)) r.track = null;
     const cat = getCategory(r.category);
-    const opts = SELECTABLE_WALLETS.map(w =>
+    const primaryOpts = SELECTABLE_WALLETS.map(w =>
       `<option value="${escHtml(w.id)}"${w.id === r.wallet ? ' selected' : ''}>${escHtml(w.name)}</option>`).join('');
+    const trackOpts = `<option value=""${!r.track ? ' selected' : ''}>${escHtml(t({ar:'بدون تتبّع', en:'No tracking'}))}</option>` +
+      tracks.map(w => `<option value="${escHtml(w.id)}"${w.id === r.track ? ' selected' : ''}>${escHtml(w.name)}</option>`).join('');
     const typeLabel = r.type === 'income'
       ? t({ar:'النوع: دخل — اضغط للتبديل إلى مصروف', en:'Type: income — tap to switch to expense'})
       : t({ar:'النوع: مصروف — اضغط للتبديل إلى دخل', en:'Type: expense — tap to switch to income'});
@@ -565,10 +583,14 @@ function renderQuickNotesPreview(){
       `</div>` +
       `<div class="qn-row-bottom">` +
         `<span class="qn-row-cat" role="img" aria-label="${escHtml(cat.name)}" title="${escHtml(cat.name)}">${cat.icon}</span>` +
-        `<span class="qn-wicon" aria-hidden="true">👛</span>` +
-        `<select class="qn-row-wallet" data-i="${i}" aria-label="${escHtml(t({ar:'محفظة هذا السطر', en:'Wallet for this line'}))}">${opts}</select>` +
+        `<span class="qn-wlabel" aria-hidden="true">👛</span>` +
+        `<select class="qn-row-wallet" data-i="${i}" aria-label="${escHtml(t({ar:'المحفظة الرئيسية لهذا السطر', en:'Primary wallet for this line'}))}">${primaryOpts}</select>` +
         `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off" aria-invalid="${!r.valid}" aria-label="${escHtml(t({ar:'المبلغ', en:'Amount'}))}">` +
       `</div>` +
+      (tracks.length ? `<div class="qn-row-track-row">` +
+        `<span class="qn-wlabel" aria-hidden="true">🏦</span>` +
+        `<select class="qn-row-track${r.track ? ' has-track' : ''}" data-i="${i}" aria-label="${escHtml(t({ar:'محفظة التتبّع لهذا السطر (اختياري)', en:'Tracking wallet for this line (optional)'}))}">${trackOpts}</select>` +
+      `</div>` : '') +
       (r.valid ? '' : `<div class="qn-row-warn">⚠ ${escHtml(t({ar:'أضِف سعرًا لهذا السطر', en:'Add a price for this line'}))}</div>`);
     list.appendChild(row);
   });
@@ -582,6 +604,10 @@ function renderQuickNotesPreview(){
   });
   list.querySelectorAll('.qn-row-desc').forEach(inp => inp.oninput = () => { _qnPreview[+inp.dataset.i].desc = inp.value; });
   list.querySelectorAll('.qn-row-wallet').forEach(sel => sel.onchange = () => { _qnPreview[+sel.dataset.i].wallet = sel.value; });
+  list.querySelectorAll('.qn-row-track').forEach(sel => sel.onchange = () => {
+    _qnPreview[+sel.dataset.i].track = sel.value || null;
+    sel.classList.toggle('has-track', !!sel.value);
+  });
   list.querySelectorAll('.qn-row-amt').forEach(inp => inp.oninput = () => {
     const i = +inp.dataset.i;
     const v = round2(parseAmount(inp.value));
@@ -664,6 +690,12 @@ async function commitQuickNotes(){
         // (the old Math.min(baseTs+k, now) collapsed to identical ts in fast loops)
         ts: baseTs - (n - 1 - k)
       };
+      // optional tracking-wallet link (same shape addTx stamps): the linked track
+      // wallet must exist, be a track wallet, and differ from the primary wallet.
+      if(r.track && r.track !== rowWallet){
+        const tw = WALLET_DEFS.find(w => w.id === r.track && w.track);
+        if(tw){ tx.trackWallet = tw.id; tx.trackSign = (trackLinkMode[tw.id] === 'credit') ? 1 : -1; }
+      }
       state.transactions.push(tx);
       applyTxToBalance(tx, +1);
       // budget-wallet income distributes; track-wallet income stays put (see addTx)
