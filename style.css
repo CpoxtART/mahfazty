@@ -491,6 +491,7 @@
   .qn-type.income{ color:var(--green); border-color:var(--green); }
   .qn-type.expense{ color:var(--red); border-color:var(--red); }
   .qn-row-cat{ flex:0 0 auto; font-size:var(--fs-3xl); width:24px; text-align:center; }
+  .qn-wicon{ flex:0 0 auto; font-size:var(--fs-lg); opacity:.9; } /* signals the dropdown next to it is THIS line's wallet */
   /* desc/amt/wallet are built without a type attr, so the generic .modal input
      rule never matches them — theme them explicitly here */
   .qn-row-desc, .qn-row-amt{
@@ -501,12 +502,15 @@
   .qn-row-amt{ flex:0 1 76px; width:76px; min-width:60px; text-align:center; }
   .qn-row-desc:focus, .qn-row-amt:focus, .qn-row-wallet:focus{ outline:none; border-color:var(--gold); box-shadow:var(--focus-ring); }
   .qn-row-wallet{
-    flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 8px; font-size:var(--fs-base);
-    background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:var(--radius-sm); cursor:pointer;
+    flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 8px; font-size:var(--fs-base); font-weight:600;
+    /* gold-tinted so it reads as an interactive per-line control (the wallet for
+       THIS transaction), not a flat read-only field — this is the part users were
+       missing. */
+    background:var(--gold-soft); color:var(--gold); border:1px solid var(--gold-dim); border-radius:var(--radius-sm); cursor:pointer;
     /* keep the NATIVE dropdown arrow — the browser positions it correctly for both
        RTL (Arabic) and LTR (English); a custom CSS arrow is fixed to one side and
        would misalign when the language flips. Arrow inherits `color` so it stays
-       visible on the themed dark background. */
+       visible on the themed background. */
   }
   .qn-row-del{
     position:relative; flex:0 0 auto; width:34px; height:34px; border-radius:var(--radius-xs); border:none; background:transparent;
@@ -571,14 +575,19 @@
     border-style:solid; border-width:0 22px 22px 0;
     border-color:transparent var(--gold) transparent transparent;
   }
-  .wallet .top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;}
-  .wallet .name{font-size:var(--fs-sm); color:var(--muted); letter-spacing:.3px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:calc(100% - 64px);}
+  .wallet .top{display:flex; justify-content:space-between; align-items:flex-start; gap:6px; margin-bottom:8px;}
+  /* flex:1 + min-width:0 lets the name use ALL the room left by the % chip instead
+     of a fixed calc() reservation that clipped common names like "Core Expenses"
+     into "...e Expenses". letter-spacing dropped (it pushed names over the edge);
+     unicode-bidi:plaintext renders each name in its own direction so the ellipsis
+     (when a name truly is too long) sits at the natural end, not mid-RTL. */
+  .wallet .name{font-size:var(--fs-xs); color:var(--muted); font-weight:500; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; unicode-bidi:plaintext;}
   /* A real chip (filled + bordered + bold), not a flat muted label — it should
      read as a tappable control, since this is the only way to reach the
      per-wallet budget/actual-balance screen and users were missing it. */
   .wallet .pct{
     position:relative; font-size:var(--fs-xs); color:var(--gold); background:var(--gold-soft);
-    border:1px solid var(--gold-dim); padding:3px 9px; border-radius:var(--radius-pill);
+    border:1px solid var(--gold-dim); padding:3px 8px; border-radius:var(--radius-pill);
     font-weight:700; letter-spacing:.3px; cursor:pointer; flex-shrink:0;
     display:inline-flex; align-items:center; gap:3px;
     transition: transform .12s var(--ease), background var(--dur-fast), border-color var(--dur-fast);

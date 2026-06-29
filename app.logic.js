@@ -504,6 +504,7 @@ function renderQuickNotesPreview(){
       `</div>` +
       `<div class="qn-row-bottom">` +
         `<span class="qn-row-cat" role="img" aria-label="${escHtml(cat.name)}" title="${escHtml(cat.name)}">${cat.icon}</span>` +
+        `<span class="qn-wicon" aria-hidden="true">👛</span>` +
         `<select class="qn-row-wallet" data-i="${i}" aria-label="${escHtml(t({ar:'محفظة هذا السطر', en:'Wallet for this line'}))}">${opts}</select>` +
         `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off" aria-invalid="${!r.valid}" aria-label="${escHtml(t({ar:'المبلغ', en:'Amount'}))}">` +
       `</div>` +
