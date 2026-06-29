@@ -480,7 +480,9 @@ async function saveEdit(){
   // keep their original order even after a date edit (toTimeString gives HH:MM:SS
   // which loses milliseconds — we add them back from the original ts).
   const msPart = isFinite(tx.ts) ? (tx.ts % 1000) : 0;
-  tx.ts = isFinite(newTs) ? Math.min(newTs + msPart, Date.now()) : (isFinite(tx.ts) ? tx.ts : Date.now());
+  // floor at 2010 too (same reasoning as buildTxTs) so an out-of-range edited date
+  // can't pin the entry to the top of every list / skew monthly filters.
+  tx.ts = isFinite(newTs) ? Math.max(MIN_TX_TS, Math.min(newTs + msPart, Date.now())) : (isFinite(tx.ts) ? tx.ts : Date.now());
 
   // Move the partner leg to the SAME date as the edited leg. Previously a date edit
   // updated only this leg's ts, splitting the two halves of one transfer across
@@ -856,6 +858,16 @@ function closeModal(id){
     if(ewBtn){ ewBtn.classList.remove('open'); ewBtn.setAttribute('aria-expanded','false'); ewBtn.tabIndex = 0; ewBtn.removeAttribute('aria-disabled'); }
   }
   if(id === 'distributeModal') pendingIncomeTx = null;
+  // driveConflictModal dismissed via Escape/back/backdrop WITHOUT a choice —
+  // resolveConflict() nulls _pendingDriveCloud before it closes the modal, so a
+  // still-set _pendingDriveCloud here means a genuine cancel. Drop the pending
+  // cloud snapshot and clear the otherwise-frozen 'syncing' indicator (it would
+  // never reach 'ok'/'error' on its own), keeping local data untouched. The next
+  // local save re-arms a normal sync.
+  if(id === 'driveConflictModal' && typeof _pendingDriveCloud !== 'undefined' && _pendingDriveCloud){
+    _pendingDriveCloud = null;
+    if(typeof setDriveIndicator === 'function') setDriveIndicator(driveAccessToken ? 'idle' : 'off');
+  }
   if(id === 'settingsModal' && typeof _distDraft !== 'undefined') _distDraft = null; // discard unsaved dist edits
   if(id === 'walletDetailModal') detailWalletId = null;
   if(id === 'subModal') editingSubId = null;
@@ -1042,7 +1054,13 @@ function exportData(){
     uiPrefs: collectUiPrefs()
   };
   const json = JSON.stringify(payload, null, 2);
-  document.getElementById('jsonArea').value = json;
+  // Only mirror small payloads into the <textarea> — dumping multi-MB JSON into it
+  // freezes the main thread on layout (mirrors the same guard in importFromFile).
+  // The download below still contains the full data regardless.
+  const _jsonArea = document.getElementById('jsonArea');
+  if(_jsonArea) _jsonArea.value = json.length <= 256 * 1024
+    ? json
+    : t({ar:'/* البيانات كبيرة جدًا للمعاينة — نُزّلت كملف مباشرةً */', en:'/* Data too large to preview — downloaded directly as a file */'});
 
   const blob = new Blob([json], {type:'application/json'});
   const url = URL.createObjectURL(blob);
@@ -1180,6 +1198,14 @@ async function applyImport(text){
   let _droppedTx = 0;
   if(data.transactions){
     const incoming = Array.isArray(data.transactions) ? data.transactions : [];
+    // Bound the import so a corrupt/huge file can't freeze the main thread on the
+    // filter+map below (and the subsequent JSON.stringify in saveTx). 100k covers
+    // any realistic personal-finance history with large headroom.
+    const MAX_IMPORT_TX = 100000;
+    if(incoming.length > MAX_IMPORT_TX){
+      toast(t({ar:`⚠ الملف يحتوي على أكثر من ${MAX_IMPORT_TX} معاملة — سيُستورَد أول ${MAX_IMPORT_TX} فقط`, en:`⚠ File has over ${MAX_IMPORT_TX} transactions — only the first ${MAX_IMPORT_TX} will be imported`}), true);
+      incoming.length = MAX_IMPORT_TX;
+    }
     // dedup by id last (only after every other check passes) so a duplicate
     // doesn't get "claimed" by a malformed copy that's filtered out anyway —
     // otherwise a later, valid copy of the same id would be wrongly dropped
@@ -1239,6 +1265,13 @@ async function applyImport(text){
     for(const id in data.deletedTxIds){
       const t = data.deletedTxIds[id];
       if(typeof t === 'number' && isFinite(t) && t > 0) deletedTxIds[id] = t;
+    }
+    // Apply tombstones to the just-imported set immediately (loadState does this on
+    // reload, but applyImport renders before any reload) so a hand-edited file that
+    // carries both a transaction AND its tombstone can't show the "deleted" tx until
+    // the next launch.
+    if(Object.keys(deletedTxIds).length){
+      state.transactions = state.transactions.filter(t => !deletedTxIds[t.id]);
     }
   }
   if(Array.isArray(data.subscriptions)){
@@ -2416,6 +2449,11 @@ window.addEventListener('storage', (e) => {
         // here would silently wipe it from memory, and the debounce callback would
         // then persist that now-amputated state right over the other tab's data.
         if(_opInFlight > 0 || _idbWriteInFlight > 0 || _idbBackupTimer){ _storageSyncTimer = setTimeout(_trySync, 250); return; }
+        // NOTE: the in-flight flags above are per-tab — this tab can't see that the
+        // OTHER tab still has a 400ms scheduleIdbBackup() debounce pending (its
+        // localStorage 'lastEdit' write already fired this event synchronously).
+        // The 600ms initial delay below covers that 400ms window + margin so we
+        // don't read a stale IDB snapshot that predates the other tab's flush.
         loadState().then(() => {
           // loadState() replaces state.transactions wholesale from the freshly-
           // merged IDB snapshot (see idbBackup's cross-tab union), but balances
@@ -2427,7 +2465,7 @@ window.addEventListener('storage', (e) => {
           if(Object.keys(diff).length){ saveBalances(); render(); }
         });
       };
-      _storageSyncTimer = setTimeout(_trySync, 200);
+      _storageSyncTimer = setTimeout(_trySync, 600);
     }
   }
 });

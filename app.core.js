@@ -29,6 +29,24 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.38',
+    date: '2026-06-29',
+    title: 'تحليل عميق (الجولة الرابعة): إصلاحات مزامنة واستيراد وأداء من زوايا جديدة',
+    items: [
+      'إصلاح عالٍ: إغلاق نافذة تعارض Drive عبر زر الرجوع/Escape بدون اختيار كان يُجمِّد مؤشر المزامنة على "يزامن" إلى الأبد ويترك نسخة السحابة معلّقة — الآن يُلغى التعارض بأمان ويعود المؤشر لحالة "جاهز" مع إبقاء البيانات المحلية.',
+      'إصلاح عالٍ: مزامنة التبويبات — التبويب المستقبِل كان قد يقرأ نسخة IndexedDB قديمة قبل اكتمال كتابة التبويب الآخر (نافذة الـ 400ms)؛ زِيد تأخير القراءة الأولي إلى 600ms ليغطيها.',
+      'إصلاح متوسط: مطابقة الاشتراكات المتتبَّعة صارت باتجاه واحد فقط (الوصف يحتوي اسم الاشتراك) مع حد أدنى 3 أحرف — يمنع اسم اشتراك قصير من كبت معاملات غير مرتبطة بالخطأ.',
+      'إصلاح متوسط: applyImport يحد عدد المعاملات المستوردة بـ 100,000 مع تنبيه — يمنع تجميد المتصفح عند ملف ضخم/تالف.',
+      'إصلاح متوسط: exportData لا يضع JSON ضخماً في حقل المعاينة (يبقى التنزيل كاملاً) — يمنع تجميد الواجهة عند بيانات كبيرة.',
+      'إصلاح متوسط: تحسين أداء قائمة المعاملات — تُبنى خارج DOM في DocumentFragment وتُلحَق دفعةً واحدة بدلاً من reflow لكل صف (حتى 500 صف).',
+      'إصلاح منخفض: buildTxTs وsaveEdit يضعان حداً أدنى للتاريخ عند 2010 — تاريخ خارج النطاق برمجياً لم يعد يُنشئ طابعاً زمنياً يُثبِّت المعاملة أعلى كل القوائم.',
+      'إصلاح منخفض: detectRecurring يُبطل الكاش عند تغيير اسم/مبلغ اشتراك (وليس عدده فقط).',
+      'إصلاح منخفض: فلتر الاشتراكات المتتبَّعة يستبعد ذوات المبلغ صفر مبكراً.',
+      'إصلاح منخفض: مقارنة وقت نسخة Drive محصّنة ضد طابع ISO تالف (Date.parse → NaN) لا يُفسد المقارنة.',
+      'إصلاح منخفض: applyImport يطبّق الـ tombstones فوراً على المجموعة المستوردة (لا ينتظر إعادة التحميل).',
+    ],
+  },
+  {
     version: 'v47.37',
     date: '2026-06-26',
     title: 'تحليل عميق (الجولة الثالثة): 19 إصلاحاً من زوايا تحليلية جديدة',
@@ -1135,13 +1153,17 @@ function todayISO(){
 // Timestamp for a transaction on the chosen date at the current time, INCLUDING
 // milliseconds — so two entries within the same second still get distinct,
 // correctly-ordered ts values (the sort's id tiebreaker covers any exact-ms tie).
+const MIN_TX_TS = new Date('2010-01-01T00:00:00').getTime(); // matches the date pickers' min=
 function buildTxTs(dateVal){
   const now = new Date();
   const ts = new Date(dateVal + 'T' + now.toTimeString().slice(0,8)).getTime();
   if(!isFinite(ts)) return Date.now(); // guard against an invalid date string
   // never allow a future ts (clock skew / DST edge) — it would sort above
   // everything and corrupt "this month" filters. Edit path already caps; do it here too.
-  return Math.min(ts + now.getMilliseconds(), now.getTime());
+  // Also floor at 2010 so a programmatically-set out-of-range date (the HTML min=
+  // attribute is only an input-side hint) can't store a tiny/negative ts that would
+  // pin the entry to the top of every list and skew monthly filters.
+  return Math.max(MIN_TX_TS, Math.min(ts + now.getMilliseconds(), now.getTime()));
 }
 
 // Cap all date pickers at today so a transaction can't be accidentally future-dated

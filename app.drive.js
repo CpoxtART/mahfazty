@@ -838,7 +838,7 @@ async function driveSyncFromCloud(isInitial, interactive){
     // cloud transactions. Fall back to exportedAt/lastEdit for older snapshots.
     const cloudTime = (typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0)
       ? cloud.dataEditedAt
-      : (cloud.exportedAt ? Date.parse(cloud.exportedAt) : 0);
+      : (cloud.exportedAt ? (Date.parse(cloud.exportedAt) || 0) : 0); // || 0 so a malformed ISO string (Date.parse → NaN) doesn't poison the comparison
     const localTime = (parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0)
       || (parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0);
 
@@ -891,10 +891,14 @@ async function resolveConflict(useCloud){
   // this one had no confirm step, so a stale/wrong Drive snapshot could wipe
   // out newer local data with a single tap.
   if(useCloud && !confirm(t({ar:'سيتم استبدال كل بيانات هذا الجهاز بنسخة Drive نهائياً. متابعة؟', en:"This will permanently replace all of this device's data with the Drive version. Continue?"}))) return;
-  closeModal('driveConflictModal');
-  if(!_pendingDriveCloud) return;
+  // Claim the pending cloud snapshot BEFORE closing the modal: closeModal() has a
+  // dismissal guard that fires when driveConflictModal is closed via Escape/back
+  // with _pendingDriveCloud still set (a genuine cancel). Nulling it here first
+  // tells that guard "already resolved" so it doesn't mistake this for a cancel.
   const cloud = _pendingDriveCloud;
   _pendingDriveCloud = null;
+  closeModal('driveConflictModal');
+  if(!cloud) return;
   if(useCloud){
     await adoptCloudSnapshot(cloud);
     toast(t({ar:'☁️ تم استخدام نسخة Drive', en:'☁️ Used the Drive version'}));

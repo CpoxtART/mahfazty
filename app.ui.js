@@ -976,6 +976,9 @@ function renderRecentTx(){
   const visible = all.slice(0, _recentVisibleCount);
   let lastDay = null;
   let card = null;
+  // Build the whole list off-DOM in a fragment, then attach once — appending each
+  // of up to 500 rows directly to the live list triggers a reflow per insertion.
+  const frag = document.createDocumentFragment();
 
   visible.forEach(tx => {
     const wallet = WALLET_DEFS.find(w=>w.id===tx.wallet);
@@ -990,11 +993,11 @@ function renderRecentTx(){
       lbl.textContent = dayStr===todayStr ? t({ar:'اليوم', en:'Today'})
         : dayStr===yesterdayStr ? t({ar:'أمس', en:'Yesterday'})
         : date.toLocaleDateString(_dateLocale(),{weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
-      list.appendChild(lbl);
+      frag.appendChild(lbl);
       card = document.createElement('div');
       card.className = 'recent-card';
       card.setAttribute('role','list');
-      list.appendChild(card);
+      frag.appendChild(card);
     }
     const timeStr = date.toLocaleTimeString(_dateLocale(),{hour:'2-digit',minute:'2-digit',numberingSystem:'latn'});
     const sign = tx.type==='expense'?'-':'+';
@@ -1022,6 +1025,7 @@ function renderRecentTx(){
     row.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openEdit(tx.id); } };
     card.appendChild(row);
   });
+  list.appendChild(frag); // single DOM attach for the whole grouped list
 
   // Paginate so a long history stays fast — reveal one more page (recentTxLimit) per tap
   if(all.length > _recentVisibleCount){
@@ -1976,7 +1980,10 @@ let _recurringCacheSig = '';
 function detectRecurring(){
   // _txMutationStamp is included so in-place edits (amount/desc change on the
   // same last-tx-id) are detected without relying on render() to null the cache.
-  const sig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size + '|' + subscriptions.length + '|' + _txMutationStamp;
+  // include subscription names+amounts (not just count) so renaming/repricing a
+  // subscription re-evaluates matchesTrackedSub even when the count is unchanged.
+  const _subsSig = subscriptions.map(s => s.name + ':' + s.amount).join(',');
+  const sig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + dismissedRecurring.size + '|' + _subsSig + '|' + _txMutationStamp;
   if(sig === _recurringCacheSig && _recurringCache) return _recurringCache;
   _recurringCacheSig = sig;
 
@@ -1995,13 +2002,18 @@ function detectRecurring(){
   // Tracked subscriptions the user already accepted shouldn't be re-suggested —
   // compare normalized name + amount within 15% (same tolerance as the variance
   // check below) so the matching transaction group is skipped entirely.
-  const trackedSubs = subscriptions.map(s => ({ name: normalizeSearch(s.name), amount: s.amount })).filter(s => s.name.length > 0);
+  const trackedSubs = subscriptions.map(s => ({ name: normalizeSearch(s.name), amount: s.amount })).filter(s => s.name.length > 0 && s.amount > 0);
   function matchesTrackedSub(desc, avg){
     const normDesc = normalizeSearch(desc);
     if(!normDesc) return false;
     return trackedSubs.some(s =>
-      s.amount > 0 &&
-      (normDesc.includes(s.name) || s.name.includes(normDesc)) &&
+      // One-directional only: the transaction description must contain the
+      // subscription name (not the reverse). The old bidirectional check
+      // (s.name.includes(normDesc)) let a short subscription name like "نت"
+      // suppress unrelated expenses whose whole description was a substring of
+      // the sub name. Require >= 3 chars so a 1-2 letter name can't match broadly.
+      s.name.length >= 3 &&
+      normDesc.includes(s.name) &&
       Math.abs(avg - s.amount) / s.amount < 0.15
     );
   }
