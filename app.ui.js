@@ -624,6 +624,24 @@ function loadLayoutPrefs(){
   _recentVisibleCount = recentTxLimit;
   try{ trackLinkMode = sanitizeTrackLinkMode(JSON.parse(localStorage.getItem(LS_PREFIX + 'trackLinkMode') || 'null')); }
   catch(e){ trackLinkMode = {}; }
+  fixQuickNotesSectionOrder();
+}
+// v47.39 introduced the 'quicknotes' home section; sanitizeOrder appended it to
+// the END of the saved order for existing users — and that order may already be
+// persisted locally and/or synced via Drive, so the "insert missing key" path
+// (v47.41) never repositions it. Re-seat it right after 'crisis' (its designed
+// home) IN MEMORY on every load — which also survives a Drive copy that still has
+// it at the end — UNTIL the user deliberately reorders the home sections from the
+// layout editor (which pins the flag below so their own order wins thereafter).
+function fixQuickNotesSectionOrder(){
+  try{ if(localStorage.getItem(LS_PREFIX + 'qnSecPinned') === '1') return; }catch(e){}
+  const home = sectionOrder.home;
+  if(!Array.isArray(home) || home.indexOf('quicknotes') === -1) return;
+  const rest = home.filter(k => k !== 'quicknotes');
+  let at = rest.indexOf('crisis');
+  at = (at === -1) ? Math.min(1, rest.length) : at + 1;
+  rest.splice(at, 0, 'quicknotes');
+  if(rest.join('|') !== home.join('|')) sectionOrder.home = rest;
 }
 // Keep only valid track-wallet ids mapped to a known mode ('debit'/'credit'),
 // so a corrupt/old saved value can't feed a bad direction into the money math.
@@ -684,6 +702,7 @@ function applyUiPrefs(p){
     _recentVisibleCount = recentTxLimit;
   }
   if(p.trackLinkMode !== undefined) trackLinkMode = sanitizeTrackLinkMode(p.trackLinkMode);
+  fixQuickNotesSectionOrder(); // re-seat the quick-notes banner even if the cloud order still has it at the end
   saveLayoutPrefs();
   renderBottomNav();
   applySectionOrder();
@@ -819,6 +838,9 @@ function moveLayout(scope, key, dir){
   const i = arr.indexOf(key), j = i + dir;
   if(i < 0 || j < 0 || j >= arr.length) return;
   [arr[i], arr[j]] = [arr[j], arr[i]];
+  // The user is deliberately arranging the home sections — stop auto-seating the
+  // quick-notes banner so their chosen order wins from here on.
+  if(scope === 'sec:home'){ try{ localStorage.setItem(LS_PREFIX + 'qnSecPinned', '1'); }catch(e){} }
   saveLayoutPrefs();
   scheduleDriveSync();
   if(scope === 'tab') renderBottomNav(); else applySectionOrder();
@@ -827,6 +849,7 @@ function moveLayout(scope, key, dir){
 function resetLayout(){
   tabOrder = DEFAULT_TAB_ORDER.slice();
   Object.keys(SECTION_DEFS).forEach(tab => { sectionOrder[tab] = SECTION_DEFS[tab].map(s => s.key); });
+  try{ localStorage.removeItem(LS_PREFIX + 'qnSecPinned'); }catch(e){} // defaults already seat quick-notes correctly; re-enable auto-seating
   recentTxLimit = RECENT_TX_LIMIT_DEFAULT;
   _recentVisibleCount = recentTxLimit;
   const saved = saveLayoutPrefs();
