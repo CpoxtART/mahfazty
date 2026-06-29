@@ -577,12 +577,34 @@ function switchTab(tab){
 /* ============================================================
    v9.4: CUSTOMIZABLE LAYOUT — tab order + section order
 ============================================================ */
-// Keep only valid keys (in saved order), then append any defaults the save
+// Keep only valid keys (in saved order), then merge in any defaults the save
 // didn't include — so adding/removing sections in a future version never breaks.
+// A newly-added default key is inserted at its DEFAULT position (right after its
+// nearest preceding default neighbour that's present), NOT blindly appended to the
+// end — otherwise a brand-new section (e.g. the quick-notes banner) would land at
+// the bottom of the tab for every existing user instead of where it's designed to sit.
 function sanitizeOrder(arr, def){
-  const valid = (Array.isArray(arr) ? arr : []).filter(k => def.includes(k));
-  def.forEach(k => { if(!valid.includes(k)) valid.push(k); });
-  return [...new Set(valid)];
+  const valid = [...new Set((Array.isArray(arr) ? arr : []).filter(k => def.includes(k)))];
+  const present = new Set(valid);
+  def.forEach((k, di) => {
+    if(present.has(k)) return;
+    let insertAt = valid.length; // fallback: end
+    // prefer inserting just after the nearest earlier default key that's present
+    for(let j = di - 1; j >= 0; j--){
+      const idx = valid.indexOf(def[j]);
+      if(idx !== -1){ insertAt = idx + 1; break; }
+    }
+    // if none precede it, insert before the nearest later default key that's present
+    if(insertAt === valid.length){
+      for(let j = di + 1; j < def.length; j++){
+        const idx = valid.indexOf(def[j]);
+        if(idx !== -1){ insertAt = idx; break; }
+      }
+    }
+    valid.splice(insertAt, 0, k);
+    present.add(k);
+  });
+  return valid;
 }
 function loadLayoutPrefs(){
   try{
