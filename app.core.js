@@ -29,6 +29,18 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.48',
+    date: '2026-06-29',
+    title: 'محافظ التتبع صارت أساسية + فرز محافظ الملاحظات قبل التحويل + إصلاح قصّ الأسماء بالوضع البديل',
+    items: [
+      'إصلاح: أسماء المحافظ (خاصة في الوضع البديل مثل «الاحتياطي المدمج» و«Core Expenses») لم تعد تُقصّ — تلتفّ على سطرين مع محاذاة متناسقة للبطاقات.',
+      'جديد: محافظ التتبع (أوبر/كاش/بطاقات) صارت محافظ أساسية قابلة للاختيار في نموذج الإضافة وفي بانر الملاحظات — للمصروف وللدخل. (تبقى غير محتسبة بالإجمالي المتاح للصرف، ولا تدخل في التوزيع التلقائي.)',
+      'سلوك: الدخل المُسجَّل في محفظة تتبع لا يُوزَّع تلقائيًا — يبقى في محفظته كعدّاد مستقل.',
+      'جديد وأهم: في الملاحظات السريعة تقدر تفرز المحافظ <b>قبل التحويل</b> — اكتب سطر محفظة مثل «@كاش» أو «@اوبر» فينطبق على كل الأسطر تحته حتى السطر التالي، أو ضع «@المحفظة» داخل أي سطر. حلٌّ لمن لديه ٢٠+ محفظة بدل تعديل كل معاملة يدويًا.',
+      'تحسين: في معاينة الملاحظات صارت محفظة كل سطر قائمة ذهبية بارزة مع 👛، والتلميحات تشرح الصيغة @المحفظة وتشمل محافظ التتبع.',
+    ],
+  },
+  {
     version: 'v47.47',
     date: '2026-06-29',
     title: 'إصلاح قصّ أسماء المحافظ + توضيح ميزة محفظة كل سطر في الملاحظات',
@@ -769,21 +781,29 @@ const QUICK_AMOUNTS = [250, 500, 1000, 2000, 5000, 10000];
 // `let` + explicit recompute (not a one-time const filter) because WALLET_DEFS
 // can grow/shrink at runtime once wallets become user-editable, and crisis mode
 // changes which wallets are visible so the add-form dropdown must match.
-let SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !w.crisisOnly);
+// Track wallets (Uber/Cards/Cash) are now FIRST-CLASS selectable targets — they
+// appear in the add-form dropdown and the quick-notes wallet pickers for both
+// income and expense, appended after the budget wallets. Their track semantics
+// are unchanged: still excluded from the spendable total, from reconcileBalances,
+// and from auto-distribution (income recorded INTO a track wallet is not split).
+let SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !w.crisisOnly).concat(WALLET_DEFS.filter(w => w.track));
 function recomputeSelectableWallets(){
+  let base;
   if(state.crisisMode){
     const crisisIds = new Set(crisisWalletIds());
     // crisis mode: show core + crisisOnly wallets (crisis_fund), hide normal budget wallets
-    SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !crisisIds.has(w.id));
+    base = WALLET_DEFS.filter(w => !w.track && !crisisIds.has(w.id));
   } else {
     // normal mode: hide crisisOnly wallets (they only make sense in crisis context)
-    SELECTABLE_WALLETS = WALLET_DEFS.filter(w => !w.track && !w.crisisOnly);
+    base = WALLET_DEFS.filter(w => !w.track && !w.crisisOnly);
   }
+  SELECTABLE_WALLETS = base.concat(WALLET_DEFS.filter(w => w.track)); // track wallets last
   // If the currently selected wallet is no longer available, fall back to the first one
   if(SELECTABLE_WALLETS.length && !SELECTABLE_WALLETS.find(w => w.id === selectedWallet)){
     selectedWallet = SELECTABLE_WALLETS[0].id;
   }
 }
+function isTrackWallet(id){ const w = WALLET_DEFS.find(x => x.id === id); return !!(w && w.track); }
 
 // Wallets that participate in automatic income distribution, with their share %
 const DEFAULT_DISTRIBUTION = [

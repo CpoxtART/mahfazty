@@ -1217,7 +1217,10 @@ let _editWalletSelectSig = '';
 function renderEditWalletSelect(){
   let list = SELECTABLE_WALLETS;
   const currentDef = WALLET_DEFS.find(w=>w.id===editWallet);
-  if(currentDef && currentDef.track) list = [currentDef, ...SELECTABLE_WALLETS];
+  // only prepend the current wallet if it isn't already selectable (e.g. a
+  // crisisOnly/hidden wallet) — track wallets now live in SELECTABLE_WALLETS, so
+  // prepending unconditionally would list them twice.
+  if(currentDef && !SELECTABLE_WALLETS.find(w => w.id === currentDef.id)) list = [currentDef, ...SELECTABLE_WALLETS];
   const sig = editWallet + '|' + list.map(w => w.id + ':' + (state.wallets[w.id]??0)).join(',');
   if(sig === _editWalletSelectSig) return;
   _editWalletSelectSig = sig;

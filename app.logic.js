@@ -70,26 +70,30 @@ async function addTx(type){
 
     await saveBalances();
     await saveTx();
+    // Income recorded INTO a track wallet (Uber/Cards/Cash) is a standalone amount
+    // for that counter — it must NOT be split across the budget wallets, so the
+    // whole distribution flow (auto + the prompt) is skipped for it.
+    const _distributable = type === 'income' && tx.category !== 'transfer' && !isTrackWallet(walletId);
     // Signal closeAddDrawer() to skip history.back() when it's followed immediately
     // by openModal(distributeModal) — the flag is checked inside closeAddDrawer()
     // so the drawer's history entry gets replaced atomically instead of back()+push().
-    if(type === 'income' && tx.category !== 'transfer' && !autoDistribute && addDrawerOpen){
+    if(_distributable && !autoDistribute && addDrawerOpen){
       _nextPushOverlayReplaces = true;
     }
     closeAddDrawer();
     haptic(15); // brief confirm pulse on a successful entry
     toast(type==='expense' ? t({ar:'✓ تم تسجيل المصروف', en:'✓ Expense recorded'}) : t({ar:'✓ تم تسجيل الدخل', en:'✓ Income recorded'}));
 
-    // auto-distribution flow for income
-    if(type === 'income' && tx.category !== 'transfer' && autoDistribute){
+    // auto-distribution flow for income (budget-wallet income only)
+    if(_distributable && autoDistribute){
       const _distributed = await runDistribution(tx, amountVal);
       // single render after distribution completes — skips an intermediate render
       // that would paint the income-only state before the distribution legs exist
       render();
       if(_distributed) toast(t({ar:'🔄 تم توزيع الدخل تلقائيًا', en:'🔄 Income auto-distributed'}));
     } else {
-      render(); // expenses and manual-distribution incomes render once right here
-      if(type === 'income' && tx.category !== 'transfer'){
+      render(); // expenses, track-wallet income, and manual-distribution incomes render once right here
+      if(_distributable){
         pendingIncomeTx = tx;
         try{ openDistributionModal(amountVal); } // _pushOverlayHistory() will replaceState (flag already set)
         finally{ _nextPushOverlayReplaces = false; } // reset even if openDistributionModal throws
@@ -324,6 +328,41 @@ const _QN_CAT_KEYWORDS = [
 // or names an income-type concept) — keep in sync with the salary keywords above
 const _QN_INCOME_WORDS = ['راتب','مرتب','دخل','مدخول','ايداع','إيداع','استرجاع','مكافاه','مكافأة','salary','income','deposit','refund','bonus','payroll'];
 
+// Short aliases so the default (English-named) wallets are reachable by an Arabic
+// token after "@" — e.g. "@كاش" → cash. Custom wallets are matched by their own name.
+const _QN_WALLET_ALIASES = {
+  cash:  ['كاش','نقد','نقدا','نقدي','cash'],
+  cards: ['بطاقه','بطاقة','بطاقات','فيزا','ماستر','بنك','بنكي','بنكيه','card','cards','visa','bank'],
+  uber:  ['اوبر','أوبر','كريم','تكسي','uber','careem','taxi'],
+  core:  ['اساسي','أساسي','اساسيات','core'],
+  wishlist: ['رغبات','امنيات','wishlist','wish'],
+  growth: ['نمو','تطوير','growth'],
+  investments: ['استثمار','استثمارات','invest','investments'],
+  joy: ['متعه','متعة','ترفيه','joy'],
+  giving: ['عطاء','صدقه','صدقة','زكاه','زكاة','giving','charity'],
+};
+// Resolve a free-text token (after "@") to a SELECTABLE wallet id, or null.
+function _qnResolveWallet(token){
+  const tk = _qnNorm(token);
+  if(!tk) return null;
+  // 1) exact, then contains, against the live selectable wallet names (covers
+  //    custom wallets too)
+  let contains = null;
+  for(const w of SELECTABLE_WALLETS){
+    const wn = _qnNorm(w.name);
+    if(!wn) continue;
+    if(wn === tk) return w.id;
+    if(!contains && (wn.includes(tk) || tk.includes(wn))) contains = w.id;
+  }
+  if(contains) return contains;
+  // 2) built-in aliases (only if that wallet is currently selectable)
+  for(const id in _QN_WALLET_ALIASES){
+    if(!SELECTABLE_WALLETS.find(w => w.id === id)) continue;
+    if(_QN_WALLET_ALIASES[id].some(a => { const na = _qnNorm(a); return na === tk || tk.includes(na); })) return id;
+  }
+  return null;
+}
+
 function _qnNorm(s){ return (typeof normalizeSearch === 'function') ? normalizeSearch(s) : String(s||'').toLowerCase().trim(); }
 function _qnGuessCategory(desc, type){
   const d = _qnNorm(desc);
@@ -346,34 +385,56 @@ const _QN_NUM_RE = /[\d٠-٩۰-۹]+(?:[.,٫][\d٠-٩۰-۹]+)?/g;
 const QN_MAX_LINES = 300;
 let _qnTruncated = false; // set when the last parse hit the cap (surfaced as a toast)
 // Parse free-form text into transaction candidates — one per non-empty line.
+// Wallet assignment BEFORE conversion (so you don't edit 20 rows by hand):
+//   • a header line that is just a wallet ref — "@كاش" or "كاش:" — sets the wallet
+//     for every following line until the next header.
+//   • an inline "@wallet" anywhere on a line overrides just that line.
 function parseQuickNotes(text){
   const rows = [];
   _qnTruncated = false;
+  let currentWallet = null; // header-scoped wallet for subsequent lines
   const lines = String(text == null ? '' : text).split('\n');
   for(const rawLine of lines){
     if(rows.length >= QN_MAX_LINES){ _qnTruncated = true; break; }
     const line = rawLine.trim();
     if(!line) continue;
-    const normSearch = _qnNorm(line);
-    const isIncome = /\+/.test(line) || _QN_INCOME_WORDS.some(w => normSearch.includes(_qnNorm(w)));
+    const hasNumber = /[\d٠-٩۰-۹]/.test(line); // simple digit presence (avoids the global _QN_NUM_RE lastIndex pitfall)
+    // Header line (no price): "@wallet" or "wallet:" → set the scope wallet.
+    if(!hasNumber){
+      const hm = line.match(/^@\s*(.+)$/) || line.match(/^(.+?)\s*[:：]$/);
+      if(hm){
+        const wid = _qnResolveWallet(hm[1]);
+        if(wid){ currentWallet = wid; continue; }
+      }
+    }
+    // Per-line "@wallet" override (anywhere on the line); strip it from the text.
+    let work = line, lineWallet = null;
+    const am = work.match(/@\s*([^\s@]+)/);
+    if(am){
+      const wid = _qnResolveWallet(am[1]);
+      if(wid){ lineWallet = wid; work = (work.slice(0, am.index) + ' ' + work.slice(am.index + am[0].length)).trim(); }
+    }
+    const rowWallet = lineWallet || currentWallet || null; // null → preview uses the default chip
+    const normSearch = _qnNorm(work);
+    const isIncome = /\+/.test(work) || _QN_INCOME_WORDS.some(w => normSearch.includes(_qnNorm(w)));
     const type = isIncome ? 'income' : 'expense';
-    const nums = line.match(_QN_NUM_RE);
+    const nums = work.match(_QN_NUM_RE);
     if(!nums || !nums.length){
       // no price on the line — keep it as an invalid row so the user notices it
       // wasn't captured, instead of silently dropping it
-      rows.push({raw:line, desc:line.replace(/\+/g,' ').replace(/\s+/g,' ').trim(), amount:NaN, type, category:_qnGuessCategory(line, type), valid:false});
+      rows.push({raw:line, desc:work.replace(/\+/g,' ').replace(/\s+/g,' ').trim(), amount:NaN, type, category:_qnGuessCategory(work, type), valid:false, wallet:rowWallet});
       continue;
     }
     const amtRaw = nums[nums.length-1];           // amount = last number (description comes first)
     const amount = round2(parseAmount(amtRaw));   // parseAmount folds Arabic/Persian digits itself
-    // description = the ORIGINAL line minus the LAST number token and any + markers
-    let desc = line;
+    // description = the work text minus the LAST number token and any + markers
+    let desc = work;
     const idx = desc.lastIndexOf(amtRaw);
     if(idx >= 0) desc = desc.slice(0, idx) + desc.slice(idx + amtRaw.length);
     desc = desc.replace(/\+/g,' ').replace(/\s+/g,' ').trim();
     desc = desc.replace(/(ريال|ر\.?\s?س|درهم|دينار|جنيه|sar|usd|riyal|\$)\s*$/i,'').trim(); // drop a trailing currency word
     const valid = isFinite(amount) && amount > 0;
-    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid});
+    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid, wallet:rowWallet});
   }
   return rows;
 }
@@ -605,7 +666,8 @@ async function commitQuickNotes(){
       };
       state.transactions.push(tx);
       applyTxToBalance(tx, +1);
-      if(tx.type === 'income' && tx.category !== 'transfer') incomeTxs.push(tx);
+      // budget-wallet income distributes; track-wallet income stays put (see addTx)
+      if(tx.type === 'income' && tx.category !== 'transfer' && !isTrackWallet(tx.wallet)) incomeTxs.push(tx);
     });
     if(_reassigned){ toast(t({ar:`ℹ️ ${_reassigned} سطر حُوّل للمحفظة الافتراضية (تغيّرت المحافظ في مكان آخر)`, en:`ℹ️ ${_reassigned} line(s) moved to the default wallet (wallets changed elsewhere)`}), true); }
     await saveBalances();

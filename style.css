@@ -576,12 +576,18 @@
     border-color:transparent var(--gold) transparent transparent;
   }
   .wallet .top{display:flex; justify-content:space-between; align-items:flex-start; gap:6px; margin-bottom:8px;}
-  /* flex:1 + min-width:0 lets the name use ALL the room left by the % chip instead
-     of a fixed calc() reservation that clipped common names like "Core Expenses"
-     into "...e Expenses". letter-spacing dropped (it pushed names over the edge);
-     unicode-bidi:plaintext renders each name in its own direction so the ellipsis
-     (when a name truly is too long) sits at the natural end, not mid-RTL. */
-  .wallet .name{font-size:var(--fs-xs); color:var(--muted); font-weight:500; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; unicode-bidi:plaintext;}
+  /* Wrap to TWO lines instead of a hard single-line ellipsis — long names like
+     "Core Expenses"/"Merged Reserve" were clipped (especially next to the wide %
+     badge on narrow phones, and in alternate mode). flex:1 + min-width:0 take all
+     room left by the % chip; min-height reserves two lines so every card's value
+     still aligns across the grid whether the name is one line or two;
+     unicode-bidi:plaintext renders each name in its own direction. */
+  .wallet .name{
+    font-size:var(--fs-sm); color:var(--muted); font-weight:500;
+    flex:1 1 auto; min-width:0; line-height:1.3; min-height:2.6em;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden; overflow-wrap:anywhere; unicode-bidi:plaintext;
+  }
   /* A real chip (filled + bordered + bold), not a flat muted label — it should
      read as a tappable control, since this is the only way to reach the
      per-wallet budget/actual-balance screen and users were missing it. */
