@@ -444,19 +444,29 @@ function renderQuickNotesPreview(){
   const cEl = document.getElementById('qnPreviewCount');
   if(cEl) cEl.textContent = validCount ? validCount : '';
   _qnPreview.forEach((r, i) => {
+    // each row carries its OWN target wallet (defaults to the top chip choice),
+    // so the user can send some lines to one wallet and others to another.
+    if(!r.wallet || !SELECTABLE_WALLETS.find(w => w.id === r.wallet)) r.wallet = _qnWallet;
     const cat = getCategory(r.category);
+    const opts = SELECTABLE_WALLETS.map(w =>
+      `<option value="${escHtml(w.id)}"${w.id === r.wallet ? ' selected' : ''}>${escHtml(w.name)}</option>`).join('');
     const row = document.createElement('div');
     row.className = 'qn-row' + (r.valid ? '' : ' invalid');
     row.innerHTML =
-      `<button type="button" class="qn-type ${r.type}" data-i="${i}" aria-label="${escHtml(t({ar:'بدّل النوع', en:'Toggle type'}))}">${r.type === 'income' ? '＋' : '－'}</button>` +
-      `<span class="qn-row-cat" title="${escHtml(cat.name)}">${cat.icon}</span>` +
-      `<input class="qn-row-desc" data-i="${i}" value="${escHtml(r.desc)}" placeholder="${escHtml(t({ar:'الوصف', en:'Description'}))}" autocomplete="off">` +
-      `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off">` +
-      `<button type="button" class="qn-row-del" data-i="${i}" aria-label="${escHtml(t({ar:'حذف', en:'Remove'}))}">✕</button>`;
+      `<div class="qn-row-top">` +
+        `<button type="button" class="qn-type ${r.type}" data-i="${i}" aria-label="${escHtml(t({ar:'بدّل النوع', en:'Toggle type'}))}">${r.type === 'income' ? '＋' : '－'}</button>` +
+        `<input class="qn-row-desc" data-i="${i}" value="${escHtml(r.desc)}" placeholder="${escHtml(t({ar:'الوصف', en:'Description'}))}" autocomplete="off">` +
+        `<button type="button" class="qn-row-del" data-i="${i}" aria-label="${escHtml(t({ar:'حذف', en:'Remove'}))}">✕</button>` +
+      `</div>` +
+      `<div class="qn-row-bottom">` +
+        `<span class="qn-row-cat" title="${escHtml(cat.name)}">${cat.icon}</span>` +
+        `<select class="qn-row-wallet" data-i="${i}" aria-label="${escHtml(t({ar:'محفظة هذا السطر', en:'Wallet for this line'}))}">${opts}</select>` +
+        `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off">` +
+      `</div>`;
     list.appendChild(row);
   });
-  // Desc/amount inputs only mutate the model (no re-render → keeps focus while
-  // typing). Type-toggle and delete re-render because they change row structure.
+  // Desc/amount/wallet inputs only mutate the model (no re-render → keeps focus
+  // while typing). Type-toggle and delete re-render because they change structure.
   list.querySelectorAll('.qn-type').forEach(btn => btn.onclick = () => {
     const i = +btn.dataset.i;
     _qnPreview[i].type = _qnPreview[i].type === 'income' ? 'expense' : 'income';
@@ -464,6 +474,7 @@ function renderQuickNotesPreview(){
     renderQuickNotesPreview();
   });
   list.querySelectorAll('.qn-row-desc').forEach(inp => inp.oninput = () => { _qnPreview[+inp.dataset.i].desc = inp.value; });
+  list.querySelectorAll('.qn-row-wallet').forEach(sel => sel.onchange = () => { _qnPreview[+sel.dataset.i].wallet = sel.value; });
   list.querySelectorAll('.qn-row-amt').forEach(inp => inp.oninput = () => {
     const i = +inp.dataset.i;
     const v = round2(parseAmount(inp.value));
@@ -495,9 +506,11 @@ async function commitQuickNotes(){
       // ensure the resolved category actually supports this type (guards a bad guess)
       const cdef = getCategory(category);
       if(!cdef || !cdef.types || !cdef.types.includes(r.type)) category = (r.type === 'income' ? 'salary' : 'other');
+      // per-row wallet, falling back to the top default if a row's pick went stale
+      const rowWallet = (r.wallet && WALLET_DEFS.find(w => w.id === r.wallet)) ? r.wallet : _qnWallet;
       const tx = {
         id: 'tx_' + baseTs + '_qn' + k + '_' + Math.random().toString(36).slice(2,6),
-        wallet: _qnWallet,
+        wallet: rowWallet,
         desc: String(r.desc || '').slice(0,120),
         amount: round2(r.amount),
         type: r.type,

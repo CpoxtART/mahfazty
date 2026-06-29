@@ -446,21 +446,28 @@
     transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
   }
   .qn-chip.active{ background:var(--gold-soft); border-color:var(--gold); color:var(--gold); }
-  .qn-preview-list{ display:flex; flex-direction:column; gap:8px; margin:10px 0; max-height:40vh; overflow-y:auto; }
+  .qn-preview-list{ display:flex; flex-direction:column; gap:10px; margin:10px 0; max-height:44vh; overflow-y:auto; }
+  /* two-line row: [type · desc · delete] over [category · wallet · amount] so a
+     per-line wallet selector fits comfortably on a narrow phone */
   .qn-row{
-    display:flex; align-items:center; gap:8px;
-    background:var(--card); border:1px solid var(--line); border-radius:var(--radius-sm); padding:8px 10px;
+    display:flex; flex-direction:column; gap:8px;
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px;
   }
   .qn-row.invalid{ border-color:var(--red); background:var(--red-soft); }
+  .qn-row-top, .qn-row-bottom{ display:flex; align-items:center; gap:8px; }
   .qn-type{
     flex:0 0 auto; width:32px; height:32px; border-radius:8px; font-size:16px; font-weight:700;
     border:1px solid var(--line); cursor:pointer; line-height:1; background:transparent;
   }
   .qn-type.income{ color:var(--green); border-color:var(--green); }
   .qn-type.expense{ color:var(--red); border-color:var(--red); }
-  .qn-row-cat{ flex:0 0 auto; font-size:18px; }
+  .qn-row-cat{ flex:0 0 auto; font-size:18px; width:24px; text-align:center; }
   .qn-row-desc{ flex:1 1 auto; min-width:0; margin:0; padding:7px 10px; font-size:13px; }
-  .qn-row-amt{ flex:0 0 84px; width:84px; margin:0; padding:7px 8px; font-size:13px; text-align:center; }
+  .qn-row-wallet{
+    flex:1 1 auto; min-width:0; margin:0; padding:7px 8px; font-size:12.5px;
+    background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; cursor:pointer;
+  }
+  .qn-row-amt{ flex:0 0 80px; width:80px; margin:0; padding:7px 8px; font-size:13px; text-align:center; }
   .qn-row-del{
     flex:0 0 auto; width:30px; height:30px; border-radius:8px; border:none; background:transparent;
     color:var(--muted); font-size:15px; cursor:pointer;

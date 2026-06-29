@@ -145,10 +145,10 @@ var I18N_STRINGS = {
   'qn.intro':         { ar: 'اكتب كل معاملة في سطر مستقل: الوصف ثم السعر. البرنامج يحوّلها لمعاملات جاهزة تراجعها قبل الحفظ — بدون إدخال يدوي لكل واحدة.', en: 'Write one transaction per line: description then price. The app turns them into ready transactions you review before saving — no manual entry for each.' },
   'qn.ph':            { ar: 'قهوة ١٥\nبنزين ٥٠\nغداء مطعم ٤٥\nراتب ٥٠٠٠ +', en: 'Coffee 15\nGas 50\nLunch 45\nSalary 5000 +' },
   'qn.sideHint':      { ar: '💡 سطر لكل معاملة: اكتب <b>ما هي المعاملة وسعرها</b> (مثل «قهوة ١٥»). أضِف <b>+</b> في آخر السطر أو اكتب «راتب/دخل» لتسجيلها كدخل.', en: '💡 One line per transaction: write <b>what it is and its price</b> (e.g. “Coffee 15”). Add <b>+</b> at the end or write “salary/income” to record it as income.' },
-  'qn.walletLbl':     { ar: 'المحفظة المستهدفة', en: 'Target wallet' },
+  'qn.walletLbl':     { ar: 'المحفظة الافتراضية (تقدر تغيّرها لكل سطر بالمعاينة)', en: 'Default wallet (you can change it per line in the preview)' },
   'qn.parse':         { ar: '🔎 حوّل لمعاملات', en: '🔎 Convert to transactions' },
   'qn.previewTitle':  { ar: 'معاينة المعاملات', en: 'Transactions preview' },
-  'qn.previewHint':   { ar: 'عدّل الوصف أو المبلغ، بدّل النوع (＋/－)، أو احذف أي سطر قبل الحفظ.', en: 'Edit the description or amount, toggle the type (＋/－), or remove any line before saving.' },
+  'qn.previewHint':   { ar: 'عدّل الوصف أو المبلغ أو محفظة كل سطر، بدّل النوع (＋/－)، أو احذف أي سطر قبل الحفظ.', en: 'Edit each line’s description, amount or wallet, toggle the type (＋/－), or remove any line before saving.' },
   'qn.confirm':       { ar: '✓ سجّل الكل', en: '✓ Record all' },
 
   // ── tabs / sections ──
