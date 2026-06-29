@@ -504,14 +504,14 @@
   .qn-row-wallet{
     flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 8px; font-size:var(--fs-base); font-weight:600;
     /* gold-tinted so it reads as an interactive per-line control (the wallet for
-       THIS transaction), not a flat read-only field — this is the part users were
-       missing. */
+       THIS transaction), not a flat read-only field. */
     background:var(--gold-soft); color:var(--gold); border:1px solid var(--gold-dim); border-radius:var(--radius-sm); cursor:pointer;
-    /* keep the NATIVE dropdown arrow — the browser positions it correctly for both
-       RTL (Arabic) and LTR (English); a custom CSS arrow is fixed to one side and
-       would misalign when the language flips. Arrow inherits `color` so it stays
-       visible on the themed background. */
+    /* color-scheme makes the NATIVE option list render in the theme's colors —
+       without it the opened list was white/unreadable in dark mode. */
+    color-scheme:dark;
   }
+  /* all themed wallet selects: their popup option list must follow the theme */
+  body.light .qn-row-wallet, body.light .qn-row-track, body.light .track-link-select{ color-scheme:light; }
   .qn-row-del{
     position:relative; flex:0 0 auto; width:34px; height:34px; border-radius:var(--radius-xs); border:none; background:transparent;
     color:var(--muted); font-size:var(--fs-lg); cursor:pointer;
@@ -524,6 +524,7 @@
   .qn-row-track{
     flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 8px; font-size:var(--fs-base);
     background:var(--bg); color:var(--muted); border:1px dashed var(--line); border-radius:var(--radius-sm); cursor:pointer;
+    color-scheme:dark; /* readable native option list in dark mode */
   }
   .qn-row-track.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); font-weight:600; }
   .qn-row-track:focus{ outline:none; border-color:var(--blue); box-shadow:var(--focus-ring); }
@@ -914,6 +915,7 @@
   .track-link-select{
     width:100%; margin-bottom:4px; padding:12px 14px; font-family:inherit; font-size:16px;
     background:var(--bg); color:var(--muted); border:1px dashed var(--line); border-radius:var(--radius-sm); cursor:pointer;
+    color-scheme:dark; /* readable native option list in dark mode */
   }
   .track-link-select.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); font-weight:600; }
   .track-link-select:focus{ outline:none; border-color:var(--blue); box-shadow:var(--focus-ring); }
