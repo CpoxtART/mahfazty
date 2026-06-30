@@ -362,11 +362,37 @@ let _qnTruncated = false; // set when the last parse hit the cap (surfaced as a 
    trackWalletDefs() for tracking) so a resolved id can never be one the
    preview's own fallback logic would silently reject.
 ------------------------------------------------------------ */
+// WALLET_DEFS ships its built-in wallets with English names ("Core Expenses",
+// "Cash", "Bank Cards"...) even though the rest of this app's UI is Arabic —
+// so an Arabic phrase like "بالكاش" can never literal-match "Cash" no matter
+// how much Arabic-internal clitic stripping is applied; the scripts don't
+// overlap at all. These are common Arabic aliases for the STOCK wallet ids
+// only (not a general fixed-word list — a user's own custom/renamed wallets
+// are still matched purely by their actual current name, same as before).
+// If a user later renames one of these ids to something unrelated, its old
+// alias(es) keep matching too; an acceptable trade-off for fixing the much
+// more common "never recognized at all" case on fresh/default wallets.
+const _QN_BUILTIN_WALLET_ALIASES = {
+  core:        ['الرئيسية','الأساسية','المصاريف الأساسية','المصاريف الرئيسية'],
+  wishlist:    ['قائمة الأمنيات','الأمنيات'],
+  growth:      ['النمو'],
+  investments: ['الاستثمارات'],
+  joy:         ['متعة الحياة','المتعة'],
+  giving:      ['العطاء'],
+  crisis_fund: ['الاحتياطي','الاحتياطي المدمج'],
+  uber:        ['اوبر'],
+  cards:       ['البطاقات','بطاقات البنك','بطاقات بنكية'],
+  cash:        ['كاش','نقدي','نقدا'],
+};
 function _qnWalletMatchList(){
-  const toEntry = (w, track) => ({ id:w.id, track, norm:_qnNorm(w.name), words:_qnNorm(w.name).split(/\s+/).filter(Boolean).length });
-  return SELECTABLE_WALLETS.map(w => toEntry(w, false))
-    .concat(trackWalletDefs().map(w => toEntry(w, true)))
-    .filter(w => w.norm);
+  const toEntry = (w, track, name) => { const norm = _qnNorm(name); return { id:w.id, track, norm, words: norm.split(/\s+/).filter(Boolean).length }; };
+  const wallets = SELECTABLE_WALLETS.map(w => ({w, track:false})).concat(trackWalletDefs().map(w => ({w, track:true})));
+  const entries = [];
+  wallets.forEach(({w, track}) => {
+    entries.push(toEntry(w, track, w.name));
+    (_QN_BUILTIN_WALLET_ALIASES[w.id] || []).forEach(alias => entries.push(toEntry(w, track, alias)));
+  });
+  return entries.filter(e => e.norm);
 }
 // Arabic prepositions/the definite article often glue directly onto the next
 // word with no space ("بالكاش" = بـ + الـ + كاش, "فالبنك" = فـ + الـ + بنك) —
