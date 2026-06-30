@@ -527,9 +527,9 @@
      the tracking picker at a glance, distinct from the plain primary above it.
      Bold only once a wallet is actually picked, matching the add-form's track-cs. */
   .qn-row-track-row{ display:flex; align-items:center; gap:8px; }
-  .qn-cs.qn-cs-track{ background:var(--bg); color:var(--blue-dim); border:1px dashed var(--blue-dim); }
+  .qn-cs.qn-cs-track{ background:var(--bg); color:var(--blue-dim); border:1.5px dashed var(--blue-dim); }
   .qn-cs.qn-cs-track .arrow{ color:var(--blue-dim); }
-  .qn-cs.qn-cs-track.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); font-weight:600; }
+  .qn-cs.qn-cs-track.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-width:1.5px; border-color:var(--blue-dim); font-weight:600; }
   .qn-cs.qn-cs-track.has-track .arrow{ color:var(--blue); }
   /* override the generic .custom-select.open gold ring — the track picker stays
      blue even while open, matching .track-cs.open above */
@@ -770,8 +770,14 @@
 
   .custom-select{
     width:100%;
-    background:var(--bg-elev);
-    border:1px solid var(--line);
+    /* card2 + muted2 (not bg-elev + line) deliberately — the surrounding modal/drawer
+       is itself background:var(--bg-elev), so the old bg-elev+line combo made the
+       control nearly blend into its own container. card2/muted2 are accent-immune
+       neutral tokens (same family used for the open-state focus check above), so this
+       reads as clearly "present" without resurrecting the gold/blue collision risk
+       documented below. */
+    background:var(--card2);
+    border:1.5px solid var(--muted2);
     color:var(--text);
     padding:12px 14px;
     border-radius:var(--radius-sm);
@@ -926,9 +932,9 @@
      picker's neutral/gold. Dashed blue border + blue text when empty ("لا تتبّع"),
      solid filled blue once a tracking wallet is chosen. Opens the shared wallet
      popup, not a native list. */
-  .track-cs{ margin-bottom:4px; background:var(--bg); color:var(--blue-dim); border:1px dashed var(--blue-dim); }
+  .track-cs{ margin-bottom:4px; background:var(--bg); color:var(--blue-dim); border:1.5px dashed var(--blue-dim); }
   .track-cs .arrow{ color:var(--blue-dim); }
-  .track-cs.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); font-weight:600; }
+  .track-cs.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-width:1.5px; border-color:var(--blue-dim); font-weight:600; }
   .track-cs.has-track .arrow{ color:var(--blue); }
   .track-cs.open{ border-color:var(--blue); box-shadow:0 0 0 3px rgba(var(--blue-rgb),.16); }
   .track-link-hint{ color:var(--muted); font-size:var(--fs-sm); line-height:1.6; }
