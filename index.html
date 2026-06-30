@@ -62,7 +62,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     </div>
   </div>
   <div class="actions">
-    <span id="driveIndicator" style="display:none; align-items:center; font-size:13px;" title="حالة المزامنة" data-i18n-title="hdr.syncStatus"></span>
+    <span id="driveIndicator" style="display:none; align-items:center;" title="حالة المزامنة" data-i18n-title="hdr.syncStatus"></span>
     <button class="icon-btn" id="themeToggle" onclick="toggleTheme()" aria-label="تبديل المظهر" data-i18n-aria="hdr.themeToggle"></button>
     <button class="icon-btn" onclick="openSettingsTab('data')" aria-label="البيانات" data-i18n-aria="hdr.data">⇅</button>
     <button class="icon-btn icon-btn--primary" onclick="openSettingsTab('layout')" aria-label="الإعدادات" data-i18n-aria="hdr.settings">⚙</button>
@@ -267,7 +267,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="drawer-sub active" id="drawerSub0">
       <label id="walletSelectLbl" data-i18n="add.wallet">المحفظة</label>
       <div class="wallet-select-wrap">
-        <div class="custom-select" id="walletSelectBtn" onclick="toggleWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="walletSelectLbl">
+        <div class="custom-select" id="walletSelectBtn" onclick="if(event.detail===0)return;toggleWalletMenu()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWalletMenu();}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="walletSelectLbl">
           <span id="walletSelectLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
           <span class="arrow">▾</span>
         </div>
@@ -336,7 +336,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <button id="editTypeInc" class="inc" onclick="setEditType('income')" data-i18n="add.typeIncome">➕ دخل</button>
     </div>
     <label id="editWalletLbl" data-i18n="add.wallet">المحفظة</label>
-    <div class="custom-select" id="editWalletBtn" onclick="toggleEditWalletMenu()" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="editWalletLbl">
+    <div class="custom-select" id="editWalletBtn" onclick="if(event.detail===0)return;toggleEditWalletMenu()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleEditWalletMenu();}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="editWalletLbl">
       <span id="editWalletLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
@@ -622,14 +622,14 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="grabber"></div>
     <h3 data-i18n="add.transfer">🔁 تحويل بين المحافظ</h3>
     <label id="transferFromLbl" data-i18n="xfer.from">من محفظة</label>
-    <div class="custom-select" id="transferFromBtn" onclick="toggleTransferMenu('from')" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferFromLbl">
+    <div class="custom-select" id="transferFromBtn" onclick="if(event.detail===0)return;toggleTransferMenu('from')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTransferMenu('from');}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferFromLbl">
       <span id="transferFromLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
     <div class="wallet-menu" id="transferFromMenuWrap"><div id="transferFromMenu" role="listbox"></div></div>
 
     <label id="transferToLbl" data-i18n="xfer.to">إلى محفظة</label>
-    <div class="custom-select" id="transferToBtn" onclick="toggleTransferMenu('to')" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferToLbl">
+    <div class="custom-select" id="transferToBtn" onclick="if(event.detail===0)return;toggleTransferMenu('to')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTransferMenu('to');}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferToLbl">
       <span id="transferToLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>

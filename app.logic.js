@@ -474,7 +474,13 @@ function _walletPopEl(){
 function closeWalletPop(){
   const pop = document.getElementById('walletPop');
   if(pop){ pop.classList.remove('open'); pop.setAttribute('aria-hidden', 'true'); pop.innerHTML = ''; }
-  if(_wpAnchor){ _wpAnchor.classList.remove('open'); _wpAnchor.setAttribute('aria-expanded', 'false'); }
+  if(_wpAnchor){
+    _wpAnchor.classList.remove('open'); _wpAnchor.setAttribute('aria-expanded', 'false');
+    // the focused option is about to be destroyed (innerHTML=''), which would
+    // otherwise silently drop keyboard/SR focus to <body> — send it back to the
+    // control that opened the popup, mirroring openModal/closeModal's focus-stack.
+    try{ _wpAnchor.focus({preventScroll:true}); }catch(_){}
+  }
   _wpAnchor = null; _wpOnPick = null;
 }
 // items: [{id, name, bal?}]. onPick(id) fires on selection.
@@ -484,6 +490,10 @@ function openWalletPop(anchor, items, currentId, onPick){
   closeWalletPop();
   const pop = _walletPopEl();
   pop.innerHTML = '';
+  // Anchor already carries its own identity class (qn-cs-track / track-cs for the
+  // tracking picker) — reuse it so the popup's selected-row highlight matches the
+  // anchor's blue/gold identity instead of always defaulting to gold.
+  pop.classList.toggle('wallet-pop--track', anchor.classList.contains('qn-cs-track') || anchor.classList.contains('track-cs'));
   items.forEach(it => {
     const o = document.createElement('div');
     o.className = 'opt' + (it.id === currentId ? ' selected' : '');
@@ -644,13 +654,13 @@ function renderQuickNotesPreview(){
         `<span class="qn-row-cat" role="img" aria-label="${escHtml(cat.name)}" title="${escHtml(cat.name)}">${cat.icon}</span>` +
         `<span class="qn-wlabel" aria-hidden="true">👛</span>` +
         `<div class="custom-select qn-cs qn-cs-primary" data-i="${i}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="${escHtml(t({ar:'المحفظة الرئيسية لهذا السطر', en:'Primary wallet for this line'}))}"><span class="qn-cs-label">${escHtml(primaryName)}</span><span class="arrow">▾</span></div>` +
-        `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off" aria-invalid="${!r.valid}" aria-label="${escHtml(t({ar:'المبلغ', en:'Amount'}))}">` +
+        `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off" aria-invalid="${!r.valid}" aria-label="${escHtml(t({ar:'المبلغ', en:'Amount'}))}"${r.valid ? '' : ` aria-describedby="qnRowWarn${i}"`}>` +
       `</div>` +
       (tracks.length ? `<div class="qn-row-track-row">` +
         `<span class="qn-wlabel" aria-hidden="true">🏦</span>` +
         `<div class="custom-select qn-cs qn-cs-track${r.track ? ' has-track' : ''}" data-i="${i}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="${escHtml(t({ar:'محفظة التتبّع لهذا السطر (اختياري)', en:'Tracking wallet for this line (optional)'}))}"><span class="qn-cs-label">${escHtml(trackName)}</span><span class="arrow">▾</span></div>` +
       `</div>` : '') +
-      (r.valid ? '' : `<div class="qn-row-warn">⚠ ${escHtml(t({ar:'أضِف سعرًا لهذا السطر', en:'Add a price for this line'}))}</div>`);
+      (r.valid ? '' : `<div class="qn-row-warn" id="qnRowWarn${i}">⚠ ${escHtml(t({ar:'أضِف سعرًا لهذا السطر', en:'Add a price for this line'}))}</div>`);
     list.appendChild(row);
   });
   // Desc/amount inputs only mutate the model (no re-render → keeps focus while

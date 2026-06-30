@@ -107,9 +107,13 @@ function renderWallets(){
     // wallet (⚖️) — same gold chip style every other wallet badge uses, still
     // a button that opens the balance-sync screen on tap.
     const trackSharePct = grandTotal > 0 ? Math.max(0, Math.round((val/grandTotal)*100)) : 0;
+    // role/tabindex/onkeydown so this nested control is reachable on its own —
+    // it opens a *different* screen (wallet detail) than the card it sits inside
+    // (which only filters), so it needs its own keyboard path, not just the card's.
+    const pctKeydown = (id) => `if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();openWalletDetail('${id}');}`;
     const pctBtn = w.track
-      ? `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:`مزامنة الرصيد الفعلي لـ ${w.name} — ${trackSharePct}% من إجمالي محافظك`, en:`Sync actual balance for ${w.name} — ${trackSharePct}% of your total wallets`}))}" title="${escHtml(t({ar:'مزامنة الرصيد الفعلي', en:'Sync actual balance'}))}">⚖️ ${trackSharePct}%</div>`
-      : `<div class="pct" onclick="event.stopPropagation(); openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:`تفاصيل ${w.name}`, en:`Details for ${w.name}`}))}" title="${escHtml(t({ar:'التفاصيل', en:'Details'}))}">ⓘ ${escHtml(w.crisisOnly && state.crisisMode ? crisisWalletIds().reduce((s,id)=>{const wd=WALLET_DEFS.find(x=>x.id===id);return s+(wd?(parseFloat(getWalletPctLabel(wd))||0):0);},0)+'%' : getWalletPctLabel(w))}</div>`;
+      ? `<div class="pct" role="button" tabindex="0" onclick="event.stopPropagation(); if(event.detail===0)return; openWalletDetail('${w.id}')" onkeydown="${pctKeydown(w.id)}" aria-label="${escHtml(t({ar:`مزامنة الرصيد الفعلي لـ ${w.name} — ${trackSharePct}% من إجمالي محافظك`, en:`Sync actual balance for ${w.name} — ${trackSharePct}% of your total wallets`}))}" title="${escHtml(t({ar:'مزامنة الرصيد الفعلي', en:'Sync actual balance'}))}">⚖️ ${trackSharePct}%</div>`
+      : `<div class="pct" role="button" tabindex="0" onclick="event.stopPropagation(); if(event.detail===0)return; openWalletDetail('${w.id}')" onkeydown="${pctKeydown(w.id)}" aria-label="${escHtml(t({ar:`تفاصيل ${w.name}`, en:`Details for ${w.name}`}))}" title="${escHtml(t({ar:'التفاصيل', en:'Details'}))}">ⓘ ${escHtml(w.crisisOnly && state.crisisMode ? crisisWalletIds().reduce((s,id)=>{const wd=WALLET_DEFS.find(x=>x.id===id);return s+(wd?(parseFloat(getWalletPctLabel(wd))||0):0);},0)+'%' : getWalletPctLabel(w))}</div>`;
     div.innerHTML = `
       <div class="top">
         <div class="name">${escHtml(w.name)}</div>

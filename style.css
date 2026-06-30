@@ -45,11 +45,13 @@
     --on-gold:#241d0d;    /* text/icon color on a gold button */
     --green:#86c39a;
     --green-soft:#1b2a21;
+    --green-rgb:134,195,154; /* lets rgba(var(--green-rgb),X) borders/glows follow the theme instead of being baked-in dark-mode values */
     --red:#e3918f;
     --red-soft:#2f1f20;
+    --red-rgb:227,145,143; /* same purpose as --green-rgb, for red-tinted borders/glows */
     --on-red:#2f1414;    /* dark text on the light dark-mode --red (~7:1) */
     --blue:#86adcf;
-    --blue-dim:#5d7e9c; /* gradient end-stop for the track-wallet bar, mirrors --gold/--gold-dim */
+    --blue-dim:#7090ab; /* gradient end-stop for the track-wallet bar, mirrors --gold/--gold-dim. Lightened from #5d7e9c (4.05:1 on --bg-elev) to clear WCAG AA 4.5:1 as body text in the empty track-picker state. */
     --blue-soft:#1c2730;
     --blue-rgb:134,173,207; /* same purpose as --accent-rgb, but for the track-wallet focus ring (stays blue regardless of the active accent palette) */
     --radius-lg:18px;
@@ -101,14 +103,19 @@
      white --on-gold (≥4.5:1), and the text-weight --gold clears 4.5:1 on its
      theme's card/soft surfaces. 'gold' is the default and lives in :root above —
      no class needed for it. */
+  /* Shifted toward indigo (hue ~237/244) rather than the steel sky-blue first used
+     here — that original hue sat only ~9° from --blue (the track-wallet's fixed,
+     accent-immune color), so picking Sapphire made the primary wallet picker and
+     the tracking picker collapse into the same blue at a glance. Indigo keeps the
+     gem-name's "blue" identity while staying visually distinct from --blue. */
   body.accent-sapphire{
-    --gold:#8ab4f8; --gold-dim:#5e82c4; --gold-soft:#16202f;
-    --gold-btn:#6fa0f0; --gold-btn-end:#4178d0; --on-gold:#08152b;
-    --accent-rgb:122,162,247;
+    --gold:#8f95fa; --gold-dim:#6066c2; --gold-soft:#1a1c33;
+    --gold-btn:#7077f5; --gold-btn-end:#4f54d6; --on-gold:#0a0f2e;
+    --accent-rgb:112,119,245;
   }
   body.light.accent-sapphire{
-    --gold:#2c5fb0; --gold-dim:#6f9bd6; --gold-soft:#e8f0fc;
-    --gold-btn:#3568b8; --gold-btn-end:#284f8c; --on-gold:#ffffff;
+    --gold:#4338ca; --gold-dim:#8b8fe0; --gold-soft:#eceafc;
+    --gold-btn:#4f46e5; --gold-btn-end:#3730a3; --on-gold:#ffffff;
   }
   body.accent-emerald{
     --gold:#6ecb9a; --gold-dim:#4a8f6e; --gold-soft:#112620;
@@ -177,10 +184,12 @@
     --on-gold:#231a07;
     --green:#35784c;
     --green-soft:#e3f0e7;
+    --green-rgb:53,120,76;
     --red:#b04542;
     --on-red:#fff;       /* light-mode --red is darker/more saturated than dark mode's —
                              the dark-mode --on-red (#2f1414) would land under 4:1 here */
     --red-soft:#f6e4e3;
+    --red-rgb:176,69,66;
     --blue:#3f6e96;
     --blue-dim:#2e506e; /* gradient end-stop for the track-wallet bar, mirrors --gold/--gold-dim */
     --blue-soft:#e3edf5;
@@ -218,7 +227,7 @@
     font-family:var(--sans);
     background:
       radial-gradient(1000px 500px at 80% -8%, rgba(var(--accent-rgb),.07), transparent 55%),
-      radial-gradient(800px 500px at 10% 0%, rgba(134,173,207,.05), transparent 50%),
+      radial-gradient(800px 500px at 10% 0%, rgba(var(--blue-rgb),.05), transparent 50%),
       var(--bg);
     color:var(--text);
     padding:16px 14px calc(74px + env(safe-area-inset-bottom));
@@ -310,7 +319,7 @@
   .drive-ind--syncing{ background:var(--blue-soft); border-color:var(--blue); }
   .drive-ind--syncing .drive-ind-badge{ background:var(--blue); animation:driveSpin 1s linear infinite; }
   /* connected → subtle green check */
-  .drive-ind--ok{ background:var(--green-soft); border-color:rgba(134,195,154,.5); }
+  .drive-ind--ok{ background:var(--green-soft); border-color:rgba(var(--green-rgb),.5); }
   .drive-ind--ok .drive-ind-badge{ background:var(--green); }
   /* error → red, invites a re-tap */
   .drive-ind--error{ background:var(--red-soft); border-color:var(--red); }
@@ -505,17 +514,18 @@
   .qn-row-desc:focus, .qn-row-amt:focus{ outline:none; border-color:var(--gold); box-shadow:var(--focus-ring); }
   /* In-page custom-dropdown buttons (NOT native <select>) — they open the shared
      wallet popup, same widget as the primary wallet picker. Sized to fit the row. */
-  .qn-cs{ flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 10px; font-size:var(--fs-base); font-weight:600; }
+  .qn-cs{ flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 10px; font-size:var(--fs-base); }
   .qn-cs .qn-cs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .qn-cs.qn-cs-primary{ background:var(--gold-soft); color:var(--gold); border-color:var(--gold-dim); }
+  .qn-cs.qn-cs-primary{ background:var(--gold-soft); color:var(--gold); border-color:var(--gold-dim); font-weight:600; }
   .qn-cs.qn-cs-primary .arrow{ color:var(--gold); }
   /* the SECOND control: optional tracking wallet — permanently blue-identified
      (dashed when "No tracking", solid filled once chosen) so it's recognizable as
-     the tracking picker at a glance, distinct from the primary's gold above it. */
+     the tracking picker at a glance, distinct from the primary's gold above it.
+     Bold only once a wallet is actually picked, matching the add-form's track-cs. */
   .qn-row-track-row{ display:flex; align-items:center; gap:8px; }
   .qn-cs.qn-cs-track{ background:var(--bg); color:var(--blue-dim); border:1px dashed var(--blue-dim); }
   .qn-cs.qn-cs-track .arrow{ color:var(--blue-dim); }
-  .qn-cs.qn-cs-track.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); }
+  .qn-cs.qn-cs-track.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); font-weight:600; }
   .qn-cs.qn-cs-track.has-track .arrow{ color:var(--blue); }
   /* override the generic .custom-select.open gold ring — the track picker stays
      blue even while open, matching .track-cs.open above */
@@ -617,7 +627,7 @@
      pointer cursor/press animation every other .wallet card uses for that. */
   .wallet.crisis-combined{cursor:default;}
   .wallet.crisis-combined:active{transform:none;}
-  .wallet.crisis-combined .pct{color:var(--red); background:rgba(227,145,143,.12); border:none; cursor:default;}
+  .wallet.crisis-combined .pct{color:var(--red); background:rgba(var(--red-rgb),.12); border:none; cursor:default;}
   .wallet.crisis-combined .pct:active{ transform:none; }
   /* invisibly extend the ⓘ tap target to ~44px without enlarging the visible pill */
   .wallet .pct::after{content:''; position:absolute; inset:-14px -10px;}
@@ -668,7 +678,7 @@
   .analytics-card .sub.down{color:var(--green);}
 
   .recurring-card{
-    background:var(--blue-soft); border:1px solid rgba(134,173,207,.25); border-radius:var(--radius-sm);
+    background:var(--blue-soft); border:1px solid rgba(var(--blue-rgb),.25); border-radius:var(--radius-sm);
     padding:14px 16px; margin-bottom:12px; font-size:var(--fs-sm);
   }
   .recurring-card .title{font-weight:700; color:var(--blue); margin-bottom:4px;}
@@ -689,7 +699,7 @@
     background:var(--red-soft); border-color:var(--red); color:var(--red);
     animation: voicePulse 1s ease-in-out infinite;
   }
-  @keyframes voicePulse{ 0%,100%{box-shadow:0 0 0 0 rgba(227,145,143,.4);} 50%{box-shadow:0 0 0 8px rgba(227,145,143,0);} }
+  @keyframes voicePulse{ 0%,100%{box-shadow:0 0 0 0 rgba(var(--red-rgb),.4);} 50%{box-shadow:0 0 0 8px rgba(var(--red-rgb),0);} }
 
   /* distribution editor */
   .dist-edit-row{
@@ -870,15 +880,15 @@
   button:disabled{opacity:.6; cursor:default; transform:none; pointer-events:none;}
   .btn-row{display:flex; gap:8px;}
   .btn-row button{flex:1; padding:13px;}
-  .btn-expense{background:var(--red-soft); color:var(--red); border:1px solid rgba(227,145,143,.22);}
-  .btn-income{background:var(--green-soft); color:var(--green); border:1px solid rgba(134,195,154,.22);}
-  .btn-expense:active{background:rgba(227,145,143,.18);}
-  .btn-income:active{background:rgba(134,195,154,.18);}
+  .btn-expense{background:var(--red-soft); color:var(--red); border:1px solid rgba(var(--red-rgb),.22);}
+  .btn-income{background:var(--green-soft); color:var(--green); border:1px solid rgba(var(--green-rgb),.22);}
+  .btn-expense:active{background:rgba(var(--red-rgb),.18);}
+  .btn-income:active{background:rgba(var(--green-rgb),.18);}
   .btn-transfer{
     width:100%; padding:13px; background:var(--blue-soft); color:var(--blue);
-    border:1px solid rgba(134,173,207,.25);
+    border:1px solid rgba(var(--blue-rgb),.25);
   }
-  .btn-transfer:active{background:rgba(134,173,207,.18);}
+  .btn-transfer:active{background:rgba(var(--blue-rgb),.18);}
 
   /* quick amounts */
   .quick-amounts{
@@ -939,8 +949,16 @@
   .wallet-pop .opt:last-child{ border-bottom:none; }
   .wallet-pop .opt span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .wallet-pop .opt .bal{ color:var(--muted); font-size:var(--fs-sm); font-variant-numeric:tabular-nums; direction:ltr; flex-shrink:0; }
-  .wallet-pop .opt:hover, .wallet-pop .opt:focus{ background:var(--card2); outline:none; }
+  .wallet-pop .opt:hover{ background:var(--card2); }
+  /* don't blanket-suppress the focus ring like :hover does — a keyboard user
+     stepping through this listbox needs the page-wide gold ring (:focus-visible
+     above) to stay visible, not just a near-invisible background shift. */
+  .wallet-pop .opt:focus{ background:var(--card2); }
+  .wallet-pop .opt:focus-visible{ outline:2px solid var(--gold); outline-offset:-2px; }
   .wallet-pop .opt.selected{ background:var(--gold-soft); color:var(--gold); }
+  /* Opened from a tracking-wallet picker (qn-cs-track / track-cs anchor) — the
+     selected row should read blue like the rest of that control, not gold. */
+  .wallet-pop.wallet-pop--track .opt.selected{ background:var(--blue-soft); color:var(--blue); }
 
   /* per-wallet link direction toggle (wallet detail) */
   .track-mode-block{ margin-top:12px; }
@@ -964,8 +982,8 @@
   .pie-legend .name{flex:1; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .pie-legend .pct{color:var(--muted); font-variant-numeric: tabular-nums; direction:ltr;}
   .cat-cmp{font-size:var(--fs-2xs); font-weight:700; padding:1px 5px; border-radius:var(--radius-xs); flex-shrink:0; unicode-bidi:plaintext;}
-  .cat-cmp.up{color:var(--red); background:rgba(227,145,143,.12);}
-  .cat-cmp.down{color:var(--green); background:rgba(134,195,154,.12);}
+  .cat-cmp.up{color:var(--red); background:rgba(var(--red-rgb),.12);}
+  .cat-cmp.down{color:var(--green); background:rgba(var(--green-rgb),.12);}
 
   /* category tag in tx list */
   .tx .info .meta .ctag{font-size:var(--fs-base); line-height:1;}
@@ -1291,9 +1309,9 @@
   .btn-secondary{background:var(--bg-elev); color:var(--text); border:var(--bd) solid var(--line);}
   .btn-secondary:active{background:var(--card2);}
   .btn-secondary:hover{border-color:var(--line-soft); background:var(--card2);}
-  .btn-danger{background:var(--red-soft); color:var(--red); border:var(--bd) solid rgba(227,145,143,.4); font-weight:700;}
-  .btn-danger:active{background:rgba(227,145,143,.22);}
-  .btn-danger:hover{border-color:var(--red); background:rgba(227,145,143,.16);}
+  .btn-danger{background:var(--red-soft); color:var(--red); border:var(--bd) solid rgba(var(--red-rgb),.4); font-weight:700;}
+  .btn-danger:active{background:rgba(var(--red-rgb),.22);}
+  .btn-danger:hover{border-color:var(--red); background:rgba(var(--red-rgb),.16);}
   .modal input[type=text], .modal input[type=number], .modal input[type=date]{
     width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);
     padding:12px 14px;border-radius:var(--radius-sm);margin-bottom:10px;font-size:var(--fs-xl);font-family:inherit; /* >=16px avoids iOS auto-zoom-on-focus */
@@ -1376,8 +1394,8 @@
   /* type toggle in edit modal */
   .type-toggle{display:flex; gap:8px; margin-bottom:12px;}
   .type-toggle button{flex:1; padding:11px; background:var(--bg); border:1px solid var(--line); color:var(--muted); font-size:var(--fs-base);}
-  .type-toggle button.active.exp{background:var(--red-soft); color:var(--red); border-color:rgba(227,145,143,.3);}
-  .type-toggle button.active.inc{background:var(--green-soft); color:var(--green); border-color:rgba(134,195,154,.3);}
+  .type-toggle button.active.exp{background:var(--red-soft); color:var(--red); border-color:rgba(var(--red-rgb),.3);}
+  .type-toggle button.active.inc{background:var(--green-soft); color:var(--green); border-color:rgba(var(--green-rgb),.3);}
 
   /* settings list */
   /* ─── Settings stats strip ─── */
@@ -1512,7 +1530,7 @@
   .reset-item--warn .reset-item-title{ color:var(--gold); }
   .reset-item--warn .reset-item-ic{ background:var(--gold-soft); color:var(--gold); }
   .reset-item--warn:hover{ border-color:var(--gold-dim); background:var(--gold-soft); }
-  .reset-item--danger{ border-color:rgba(227,145,143,.32); }
+  .reset-item--danger{ border-color:rgba(var(--red-rgb),.32); }
   .reset-item--danger .reset-item-title{ color:var(--red); }
   .reset-item--danger .reset-item-ic{ background:var(--red-soft); color:var(--red); }
   .reset-item--danger:hover{ border-color:var(--red); background:var(--red-soft); }
@@ -1530,10 +1548,10 @@
      for the wallet info-chip — the visible compact size stays, only the hit area grows */
   .type-mini-toggle button::after{content:''; position:absolute; inset:-8px -2px;}
   .type-mini-toggle button.active.exp{
-    background:var(--red-soft); color:var(--red); border-color:rgba(227,145,143,.35);
+    background:var(--red-soft); color:var(--red); border-color:rgba(var(--red-rgb),.35);
   }
   .type-mini-toggle button.active.inc{
-    background:var(--green-soft); color:var(--green); border-color:rgba(134,195,154,.35);
+    background:var(--green-soft); color:var(--green); border-color:rgba(var(--green-rgb),.35);
   }
   .type-mini-toggle button.active.neutral{
     background:var(--gold-soft); color:var(--gold); border-color:var(--gold-dim);
