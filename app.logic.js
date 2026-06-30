@@ -368,22 +368,47 @@ function _qnWalletMatchList(){
     .concat(trackWalletDefs().map(w => toEntry(w, true)))
     .filter(w => w.norm);
 }
+// Arabic prepositions/the definite article often glue directly onto the next
+// word with no space ("بالكاش" = بـ + الـ + كاش, "فالبنك" = فـ + الـ + بنك) —
+// matching by exact equality alone would miss these even though the wallet
+// name itself ("كاش"/"البنك") is right there. Peel a single leading clitic
+// letter (ب ل ك ف و) and/or the definite article (ال) off the window's FIRST
+// word and offer that as an extra candidate to compare — still pure Arabic
+// grammar, not a fixed vocabulary of wallet-type words like "cash"/"bank".
+function _qnCliticVariants(word){
+  const out = [word];
+  let core = word;
+  const m = core.match(/^[بلكفو](.{2,})$/);
+  if(m){ core = m[1]; out.push(core); }
+  const m2 = core.match(/^ال(.{2,})$/);
+  if(m2) out.push(m2[1]);
+  return out;
+}
+// Standalone (space-separated, not glued) leading preposition words — once a
+// match is found, also swallow one of these immediately before it ("قهوة 15
+// في الكاش" → drop "في" too, not just "الكاش") so it doesn't linger in desc.
+const _QN_LEAD_PREP_WORDS = ['في','من','مع','عن','الى','الي','in','by','via','using','with'];
 // Peels at most one trailing PRIMARY wallet-name match and one trailing
-// TRACKING wallet-name match (in either order) off the end of `desc`, by full
-// normalized-equality against `candidates` — the longest matching name wins
-// over a shorter one that happens to share the same ending. Never returns an
-// empty description (falls back to the original text if peeling would empty it).
+// TRACKING wallet-name match (in either order) off the end of `desc`, by
+// normalized-equality against `candidates` (allowing the leading-clitic
+// leniency above) — the longest matching name wins over a shorter one that
+// happens to share the same ending. Never returns an empty description
+// (falls back to the original text if peeling would empty it).
 function _qnPeelTrailingWallets(desc, candidates, maxWindow){
   let words = desc.split(/\s+/).filter(Boolean);
   let wallet = null, track = null;
   for(let pass = 0; pass < 2 && words.length; pass++){
     let hit = null, win = 0;
     for(win = Math.min(maxWindow, words.length); win >= 1; win--){
-      const tailNorm = _qnNorm(words.slice(words.length - win).join(' '));
-      hit = candidates.find(c => c.norm === tailNorm);
+      const tailWords = _qnNorm(words.slice(words.length - win).join(' ')).split(' ').filter(Boolean);
+      if(!tailWords.length) continue;
+      const rest = tailWords.slice(1).join(' ');
+      hit = candidates.find(c => _qnCliticVariants(tailWords[0]).some(v => (rest ? v + ' ' + rest : v) === c.norm));
       if(hit) break;
     }
     if(!hit) break;
+    const beforeIdx = words.length - win - 1;
+    if(beforeIdx >= 0 && _QN_LEAD_PREP_WORDS.includes(_qnNorm(words[beforeIdx]))) win++;
     if(hit.track){ if(track == null) track = hit.id; }
     else if(wallet == null) wallet = hit.id;
     words = words.slice(0, words.length - win);
