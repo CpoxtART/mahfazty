@@ -349,14 +349,59 @@ const _QN_NUM_RE = /[\d٠-٩۰-۹]+(?:[.,٫][\d٠-٩۰-۹]+)?/g;
 // far beyond any realistic "jot a few transactions" session.
 const QN_MAX_LINES = 300;
 let _qnTruncated = false; // set when the last parse hit the cap (surfaced as a toast)
+
+/* ------------------------------------------------------------
+   Trailing free-text wallet recognition — no marker character required.
+   Writing a real wallet's name as the LAST word(s) of a quick-notes line
+   (e.g. "قهوة 15 Uber" or "قهوة 15 نقدي بطاقات") pre-selects that wallet for
+   the row instead of leaving it on the default chip. Matches against the
+   user's ACTUAL wallet names (normalized for Arabic spelling variants via
+   normalizeSearch), not a fixed/predefined word list — so it works for
+   whatever wallets the user has created. Matched ONLY against the same
+   wallet lists the preview UI itself offers (SELECTABLE_WALLETS for primary,
+   trackWalletDefs() for tracking) so a resolved id can never be one the
+   preview's own fallback logic would silently reject.
+------------------------------------------------------------ */
+function _qnWalletMatchList(){
+  const toEntry = (w, track) => ({ id:w.id, track, norm:_qnNorm(w.name), words:_qnNorm(w.name).split(/\s+/).filter(Boolean).length });
+  return SELECTABLE_WALLETS.map(w => toEntry(w, false))
+    .concat(trackWalletDefs().map(w => toEntry(w, true)))
+    .filter(w => w.norm);
+}
+// Peels at most one trailing PRIMARY wallet-name match and one trailing
+// TRACKING wallet-name match (in either order) off the end of `desc`, by full
+// normalized-equality against `candidates` — the longest matching name wins
+// over a shorter one that happens to share the same ending. Never returns an
+// empty description (falls back to the original text if peeling would empty it).
+function _qnPeelTrailingWallets(desc, candidates, maxWindow){
+  let words = desc.split(/\s+/).filter(Boolean);
+  let wallet = null, track = null;
+  for(let pass = 0; pass < 2 && words.length; pass++){
+    let hit = null, win = 0;
+    for(win = Math.min(maxWindow, words.length); win >= 1; win--){
+      const tailNorm = _qnNorm(words.slice(words.length - win).join(' '));
+      hit = candidates.find(c => c.norm === tailNorm);
+      if(hit) break;
+    }
+    if(!hit) break;
+    if(hit.track){ if(track == null) track = hit.id; }
+    else if(wallet == null) wallet = hit.id;
+    words = words.slice(0, words.length - win);
+  }
+  const stripped = words.join(' ').trim();
+  return { desc: stripped || desc, wallet, track };
+}
+
 // Parse free-form text into transaction candidates — one per non-empty line:
-// "description price" ("+" or an income keyword marks it as income). Wallets are
-// NOT chosen in the text — each line becomes a preview row with its OWN primary +
-// tracking dropdowns (defaults applied at render: primary = the default chip,
-// tracking = none). Simple and clean: no markers to type.
+// "description price" ("+" or an income keyword marks it as income), with an
+// optional trailing wallet name (see _qnPeelTrailingWallets above). Wallets
+// not specified in the text fall back to each row's own primary + tracking
+// dropdowns at render time (primary = the default chip, tracking = none).
 function parseQuickNotes(text){
   const rows = [];
   _qnTruncated = false;
+  const _walletCandidates = _qnWalletMatchList();
+  const _walletMaxWindow = _walletCandidates.reduce((m,c) => Math.max(m,c.words), 1);
   const lines = String(text == null ? '' : text).split('\n');
   for(const rawLine of lines){
     if(rows.length >= QN_MAX_LINES){ _qnTruncated = true; break; }
@@ -378,7 +423,14 @@ function parseQuickNotes(text){
     desc = desc.replace(/\+/g,' ').replace(/\s+/g,' ').trim();
     desc = desc.replace(/(ريال|ر\.?\s?س|درهم|دينار|جنيه|sar|usd|riyal|\$)\s*$/i,'').trim(); // drop a trailing currency word
     const valid = isFinite(amount) && amount > 0;
-    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid, wallet:null, track:null});
+    let wallet = null, track = null;
+    if(valid && desc){
+      const resolved = _qnPeelTrailingWallets(desc, _walletCandidates, _walletMaxWindow);
+      desc = resolved.desc;
+      wallet = resolved.wallet;
+      track = resolved.track;
+    }
+    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid, wallet, track});
   }
   return rows;
 }
@@ -1357,7 +1409,20 @@ function closeModal(id){
     if(_retFocus && typeof _retFocus.focus === 'function'){
       try{ _retFocus.focus({preventScroll:true}); }catch(_){}
     }
-    _popOverlayHistory();
+    // Same atomic-swap escape hatch as closeAddDrawer(): when this close is
+    // immediately followed by another openModal()/openAddDrawer() call (e.g. the
+    // add-drawer's "transfer between wallets" button closing the drawer and opening
+    // transferModal in the same click), calling history.back() here races with the
+    // next open's pushState — back() is queued async, pushState() runs synchronously
+    // before it resolves, so the queued back() ends up consuming the WRONG entry
+    // (one past the one it was meant to undo). That silently eats a history slot,
+    // and the next ordinary close() (e.g. tapping "إلغاء" in transferModal) then
+    // calls history.back() one entry too far — straight past the app's root entry
+    // and out of the page entirely. Skipping the pop here and letting the next
+    // open's _pushOverlayHistory() replaceState() instead keeps depth/entries in
+    // sync. (Reproduced via Playwright: without this guard, cancelling the transfer
+    // modal navigated the tab to about:blank.)
+    if(!_nextPushOverlayReplaces) _popOverlayHistory();
   }
 }
 // Modals that hold unsaved form input must NOT close on an accidental
@@ -2173,8 +2238,16 @@ function welcomeNav(dir){
   haptic(8);
 }
 function welcomeStart(recordIncome){
-  closeWelcome();
-  if(recordIncome){ openAddDrawer(); setAddFormType('income'); }
+  // Same atomic-swap requirement as openTransferFromDrawer() above — closing
+  // welcomeModal and immediately opening the add-drawer races history.back()
+  // against pushState() unless the swap flag tells closeModal() to skip its pop.
+  if(recordIncome) _nextPushOverlayReplaces = true;
+  try{
+    closeWelcome();
+    if(recordIncome){ openAddDrawer(); setAddFormType('income'); }
+  } finally {
+    _nextPushOverlayReplaces = false;
+  }
 }
 function closeWelcome(){
   closeModal('welcomeModal');

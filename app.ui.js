@@ -1566,6 +1566,20 @@ function openTransferModal(){
   document.getElementById('transferDate').value = todayISO();
   openModal('transferModal');
 }
+// The add-drawer's "transfer between wallets" button closes the drawer and opens
+// this modal in one click — see the _nextPushOverlayReplaces comment in
+// closeModal() for why that pair must go through the atomic-swap flag instead of
+// a plain closeAddDrawer(); openTransferModal() (the latter raced history.back()
+// against pushState() and could navigate the whole tab to about:blank).
+function openTransferFromDrawer(){
+  if(addDrawerOpen) _nextPushOverlayReplaces = true;
+  try{
+    closeAddDrawer();
+    openTransferModal();
+  } finally {
+    _nextPushOverlayReplaces = false; // reset even if either call above throws
+  }
+}
 
 function renderTransferMenus(){
   ['from','to'].forEach(dir=>{

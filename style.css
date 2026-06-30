@@ -51,6 +51,7 @@
     --blue:#86adcf;
     --blue-dim:#5d7e9c; /* gradient end-stop for the track-wallet bar, mirrors --gold/--gold-dim */
     --blue-soft:#1c2730;
+    --blue-rgb:134,173,207; /* same purpose as --accent-rgb, but for the track-wallet focus ring (stays blue regardless of the active accent palette) */
     --radius-lg:18px;
     --radius:14px;
     --radius-sm:10px;
@@ -183,6 +184,7 @@
     --blue:#3f6e96;
     --blue-dim:#2e506e; /* gradient end-stop for the track-wallet bar, mirrors --gold/--gold-dim */
     --blue-soft:#e3edf5;
+    --blue-rgb:63,110,150;
     --shadow: 0 8px 24px rgba(80,70,50,.12);
     --shadow-strong: 0 10px 30px rgba(80,70,50,.22);
   }
@@ -507,12 +509,17 @@
   .qn-cs .qn-cs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .qn-cs.qn-cs-primary{ background:var(--gold-soft); color:var(--gold); border-color:var(--gold-dim); }
   .qn-cs.qn-cs-primary .arrow{ color:var(--gold); }
-  /* the SECOND control: optional tracking wallet — neutral when "No tracking",
-     blue (the app's track-wallet color) once a tracking wallet is chosen. */
+  /* the SECOND control: optional tracking wallet — permanently blue-identified
+     (dashed when "No tracking", solid filled once chosen) so it's recognizable as
+     the tracking picker at a glance, distinct from the primary's gold above it. */
   .qn-row-track-row{ display:flex; align-items:center; gap:8px; }
-  .qn-cs.qn-cs-track{ background:var(--bg); color:var(--muted); border:1px dashed var(--line); }
+  .qn-cs.qn-cs-track{ background:var(--bg); color:var(--blue-dim); border:1px dashed var(--blue-dim); }
+  .qn-cs.qn-cs-track .arrow{ color:var(--blue-dim); }
   .qn-cs.qn-cs-track.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); }
   .qn-cs.qn-cs-track.has-track .arrow{ color:var(--blue); }
+  /* override the generic .custom-select.open gold ring — the track picker stays
+     blue even while open, matching .track-cs.open above */
+  .qn-cs.qn-cs-track.open{ border-color:var(--blue); box-shadow:0 0 0 3px rgba(var(--blue-rgb),.16); }
   .qn-row-del{
     position:relative; flex:0 0 auto; width:34px; height:34px; border-radius:var(--radius-xs); border:none; background:transparent;
     color:var(--muted); font-size:var(--fs-lg); cursor:pointer;
@@ -900,12 +907,16 @@
   .cat-chip.active{border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold);}
 
   /* Tracking-wallet picker (add form): an in-page custom dropdown (same widget as
-     the primary wallet), distinct blue — dashed/neutral when "No tracking", solid
-     blue once a wallet is chosen. Opens the shared wallet popup, not a native list. */
-  .track-cs{ margin-bottom:4px; background:var(--bg); color:var(--muted); border:1px dashed var(--line); }
+     the primary wallet), but permanently blue-identified — even at rest, BEFORE a
+     wallet is picked — so it reads as "the tracking control" next to the primary
+     picker's neutral/gold. Dashed blue border + blue text when empty ("لا تتبّع"),
+     solid filled blue once a tracking wallet is chosen. Opens the shared wallet
+     popup, not a native list. */
+  .track-cs{ margin-bottom:4px; background:var(--bg); color:var(--blue-dim); border:1px dashed var(--blue-dim); }
+  .track-cs .arrow{ color:var(--blue-dim); }
   .track-cs.has-track{ background:var(--blue-soft); color:var(--blue); border-style:solid; border-color:var(--blue-dim); font-weight:600; }
   .track-cs.has-track .arrow{ color:var(--blue); }
-  .track-cs.open{ border-color:var(--blue); box-shadow:var(--focus-ring); }
+  .track-cs.open{ border-color:var(--blue); box-shadow:0 0 0 3px rgba(var(--blue-rgb),.16); }
   .track-link-hint{ color:var(--muted); font-size:var(--fs-sm); line-height:1.6; }
 
   /* Shared in-page wallet popup (the floating list every wallet dropdown opens —
