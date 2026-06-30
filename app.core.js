@@ -29,6 +29,17 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.55',
+    date: '2026-06-30',
+    title: 'شبكات أمان للتحديث والتخزين الاحتياطي + تناسق بصري في الملاحظات السريعة وسجل المعاملات',
+    items: [
+      'إصلاح: زر اختيار المحفظة الرئيسية في الملاحظات السريعة كان مميّزًا بلون ذهبي مختلف عن نظيره بنموذج الإضافة — تحت ثيم «الياقوتية» بالوضع النهاري كان هذا يجعله يتشابه بصريًا مع لون محفظة التتبّع الأزرق. أُزيل التمييز الذهبي وصار يطابق شكل نموذج الإضافة في كل الأوضاع والثيمات.',
+      'شبكة أمان جديدة: فحص انحراف نسخة Service Worker عند إقلاع التطبيق — لو اكتشف البرنامج أن النسخة المُحمَّلة فعليًا تختلف عن النسخة المسجَّلة، يستخدم نفس مسار بانر التحديث الموجود (غير الهدّام) بدل تركه صامتًا.',
+      'شبكة أمان جديدة: تحذير «تعذّر الحفظ» عند امتلاء التخزين الاحتياطي (localStorage) في المتصفحات بلا IndexedDB صار يتكرر كل بضع دقائق بدل مرة واحدة فقط بالجلسة، حتى لا يفوت المستخدم تنبيهًا مهمًا لو استمرت المشكلة.',
+      'تحسينات تصميم متفرقة: توحيد أحجام خطوط كانت مكتوبة بأرقام ثابتة بدل مقياس الخطوط الموحّد للتطبيق، دمج تكرار CSS لمسافات أزرار النوافذ المنبثقة في صنف واحد، تصحيح إيموجي محفظة التتبّع في تفاصيل المحفظة والتقرير النصي، وإضافة شارة لونية صغيرة لرمز التصنيف في سجل المعاملات (بدل رمز عادي بلا لون) لتناسقه مع الشارة الملوّنة بنفس الشكل بالصفحة الرئيسية.',
+    ],
+  },
+  {
     version: 'v47.54',
     date: '2026-06-30',
     title: 'إصلاح انعكاس ألوان محفظة التتبّع/الرئيسية + إصلاحات وصولية حرجة',
@@ -1928,11 +1939,15 @@ async function idbBackup(savedAt){
       // saveTx/saveBalances/etc, so render()+toast('✓ ...') already happened).
       // A plain toast() here would just overwrite/be overwritten by whatever
       // routine toast fires next (e.g. the distribution-flow toast in addTx) and
-      // vanish in 2.2s — easy to miss for a once-per-session, data-loss-grade
-      // warning. Use toastWithAction: longer-lived (5s), gives a real recovery
-      // step, and is visually distinct from a routine success/error toast.
-      if(!_persistFailWarned){
-        _persistFailWarned = true;
+      // vanish in 2.2s — easy to miss for a data-loss-grade warning. Use
+      // toastWithAction: longer-lived (5s), gives a real recovery step, and is
+      // visually distinct from a routine success/error toast.
+      // Re-arms every few minutes instead of firing once per session — a user
+      // stuck in this state keeps losing every subsequent edit, so a one-shot
+      // warning would go silent on them after the first toast while the drift
+      // (unsaved changes piling up) continues unannounced.
+      if(Date.now() - _persistFailWarnedAt > PERSIST_FAIL_REWARN_MS){
+        _persistFailWarnedAt = Date.now();
         try{
           toastWithAction(t({ar:'⚠ تعذّر حفظ البيانات على هذا الجهاز — صدّرها الآن قبل إغلاق التطبيق', en:'⚠ Couldn\'t save data on this device — export it now before closing the app'}), t({ar:'تصدير الآن', en:'Export now'}), () => { try{ exportData(); }catch(e){} }, true);
         }catch(__){}
@@ -1960,7 +1975,11 @@ function scheduleIdbBackup(ts){
 function flushIdbBackup(){
   if(_idbBackupTimer){ clearTimeout(_idbBackupTimer); _idbBackupTimer = null; idbBackup(_idbBackupPendingTs); }
 }
-let _persistFailWarned = false; // gate the "could not persist" warning to once/session
+// Re-arming cooldown (not a one-shot flag) for the "could not persist" warning
+// — see the toastWithAction call above for why a single lifetime-of-session
+// warning isn't enough here.
+const PERSIST_FAIL_REWARN_MS = 3 * 60 * 1000;
+let _persistFailWarnedAt = 0;
 let _idbOpenFailed = false; // true when the DB exists but couldn't be opened (blocked/corrupt)
 async function idbRestore(){
   try{

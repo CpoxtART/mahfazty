@@ -119,7 +119,7 @@ function openDistributionModal(amount){
   if(activeEntries.length === 0){
     const warn = document.createElement('div');
     warn.className = 'hint';
-    warn.style.cssText = 'color:var(--red); margin:0; font-size:13px;';
+    warn.style.cssText = 'color:var(--red); margin:0; font-size:var(--fs-base);';
     warn.textContent = `⚠ ${t({ar:'لا توجد نسب توزيع — اضبطها في الإعدادات أولاً', en:'No distribution ratios set — set them up in Settings first'})}`;
     wrap.appendChild(warn);
   } else {
@@ -135,7 +135,7 @@ function openDistributionModal(amount){
     if(totalPct > 100){
       const warn = document.createElement('div');
       warn.className = 'hint';
-      warn.style.cssText = 'color:var(--red); margin:8px 0 0; font-size:13px;';
+      warn.style.cssText = 'color:var(--red); margin:8px 0 0; font-size:var(--fs-base);';
       warn.textContent = `⚠ ${t({ar:`مجموع النسب ${totalPct}% — يتجاوز 100%، راجع الإعدادات`, en:`Ratios total ${totalPct}% — over 100%, check Settings`})}`;
       wrap.appendChild(warn);
     } else if(totalPct < 100){
@@ -2164,7 +2164,7 @@ function toastWithAction(msg, actionLabel, fn, critical){
   span.textContent = msg;
   const btn = document.createElement('button');
   btn.textContent = actionLabel;
-  btn.style.cssText = 'background:var(--gold-btn); color:var(--on-gold); border:none; border-radius:var(--radius-pill); padding:5px 13px; font-size:12px; font-weight:700; margin-inline-end:8px; cursor:pointer;';
+  btn.style.cssText = 'background:var(--gold-btn); color:var(--on-gold); border:none; border-radius:var(--radius-pill); padding:5px 13px; font-size:var(--fs-sm); font-weight:700; margin-inline-end:8px; cursor:pointer;';
   btn.onclick = () => {
     el.classList.remove('show');
     fn();
@@ -2413,7 +2413,7 @@ function exportMonthlyReport(){
 
   report += `\n${t({ar:'أرصدة المحافظ', en:'Wallet balances'})}:\n`;
   WALLET_DEFS.forEach(w=>{
-    report += `  ${w.track?'🏦':'💰'} ${w.name}: ${fmt(state.wallets[w.id] ?? 0)}\n`;
+    report += `  ${w.track?'🏦':'👛'} ${w.name}: ${fmt(state.wallets[w.id] ?? 0)}\n`;
   });
 
   report += `\n📱 ${appName} 🙂‍↔️`;
@@ -2651,6 +2651,44 @@ function checkForSWUpdate(force){
   try{ reg.update(); }catch(_){}
 }
 
+// Query the active controller's sw.js CACHE constant over a MessageChannel.
+// Resolves null (never rejects) on missing controller, no reply within
+// timeoutMs, or a postMessage failure — every caller treats null as "unknown,
+// skip" rather than an error.
+function _querySWVersion(worker, timeoutMs){
+  return new Promise(resolve => {
+    if(!worker){ resolve(null); return; }
+    const channel = new MessageChannel();
+    let done = false;
+    const timer = setTimeout(() => { if(!done){ done = true; resolve(null); } }, timeoutMs || 2000);
+    channel.port1.onmessage = e => {
+      if(done) return;
+      done = true; clearTimeout(timer);
+      resolve(e.data && e.data.version);
+    };
+    try{ worker.postMessage({type:'GET_VERSION'}, [channel.port2]); }
+    catch(_){ if(!done){ done = true; clearTimeout(timer); resolve(null); } }
+  });
+}
+
+// Boot-time safety net for the SW update path: most updates are caught by the
+// updatefound/banner flow in setupPWA(), but a tab can end up with a stale
+// controller the banner never fired for (e.g. it was open across a deploy,
+// missed the updatefound event entirely, or the page was restored from bfcache
+// after the update banner was already dismissed). On every load, compare the
+// controlling SW's actual cache version against what this freshly-loaded page
+// expects; on a mismatch, funnel into the existing non-destructive
+// checkForSWUpdate(true) → banner → applyUpdate() flow rather than reloading
+// or clearing caches outright (those stay manual-only, see forceClearAndUpdate).
+async function _checkSWDriftAtBoot(){
+  if(!('serviceWorker' in navigator)) return;
+  const controller = navigator.serviceWorker.controller;
+  if(!controller) return; // first install / no controlling SW yet — nothing to drift from
+  const expected = 'mhfzty-' + ((CHANGELOG[0] && CHANGELOG[0].version) || '');
+  const actual = await _querySWVersion(controller);
+  if(actual && actual !== expected) checkForSWUpdate(true);
+}
+
 function setupPWA(){
   applyManifest(document.body.classList.contains('light'));
 
@@ -2683,6 +2721,7 @@ function setupPWA(){
         // long-running sessions pick up a new version promptly.
         checkForSWUpdate(true);
         setInterval(checkForSWUpdate, 15 * 60 * 1000);
+        _checkSWDriftAtBoot();
       })
       .catch(e => console.warn('SW registration failed:', e));
 

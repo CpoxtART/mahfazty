@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v47.54';
+const CACHE = 'mhfzty-v47.55';
 // Note: sw.js itself is intentionally NOT precached — the browser fetches and
 // byte-compares it directly to drive updates; caching it via the Cache API is a
 // no-op at best and can interfere with that update check.
@@ -32,9 +32,17 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// The app posts this message when the user taps "تحديث الآن"
+// The app posts SKIP_WAITING when the user taps "تحديث الآن". It posts
+// GET_VERSION (with a MessagePort) at every boot to let the page detect a
+// stale controller — e.g. a tab left open across a deploy whose controller
+// never updated because the update banner was dismissed/missed — and react
+// via the normal non-destructive update flow.
 self.addEventListener('message', e => {
-  if(e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+  if(!e.data) return;
+  if(e.data.type === 'SKIP_WAITING') self.skipWaiting();
+  if(e.data.type === 'GET_VERSION' && e.ports && e.ports[0]){
+    e.ports[0].postMessage({ version: CACHE });
+  }
 });
 
 self.addEventListener('fetch', e => {

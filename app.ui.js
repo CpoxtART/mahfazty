@@ -1064,7 +1064,7 @@ function renderRecentTx(){
     const toShow = Math.min(remaining, recentTxLimit);
     const more = document.createElement('button');
     more.className = 'btn-secondary';
-    more.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:13px;';
+    more.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:var(--fs-base);';
     const moreCountTxt = t({
       ar: arPlural(toShow, 'معاملة أقدم', 'معاملتين أقدم', 'معاملات أقدم', 'معاملة واحدة أقدم'),
       en: `${toShow} older ${toShow===1?'transaction':'transactions'}`,
@@ -1080,7 +1080,7 @@ function renderRecentTx(){
     // Already expanded beyond the first page — offer a way to collapse back
     const collapse = document.createElement('button');
     collapse.className = 'btn-secondary';
-    collapse.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:13px;';
+    collapse.style.cssText = 'margin:14px auto 0; display:block; width:auto; padding:10px 24px; font-size:var(--fs-base);';
     collapse.textContent = `⬆ ${t({ar:'طيّ القائمة', en:'Collapse list'})}`;
     collapse.onclick = () => { _recentVisibleCount = recentTxLimit; renderRecentTx(); document.getElementById('tabTransactions')?.scrollIntoView({behavior:'smooth', block:'start'}); };
     list.appendChild(collapse);
@@ -1878,7 +1878,7 @@ function openWalletDetail(walletId){
   if(!w){ toast(t({ar:'⚠ المحفظة غير موجودة', en:'⚠ Wallet not found'}), true); return; }
   detailWalletId = walletId;
   const currentVal = state.wallets[walletId] ?? 0;
-  document.getElementById('detailTitle').textContent = (w.track?'🏦 ':'💳 ') + w.name;
+  document.getElementById('detailTitle').textContent = (w.track?'🏦 ':'👛 ') + w.name;
   document.getElementById('detailBalance').textContent = fmt(currentVal);
 
   const updateWrap = document.getElementById('detailUpdateBalance');
@@ -1907,7 +1907,7 @@ function openWalletDetail(walletId){
   const list = document.getElementById('detailTxList');
   list.innerHTML = '';
   if(txs.length === 0){
-    list.innerHTML = `<div class="empty" style="padding:20px;">${t({ar:'لا توجد معاملات لهذه المحفظة', en:'No transactions for this wallet'})}</div>`;
+    list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات لهذه المحفظة', en:'No transactions for this wallet'})}</div>`;
   } else {
     txs.slice(0,50).forEach(tx=>{
       const cat = getCategory(tx.category);
@@ -1929,7 +1929,7 @@ function openWalletDetail(walletId){
     });
     if(txs.length > 50){
       const hint = document.createElement('div');
-      hint.style.cssText = 'padding:10px 16px; font-size:12px; color:var(--muted); text-align:center;';
+      hint.style.cssText = 'padding:10px 16px; font-size:var(--fs-sm); color:var(--muted); text-align:center;';
       const extra = txs.length - 50;
       hint.textContent = t({
         ar: `… ${extra} معاملة أقدم — افتح تبويب المعاملات لرؤية الكل`,
@@ -2280,7 +2280,7 @@ function renderTxList(){
     if(state.transactions.length === 0 && !searchQuery && currentFilter==='all'){
       list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات بعد.', en:'No transactions yet.'})}<br><br>
         <button class="btn-primary" onclick="document.querySelector('.fab-btn').click()" style="width:auto; padding:10px 20px; display:inline-block; margin-bottom:8px;">＋ ${t({ar:'أضف أول معاملة', en:'Add your first transaction'})}</button><br>
-        <button class="btn-secondary" onclick="openSettingsTab('data')" style="width:auto; padding:8px 16px; display:inline-block; font-size:12px;">⬆ ${t({ar:'استيراد من JSON', en:'Import from JSON'})}</button>
+        <button class="btn-secondary" onclick="openSettingsTab('data')" style="width:auto; padding:8px 16px; display:inline-block; font-size:var(--fs-sm);">⬆ ${t({ar:'استيراد من JSON', en:'Import from JSON'})}</button>
       </div>`;
     } else {
       list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات', en:'No transactions'})}${searchQuery ? t({ar:' مطابقة لبحثك', en:' matching your search'}) : t({ar:' في هذه الفترة', en:' in this period'})}</div>`;
@@ -2323,7 +2323,7 @@ function renderTxList(){
     div.innerHTML = `
       <div class="info">
         <div class="desc" dir="auto">${escHtml(tx.desc || (wallet ? wallet.name : ''))}</div>
-        <div class="meta"><span class="ctag">${cat.icon}</span><span class="wtag">${escHtml(wallet ? wallet.name : '')}</span> ${timeStr}${_trackLinkTag(tx)}</div>
+        <div class="meta"><span class="ctag" style="background:${cat.color}22;">${cat.icon}</span><span class="wtag">${escHtml(wallet ? wallet.name : '')}</span> ${timeStr}${_trackLinkTag(tx)}</div>
       </div>
       <div class="right">
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
@@ -2359,7 +2359,7 @@ function renderTxList(){
     const remaining = filtered.length - _txVisibleCount;
     const more = document.createElement('button');
     more.className = 'btn-secondary';
-    more.style.cssText = 'margin:10px auto; display:block; width:auto; padding:10px 24px; font-size:13px;';
+    more.style.cssText = 'margin:10px auto; display:block; width:auto; padding:10px 24px; font-size:var(--fs-base);';
     const toShow = Math.min(remaining, 50);
     const afterLoad = remaining - toShow;
     more.textContent = afterLoad > 0

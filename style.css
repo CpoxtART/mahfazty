@@ -516,11 +516,15 @@
      wallet popup, same widget as the primary wallet picker. Sized to fit the row. */
   .qn-cs{ flex:1 1 0; min-width:0; max-width:100%; margin:0; padding:9px 10px; font-size:var(--fs-base); }
   .qn-cs .qn-cs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .qn-cs.qn-cs-primary{ background:var(--gold-soft); color:var(--gold); border-color:var(--gold-dim); font-weight:600; }
-  .qn-cs.qn-cs-primary .arrow{ color:var(--gold); }
+  /* the PRIMARY wallet control intentionally stays plain/neutral (inherits the
+     base .custom-select look) — it must match #walletSelectBtn, the equivalent
+     picker on the main Add-Transaction form, which is also unaccented. An
+     earlier version painted this gold/accent-colored, which (a) didn't match
+     the main form and (b) under the "sapphire" accent in light mode rendered
+     close enough to --blue to be mistaken for the tracking picker below it. */
   /* the SECOND control: optional tracking wallet — permanently blue-identified
      (dashed when "No tracking", solid filled once chosen) so it's recognizable as
-     the tracking picker at a glance, distinct from the primary's gold above it.
+     the tracking picker at a glance, distinct from the plain primary above it.
      Bold only once a wallet is actually picked, matching the add-form's track-cs. */
   .qn-row-track-row{ display:flex; align-items:center; gap:8px; }
   .qn-cs.qn-cs-track{ background:var(--bg); color:var(--blue-dim); border:1px dashed var(--blue-dim); }
@@ -985,8 +989,11 @@
   .cat-cmp.up{color:var(--red); background:rgba(var(--red-rgb),.12);}
   .cat-cmp.down{color:var(--green); background:rgba(var(--green-rgb),.12);}
 
-  /* category tag in tx list */
-  .tx .info .meta .ctag{font-size:var(--fs-base); line-height:1;}
+  /* category tag in tx list — small colored chip, echoing .rtx-badge's color identity */
+  .tx .info .meta .ctag{
+    font-size:var(--fs-xs); line-height:1; display:inline-flex; align-items:center; justify-content:center;
+    width:18px; height:18px; border-radius:50%; flex-shrink:0;
+  }
 
   /* wallet detail modal */
   .detail-stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;}
@@ -1304,6 +1311,10 @@
   .modal h3{font-family:var(--serif); font-size:var(--fs-4xl); color:var(--gold); margin-bottom:14px; display:flex; align-items:center; gap:8px;}
   .modal-actions{display:flex; gap:8px; margin-top:14px;}
   .modal-actions button{flex:1; padding:13px;}
+  /* tighter coupling to the editor/input/hint directly above it, inside a
+     packed settings sub-section — vs the default 14px gap meant to separate a
+     modal's final action row from a looser block of unrelated content above */
+  .modal-actions--tight{margin-top:8px;}
   .btn-primary{background:var(--gold-btn); color:var(--on-gold);}
   .btn-primary:active{filter:brightness(.9);}
   .btn-secondary{background:var(--bg-elev); color:var(--text); border:var(--bd) solid var(--line);}
