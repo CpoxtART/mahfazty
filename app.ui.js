@@ -1919,7 +1919,7 @@ function openWalletDetail(walletId){
       div.style.cursor = 'pointer';
       div.innerHTML = `
         <div class="info">
-          <div class="desc" dir="auto">${cat.icon} ${escHtml(tx.desc || cat.name)}</div>
+          <div class="desc" dir="auto"><span class="ctag" style="background:${cat.color}22;">${cat.icon}</span> ${escHtml(tx.desc || cat.name)}</div>
           <div class="meta">${date.toLocaleDateString(_dateLocale(),{day:'numeric',month:'short',numberingSystem:'latn'})}</div>
         </div>
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>

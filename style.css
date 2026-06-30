@@ -990,9 +990,9 @@
   .cat-cmp.down{color:var(--green); background:rgba(var(--green-rgb),.12);}
 
   /* category tag in tx list — small colored chip, echoing .rtx-badge's color identity */
-  .tx .info .meta .ctag{
+  .tx .info .ctag{
     font-size:var(--fs-xs); line-height:1; display:inline-flex; align-items:center; justify-content:center;
-    width:18px; height:18px; border-radius:50%; flex-shrink:0;
+    width:18px; height:18px; border-radius:50%; flex-shrink:0; vertical-align:middle;
   }
 
   /* wallet detail modal */
@@ -1488,7 +1488,7 @@
   .sett-section-body{ padding:16px; }
 
   /* ─── Accent colour swatches ─── */
-  .accent-swatches{ display:flex; flex-wrap:wrap; gap:12px; }
+  .accent-swatches{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; }
   .accent-swatch{
     width:44px; height:44px; border-radius:50%; padding:0; cursor:pointer;
     border:2px solid var(--line);
