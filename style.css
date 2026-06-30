@@ -37,6 +37,7 @@
     --text:#f1f3f6;
     --muted:#8d94a3;
     --muted2:#8d93a2; /* lightened from #7b8190 — that shade fell as low as 4.09:1 against --card, under WCAG AA's 4.5:1 for normal text */
+    --select-border:#bfc3cc; /* 50/50 blend of --muted2/--text — full --text (#f1f3f6) at 2px read as a glowing white outline against this theme's dark surfaces ("فاقع"/garish); this keeps the picker clearly outlined without the bloom. Light theme doesn't have that glow problem (dark-on-light border is just a normal outline) so it keeps using --text directly, see body.light below. */
     --gold:#dcb674;
     --gold-dim:#9c844f;
     --gold-soft:#332a18;
@@ -172,6 +173,7 @@
     --text:#26211a;
     --muted:#6f6a5f;
     --muted2:#706b60; /* darkened from #7a756a — that shade fell as low as 4.10:1 against --bg, under WCAG AA's 4.5:1 for normal text */
+    --select-border:var(--text); /* dark-on-light border doesn't bloom the way a near-white border does on dark surfaces, so light theme keeps full --text contrast — see :root's --select-border comment */
     /* gold/green/red darkened from #a87f3a/#3e8d59/#c05a57 — those shades fell
        as low as 3.12:1/3.48:1/3.71:1 against this theme's card/card2/-soft
        backgrounds, under WCAG AA's 4.5:1 for normal text (these colors are used
@@ -213,6 +215,7 @@
     --text:#f2f2f4;
     --muted:#9b9ba1;   /* neutral gray, ~6:1 on --card */
     --muted2:#9b9ba1;
+    --select-border:#c6c6cb; /* 50/50 blend of this theme's --muted2/--text, same glow fix as :root's --select-border — matte black makes a full --text border bloom even more */
     --shadow: 0 8px 28px rgba(0,0,0,.55);
     --shadow-strong: 0 10px 34px rgba(0,0,0,.7);
   }
@@ -770,16 +773,15 @@
 
   .custom-select{
     width:100%;
-    /* card2 + a full-contrast text-colored border (not bg-elev + line/muted2)
+    /* card2 + an opaque, accent-immune border (not bg-elev + line/muted2)
        deliberately — the surrounding modal/drawer is itself background:var(--bg-elev),
        so a low-contrast fill+border blends into its own container and reads as
-       "faded" no matter how much the fill alone is nudged. Borrowing --text (already
-       the foreground color everywhere, accent-immune, no hue) gives a crisp, fully
-       opaque outline — the same "outlined control" trick used instead of an accent
-       color, since accenting this control risks the gold/blue collision documented
-       below. */
+       "faded" no matter how much the fill alone is nudged. --select-border is a
+       dedicated per-theme token (no hue, so no risk of the gold/blue collision
+       documented below) tuned to sit between --muted2 and --text: full --text at
+       this width bloomed into a glowing white outline on dark/black surfaces. */
     background:var(--card2);
-    border:2px solid var(--text);
+    border:2px solid var(--select-border);
     color:var(--text);
     padding:12px 14px;
     border-radius:var(--radius-sm);
