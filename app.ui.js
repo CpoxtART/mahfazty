@@ -707,12 +707,12 @@ function renderBottomNav(){
     if(!d) return '';
     const on = key === currentTab;
     const label = t('nav.' + key); // falls back to the Arabic TAB_DEFS label via the table
-    return `<button class="nav-item${on ? ' active' : ''}" id="nav${capTab(key)}" onclick="switchTab('${key}')" aria-label="${escHtml(label)}" aria-current="${on ? 'page' : 'false'}"><span class="nav-ic">${d.icon}</span><span>${escHtml(label)}</span></button>`;
+    return `<button class="nav-item${on ? ' active' : ''}" id="nav${capTab(key)}" aria-label="${escHtml(label)}" aria-current="${on ? 'page' : 'false'}"><span class="nav-ic">${d.icon}</span><span>${escHtml(label)}</span></button>`;
   };
   const fabLabel = escHtml(t('drawer.addTx'));
   inner.innerHTML =
     tabOrder.slice(0, half).map(item).join('') +
-    `<div class="nav-fab"><button class="fab-btn" onclick="toggleAddDrawer()" aria-label="${fabLabel}" title="${fabLabel}">＋</button></div>` +
+    `<div class="nav-fab"><button class="fab-btn" aria-label="${fabLabel}" title="${fabLabel}">＋</button></div>` +
     tabOrder.slice(half).map(item).join('');
 }
 function applySectionOrder(){

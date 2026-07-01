@@ -29,6 +29,16 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.66',
+    date: '2026-07-01',
+    title: 'إصلاح زر ＋ والتحليلات',
+    items: [
+      'إصلاح: زر إضافة معاملة (＋) لم يعمل بعد v47.65 — السبب: renderBottomNav() تُعيد بناء الشريط السفلي وتحذف معرّف fabAddTx فلا يجد _bindEvents() العنصر. الحل: تحويل الاستماع للنقر إلى event delegation على عنصر <nav> الثابت.',
+      'إصلاح: ألوان فئات المخطط الدائري وأشرطة المحافظ اختفت — السبب: style-src بدون unsafe-inline يحجب قيم style="…" المحسوبة برمجياً (transform:scaleX, background-color) في innerHTML. أُعيد unsafe-inline لـ style-src لأن هذه القيم لا يمكن نقلها لفئات CSS ثابتة.',
+      'أُزيل onclick= من أزرار شريط التنقل المُنشأة ديناميكياً — الآن تُعالج بالكامل عبر event delegation بدون inline handlers.',
+    ],
+  },
+  {
     version: 'v47.65',
     date: '2026-07-01',
     title: 'CSP مكتمل — إزالة unsafe-inline من style-src',

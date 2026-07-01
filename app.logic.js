@@ -3017,12 +3017,15 @@ function _bindEvents(){
   act($('crisisToggle'),()=>toggleCrisis());
   act($('quickNotesBanner'),()=>openQuickNotes());
 
-  // Bottom nav + FAB
-  on($('navHome'),'click',()=>switchTab('home'));
-  on($('navTransactions'),'click',()=>switchTab('transactions'));
-  on($('fabAddTx'),'click',toggleAddDrawer);
-  on($('navAnalytics'),'click',()=>switchTab('analytics'));
-  on($('navReports'),'click',()=>switchTab('reports'));
+  // Bottom nav + FAB — event delegation on stable <nav> so listeners survive
+  // every renderBottomNav() call (which recreates all buttons inside the inner div).
+  // The generated buttons have no inline onclick= so CSP script-src stays clean.
+  const _nav = document.querySelector('.bottom-nav');
+  on(_nav,'click', e => {
+    if(e.target.closest('.fab-btn')){ toggleAddDrawer(); return; }
+    const btn = e.target.closest('.nav-item[id^="nav"]');
+    if(btn) switchTab(btn.id.replace('nav','').toLowerCase());
+  });
 
   // Analytics tab
   on($('btnExportMonthly'),'click',exportMonthlyReport);
