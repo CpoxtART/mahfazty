@@ -61,11 +61,13 @@ function _driveSilentSafe(){
 function _driveCookiePath(){
   try{ return new URL('.', location.href).pathname; }catch(_){ return '/'; }
 }
-function _setDriveCookie(name, val, expMs){
+function _setDriveCookie(name, val){
   try{
-    const d = new Date(expMs).toUTCString();
     const path = _driveCookiePath();
-    document.cookie = `${name}=${encodeURIComponent(val)}; expires=${d}; path=${path}; SameSite=Strict; Secure`;
+    // Session cookie — no explicit expires so it disappears when the browser closes,
+    // matching the sessionStorage lifecycle. The VALUE of mhfzty_dexp carries the
+    // token's actual expiry timestamp so other tabs can still validate the token.
+    document.cookie = `${name}=${encodeURIComponent(val)}; path=${path}; SameSite=Strict; Secure`;
   }catch(_){}
 }
 function _getDriveCookie(name){
@@ -81,17 +83,21 @@ function _deleteDriveCookie(name){
   }catch(_){}
 }
 
-// Persist the access token in BOTH localStorage and a path-scoped cookie so
-// it survives whether the browser wipes one storage type on force-close.
+// Persist the access token in sessionStorage (primary) and a path-scoped session
+// cookie (cross-tab fallback within the same browser session). Both are cleared
+// when the browser closes, limiting the token theft window vs. the old approach
+// of persisting in localStorage across sessions. Users who reopen the app will
+// need one tap on the Drive banner (mobile) or a transparent ~300ms GIS silent
+// grant (desktop) — same as any post-token-expiry reconnect, just more frequent.
 function storeDriveToken(token, expiresInSec){
   driveAccessToken = token;
   driveTokenExpiry = Date.now() + (Math.max(0, (expiresInSec || 3600) - 60) * 1000); // 60s safety margin
   try{
-    localStorage.setItem(LS_PREFIX + 'driveToken', token);
-    localStorage.setItem(LS_PREFIX + 'driveTokenExp', String(driveTokenExpiry));
+    sessionStorage.setItem(LS_PREFIX + 'driveToken', token);
+    sessionStorage.setItem(LS_PREFIX + 'driveTokenExp', String(driveTokenExpiry));
   }catch(e){}
-  _setDriveCookie('mhfzty_dtok', token, driveTokenExpiry);
-  _setDriveCookie('mhfzty_dexp', String(driveTokenExpiry), driveTokenExpiry);
+  _setDriveCookie('mhfzty_dtok', token);
+  _setDriveCookie('mhfzty_dexp', String(driveTokenExpiry));
   // schedule a silent refresh 5 min before the token expires so an active
   // session never suddenly loses Drive access mid-use
   _scheduleTokenRefresh();
@@ -101,9 +107,10 @@ function clearDriveToken(){
   driveAccessToken = null;
   driveTokenExpiry = 0;
   try{
-    localStorage.removeItem(LS_PREFIX + 'driveToken');
-    localStorage.removeItem(LS_PREFIX + 'driveTokenExp');
-    sessionStorage.removeItem(LS_PREFIX + 'driveToken'); // clean up legacy key
+    sessionStorage.removeItem(LS_PREFIX + 'driveToken');
+    sessionStorage.removeItem(LS_PREFIX + 'driveTokenExp');
+    localStorage.removeItem(LS_PREFIX + 'driveToken');    // clear pre-v47.63 persisted token
+    localStorage.removeItem(LS_PREFIX + 'driveTokenExp'); // clear pre-v47.63 persisted expiry
   }catch(e){}
   _deleteDriveCookie('mhfzty_dtok');
   _deleteDriveCookie('mhfzty_dexp');
@@ -941,9 +948,16 @@ function initDrive(){
   // the recent-apps list while cookies may survive (or vice-versa).
   let _savedTokenExp = 0; // captured before clearDriveToken() so tryInit can use it
   try{
-    let tok = localStorage.getItem(LS_PREFIX + 'driveToken');
-    let exp = parseInt(localStorage.getItem(LS_PREFIX + 'driveTokenExp') || '0', 10) || 0;
-    // If localStorage was cleared, try cookies
+    // Primary: sessionStorage (token cleared when browser closes — limits theft window).
+    // Fallback: path-scoped session cookie (cross-tab within same browser session).
+    // Legacy cleanup: erase any token left in localStorage by pre-v47.63 builds.
+    try{
+      localStorage.removeItem(LS_PREFIX + 'driveToken');
+      localStorage.removeItem(LS_PREFIX + 'driveTokenExp');
+    }catch(_){}
+    let tok = sessionStorage.getItem(LS_PREFIX + 'driveToken');
+    let exp = parseInt(sessionStorage.getItem(LS_PREFIX + 'driveTokenExp') || '0', 10) || 0;
+    // If sessionStorage is empty (new tab, or cleared), try the session cookie
     if(!tok || Date.now() >= exp){
       const ctok = _getDriveCookie('mhfzty_dtok');
       const cexp = parseInt(_getDriveCookie('mhfzty_dexp') || '0', 10) || 0;
@@ -951,7 +965,7 @@ function initDrive(){
     }
     _savedTokenExp = exp; // capture now, BEFORE clearDriveToken removes the keys
     if(tok && Date.now() < exp){ driveAccessToken = tok; driveTokenExpiry = exp; }
-    else if(tok || exp){ clearDriveToken(); } // stale — drop both storage locations
+    else if(tok || exp){ clearDriveToken(); } // stale — drop all storage locations
     // If we restored a live token, re-arm the proactive refresh timer
     if(driveTokenValid()) _scheduleTokenRefresh();
   }catch(e){}
