@@ -1179,6 +1179,7 @@
   .rtx-desc{
     font-size:var(--fs-base); font-weight:600; color:var(--text);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    unicode-bidi:plaintext; /* per-description direction from first strong char — "Netflix اشتراك" stays LTR-rooted, not forced RTL by the enclosing container */
   }
   .rtx-sub{
     font-size:var(--fs-xs); color:var(--muted); margin-top:2px;
@@ -1781,7 +1782,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 }
 .sub-add-btn:active{ transform:scale(.95); }
 .subs-total{ font-size:var(--fs-sm); color:var(--muted); margin-bottom:10px; }
-.subs-total b{ color:var(--text); font-variant-numeric:tabular-nums; }
+.subs-total b{ color:var(--text); font-variant-numeric:tabular-nums; direction:ltr; unicode-bidi:isolate; }
 .subs-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
 .sub-card{
   background:var(--card); border:1px solid var(--line); border-radius:var(--radius-sm);

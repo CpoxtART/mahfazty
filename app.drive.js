@@ -171,6 +171,7 @@ function dismissDriveAutoSignInPrompt(){
    requestAccessToken({prompt:''}) — on mobile that can redirect the top frame to
    accounts.google.com/gsi/transfer and hang on a blank page. Re-auth needs a real
    tap, so even an "auto" user gets a frictionless one-tap banner on token expiry. */
+let _driveBannerPrevFocus = null; // saved focus element to restore when banner closes
 function showDriveBanner(){
   const b = document.getElementById('driveBanner');
   if(!b || b.classList.contains('show')) return;
@@ -190,11 +191,23 @@ function showDriveBanner(){
     hideDriveBanner();
     try{ sessionStorage.setItem(LS_PREFIX + 'driveBannerDismissed', '1'); }catch(_){}
   };
-  requestAnimationFrame(()=> b.classList.add('show'));
+  _driveBannerPrevFocus = document.activeElement;
+  requestAnimationFrame(()=>{
+    b.classList.add('show');
+    // Move keyboard focus into the banner so keyboard and screen-reader users
+    // don't get stranded on whatever element triggered the banner.
+    const btn = document.getElementById('btnDriveYes');
+    if(btn) try{ btn.focus({preventScroll:true}); }catch(_){}
+  });
 }
 function hideDriveBanner(){
   const b = document.getElementById('driveBanner');
   if(b) b.classList.remove('show');
+  // Restore focus to wherever it was before the banner appeared.
+  if(_driveBannerPrevFocus && typeof _driveBannerPrevFocus.focus === 'function'){
+    try{ _driveBannerPrevFocus.focus({preventScroll:true}); }catch(_){}
+  }
+  _driveBannerPrevFocus = null;
 }
 function maybePromptDriveConnect(){
   if(!driveClientId || driveTokenValid()) return; // nothing to prompt

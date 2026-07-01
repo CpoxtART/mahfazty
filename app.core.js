@@ -29,6 +29,28 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.62',
+    date: '2026-07-01',
+    title: 'تدقيق عميق متعدد الزوايا — 15 إصلاحًا',
+    items: [
+      'إصلاح (عالي): الفاصلة الأوروبية كفاصل عشري ("1,5" = 1.5 مش ألف وخمسة) — يعني لو كتبت "اشتراك 9,99" يحسبها صح الحين.',
+      'إصلاح (عالي): حدّ أقصى 50,000 حرف في الملاحظات السريعة مع إشعار واضح عند الوصول للحدّ — لحماية الأداء من اللصق الزائد.',
+      'إصلاح (عالي): شريط إشعار Google Drive يأخذ التركيز (Focus) مباشرة وبشكل صحيح لمستخدمي لوحة المفاتيح، والـ Escape يغلقه.',
+      'إصلاح (عالي): زر "تراجع" في تنبيه الحذف صار له وصف واضح لقارئات الشاشة بدل مجرد ايموجي.',
+      'إصلاح (عالي): حقل الملاحظات السريعة صار له تسمية نصية لقارئات الشاشة.',
+      'إصلاح (متوسط): ترتيب الحفظ في التحويل بين المحافظ صار: السجل أولًا ثم الأرصدة — لو انقطع الكهرباء بينهما تبقى البيانات سليمة.',
+      'إصلاح (متوسط): قائمة اختيار المحفظة (Pop-up) صارت تدعم التنقل بالأسهم (↑↓ + Home/End) بالكامل وتعلن الخيار المحدد لقارئات الشاشة.',
+      'إصلاح (متوسط): في معاينة توزيع الراتب الفرق "الريال الأخير" صار يُوزَّع بنفس الطريقة الحقيقية — لا فرق بين المعاينة والنتيجة.',
+      'إصلاح (متوسط): أوصاف المعاملات ذات الاتجاه المختلط (عربي + إنكليزي) تظهر بالاتجاه الصحيح تلقائيًا.',
+      'إصلاح (متوسط): مبلغ الرقم في وصف توزيع الراتب معزول بشكل صحيح فلا ينعكس في السياق العربي.',
+      'إصلاح (متوسط): المجموع في شاشة الاشتراكات معزول اتجاهيًا ويقرأ بالشكل الصحيح.',
+      'إصلاح (متوسط): شريط الميزانية يعلن حالته ("تجاوز الميزانية / اقتراب / ضمن") لقارئات الشاشة بدل صمت تام.',
+      'إصلاح (منخفض): اقتطاع اسم المحفظة بعدد حروف حقيقي — لا يعبر على وسط رمز Unicode أو emoji.',
+      'إصلاح (منخفض): حقل الملاحظات السريعة يحافظ على الاتجاه الصحيح عند تغيير اللغة.',
+      'إصلاح (منخفض): معاينة توزيع الراتب تطابق النتيجة الحقيقية تمامًا حتى لآخر قرش.',
+    ],
+  },
+  {
     version: 'v47.61',
     date: '2026-06-30',
     title: 'تعرّف على المحافظ الافتراضية بأسماء عربية شائعة',
@@ -818,7 +840,9 @@ function sanitizeWalletDefs(arr){
     // bypasses escHtml's protection wherever it's rendered via textContent
     // (which doesn't need HTML-escaping but is still vulnerable to display
     // corruption from a name like "Cash‮hsac").
-    const name = typeof w.name === 'string' ? stripBidiControls(w.name).trim().slice(0,40) : '';
+    // [...str].slice() counts Unicode code points, not UTF-16 code units — avoids
+    // stranding a lone surrogate when the 40th position falls inside an emoji pair.
+    const name = typeof w.name === 'string' ? [...stripBidiControls(w.name).trim()].slice(0,40).join('') : '';
     if(!id || !/^[a-zA-Z0-9_\-]+$/.test(id) || !name || seen.has(id)) return;
     seen.add(id);
     out.push({id, name, initial:0, track: !!w.track, pct: typeof w.pct === 'string' ? w.pct : (w.track ? 'تتبع' : '0%'), ...(w.crisisOnly ? {crisisOnly:true} : {})});
@@ -1090,6 +1114,11 @@ function normalizeDigits(str){
     .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660)) // Arabic-Indic digits
     .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0)) // Extended (Persian) digits
     .replace(/[٫]/g, '.')   // Arabic decimal separator
+    // A comma followed by exactly 1–2 digits at the end of the string is almost
+    // certainly a decimal separator (European convention: "1,5" = 1.5, "9,99" = 9.99).
+    // A comma before 3+ digits is a thousands separator ("1,500") — left for the
+    // next replace to strip. This prevents "1,5" from silently becoming 15.
+    .replace(/,(\d{1,2})$/, '.$1')
     .replace(/[٬,\s]/g, '');  // Arabic + Latin thousands separators + spaces ("1 000")
 }
 // Parse a user-entered money string robustly (Arabic numerals, separators).

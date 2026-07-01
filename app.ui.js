@@ -92,9 +92,14 @@ function renderWallets(){
       const ratio = Math.min(1, spent/budget);
       const over = spent > budget;
       const color = over ? 'var(--red)' : ratio > 0.8 ? 'var(--gold)' : 'var(--green)';
+      const budgetStatus = over
+        ? t({ar:'تجاوز الميزانية', en:'Over budget'})
+        : ratio > 0.8
+          ? t({ar:'اقتراب من الحد', en:'Near budget limit'})
+          : t({ar:'ضمن الميزانية', en:'On budget'});
       budgetHtml = `
         <div class="budget-row">
-          <div class="bar" style="margin-top:6px;"><i style="transform:scaleX(${ratio.toFixed(4)}); background:${color};"></i></div>
+          <div class="bar" style="margin-top:6px;" role="img" aria-label="${escHtml(budgetStatus)}"><i style="transform:scaleX(${ratio.toFixed(4)}); background:${color};"></i></div>
           <div class="budget-label" style="color:${over?'var(--red)':'var(--muted)'}">${fmt(spent)} / ${fmt(budget)}${over?' ⚠':''}</div>
         </div>`;
     }
@@ -915,7 +920,12 @@ function closeAddDrawer(){
   if(wBtn){ wBtn.classList.remove('open'); wBtn.setAttribute('aria-expanded','false'); }
   // A pending voice recognition would otherwise keep listening in the background
   // and silently fill the (now hidden) desc/amount fields whenever it resolves.
-  if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} }
+  // Also explicitly clear the watchdog timer — on some browsers abort() never fires
+  // onerror, leaving _voiceTimer alive to fire 12s later against the hidden form.
+  if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} voiceRecognition = null; }
+  clearTimeout(_voiceTimer); _voiceTimer = null;
+  const _vBtn = document.getElementById('voiceBtn');
+  if(_vBtn) _vBtn.classList.remove('listening');
   // Skip _popOverlayHistory() when addTx() is atomically swapping this drawer entry
   // for a modal entry via replaceState — calling history.back() here would race with
   // the modal's pushState/replaceState and navigate the user off the page.
@@ -1674,8 +1684,12 @@ async function doTransfer(){
     applyTxToBalance(txOut, +1);
     applyTxToBalance(txIn, +1);
 
-    await saveBalances();
+    // saveTx first — it is the authoritative record for reconcileBalances(); if the
+    // process dies between the two awaits, balances (localStorage) reflect the
+    // transfer but the IDB snapshot still has the old transactions, so on next load
+    // the IDB is used and balances are rebuilt from the correct post-transfer ledger.
     await saveTx();
+    await saveBalances();
     closeModal('transferModal');
     render();
     if(_trackGoingNegative){

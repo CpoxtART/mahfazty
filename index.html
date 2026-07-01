@@ -652,7 +652,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="grabber"></div>
     <h3 id="qnTitle" data-i18n="qn.title">📝 ملاحظات سريعة ← معاملات</h3>
     <div class="hint" style="margin-top:0;" data-i18n="qn.intro">اكتب كل معاملة في سطر مستقل: الوصف ثم السعر. البرنامج يحوّلها لمعاملات جاهزة تراجعها قبل الحفظ — بدون إدخال يدوي لكل واحدة.</div>
-    <textarea id="qnNotes" class="qn-notes" rows="6" placeholder="قهوة ١٥&#10;بنزين ٥٠&#10;غداء مطعم ٤٥&#10;راتب ٥٠٠٠ +" data-i18n-ph="qn.ph" oninput="onQuickNotesInput()" enterkeyhint="enter" autocomplete="off"></textarea>
+    <textarea id="qnNotes" class="qn-notes" rows="6" dir="auto" aria-label="الملاحظات السريعة" data-i18n-aria-label="qn.notesLabel" placeholder="قهوة ١٥&#10;بنزين ٥٠&#10;غداء مطعم ٤٥&#10;راتب ٥٠٠٠ +" data-i18n-ph="qn.ph" oninput="onQuickNotesInput()" enterkeyhint="enter" autocomplete="off"></textarea>
     <div class="qn-sidehint" data-i18n-html="qn.sideHint">💡 سطر لكل معاملة: اكتب <b>ما هي المعاملة وسعرها</b> (مثل «قهوة ١٥»). أضِف <b>+</b> في آخر السطر أو اكتب «راتب/دخل» لتسجيلها كدخل.</div>
 
     <label data-i18n="qn.walletLbl">المحفظة الافتراضية (تقدر تغيّرها لكل سطر بالمعاينة)</label>
@@ -722,7 +722,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   <div class="modal">
     <div class="grabber"></div>
     <h3 data-i18n="dist.title">🔄 توزيع الدخل</h3>
-    <div class="hint" style="margin-top:0;"><span data-i18n="dist.hintPrefix">تم تسجيل دخل بقيمة </span><b id="distAmountLabel" style="color:var(--gold)"></b><span data-i18n="dist.hintSuffix">. هل تريد توزيعه على المحافظ حسب نسبك المعتادة؟</span></div>
+    <div class="hint" style="margin-top:0;"><span data-i18n="dist.hintPrefix">تم تسجيل دخل بقيمة </span><b id="distAmountLabel" dir="ltr" style="color:var(--gold)"></b><span data-i18n="dist.hintSuffix">. هل تريد توزيعه على المحافظ حسب نسبك المعتادة؟</span></div>
     <div id="distBreakdown" style="margin:14px 0; display:flex; flex-direction:column; gap:6px;"></div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="skipDistribution()" data-i18n="dist.skip">لا، إبقه هنا</button>

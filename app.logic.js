@@ -124,9 +124,18 @@ function openDistributionModal(amount){
     wrap.appendChild(warn);
   } else {
     const totalPct = activeEntries.reduce((s,d)=>s+d.pct, 0);
-    activeEntries.forEach(d=>{
+    // Use the same formula as runDistribution() so preview amounts match what actually
+    // gets committed: compute intendedTotal first, then proportional allocation, then
+    // let the last entry absorb any sub-cent rounding residual.
+    const intendedTotal = round2(Math.min(amount, amount * totalPct / 100));
+    let previewAllocated = 0;
+    activeEntries.forEach((d, idx)=>{
       const w = WALLET_DEFS.find(x=>x.id===d.id);
-      const share = round2(amount * d.pct / 100);
+      const isLast = idx === activeEntries.length - 1;
+      const share = isLast
+        ? round2(intendedTotal - previewAllocated)
+        : round2(intendedTotal * d.pct / totalPct);
+      previewAllocated += share;
       const row = document.createElement('div');
       row.className = 'dist-row';
       row.innerHTML = `<span class="name">${escHtml(w.name)} <span class="pct">${escHtml(String(d.pct))}%</span></span><span class="amt">${escHtml(fmt(share))}</span>`;
@@ -348,6 +357,11 @@ const _QN_NUM_RE = /[\d٠-٩۰-۹]+(?:[.,٫][\d٠-٩۰-۹]+)?/g;
 // (each row is several DOM nodes + handlers) and freeze the main thread. 300 is
 // far beyond any realistic "jot a few transactions" session.
 const QN_MAX_LINES = 300;
+// Raw character cap on the draft string — prevents the in-memory variable and the
+// per-keystroke localStorage write from growing without bound when the user pastes
+// a large document. 50 000 chars is ~250+ real-world transactions; well above any
+// realistic use and comfortably under the typical 5MB localStorage quota.
+const QN_MAX_CHARS = 50000;
 let _qnTruncated = false; // set when the last parse hit the cap (surfaced as a toast)
 
 /* ------------------------------------------------------------
@@ -546,16 +560,36 @@ function openWalletPop(anchor, items, currentId, onPick){
   // anchor's blue/gold identity instead of always defaulting to gold.
   pop.classList.toggle('wallet-pop--track', anchor.classList.contains('qn-cs-track') || anchor.classList.contains('track-cs'));
   items.forEach(it => {
+    const isSel = it.id === currentId;
     const o = document.createElement('div');
-    o.className = 'opt' + (it.id === currentId ? ' selected' : '');
+    o.className = 'opt' + (isSel ? ' selected' : '');
     o.setAttribute('role', 'option');
-    o.tabIndex = 0;
+    o.setAttribute('aria-selected', String(isSel));
+    o.tabIndex = isSel ? 0 : -1; // roving tabindex: Tab moves in/out; arrows move within
     o.innerHTML = (it.bal != null)
       ? `<span>${escHtml(it.name)}</span><span class="bal">${escHtml(it.bal)}</span>`
       : `<span>${escHtml(it.name)}</span>`;
     const pick = () => { const f = _wpOnPick; closeWalletPop(); if(f) f(it.id); };
     o.onclick = pick;
-    o.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick(); } };
+    o.onkeydown = (e) => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick(); return; }
+      // Arrow navigation within the listbox
+      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        e.preventDefault();
+        const opts = [...pop.querySelectorAll('.opt')];
+        const idx = opts.indexOf(o);
+        const next = e.key === 'ArrowDown'
+          ? opts[(idx + 1) % opts.length]
+          : opts[(idx - 1 + opts.length) % opts.length];
+        if(next){ opts.forEach(x => { x.tabIndex = -1; }); next.tabIndex = 0; try{ next.focus({preventScroll:true}); }catch(_){} }
+      }
+      if(e.key === 'Home' || e.key === 'End'){
+        e.preventDefault();
+        const opts = [...pop.querySelectorAll('.opt')];
+        const next = e.key === 'Home' ? opts[0] : opts[opts.length - 1];
+        if(next){ opts.forEach(x => { x.tabIndex = -1; }); next.tabIndex = 0; try{ next.focus({preventScroll:true}); }catch(_){} }
+      }
+    };
     pop.appendChild(o);
   });
   _wpAnchor = anchor; _wpOnPick = onPick;
@@ -570,8 +604,8 @@ function openWalletPop(anchor, items, currentId, onPick){
   const below = window.innerHeight - r.bottom;
   if(below >= popH + 8 || below >= r.top){ pop.style.top = Math.round(r.bottom + 4) + 'px'; pop.style.bottom = 'auto'; }
   else { pop.style.bottom = Math.round(window.innerHeight - r.top + 4) + 'px'; pop.style.top = 'auto'; }
-  const sel = pop.querySelector('.opt.selected') || pop.querySelector('.opt');
-  if(sel) try{ sel.focus({preventScroll:true}); }catch(_){}
+  const sel = pop.querySelector('.opt[aria-selected="true"]') || pop.querySelector('.opt');
+  if(sel){ sel.tabIndex = 0; try{ sel.focus({preventScroll:true}); }catch(_){} }
 }
 // dismiss on outside click / Escape / scroll / resize
 document.addEventListener('click', (e) => {
@@ -627,7 +661,12 @@ function openQuickNotes(){
 
 function onQuickNotesInput(){
   const ta = document.getElementById('qnNotes');
-  _quickNotesDraft = ta ? ta.value : '';
+  if(!ta) return;
+  if(ta.value.length > QN_MAX_CHARS){
+    ta.value = ta.value.slice(0, QN_MAX_CHARS);
+    toast(t({ar:`⚠ تجاوزت الحد الأقصى (${QN_MAX_CHARS.toLocaleString()} حرف)`, en:`⚠ Exceeded max length (${QN_MAX_CHARS.toLocaleString()} chars)`}), true);
+  }
+  _quickNotesDraft = ta.value;
   saveQuickNotesDraft();
   updateQuickNotesBadge();
 }
@@ -1285,6 +1324,13 @@ function _closeTopmostOverlay(){
     }
   });
   if(closedDropdown) return true;
+  // Drive reconnect banner carries role="dialog" but uses a CSS class (.show) rather
+  // than .modal-overlay.open — it needs its own Escape check.
+  const dBanner = document.getElementById('driveBanner');
+  if(dBanner && dBanner.classList.contains('show')){
+    if(typeof hideDriveBanner === 'function') hideDriveBanner();
+    return true;
+  }
   if(addDrawerOpen){
     closeAddDrawer();
     return true;
@@ -2199,13 +2245,13 @@ function toast(msg, isError){
 }
 
 function toastWithUndo(msg, undoFn){
-  toastWithAction(msg, t({ar:'تراجع ↩️', en:'Undo ↩️'}), undoFn);
+  toastWithAction(msg, t({ar:'تراجع ↩️', en:'Undo ↩️'}), undoFn, false, t({ar:'تراجع عن الحذف', en:'Undo deletion'}));
 }
 // critical=true marks a severe, rare warning (e.g. local persistence totally failed)
 // that must not be silently overwritten by/lost a race with a routine toast that
 // fires moments later from an in-flight optimistic save flow — see _criticalToastUntil.
-function toastWithAction(msg, actionLabel, fn, critical){
-  if(!critical && Date.now() < _criticalToastUntil){ _queuedToast = {fn: toastWithAction, args:[msg, actionLabel, fn, critical]}; return; }
+function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel){
+  if(!critical && Date.now() < _criticalToastUntil){ _queuedToast = {fn: toastWithAction, args:[msg, actionLabel, fn, critical, btnAriaLabel]}; return; }
   const el = document.getElementById('saveStatus');
   // critical warnings (e.g. data-loss) interrupt the screen reader; routine
   // action toasts (undo) stay polite. See the matching note in toast().
@@ -2215,6 +2261,9 @@ function toastWithAction(msg, actionLabel, fn, critical){
   span.textContent = msg;
   const btn = document.createElement('button');
   btn.textContent = actionLabel;
+  // Provide an explicit emoji-free aria-label so the announcement is unambiguous
+  // across screen readers (emoji verbalization varies by AT/platform).
+  if(btnAriaLabel) btn.setAttribute('aria-label', btnAriaLabel);
   btn.style.cssText = 'background:var(--gold-btn); color:var(--on-gold); border:none; border-radius:var(--radius-pill); padding:5px 13px; font-size:var(--fs-sm); font-weight:700; margin-inline-end:8px; cursor:pointer;';
   btn.onclick = () => {
     el.classList.remove('show');
