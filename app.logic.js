@@ -2996,6 +2996,153 @@ if(sessionStorage.getItem('_swJustUpdated')){
     _updateChangelogDot();
   }, 900);
 }
+/* ============================================================
+   EVENT BINDING — all UI event listeners wired here so index.html
+   contains zero inline handlers and script-src CSP can use hashes.
+============================================================ */
+function _bindEvents(){
+  const $ = id => document.getElementById(id);
+  const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
+  // role="button" elements: activate on click + Enter/Space keydown
+  const act = (el, fn) => { on(el,'click',fn); on(el,'keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fn(e);} }); };
+  // custom-select elements: suppress ghost click (detail===0) + keydown
+  const sel = (el, fn) => { on(el,'click',e=>{ if(!e.detail)return; fn(e); }); on(el,'keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fn(e);} }); };
+
+  // Header
+  on($('themeToggle'),'click',toggleTheme);
+  on($('btnHeaderData'),'click',()=>openSettingsTab('data'));
+  on($('btnHeaderSettings'),'click',()=>openSettingsTab('layout'));
+
+  // Home tab
+  act($('crisisToggle'),()=>toggleCrisis());
+  act($('quickNotesBanner'),()=>openQuickNotes());
+
+  // Bottom nav + FAB
+  on($('navHome'),'click',()=>switchTab('home'));
+  on($('navTransactions'),'click',()=>switchTab('transactions'));
+  on($('fabAddTx'),'click',toggleAddDrawer);
+  on($('navAnalytics'),'click',()=>switchTab('analytics'));
+  on($('navReports'),'click',()=>switchTab('reports'));
+
+  // Analytics tab
+  on($('btnExportMonthly'),'click',exportMonthlyReport);
+  on($('btnSubAdd'),'click',()=>openSubModal(null));
+
+  // Reports tab
+  act($('walletFilterChip'),()=>clearWalletFilter());
+  act($('categoryFilterChip'),()=>toggleCategoryFilter(null));
+  document.querySelectorAll('[data-f]').forEach(el=>on(el,'click',()=>setFilter(el.dataset.f)));
+  on($('searchInput'),'input',onSearchInput);
+  on($('btnClearSearch'),'click',clearSearch);
+
+  // Add drawer
+  on($('addDrawerOverlay'),'click',closeAddDrawer);
+  on($('btnDrawerClose'),'click',closeAddDrawer);
+  on($('drawerTab0'),'click',()=>switchDrawerTab(0));
+  on($('drawerTab1'),'click',()=>switchDrawerTab(1));
+  sel($('walletSelectBtn'),()=>toggleWalletMenu());
+  const _tSel=$('trackSelectBtn'); sel(_tSel,()=>openTrackPicker(_tSel));
+  on($('voiceBtn'),'click',startVoiceInput);
+  on($('addTypeExp'),'click',()=>setAddFormType('expense'));
+  on($('addTypeInc'),'click',()=>setAddFormType('income'));
+  on($('btnOpenTransfer'),'click',openTransferFromDrawer);
+  on($('btnRepeatLast'),'click',repeatLastTx);
+  on($('addExpenseBtn'),'click',()=>addTx('expense'));
+  on($('addIncomeBtn'),'click',()=>addTx('income'));
+
+  // Edit modal
+  on($('editTypeExp'),'click',()=>setEditType('expense'));
+  on($('editTypeInc'),'click',()=>setEditType('income'));
+  sel($('editWalletBtn'),()=>toggleEditWalletMenu());
+  on($('btnEditCancel'),'click',()=>closeModal('editModal'));
+  on($('saveEditBtn'),'click',saveEdit);
+  on($('btnEditDelete'),'click',deleteFromEdit);
+
+  // Settings modal
+  on($('btnForceUpdate'),'click',forceClearAndUpdate);
+  on($('changelogBtn'),'click',openChangelog);
+  document.querySelectorAll('[data-sett-tab]').forEach(el=>on(el,'click',()=>switchSettingsTab(el.dataset.settTab)));
+  document.querySelectorAll('[data-theme-mode]').forEach(el=>on(el,'click',()=>setThemeMode(el.dataset.themeMode)));
+  document.querySelectorAll('[data-lang]').forEach(el=>on(el,'click',()=>setLang(el.dataset.lang)));
+  on($('btnResetLayout'),'click',resetLayout);
+  on($('btnNewWallet'),'click',()=>openWalletDefModal(null));
+  on($('btnSaveDistribution'),'click',saveDistribution);
+  on($('btnResetDistribution'),'click',resetDistribution);
+  on($('btnExportJson'),'click',exportData);
+  on($('btnImportFileTrigger'),'click',()=>$('importFile').click());
+  on($('importFile'),'change',importFromFile);
+  on($('btnImportText'),'click',importFromTextarea);
+  on($('btnSaveDriveClientId'),'click',saveDriveClientId);
+  on($('driveSignInBtn'),'click',driveSignIn);
+  on($('btnDriveSyncNow'),'click',driveManualSync);
+  on($('btnDriveSignOut'),'click',driveSignOut);
+  on($('btnDriveAutoAlways'),'click',enableDriveAutoSignIn);
+  on($('btnDriveAutoNotNow'),'click',dismissDriveAutoSignInPrompt);
+  on($('driveAutoSignInChk'),'change',e=>setDriveAutoSignIn(e.target.checked));
+  on($('btnChangeDriveClientId'),'click',changeDriveClientId);
+  on($('btnRepairBalances'),'click',repairBalancesFromLedger);
+  on($('btnZeroTracked'),'click',zeroTrackedWallets);
+  on($('btnZeroRegular'),'click',zeroRegularWallets);
+  on($('btnClearSubs'),'click',clearAllSubscriptions);
+  on($('btnClearBalTx'),'click',clearBalancesAndTx);
+  on($('btnWipeAll'),'click',wipeAll);
+  on($('btnCloseSettings'),'click',()=>closeModal('settingsModal'));
+
+  // Transfer modal
+  sel($('transferFromBtn'),()=>toggleTransferMenu('from'));
+  sel($('transferToBtn'),()=>toggleTransferMenu('to'));
+  on($('btnTransferCancel'),'click',()=>closeModal('transferModal'));
+  on($('doTransferBtn'),'click',doTransfer);
+
+  // Quick notes modal
+  on($('qnNotes'),'input',onQuickNotesInput);
+  on($('btnQnClose'),'click',()=>closeModal('quickNotesModal'));
+  on($('qnParseBtn'),'click',parseQuickNotesPreview);
+  on($('btnQnCancelPreview'),'click',cancelQuickNotesPreview);
+  on($('qnConfirmBtn'),'click',commitQuickNotes);
+
+  // Wallet detail modal
+  on($('btnSaveWalletBudget'),'click',saveWalletBudget);
+  on($('updateTrackedBalanceBtn'),'click',updateTrackedBalance);
+  on($('trackModeDebit'),'click',()=>setTrackLinkMode(detailWalletId,'debit'));
+  on($('trackModeCredit'),'click',()=>setTrackLinkMode(detailWalletId,'credit'));
+  on($('btnCloseWalletDetail'),'click',()=>closeModal('walletDetailModal'));
+
+  // Distribution modal
+  on($('btnSkipDistribution'),'click',skipDistribution);
+  on($('confirmDistributionBtn'),'click',confirmDistribution);
+
+  // Welcome / onboarding modal
+  on($('btnOnbSkip'),'click',closeWelcome);
+  on($('onbBack'),'click',()=>welcomeNav(-1));
+  on($('onbNext'),'click',()=>welcomeNav(1));
+  on($('btnOnbStartIncome'),'click',()=>welcomeStart(true));
+  on($('btnOnbStartBrowse'),'click',()=>welcomeStart(false));
+
+  // Daily review modal
+  on($('btnCloseDailyReview'),'click',()=>closeModal('dailyReviewModal'));
+
+  // Drive conflict modal
+  on($('btnConflictDrive'),'click',()=>resolveConflict(true));
+  on($('btnConflictLocal'),'click',()=>resolveConflict(false));
+
+  // Subscriptions modal
+  on($('btnCloseSubModal'),'click',()=>closeModal('subModal'));
+  on($('btnSaveSubModal'),'click',saveSubModal);
+  on($('subDeleteBtn'),'click',deleteSubModal);
+
+  // Wallet definition modal
+  on($('walletDefTypeRegular'),'click',()=>setWalletDefType(false));
+  on($('walletDefTypeTrack'),'click',()=>setWalletDefType(true));
+  on($('btnCancelWalletDef'),'click',()=>closeModal('walletDefModal'));
+  on($('btnSaveWalletDef'),'click',saveWalletDefModal);
+  on($('walletDefDeleteBtn'),'click',deleteWalletDefModal);
+
+  // Changelog modal
+  on($('btnCloseChangelog'),'click',()=>closeModal('changelogModal'));
+}
+_bindEvents();
+
 loadState().then(()=>{
   hideSplash();
   loadQuickNotesDraft();    // restore any unconverted quick-notes draft

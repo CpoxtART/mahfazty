@@ -29,6 +29,16 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.64',
+    date: '2026-07-01',
+    title: 'CSP صارم — إزالة unsafe-inline من script-src',
+    items: [
+      'أمان (مهم جداً): جميع معالجات الأحداث المضمّنة في HTML (onclick= / onkeydown= / oninput= / onchange=) أُزيلت بالكامل ونُقلت إلى addEventListener في JavaScript (_bindEvents). هذا يُفعّل الـ Content Security Policy كاملاً: script-src لم يعد يحتوي على unsafe-inline، فالمتصفح يرفض الآن أي سكريبت مُحقون (XSS) حتى لو وصل للصفحة.',
+      'البديل: السكريبتات الثلاثة الضرورية المضمّنة (منع وميض المظهر، اسم التطبيق، معالج الأخطاء) تعمل عبر SHA-256 هاشات محددة في الـ CSP بدلاً من unsafe-inline العام.',
+      'style-src لا يزال يحتوي على unsafe-inline بسبب كثرة سمات style= في HTML — إزالتها مؤجّلة لجولة قادمة.',
+    ],
+  },
+  {
     version: 'v47.63',
     date: '2026-07-01',
     title: 'إصلاحات أمنية — CSP وحماية رمز Drive',

@@ -2,11 +2,13 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<!-- Content-Security-Policy: whitelist known-good origins even though unsafe-inline is
-     required for inline handlers and splash scripts.  This still blocks scripts/fetches
-     from arbitrary external URLs and prevents data exfiltration to unexpected endpoints.
-     Directives that cannot be tightened without a full inline-handler refactor are noted. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com https://www.googleapis.com; img-src 'self' data: blob:; worker-src 'self'; manifest-src 'self'; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self';">
+<!-- Content-Security-Policy: inline event handlers are gone (moved to _bindEvents() in
+     app.logic.js), so script-src no longer needs 'unsafe-inline'. The three remaining
+     inline <script> blocks (theme flash, splash name, fatal-error handler) are whitelisted
+     by their SHA-256 hashes so they still run without unsafe-inline.
+     style-src keeps 'unsafe-inline' because removing the many inline style= attributes
+     is a larger refactor deferred to a future round. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-5v7V2NFHNz0SV3peipWE0WqqhyOSUCFGwY+qUK/sWxU=' 'sha256-PjxQRumiyoPPF1LPPc8BP0DvKY9gYPeTCyAnOJ9KMBo=' 'sha256-+SWwrEd+Lo43nhqJ/7OF+8zgVWUo5fB1b6FHEmkBYGk=' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com https://www.googleapis.com; img-src 'self' data: blob:; worker-src 'self'; manifest-src 'self'; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#15171c">
 <link rel="manifest" id="manifestLink">
@@ -19,8 +21,7 @@
 <title>محفظتيييي 🙂‍↔️</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;600;700&display=swap" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;600;700&display=swap"></noscript>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;600;700&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -68,9 +69,9 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   </div>
   <div class="actions">
     <span id="driveIndicator" style="display:none; align-items:center;" title="حالة المزامنة" data-i18n-title="hdr.syncStatus"></span>
-    <button class="icon-btn" id="themeToggle" onclick="toggleTheme()" aria-label="تبديل المظهر" data-i18n-aria="hdr.themeToggle"></button>
-    <button class="icon-btn" onclick="openSettingsTab('data')" aria-label="البيانات" data-i18n-aria="hdr.data">⇅</button>
-    <button class="icon-btn icon-btn--primary" onclick="openSettingsTab('layout')" aria-label="الإعدادات" data-i18n-aria="hdr.settings">⚙</button>
+    <button class="icon-btn" id="themeToggle" aria-label="تبديل المظهر" data-i18n-aria="hdr.themeToggle"></button>
+    <button class="icon-btn" id="btnHeaderData" aria-label="البيانات" data-i18n-aria="hdr.data">⇅</button>
+    <button class="icon-btn icon-btn--primary" id="btnHeaderSettings" aria-label="الإعدادات" data-i18n-aria="hdr.settings">⚙</button>
   </div>
 </header>
 
@@ -95,7 +96,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   </div>
 
   <div class="ui-sec" data-sec="crisis">
-    <div class="crisis-toggle" id="crisisToggle" onclick="toggleCrisis()" role="switch" aria-checked="false" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCrisis();}">
+    <div class="crisis-toggle" id="crisisToggle" role="switch" aria-checked="false" tabindex="0">
       <div class="label"><span class="ic">🔄</span>
         <div><span data-i18n="home.altMode">الوضع البديل</span>
           <small data-i18n="home.altModeHint">دمج الاحتياطي الثاني (٥٠٪) في احتياطي موحّد واحد</small>
@@ -106,7 +107,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   </div>
 
   <div class="ui-sec" data-sec="quicknotes">
-    <div class="qn-banner" id="quickNotesBanner" onclick="openQuickNotes()" role="button" tabindex="0" aria-labelledby="qnBannerTitle" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openQuickNotes();}">
+    <div class="qn-banner" id="quickNotesBanner" role="button" tabindex="0" aria-labelledby="qnBannerTitle">
       <div class="label"><span class="ic">📝</span>
         <div><span id="qnBannerTitle" data-i18n="qn.bannerTitle">ملاحظات سريعة ← معاملات</span>
           <small data-i18n="qn.bannerHint">اكتب ملاحظاتك بحرية والبرنامج يحوّلها معاملات تلقائيًا</small>
@@ -143,14 +144,14 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 
   <div class="ui-sec" data-sec="export">
     <div class="btn-row" style="margin-bottom:14px;">
-      <button class="btn-secondary" onclick="exportMonthlyReport()" data-i18n="sec.exportReport">📄 تصدير/مشاركة تقرير الشهر</button>
+      <button class="btn-secondary" id="btnExportMonthly" data-i18n="sec.exportReport">📄 تصدير/مشاركة تقرير الشهر</button>
     </div>
   </div>
 
   <div class="ui-sec" data-sec="subscriptions">
     <div class="subs-section-header">
       <span class="subs-label" data-i18n="sec.subs">الاشتراكات الشهرية</span>
-      <button class="sub-add-btn" onclick="openSubModal(null)" data-i18n="sec.subAdd">＋ اشتراك</button>
+      <button class="sub-add-btn" id="btnSubAdd" data-i18n="sec.subAdd">＋ اشتراك</button>
     </div>
     <div class="subs-total" id="subsTotal"></div>
     <div class="subs-list" id="subsList"></div>
@@ -168,28 +169,28 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <!-- ===== TAB 3: REPORTS ===== -->
 <div class="tab-panel" id="tabReports">
 
-  <div class="wallet-filter-chip" id="walletFilterChip" onclick="clearWalletFilter()" role="button" tabindex="0" aria-label="إلغاء تصفية المحفظة" data-i18n-aria="flt.clearWallet" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();clearWalletFilter();}">
+  <div class="wallet-filter-chip" id="walletFilterChip" role="button" tabindex="0" aria-label="إلغاء تصفية المحفظة" data-i18n-aria="flt.clearWallet">
     <span id="walletFilterLabel"></span>
     <span aria-hidden="true">✕</span>
   </div>
 
-  <div class="wallet-filter-chip" id="categoryFilterChip" onclick="toggleCategoryFilter(null)" style="background:var(--blue-soft); border-color:var(--blue);" role="button" tabindex="0" aria-label="إلغاء تصفية الفئة" data-i18n-aria="flt.clearCategory" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCategoryFilter(null);}">
+  <div class="wallet-filter-chip" id="categoryFilterChip" style="background:var(--blue-soft); border-color:var(--blue);" role="button" tabindex="0" aria-label="إلغاء تصفية الفئة" data-i18n-aria="flt.clearCategory">
     <span id="categoryFilterLabel" style="color:var(--blue);"></span>
     <span style="color:var(--blue);" aria-hidden="true">✕</span>
   </div>
 
   <div class="filters">
-    <button data-f="day" onclick="setFilter('day')" data-i18n="flt.day">اليوم</button>
-    <button data-f="week" onclick="setFilter('week')" data-i18n="flt.week">الأسبوع</button>
-    <button data-f="month" onclick="setFilter('month')" data-i18n="flt.month">الشهر</button>
-    <button data-f="year" onclick="setFilter('year')" data-i18n="flt.year">السنة</button>
-    <button data-f="all" class="active" onclick="setFilter('all')" data-i18n="flt.all">الكل</button>
+    <button data-f="day" data-i18n="flt.day">اليوم</button>
+    <button data-f="week" data-i18n="flt.week">الأسبوع</button>
+    <button data-f="month" data-i18n="flt.month">الشهر</button>
+    <button data-f="year" data-i18n="flt.year">السنة</button>
+    <button data-f="all" class="active" data-i18n="flt.all">الكل</button>
   </div>
 
   <div class="search-box" id="searchBox">
     <span class="ic">🔍</span>
-    <input type="text" id="searchInput" placeholder="ابحث في المعاملات..." data-i18n-ph="search.ph" oninput="onSearchInput()" autocomplete="off" enterkeyhint="search">
-    <button class="clear" onclick="clearSearch()" aria-label="مسح البحث" data-i18n-aria="search.clear">✕</button>
+    <input type="text" id="searchInput" placeholder="ابحث في المعاملات..." data-i18n-ph="search.ph" autocomplete="off" enterkeyhint="search">
+    <button class="clear" id="btnClearSearch" aria-label="مسح البحث" data-i18n-aria="search.clear">✕</button>
   </div>
 
   <div class="ui-sec" data-sec="summary">
@@ -229,22 +230,22 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <!-- ===== BOTTOM NAV ===== -->
 <nav class="bottom-nav" role="navigation" aria-label="التنقل الرئيسي">
   <div class="bottom-nav-inner">
-    <button class="nav-item active" id="navHome" onclick="switchTab('home')" aria-label="الرئيسي">
+    <button class="nav-item active" id="navHome" aria-label="الرئيسي">
       <span class="nav-ic">🏠</span>
       <span>الرئيسي</span>
     </button>
-    <button class="nav-item" id="navTransactions" onclick="switchTab('transactions')" aria-label="المعاملات">
+    <button class="nav-item" id="navTransactions" aria-label="المعاملات">
       <span class="nav-ic">🧾</span>
       <span>المعاملات</span>
     </button>
     <div class="nav-fab">
-      <button class="fab-btn" onclick="toggleAddDrawer()" aria-label="إضافة معاملة" title="إضافة معاملة" data-i18n-aria="drawer.addTx" data-i18n-title="drawer.addTx">＋</button>
+      <button class="fab-btn" id="fabAddTx" aria-label="إضافة معاملة" title="إضافة معاملة" data-i18n-aria="drawer.addTx" data-i18n-title="drawer.addTx">＋</button>
     </div>
-    <button class="nav-item" id="navAnalytics" onclick="switchTab('analytics')" aria-label="تحليلات">
+    <button class="nav-item" id="navAnalytics" aria-label="تحليلات">
       <span class="nav-ic">📊</span>
       <span>تحليلات</span>
     </button>
-    <button class="nav-item" id="navReports" onclick="switchTab('reports')" aria-label="التقارير">
+    <button class="nav-item" id="navReports" aria-label="التقارير">
       <span class="nav-ic">📋</span>
       <span>التقارير</span>
     </button>
@@ -252,18 +253,18 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 </nav>
 
 <!-- ===== ADD DRAWER OVERLAY ===== -->
-<div class="add-drawer-overlay" id="addDrawerOverlay" onclick="closeAddDrawer()"></div>
+<div class="add-drawer-overlay" id="addDrawerOverlay"></div>
 
 <!-- ===== ADD DRAWER ===== -->
 <div class="add-drawer" id="addDrawer" role="dialog" aria-modal="true" aria-label="إضافة معاملة" data-i18n-aria="drawer.addTx">
   <div class="grabber"></div>
   <div class="drawer-head">
     <h3 data-i18n="add.title">➕ إضافة معاملة</h3>
-    <button class="drawer-close" onclick="closeAddDrawer()" aria-label="إغلاق الدرج" data-i18n-aria="add.close">✕</button>
+    <button class="drawer-close" id="btnDrawerClose" aria-label="إغلاق الدرج" data-i18n-aria="add.close">✕</button>
   </div>
   <div class="drawer-tabs">
-    <button class="active" id="drawerTab0" onclick="switchDrawerTab(0)" data-i18n="add.tabDetails">التفاصيل</button>
-    <button id="drawerTab1" onclick="switchDrawerTab(1)" data-i18n="add.tabTypeCat">النوع والفئة</button>
+    <button class="active" id="drawerTab0" data-i18n="add.tabDetails">التفاصيل</button>
+    <button id="drawerTab1" data-i18n="add.tabTypeCat">النوع والفئة</button>
   </div>
 
   <div class="drawer-body">
@@ -272,7 +273,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="drawer-sub active" id="drawerSub0">
       <label id="walletSelectLbl" data-i18n="add.wallet">المحفظة</label>
       <div class="wallet-select-wrap">
-        <div class="custom-select" id="walletSelectBtn" onclick="if(event.detail===0)return;toggleWalletMenu()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWalletMenu();}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="walletSelectLbl">
+        <div class="custom-select" id="walletSelectBtn" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="walletSelectLbl">
           <span id="walletSelectLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
           <span class="arrow">▾</span>
         </div>
@@ -280,7 +281,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       </div>
 
       <label id="trackLinkLbl" data-i18n="add.trackLinkLbl">🏦 محفظة التتبّع</label>
-      <div class="custom-select track-cs" id="trackSelectBtn" onclick="openTrackPicker(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openTrackPicker(this);}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="trackLinkLbl">
+      <div class="custom-select track-cs" id="trackSelectBtn" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="trackLinkLbl">
         <span id="trackSelectLabel">بدون تتبّع</span>
         <span class="arrow">▾</span>
       </div>
@@ -289,7 +290,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <label for="descInput" data-i18n="add.desc">الوصف</label>
       <div class="voice-input-row">
         <input type="text" id="descInput" maxlength="120" placeholder="مثال: عشاء، راتب، مواصلات..." data-i18n-ph="add.descPh">
-        <button type="button" class="voice-btn" id="voiceBtn" onclick="startVoiceInput()" title="إدخال صوتي" aria-label="إدخال صوتي" data-i18n-title="add.voice" data-i18n-aria="add.voice">🎤</button>
+        <button type="button" class="voice-btn" id="voiceBtn" title="إدخال صوتي" aria-label="إدخال صوتي" data-i18n-title="add.voice" data-i18n-aria="add.voice">🎤</button>
       </div>
 
       <label data-i18n="add.quickAmounts">مبالغ سريعة</label>
@@ -310,21 +311,21 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <!-- Sub-tab 1: Type + Category -->
     <div class="drawer-sub" id="drawerSub1">
       <div class="type-mini-toggle">
-        <button class="exp active" id="addTypeExp" onclick="setAddFormType('expense')" data-i18n="add.typeExpense">➖ مصروف</button>
-        <button class="inc" id="addTypeInc" onclick="setAddFormType('income')" data-i18n="add.typeIncome">➕ دخل</button>
+        <button class="exp active" id="addTypeExp" data-i18n="add.typeExpense">➖ مصروف</button>
+        <button class="inc" id="addTypeInc" data-i18n="add.typeIncome">➕ دخل</button>
       </div>
       <label id="categoryGridLbl" data-i18n="add.category">الفئة</label>
       <div class="category-grid" id="categoryGrid" role="group" aria-labelledby="categoryGridLbl"></div>
-      <button class="btn-transfer" style="margin-bottom:8px; width:100%;" onclick="openTransferFromDrawer()" data-i18n="add.transfer">🔁 تحويل بين المحافظ</button>
-      <button class="btn-secondary" style="width:100%; padding:11px; font-size:var(--fs-base); border:1px solid var(--line);" onclick="repeatLastTx()" data-i18n="add.repeatLast">⏪ تكرار آخر معاملة</button>
+      <button class="btn-transfer" style="margin-bottom:8px; width:100%;" id="btnOpenTransfer" data-i18n="add.transfer">🔁 تحويل بين المحافظ</button>
+      <button class="btn-secondary" style="width:100%; padding:11px; font-size:var(--fs-base); border:1px solid var(--line);" id="btnRepeatLast" data-i18n="add.repeatLast">⏪ تكرار آخر معاملة</button>
     </div>
 
   </div><!-- /drawer-body -->
 
   <div class="drawer-submit">
     <div class="btn-row">
-      <button class="btn-expense" id="addExpenseBtn" onclick="addTx('expense')" data-i18n="add.btnExpense">➖ مصروف</button>
-      <button class="btn-income" id="addIncomeBtn" onclick="addTx('income')" data-i18n="add.btnIncome">➕ دخل</button>
+      <button class="btn-expense" id="addExpenseBtn" data-i18n="add.btnExpense">➖ مصروف</button>
+      <button class="btn-income" id="addIncomeBtn" data-i18n="add.btnIncome">➕ دخل</button>
     </div>
   </div>
 </div>
@@ -337,11 +338,11 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="hint" id="editTransferHint" style="display:none; margin-top:0;" data-i18n="edit.transferHint">🔁 هذه حركة تحويل بين محفظتين — يمكنك تعديل المبلغ والتاريخ فقط (يُحدَّث الطرفان معًا). المحفظة مقفلة للحفاظ على توازن التحويل.</div>
     <div class="hint" id="editDistSourceHint" style="display:none; margin-top:0;" data-i18n="edit.distSourceHint">🔄 هذا الدخل تم توزيعه على محافظ أخرى — المبلغ مقفل لتفادي عدم التطابق مع الحصص الموزعة. لتغييره: احذف المعاملة (سيُحذف التوزيع كله) ثم أضفها من جديد.</div>
     <div class="type-toggle" id="editTypeToggle">
-      <button id="editTypeExp" class="exp" onclick="setEditType('expense')" data-i18n="add.typeExpense">➖ مصروف</button>
-      <button id="editTypeInc" class="inc" onclick="setEditType('income')" data-i18n="add.typeIncome">➕ دخل</button>
+      <button id="editTypeExp" class="exp" data-i18n="add.typeExpense">➖ مصروف</button>
+      <button id="editTypeInc" class="inc" data-i18n="add.typeIncome">➕ دخل</button>
     </div>
     <label id="editWalletLbl" data-i18n="add.wallet">المحفظة</label>
-    <div class="custom-select" id="editWalletBtn" onclick="if(event.detail===0)return;toggleEditWalletMenu()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleEditWalletMenu();}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="editWalletLbl">
+    <div class="custom-select" id="editWalletBtn" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="editWalletLbl">
       <span id="editWalletLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
@@ -357,11 +358,11 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="category-grid" id="editCategoryGrid" role="group" aria-labelledby="editCategoryGridLbl"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('editModal')" data-i18n="common.cancel">إلغاء</button>
-      <button class="btn-primary" id="saveEditBtn" onclick="saveEdit()" data-i18n="common.save">حفظ</button>
+      <button class="btn-secondary" id="btnEditCancel" data-i18n="common.cancel">إلغاء</button>
+      <button class="btn-primary" id="saveEditBtn" data-i18n="common.save">حفظ</button>
     </div>
     <div class="modal-actions edit-delete-row">
-      <button class="btn-danger" onclick="deleteFromEdit()" data-i18n="edit.delete">🗑 حذف المعاملة</button>
+      <button class="btn-danger" id="btnEditDelete" data-i18n="edit.delete">🗑 حذف المعاملة</button>
     </div>
   </div>
 </div>
@@ -393,11 +394,11 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <!-- Cache / version row -->
     <div class="sett-cache-row">
       <span class="sett-cache-label"><span data-i18n="set.versionLbl">الإصدار: </span><span id="statCacheVer">...</span></span>
-      <button class="btn-cache-refresh" onclick="forceClearAndUpdate()" data-i18n="set.forceUpdate">🔄 تحديث قسري</button>
+      <button class="btn-cache-refresh" id="btnForceUpdate" data-i18n="set.forceUpdate">🔄 تحديث قسري</button>
     </div>
 
     <!-- What's new -->
-    <button class="changelog-launcher" id="changelogBtn" onclick="openChangelog()">
+    <button class="changelog-launcher" id="changelogBtn">
       <span class="changelog-launcher-ic">📋</span>
       <span class="changelog-launcher-txt">
         <span class="changelog-launcher-title" data-i18n="set.whatsNew">ما الجديد في التطبيق؟</span>
@@ -408,9 +409,9 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 
     <!-- ─── Settings tab strip ─── -->
     <div class="le-tabs" id="settTabs" role="tablist" aria-label="أقسام الإعدادات" data-i18n-aria="set.tabsAria">
-      <button class="le-tab active" data-sett-tab="layout" role="tab" aria-selected="true" onclick="switchSettingsTab('layout')">🔀 <span data-i18n="set.tabLayout">الترتيب</span></button>
-      <button class="le-tab" data-sett-tab="wallets" role="tab" aria-selected="false" onclick="switchSettingsTab('wallets')">🏦 <span data-i18n="set.tabWallets">المحافظ</span></button>
-      <button class="le-tab" data-sett-tab="data" role="tab" aria-selected="false" onclick="switchSettingsTab('data')">💾 <span data-i18n="set.tabData">البيانات</span></button>
+      <button class="le-tab active" data-sett-tab="layout" role="tab" aria-selected="true">🔀 <span data-i18n="set.tabLayout">الترتيب</span></button>
+      <button class="le-tab" data-sett-tab="wallets" role="tab" aria-selected="false">🏦 <span data-i18n="set.tabWallets">المحافظ</span></button>
+      <button class="le-tab" data-sett-tab="data" role="tab" aria-selected="false">💾 <span data-i18n="set.tabData">البيانات</span></button>
     </div>
 
     <!-- ═══════ Panel: ordering ═══════ -->
@@ -421,10 +422,10 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <div class="sett-section-body">
           <div class="hint" style="margin:0 0 10px;" data-i18n="set.appearanceHint">اختر فاتح أو داكن، أو اتركه تلقائياً ليتناغم مع إعداد نظام جهازك ويتغيّر معه فوراً عند تبديله.</div>
           <div class="le-tabs" id="themeModeTabs" role="tablist" aria-label="وضع المظهر" data-i18n-aria="set.appearanceAria">
-            <button class="le-tab" data-theme-mode="light" role="tab" aria-selected="false" onclick="setThemeMode('light')">☀️ <span data-i18n="set.themeLight">نهاري</span></button>
-            <button class="le-tab" data-theme-mode="dark" role="tab" aria-selected="false" onclick="setThemeMode('dark')">🌙 <span data-i18n="set.themeDark">ليلي</span></button>
-            <button class="le-tab" data-theme-mode="black" role="tab" aria-selected="false" onclick="setThemeMode('black')">⚫ <span data-i18n="set.themeBlack">مطفي</span></button>
-            <button class="le-tab" data-theme-mode="auto" role="tab" aria-selected="false" onclick="setThemeMode('auto')">🌗 <span data-i18n="set.themeAuto">تلقائي</span></button>
+            <button class="le-tab" data-theme-mode="light" role="tab" aria-selected="false">☀️ <span data-i18n="set.themeLight">نهاري</span></button>
+            <button class="le-tab" data-theme-mode="dark" role="tab" aria-selected="false">🌙 <span data-i18n="set.themeDark">ليلي</span></button>
+            <button class="le-tab" data-theme-mode="black" role="tab" aria-selected="false">⚫ <span data-i18n="set.themeBlack">مطفي</span></button>
+            <button class="le-tab" data-theme-mode="auto" role="tab" aria-selected="false">🌗 <span data-i18n="set.themeAuto">تلقائي</span></button>
           </div>
           <div class="hint" style="margin:16px 0 10px;" data-i18n="set.accentHint">لون التطبيق — يُطبَّق في الوضعين الفاتح والداكن بدرجات متناغمة.</div>
           <div class="accent-swatches" id="accentSwatches" role="radiogroup" aria-label="لون التطبيق" data-i18n-aria="set.accentAria"></div>
@@ -437,8 +438,8 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <div class="sett-section-body">
           <div class="hint" style="margin:0 0 10px;" data-i18n="set.languageHint">اختر لغة التطبيق. يتغيّر اتجاه الواجهة تلقائياً مع اللغة.</div>
           <div class="le-tabs" id="langTabs" role="tablist" aria-label="Language / اللغة">
-            <button class="le-tab" data-lang="ar" role="tab" aria-selected="false" onclick="setLang('ar')">🇸🇦 <span>العربية</span></button>
-            <button class="le-tab" data-lang="en" role="tab" aria-selected="false" onclick="setLang('en')">🇬🇧 <span>English</span></button>
+            <button class="le-tab" data-lang="ar" role="tab" aria-selected="false">🇸🇦 <span>العربية</span></button>
+            <button class="le-tab" data-lang="en" role="tab" aria-selected="false">🇬🇧 <span>English</span></button>
           </div>
         </div>
       </div>
@@ -450,7 +451,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
           <div class="hint" style="margin:0 0 10px;" data-i18n="set.layoutHint">رتّب التبويبات والأقسام كما يناسبك. التغيير فوري.</div>
           <div id="layoutEditor"></div>
           <div class="modal-actions modal-actions--tight">
-            <button class="btn-secondary" onclick="resetLayout()" data-i18n="set.resetDefault">↺ استعادة الافتراضي</button>
+            <button class="btn-secondary" id="btnResetLayout" data-i18n="set.resetDefault">↺ استعادة الافتراضي</button>
           </div>
         </div>
       </div>
@@ -465,7 +466,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
           <div class="hint" style="margin:0 0 10px;" data-i18n="set.walletsHint">أضف محافظ جديدة (عادية تُحتسب بالإجمالي، أو تتبع فقط)، وعدّل الاسم والترتيب.</div>
           <div id="walletDefsEditor"></div>
           <div class="modal-actions modal-actions--tight">
-            <button class="btn-primary" onclick="openWalletDefModal(null)" data-i18n="set.newWallet">➕ محفظة جديدة</button>
+            <button class="btn-primary" id="btnNewWallet" data-i18n="set.newWallet">➕ محفظة جديدة</button>
           </div>
         </div>
       </div>
@@ -477,8 +478,8 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
           <div class="hint" style="margin:0 0 10px;" data-i18n="set.distHint">عدّل نسبة كل محفظة من الدخل (المجموع = 100%).</div>
           <div id="distributionEditor"></div>
           <div class="modal-actions modal-actions--tight">
-            <button class="btn-secondary" onclick="saveDistribution()" data-i18n="set.saveRatios">حفظ النسب</button>
-            <button class="btn-secondary" onclick="resetDistribution()" data-i18n="set.resetDefault">استعادة الافتراضي</button>
+            <button class="btn-secondary" id="btnSaveDistribution" data-i18n="set.saveRatios">حفظ النسب</button>
+            <button class="btn-secondary" id="btnResetDistribution" data-i18n="set.resetDefault">استعادة الافتراضي</button>
           </div>
         </div>
       </div>
@@ -491,14 +492,14 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <div class="sett-section-head" data-i18n="set.exportHead">⇅ تصدير واستيراد البيانات</div>
         <div class="sett-section-body">
           <div class="btn-row" style="margin-bottom:10px;">
-            <button class="btn-secondary" onclick="exportData()" data-i18n="set.exportJson">⬇ تصدير JSON</button>
-            <button class="btn-primary" onclick="document.getElementById('importFile').click()" data-i18n="set.importFile">⬆ استيراد ملف</button>
+            <button class="btn-secondary" id="btnExportJson" data-i18n="set.exportJson">⬇ تصدير JSON</button>
+            <button class="btn-primary" id="btnImportFileTrigger" data-i18n="set.importFile">⬆ استيراد ملف</button>
           </div>
-          <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importFromFile(event)">
+          <input type="file" id="importFile" accept=".json,application/json" style="display:none">
           <label for="jsonArea" data-i18n="set.pasteJson">أو الصق/انسخ JSON هنا</label>
           <textarea class="json-area" id="jsonArea"></textarea>
           <div class="modal-actions modal-actions--tight">
-            <button class="btn-primary" onclick="importFromTextarea()" data-i18n="set.importText">استيراد من النص</button>
+            <button class="btn-primary" id="btnImportText" data-i18n="set.importText">استيراد من النص</button>
           </div>
           <div class="hint" style="margin-top:8px;" data-i18n="set.exportHint">التصدير يحفظ الأرصدة وكل المعاملات. الاستيراد يستبدل البيانات الحالية بالكامل — تأكد من أخذ نسخة احتياطية أولاً.</div>
         </div>
@@ -513,7 +514,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
           <label for="driveClientId">Google Client ID</label>
           <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
           <div class="modal-actions modal-actions--tight">
-            <button class="btn-secondary" onclick="saveDriveClientId()" data-i18n="set.driveSaveId">حفظ Client ID</button>
+            <button class="btn-secondary" id="btnSaveDriveClientId" data-i18n="set.driveSaveId">حفظ Client ID</button>
           </div>
         </div>
         <div id="driveActions" style="display:none;">
@@ -524,23 +525,23 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
             🔄 جارٍ الاتصال بـ Google Drive…
           </div>
           <div class="modal-actions modal-actions--tight">
-            <button class="btn-primary" id="driveSignInBtn" onclick="driveSignIn()" data-i18n="set.driveSignIn">🔐 تسجيل الدخول بجوجل</button>
+            <button class="btn-primary" id="driveSignInBtn" data-i18n="set.driveSignIn">🔐 تسجيل الدخول بجوجل</button>
           </div>
           <div class="modal-actions" id="driveSignedInActions" style="display:none;">
-            <button class="btn-secondary" onclick="driveManualSync()" data-i18n="set.driveSyncNow">⬆ مزامنة الآن</button>
-            <button class="btn-secondary" onclick="driveSignOut()" data-i18n="set.driveSignOut">خروج</button>
+            <button class="btn-secondary" id="btnDriveSyncNow" data-i18n="set.driveSyncNow">⬆ مزامنة الآن</button>
+            <button class="btn-secondary" id="btnDriveSignOut" data-i18n="set.driveSignOut">خروج</button>
           </div>
           <div id="driveAutoSignInPrompt" style="display:none; margin-top:10px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:var(--radius-sm);">
             <div style="font-size:var(--fs-base); font-weight:600; margin-bottom:6px;" data-i18n="set.driveAutoTitle">🔐 الاتصال التلقائي</div>
             <div style="font-size:var(--fs-sm); color:var(--muted); margin-bottom:10px; line-height:1.6;" data-i18n="set.driveAutoBody">هل تريد الاتصال بـ Drive تلقائياً؟ لن تحتاج لتسجيل الدخول في كل مرة.</div>
             <div class="modal-actions">
-              <button class="btn-primary" onclick="enableDriveAutoSignIn()" data-i18n="set.driveAutoAlways">✓ دائماً</button>
-              <button class="btn-secondary" onclick="dismissDriveAutoSignInPrompt()" data-i18n="set.driveAutoNotNow">ليس الآن</button>
+              <button class="btn-primary" id="btnDriveAutoAlways" data-i18n="set.driveAutoAlways">✓ دائماً</button>
+              <button class="btn-secondary" id="btnDriveAutoNotNow" data-i18n="set.driveAutoNotNow">ليس الآن</button>
             </div>
           </div>
           <div id="driveAutoSignInRow" style="display:none; margin-top:10px; padding:10px 12px; background:var(--card2); border-radius:var(--radius-sm);">
             <label style="display:flex; align-items:center; gap:12px; cursor:pointer;">
-              <input type="checkbox" id="driveAutoSignInChk" onchange="setDriveAutoSignIn(this.checked)" style="width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0;">
+              <input type="checkbox" id="driveAutoSignInChk" style="width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0;">
               <div>
                 <div style="font-size:var(--fs-base); font-weight:600;" data-i18n="set.driveAutoRowTitle">الاتصال التلقائي عند الفتح</div>
                 <div style="font-size:var(--fs-xs); color:var(--muted); margin-top:3px;" data-i18n="set.driveAutoRowSub">يتصل تلقائياً ما دامت جلسة Google نشطة</div>
@@ -548,7 +549,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
             </label>
           </div>
           <div class="modal-actions modal-actions--tight">
-            <button class="btn-secondary" onclick="changeDriveClientId()" style="font-size:var(--fs-sm);" data-i18n="set.driveChangeId">تغيير Client ID</button>
+            <button class="btn-secondary" id="btnChangeDriveClientId" style="font-size:var(--fs-sm);" data-i18n="set.driveChangeId">تغيير Client ID</button>
           </div>
         </div>
       </div>
@@ -559,7 +560,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="sett-section-head" data-i18n="set.maintHead">🔧 صيانة الأرصدة</div>
       <div class="sett-section-body">
         <div class="hint" style="margin:0 0 10px;" data-i18n="set.maintHint">إذا شككت أن الأرصدة لا تطابق سجل معاملاتك، أعد حسابها من السجل (صفر + مجموع المعاملات).</div>
-        <button class="btn-secondary" style="width:100%; padding:13px;" onclick="repairBalancesFromLedger()" data-i18n="set.maintRepair">🔧 إصلاح الأرصدة من السجل</button>
+        <button class="btn-secondary" style="width:100%; padding:13px;" id="btnRepairBalances" data-i18n="set.maintRepair">🔧 إصلاح الأرصدة من السجل</button>
       </div>
     </div>
 
@@ -569,35 +570,35 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="sett-section-body">
         <div class="hint" style="margin:0 0 12px;" data-i18n="set.dangerHint">خيارات تصفير منفصلة. كل خيار يفعل ما يصفه اسمه فقط. الإجراءات التالية لا يمكن التراجع عنها.</div>
         <div class="reset-list">
-          <button class="reset-item" onclick="zeroTrackedWallets()">
+          <button class="reset-item" id="btnZeroTracked">
             <div class="reset-item-txt">
               <span class="reset-item-title" data-i18n="set.resetTrackedTitle">تصفير محافظ التتبع</span>
               <span class="reset-item-sub" data-i18n="set.resetTrackedSub">أوبر، البطاقات، الكاش تصبح صفر. المعاملات لا تتأثر.</span>
             </div>
             <span class="reset-item-ic">↺</span>
           </button>
-          <button class="reset-item" onclick="zeroRegularWallets()">
+          <button class="reset-item" id="btnZeroRegular">
             <div class="reset-item-txt">
               <span class="reset-item-title" data-i18n="set.resetRegularTitle">تصفير المحافظ العادية</span>
               <span class="reset-item-sub" data-i18n="set.resetRegularSub">الأرصدة تصبح صفر مع بقاء المعاملات (قد لا تتطابق).</span>
             </div>
             <span class="reset-item-ic">↺</span>
           </button>
-          <button class="reset-item" onclick="clearAllSubscriptions()">
+          <button class="reset-item" id="btnClearSubs">
             <div class="reset-item-txt">
               <span class="reset-item-title" data-i18n="set.resetSubsTitle">تصفير الاشتراكات</span>
               <span class="reset-item-sub" data-i18n="set.resetSubsSub">حذف كل الاشتراكات المسجّلة.</span>
             </div>
             <span class="reset-item-ic">↺</span>
           </button>
-          <button class="reset-item reset-item--warn" onclick="clearBalancesAndTx()">
+          <button class="reset-item reset-item--warn" id="btnClearBalTx">
             <div class="reset-item-txt">
               <span class="reset-item-title" data-i18n="set.resetBalTxTitle">تصفير الرصيد والمعاملات</span>
               <span class="reset-item-sub" data-i18n="set.resetBalTxSub">الأرصدة تصبح صفر وتُحذف كل المعاملات. الإعدادات تبقى.</span>
             </div>
             <span class="reset-item-ic">⚠</span>
           </button>
-          <button class="reset-item reset-item--danger" onclick="wipeAll()">
+          <button class="reset-item reset-item--danger" id="btnWipeAll">
             <div class="reset-item-txt">
               <span class="reset-item-title" data-i18n="set.wipeAllTitle">حذف كل البيانات</span>
               <span class="reset-item-sub" data-i18n="set.wipeAllSub">مسح كامل: الأرصدة والمعاملات والاشتراكات والإعدادات.</span>
@@ -611,7 +612,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 
     <!-- ─── Bottom actions ─── -->
     <div class="sett-actions">
-      <button class="btn-secondary" onclick="closeModal('settingsModal')" data-i18n="common.close">إغلاق</button>
+      <button class="btn-secondary" id="btnCloseSettings" data-i18n="common.close">إغلاق</button>
     </div>
     <div class="sett-legal">
       <a href="./privacy.html" target="_blank" rel="noopener" data-i18n="set.privacy">سياسة الخصوصية</a>
@@ -627,14 +628,14 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="grabber"></div>
     <h3 data-i18n="add.transfer">🔁 تحويل بين المحافظ</h3>
     <label id="transferFromLbl" data-i18n="xfer.from">من محفظة</label>
-    <div class="custom-select" id="transferFromBtn" onclick="if(event.detail===0)return;toggleTransferMenu('from')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTransferMenu('from');}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferFromLbl">
+    <div class="custom-select" id="transferFromBtn" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferFromLbl">
       <span id="transferFromLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
     <div class="wallet-menu" id="transferFromMenuWrap"><div id="transferFromMenu" role="listbox"></div></div>
 
     <label id="transferToLbl" data-i18n="xfer.to">إلى محفظة</label>
-    <div class="custom-select" id="transferToBtn" onclick="if(event.detail===0)return;toggleTransferMenu('to')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTransferMenu('to');}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferToLbl">
+    <div class="custom-select" id="transferToBtn" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferToLbl">
       <span id="transferToLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
@@ -645,8 +646,8 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <label for="transferDate" data-i18n="add.date">التاريخ</label>
     <input type="date" id="transferDate">
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('transferModal')" data-i18n="common.cancel">إلغاء</button>
-      <button class="btn-primary" id="doTransferBtn" onclick="doTransfer()" data-i18n="xfer.execute">تنفيذ التحويل</button>
+      <button class="btn-secondary" id="btnTransferCancel" data-i18n="common.cancel">إلغاء</button>
+      <button class="btn-primary" id="doTransferBtn" data-i18n="xfer.execute">تنفيذ التحويل</button>
     </div>
   </div>
 </div>
@@ -657,15 +658,15 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="grabber"></div>
     <h3 id="qnTitle" data-i18n="qn.title">📝 ملاحظات سريعة ← معاملات</h3>
     <div class="hint" style="margin-top:0;" data-i18n="qn.intro">اكتب كل معاملة في سطر مستقل: الوصف ثم السعر. البرنامج يحوّلها لمعاملات جاهزة تراجعها قبل الحفظ — بدون إدخال يدوي لكل واحدة.</div>
-    <textarea id="qnNotes" class="qn-notes" rows="6" dir="auto" aria-label="الملاحظات السريعة" data-i18n-aria-label="qn.notesLabel" placeholder="قهوة ١٥&#10;بنزين ٥٠&#10;غداء مطعم ٤٥&#10;راتب ٥٠٠٠ +" data-i18n-ph="qn.ph" oninput="onQuickNotesInput()" enterkeyhint="enter" autocomplete="off"></textarea>
+    <textarea id="qnNotes" class="qn-notes" rows="6" dir="auto" aria-label="الملاحظات السريعة" data-i18n-aria-label="qn.notesLabel" placeholder="قهوة ١٥&#10;بنزين ٥٠&#10;غداء مطعم ٤٥&#10;راتب ٥٠٠٠ +" data-i18n-ph="qn.ph" enterkeyhint="enter" autocomplete="off"></textarea>
     <div class="qn-sidehint" data-i18n-html="qn.sideHint">💡 سطر لكل معاملة: اكتب <b>ما هي المعاملة وسعرها</b> (مثل «قهوة ١٥»). أضِف <b>+</b> في آخر السطر أو اكتب «راتب/دخل» لتسجيلها كدخل.</div>
 
     <label data-i18n="qn.walletLbl">المحفظة الافتراضية (تقدر تغيّرها لكل سطر بالمعاينة)</label>
     <div class="qn-wallet-chips" id="qnWalletChips"></div>
 
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('quickNotesModal')" data-i18n="common.close">إغلاق</button>
-      <button class="btn-primary" id="qnParseBtn" onclick="parseQuickNotesPreview()" data-i18n="qn.parse">🔎 حوّل لمعاملات</button>
+      <button class="btn-secondary" id="btnQnClose" data-i18n="common.close">إغلاق</button>
+      <button class="btn-primary" id="qnParseBtn" data-i18n="qn.parse">🔎 حوّل لمعاملات</button>
     </div>
 
     <div id="qnPreviewWrap" style="display:none;">
@@ -673,8 +674,8 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="hint" style="margin-top:0;" data-i18n-html="qn.previewHint">عدّل الوصف أو المبلغ، بدّل النوع (＋/－)، أو احذف أي سطر قبل الحفظ.</div>
       <div id="qnPreviewList" class="qn-preview-list"></div>
       <div class="modal-actions">
-        <button class="btn-secondary" onclick="cancelQuickNotesPreview()" data-i18n="common.cancel">إلغاء</button>
-        <button class="btn-primary" id="qnConfirmBtn" onclick="commitQuickNotes()" data-i18n="qn.confirm">✓ سجّل الكل</button>
+        <button class="btn-secondary" id="btnQnCancelPreview" data-i18n="common.cancel">إلغاء</button>
+        <button class="btn-primary" id="qnConfirmBtn" data-i18n="qn.confirm">✓ سجّل الكل</button>
       </div>
     </div>
   </div>
@@ -695,7 +696,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <label for="detailBudgetInput" data-i18n="detail.budgetLbl">الميزانية الشهرية (مصروفات)</label>
       <div class="row2">
         <input type="number" id="detailBudgetInput" min="0" step="any" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)" autocomplete="off" data-i18n-ph="detail.budgetPh" enterkeyhint="done">
-        <button class="btn-secondary" style="flex:0 0 auto; padding:0 18px;" onclick="saveWalletBudget()" data-i18n="common.save">حفظ</button>
+        <button class="btn-secondary" style="flex:0 0 auto; padding:0 18px;" id="btnSaveWalletBudget" data-i18n="common.save">حفظ</button>
       </div>
       <div class="hint" style="margin-top:0;" data-i18n="detail.budgetHint">عند الوصول إليها سيتلون شريط التقدم بالأحمر وتظهر علامة تحذير ⚠ على بطاقة المحفظة.</div>
     </div>
@@ -703,21 +704,21 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <label for="detailNewBalance" data-i18n="detail.syncLbl">مزامنة الرصيد الفعلي</label>
       <div class="row2">
         <input type="number" id="detailNewBalance" step="any" inputmode="decimal" placeholder="الرصيد الجديد" autocomplete="off" data-i18n-ph="detail.syncPh" enterkeyhint="done">
-        <button class="btn-primary" id="updateTrackedBalanceBtn" style="flex:0 0 auto; padding:0 18px;" onclick="updateTrackedBalance()" data-i18n="detail.sync">مزامنة</button>
+        <button class="btn-primary" id="updateTrackedBalanceBtn" style="flex:0 0 auto; padding:0 18px;" data-i18n="detail.sync">مزامنة</button>
       </div>
       <div class="hint" style="margin-top:0;" data-i18n="detail.syncHint">هذه محفظة تتبع — أدخل رصيدك الفعلي الحالي (من تطبيق بنكك أو نقدًا) وسيتم تسجيل الفرق كمعاملة تلقائيًا.</div>
       <div class="track-mode-block">
         <label style="margin-top:4px;" data-i18n="detail.trackModeLbl">عند ربط مصروف بهذه المحفظة من نموذج الإضافة:</label>
         <div class="track-mode-toggle" role="group" aria-label="سلوك الربط">
-          <button type="button" id="trackModeDebit" onclick="setTrackLinkMode(detailWalletId,'debit')" aria-pressed="true" data-i18n="detail.trackDebit">ينقص (رصيد فعلي)</button>
-          <button type="button" id="trackModeCredit" onclick="setTrackLinkMode(detailWalletId,'credit')" aria-pressed="false" data-i18n="detail.trackCredit">يزيد (عدّاد إنفاق)</button>
+          <button type="button" id="trackModeDebit" aria-pressed="true" data-i18n="detail.trackDebit">ينقص (رصيد فعلي)</button>
+          <button type="button" id="trackModeCredit" aria-pressed="false" data-i18n="detail.trackCredit">يزيد (عدّاد إنفاق)</button>
         </div>
         <div class="hint" style="margin-top:6px;" data-i18n="detail.trackModeHint">«رصيد فعلي»: المصروف ينقص الرصيد (مثل بطاقة/كاش). «عدّاد إنفاق»: المصروف يزيد الرقم (إجمالي ما صرفته على هذا البند).</div>
       </div>
     </div>
     <div class="detail-tx-list" id="detailTxList"></div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('walletDetailModal')" data-i18n="common.close">إغلاق</button>
+      <button class="btn-secondary" id="btnCloseWalletDetail" data-i18n="common.close">إغلاق</button>
     </div>
   </div>
 </div>
@@ -730,8 +731,8 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="hint" style="margin-top:0;"><span data-i18n="dist.hintPrefix">تم تسجيل دخل بقيمة </span><b id="distAmountLabel" dir="ltr" style="color:var(--gold)"></b><span data-i18n="dist.hintSuffix">. هل تريد توزيعه على المحافظ حسب نسبك المعتادة؟</span></div>
     <div id="distBreakdown" style="margin:14px 0; display:flex; flex-direction:column; gap:6px;"></div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="skipDistribution()" data-i18n="dist.skip">لا، إبقه هنا</button>
-      <button class="btn-primary" id="confirmDistributionBtn" onclick="confirmDistribution()" data-i18n="dist.confirm">✓ وزّعه الآن</button>
+      <button class="btn-secondary" id="btnSkipDistribution" data-i18n="dist.skip">لا، إبقه هنا</button>
+      <button class="btn-primary" id="confirmDistributionBtn" data-i18n="dist.confirm">✓ وزّعه الآن</button>
     </div>
     <div class="hint">
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:400; font-size:var(--fs-sm); color:var(--muted);">
@@ -746,7 +747,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <div class="modal-overlay" role="dialog" aria-modal="true" id="welcomeModal" aria-labelledby="welcomeTitle">
   <div class="modal">
     <div class="grabber"></div>
-    <button class="onb-skip" type="button" onclick="closeWelcome()" data-i18n="onb.skip">تخطّي</button>
+    <button class="onb-skip" type="button" id="btnOnbSkip" data-i18n="onb.skip">تخطّي</button>
 
     <div class="onb">
       <!-- Slide 1: what it is -->
@@ -856,12 +857,12 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="onb-dots" id="onbDots" aria-hidden="true"></div>
 
     <div class="modal-actions onb-nav">
-      <button class="btn-secondary" id="onbBack" type="button" onclick="welcomeNav(-1)" data-i18n="onb.back">رجوع</button>
-      <button class="btn-primary" id="onbNext" type="button" onclick="welcomeNav(1)" data-i18n="onb.next">التالي</button>
+      <button class="btn-secondary" id="onbBack" type="button" data-i18n="onb.back">رجوع</button>
+      <button class="btn-primary" id="onbNext" type="button" data-i18n="onb.next">التالي</button>
     </div>
     <div class="onb-start" id="onbStart" style="display:none;">
-      <button class="btn-primary" type="button" onclick="welcomeStart(true)" data-i18n="onb.startIncome">＋ سجّل أول دخل</button>
-      <button class="btn-secondary" type="button" onclick="welcomeStart(false)" data-i18n="onb.startBrowse">أتصفّح أولاً</button>
+      <button class="btn-primary" type="button" id="btnOnbStartIncome" data-i18n="onb.startIncome">＋ سجّل أول دخل</button>
+      <button class="btn-secondary" type="button" id="btnOnbStartBrowse" data-i18n="onb.startBrowse">أتصفّح أولاً</button>
     </div>
   </div>
 </div>
@@ -873,7 +874,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <h3 data-i18n="review.title">☀️ مراجعة سريعة</h3>
     <div id="dailyReviewContent" style="font-size:var(--fs-base); line-height:1.9;"></div>
     <div class="modal-actions">
-      <button class="btn-primary" onclick="closeModal('dailyReviewModal')" data-i18n="review.start">تمام، يلا نبدأ</button>
+      <button class="btn-primary" id="btnCloseDailyReview" data-i18n="review.start">تمام، يلا نبدأ</button>
     </div>
   </div>
 </div>
@@ -889,8 +890,8 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     </div>
     <div id="conflictInfo" style="margin-top:12px; font-size:var(--fs-sm); line-height:1.9;"></div>
     <div style="display:flex; flex-direction:column; gap:10px; margin:16px 0;">
-      <button class="btn-primary" onclick="resolveConflict(true)" data-i18n="conflict.useDrive">☁️ استخدم نسخة Drive (تستبدل المحلية)</button>
-      <button class="btn-secondary" onclick="resolveConflict(false)" data-i18n="conflict.useLocal">📱 احتفظ بالمحلية (ارفعها إلى Drive)</button>
+      <button class="btn-primary" id="btnConflictDrive" data-i18n="conflict.useDrive">☁️ استخدم نسخة Drive (تستبدل المحلية)</button>
+      <button class="btn-secondary" id="btnConflictLocal" data-i18n="conflict.useLocal">📱 احتفظ بالمحلية (ارفعها إلى Drive)</button>
     </div>
   </div>
 </div>
@@ -911,11 +912,11 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <span data-i18n="sub.active">الاشتراك فعّال</span>
     </label>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('subModal')" data-i18n="common.cancel">إلغاء</button>
-      <button class="btn-primary" onclick="saveSubModal()" data-i18n="common.save">حفظ</button>
+      <button class="btn-secondary" id="btnCloseSubModal" data-i18n="common.cancel">إلغاء</button>
+      <button class="btn-primary" id="btnSaveSubModal" data-i18n="common.save">حفظ</button>
     </div>
     <div class="modal-actions" id="subDeleteRow" style="display:none;">
-      <button class="btn-danger" id="subDeleteBtn" onclick="deleteSubModal()" data-i18n="sub.delete">🗑 حذف الاشتراك</button>
+      <button class="btn-danger" id="subDeleteBtn" data-i18n="sub.delete">🗑 حذف الاشتراك</button>
     </div>
   </div>
 </div>
@@ -928,18 +929,18 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div id="walletDefTypeRow">
       <label data-i18n="wdef.type">نوع المحفظة</label>
       <div class="type-mini-toggle">
-        <button type="button" class="neutral active" id="walletDefTypeRegular" onclick="setWalletDefType(false)" data-i18n="wdef.regular">عادية (تُحتسب)</button>
-        <button type="button" class="neutral" id="walletDefTypeTrack" onclick="setWalletDefType(true)" data-i18n="wdef.track">تتبع (غير محتسبة)</button>
+        <button type="button" class="neutral active" id="walletDefTypeRegular" data-i18n="wdef.regular">عادية (تُحتسب)</button>
+        <button type="button" class="neutral" id="walletDefTypeTrack" data-i18n="wdef.track">تتبع (غير محتسبة)</button>
       </div>
     </div>
     <label for="walletDefName" data-i18n="wdef.name">اسم المحفظة</label>
     <input type="text" id="walletDefName" maxlength="40" placeholder="مثال: تعليم، سفر..." data-i18n-ph="wdef.namePh">
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('walletDefModal')" data-i18n="common.cancel">إلغاء</button>
-      <button class="btn-primary" onclick="saveWalletDefModal()" data-i18n="common.save">حفظ</button>
+      <button class="btn-secondary" id="btnCancelWalletDef" data-i18n="common.cancel">إلغاء</button>
+      <button class="btn-primary" id="btnSaveWalletDef" data-i18n="common.save">حفظ</button>
     </div>
     <div class="modal-actions" id="walletDefDeleteRow" style="display:none;">
-      <button class="btn-danger" id="walletDefDeleteBtn" onclick="deleteWalletDefModal()" data-i18n="wdef.delete">🗑 حذف المحفظة</button>
+      <button class="btn-danger" id="walletDefDeleteBtn" data-i18n="wdef.delete">🗑 حذف المحفظة</button>
     </div>
   </div>
 </div>
@@ -951,7 +952,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <h3 data-i18n="set.whatsNew2">📋 ما الجديد؟</h3>
     <div id="changelogList"></div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('changelogModal')" data-i18n="common.close">إغلاق</button>
+      <button class="btn-secondary" id="btnCloseChangelog" data-i18n="common.close">إغلاق</button>
     </div>
   </div>
 </div>
