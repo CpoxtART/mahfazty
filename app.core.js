@@ -29,13 +29,23 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.65',
+    date: '2026-07-01',
+    title: 'CSP مكتمل — إزالة unsafe-inline من style-src',
+    items: [
+      'أمان (مهم جداً): إزالة unsafe-inline من style-src في سياسة CSP — جميع سمات style="…" من HTML (67 سمة) نُقلت إلى قواعد CSS بالمعرّفات والأصناف في style.css. المتصفح يرفض الآن أي نمط مُحقون عبر XSS سواء في الـ script أو الـ style.',
+      'السكريبت الثالث (معالج الأخطاء) تغيّر هاشه لأن الـ <span style=…> الداخلي داخل سلسلة JS أُبدل بـ class="mhf-err-code" — الهاشات الثلاثة مُحدَّثة في الـ CSP.',
+      'لم يتغيّر أي سلوك مرئي: الفئات والمعرّفات الجديدة تُنتج نفس المظهر السابق.',
+    ],
+  },
+  {
     version: 'v47.64',
     date: '2026-07-01',
     title: 'CSP صارم — إزالة unsafe-inline من script-src',
     items: [
       'أمان (مهم جداً): جميع معالجات الأحداث المضمّنة في HTML (onclick= / onkeydown= / oninput= / onchange=) أُزيلت بالكامل ونُقلت إلى addEventListener في JavaScript (_bindEvents). هذا يُفعّل الـ Content Security Policy كاملاً: script-src لم يعد يحتوي على unsafe-inline، فالمتصفح يرفض الآن أي سكريبت مُحقون (XSS) حتى لو وصل للصفحة.',
       'البديل: السكريبتات الثلاثة الضرورية المضمّنة (منع وميض المظهر، اسم التطبيق، معالج الأخطاء) تعمل عبر SHA-256 هاشات محددة في الـ CSP بدلاً من unsafe-inline العام.',
-      'style-src لا يزال يحتوي على unsafe-inline بسبب كثرة سمات style= في HTML — إزالتها مؤجّلة لجولة قادمة.',
+      'style-src لا يزال يحتوي على unsafe-inline مؤقتاً — أُزيل في v47.65.',
     ],
   },
   {

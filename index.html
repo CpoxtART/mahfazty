@@ -2,13 +2,11 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<!-- Content-Security-Policy: inline event handlers are gone (moved to _bindEvents() in
-     app.logic.js), so script-src no longer needs 'unsafe-inline'. The three remaining
-     inline <script> blocks (theme flash, splash name, fatal-error handler) are whitelisted
-     by their SHA-256 hashes so they still run without unsafe-inline.
-     style-src keeps 'unsafe-inline' because removing the many inline style= attributes
-     is a larger refactor deferred to a future round. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-5v7V2NFHNz0SV3peipWE0WqqhyOSUCFGwY+qUK/sWxU=' 'sha256-PjxQRumiyoPPF1LPPc8BP0DvKY9gYPeTCyAnOJ9KMBo=' 'sha256-+SWwrEd+Lo43nhqJ/7OF+8zgVWUo5fB1b6FHEmkBYGk=' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com https://www.googleapis.com; img-src 'self' data: blob:; worker-src 'self'; manifest-src 'self'; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self';">
+<!-- Content-Security-Policy: all inline event handlers moved to _bindEvents() in
+     app.logic.js (script-src), and all style="…" HTML attributes moved to CSS ID/class
+     rules in style.css (style-src). Neither directive needs 'unsafe-inline' any more.
+     The three remaining inline <script> blocks are whitelisted by SHA-256 hashes. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-5v7V2NFHNz0SV3peipWE0WqqhyOSUCFGwY+qUK/sWxU=' 'sha256-PjxQRumiyoPPF1LPPc8BP0DvKY9gYPeTCyAnOJ9KMBo=' 'sha256-2r/Vpwj8jQ0sL9xbqRDN6ZkzO+4IBrFadOrwoYgj+qQ=' https://accounts.google.com; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com https://www.googleapis.com; img-src 'self' data: blob:; worker-src 'self'; manifest-src 'self'; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#15171c">
 <link rel="manifest" id="manifestLink">
@@ -68,7 +66,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     </div>
   </div>
   <div class="actions">
-    <span id="driveIndicator" style="display:none; align-items:center;" title="حالة المزامنة" data-i18n-title="hdr.syncStatus"></span>
+    <span id="driveIndicator" title="حالة المزامنة" data-i18n-title="hdr.syncStatus"></span>
     <button class="icon-btn" id="themeToggle" aria-label="تبديل المظهر" data-i18n-aria="hdr.themeToggle"></button>
     <button class="icon-btn" id="btnHeaderData" aria-label="البيانات" data-i18n-aria="hdr.data">⇅</button>
     <button class="icon-btn icon-btn--primary" id="btnHeaderSettings" aria-label="الإعدادات" data-i18n-aria="hdr.settings">⚙</button>
@@ -143,7 +141,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   </div>
 
   <div class="ui-sec" data-sec="export">
-    <div class="btn-row" style="margin-bottom:14px;">
+    <div class="btn-row btn-row--mb14">
       <button class="btn-secondary" id="btnExportMonthly" data-i18n="sec.exportReport">📄 تصدير/مشاركة تقرير الشهر</button>
     </div>
   </div>
@@ -174,9 +172,9 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <span aria-hidden="true">✕</span>
   </div>
 
-  <div class="wallet-filter-chip" id="categoryFilterChip" style="background:var(--blue-soft); border-color:var(--blue);" role="button" tabindex="0" aria-label="إلغاء تصفية الفئة" data-i18n-aria="flt.clearCategory">
-    <span id="categoryFilterLabel" style="color:var(--blue);"></span>
-    <span style="color:var(--blue);" aria-hidden="true">✕</span>
+  <div class="wallet-filter-chip" id="categoryFilterChip" role="button" tabindex="0" aria-label="إلغاء تصفية الفئة" data-i18n-aria="flt.clearCategory">
+    <span id="categoryFilterLabel"></span>
+    <span class="cat-chip-x" aria-hidden="true">✕</span>
   </div>
 
   <div class="filters">
@@ -217,7 +215,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <span class="net-badge" id="chartNet"></span>
       </div>
       <canvas id="chartCanvas" role="img" aria-label="مخطط حركة الرصيد" data-i18n-aria="sum.chartAria"></canvas>
-      <div class="chart-empty" id="chartEmpty" style="display:none;"><span class="ic">📈</span><span data-i18n="sum.chartEmpty">سجّل معاملتين لترى حركة رصيدك هنا</span></div>
+      <div class="chart-empty" id="chartEmpty"><span class="ic">📈</span><span data-i18n="sum.chartEmpty">سجّل معاملتين لترى حركة رصيدك هنا</span></div>
     </div>
   </div>
 
@@ -285,7 +283,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <span id="trackSelectLabel">بدون تتبّع</span>
         <span class="arrow">▾</span>
       </div>
-      <div class="hint track-link-hint" id="trackLinkHint" style="display:none; margin-top:6px;"></div>
+      <div class="hint track-link-hint" id="trackLinkHint"></div>
 
       <label for="descInput" data-i18n="add.desc">الوصف</label>
       <div class="voice-input-row">
@@ -316,8 +314,8 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       </div>
       <label id="categoryGridLbl" data-i18n="add.category">الفئة</label>
       <div class="category-grid" id="categoryGrid" role="group" aria-labelledby="categoryGridLbl"></div>
-      <button class="btn-transfer" style="margin-bottom:8px; width:100%;" id="btnOpenTransfer" data-i18n="add.transfer">🔁 تحويل بين المحافظ</button>
-      <button class="btn-secondary" style="width:100%; padding:11px; font-size:var(--fs-base); border:1px solid var(--line);" id="btnRepeatLast" data-i18n="add.repeatLast">⏪ تكرار آخر معاملة</button>
+      <button class="btn-transfer" id="btnOpenTransfer" data-i18n="add.transfer">🔁 تحويل بين المحافظ</button>
+      <button class="btn-secondary" id="btnRepeatLast" data-i18n="add.repeatLast">⏪ تكرار آخر معاملة</button>
     </div>
 
   </div><!-- /drawer-body -->
@@ -335,8 +333,8 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   <div class="modal">
     <div class="grabber"></div>
     <h3 data-i18n="edit.title">✎ تعديل المعاملة</h3>
-    <div class="hint" id="editTransferHint" style="display:none; margin-top:0;" data-i18n="edit.transferHint">🔁 هذه حركة تحويل بين محفظتين — يمكنك تعديل المبلغ والتاريخ فقط (يُحدَّث الطرفان معًا). المحفظة مقفلة للحفاظ على توازن التحويل.</div>
-    <div class="hint" id="editDistSourceHint" style="display:none; margin-top:0;" data-i18n="edit.distSourceHint">🔄 هذا الدخل تم توزيعه على محافظ أخرى — المبلغ مقفل لتفادي عدم التطابق مع الحصص الموزعة. لتغييره: احذف المعاملة (سيُحذف التوزيع كله) ثم أضفها من جديد.</div>
+    <div class="hint" id="editTransferHint" data-i18n="edit.transferHint">🔁 هذه حركة تحويل بين محفظتين — يمكنك تعديل المبلغ والتاريخ فقط (يُحدَّث الطرفان معًا). المحفظة مقفلة للحفاظ على توازن التحويل.</div>
+    <div class="hint" id="editDistSourceHint" data-i18n="edit.distSourceHint">🔄 هذا الدخل تم توزيعه على محافظ أخرى — المبلغ مقفل لتفادي عدم التطابق مع الحصص الموزعة. لتغييره: احذف المعاملة (سيُحذف التوزيع كله) ثم أضفها من جديد.</div>
     <div class="type-toggle" id="editTypeToggle">
       <button id="editTypeExp" class="exp" data-i18n="add.typeExpense">➖ مصروف</button>
       <button id="editTypeInc" class="inc" data-i18n="add.typeIncome">➕ دخل</button>
@@ -420,14 +418,14 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="sett-section">
         <div class="sett-section-head" data-i18n="set.appearance">🌗 المظهر</div>
         <div class="sett-section-body">
-          <div class="hint" style="margin:0 0 10px;" data-i18n="set.appearanceHint">اختر فاتح أو داكن، أو اتركه تلقائياً ليتناغم مع إعداد نظام جهازك ويتغيّر معه فوراً عند تبديله.</div>
+          <div class="hint hint--mb10" data-i18n="set.appearanceHint">اختر فاتح أو داكن، أو اتركه تلقائياً ليتناغم مع إعداد نظام جهازك ويتغيّر معه فوراً عند تبديله.</div>
           <div class="le-tabs" id="themeModeTabs" role="tablist" aria-label="وضع المظهر" data-i18n-aria="set.appearanceAria">
             <button class="le-tab" data-theme-mode="light" role="tab" aria-selected="false">☀️ <span data-i18n="set.themeLight">نهاري</span></button>
             <button class="le-tab" data-theme-mode="dark" role="tab" aria-selected="false">🌙 <span data-i18n="set.themeDark">ليلي</span></button>
             <button class="le-tab" data-theme-mode="black" role="tab" aria-selected="false">⚫ <span data-i18n="set.themeBlack">مطفي</span></button>
             <button class="le-tab" data-theme-mode="auto" role="tab" aria-selected="false">🌗 <span data-i18n="set.themeAuto">تلقائي</span></button>
           </div>
-          <div class="hint" style="margin:16px 0 10px;" data-i18n="set.accentHint">لون التطبيق — يُطبَّق في الوضعين الفاتح والداكن بدرجات متناغمة.</div>
+          <div class="hint hint--mt16mb10" data-i18n="set.accentHint">لون التطبيق — يُطبَّق في الوضعين الفاتح والداكن بدرجات متناغمة.</div>
           <div class="accent-swatches" id="accentSwatches" role="radiogroup" aria-label="لون التطبيق" data-i18n-aria="set.accentAria"></div>
         </div>
       </div>
@@ -436,7 +434,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="sett-section">
         <div class="sett-section-head" data-i18n="set.language">🌐 اللغة</div>
         <div class="sett-section-body">
-          <div class="hint" style="margin:0 0 10px;" data-i18n="set.languageHint">اختر لغة التطبيق. يتغيّر اتجاه الواجهة تلقائياً مع اللغة.</div>
+          <div class="hint hint--mb10" data-i18n="set.languageHint">اختر لغة التطبيق. يتغيّر اتجاه الواجهة تلقائياً مع اللغة.</div>
           <div class="le-tabs" id="langTabs" role="tablist" aria-label="Language / اللغة">
             <button class="le-tab" data-lang="ar" role="tab" aria-selected="false">🇸🇦 <span>العربية</span></button>
             <button class="le-tab" data-lang="en" role="tab" aria-selected="false">🇬🇧 <span>English</span></button>
@@ -448,7 +446,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="sett-section">
         <div class="sett-section-head" data-i18n="set.layoutHead">🔀 ترتيب الواجهة</div>
         <div class="sett-section-body">
-          <div class="hint" style="margin:0 0 10px;" data-i18n="set.layoutHint">رتّب التبويبات والأقسام كما يناسبك. التغيير فوري.</div>
+          <div class="hint hint--mb10" data-i18n="set.layoutHint">رتّب التبويبات والأقسام كما يناسبك. التغيير فوري.</div>
           <div id="layoutEditor"></div>
           <div class="modal-actions modal-actions--tight">
             <button class="btn-secondary" id="btnResetLayout" data-i18n="set.resetDefault">↺ استعادة الافتراضي</button>
@@ -463,7 +461,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="sett-section">
         <div class="sett-section-head" data-i18n="set.walletsHead">🏦 إدارة المحافظ</div>
         <div class="sett-section-body">
-          <div class="hint" style="margin:0 0 10px;" data-i18n="set.walletsHint">أضف محافظ جديدة (عادية تُحتسب بالإجمالي، أو تتبع فقط)، وعدّل الاسم والترتيب.</div>
+          <div class="hint hint--mb10" data-i18n="set.walletsHint">أضف محافظ جديدة (عادية تُحتسب بالإجمالي، أو تتبع فقط)، وعدّل الاسم والترتيب.</div>
           <div id="walletDefsEditor"></div>
           <div class="modal-actions modal-actions--tight">
             <button class="btn-primary" id="btnNewWallet" data-i18n="set.newWallet">➕ محفظة جديدة</button>
@@ -475,7 +473,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="sett-section">
         <div class="sett-section-head" data-i18n="set.distHead">📐 نسب التوزيع التلقائي</div>
         <div class="sett-section-body">
-          <div class="hint" style="margin:0 0 10px;" data-i18n="set.distHint">عدّل نسبة كل محفظة من الدخل (المجموع = 100%).</div>
+          <div class="hint hint--mb10" data-i18n="set.distHint">عدّل نسبة كل محفظة من الدخل (المجموع = 100%).</div>
           <div id="distributionEditor"></div>
           <div class="modal-actions modal-actions--tight">
             <button class="btn-secondary" id="btnSaveDistribution" data-i18n="set.saveRatios">حفظ النسب</button>
@@ -491,17 +489,17 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="sett-section">
         <div class="sett-section-head" data-i18n="set.exportHead">⇅ تصدير واستيراد البيانات</div>
         <div class="sett-section-body">
-          <div class="btn-row" style="margin-bottom:10px;">
+          <div class="btn-row btn-row--mb10">
             <button class="btn-secondary" id="btnExportJson" data-i18n="set.exportJson">⬇ تصدير JSON</button>
             <button class="btn-primary" id="btnImportFileTrigger" data-i18n="set.importFile">⬆ استيراد ملف</button>
           </div>
-          <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+          <input type="file" id="importFile" accept=".json,application/json">
           <label for="jsonArea" data-i18n="set.pasteJson">أو الصق/انسخ JSON هنا</label>
           <textarea class="json-area" id="jsonArea"></textarea>
           <div class="modal-actions modal-actions--tight">
             <button class="btn-primary" id="btnImportText" data-i18n="set.importText">استيراد من النص</button>
           </div>
-          <div class="hint" style="margin-top:8px;" data-i18n="set.exportHint">التصدير يحفظ الأرصدة وكل المعاملات. الاستيراد يستبدل البيانات الحالية بالكامل — تأكد من أخذ نسخة احتياطية أولاً.</div>
+          <div class="hint hint--mt8" data-i18n="set.exportHint">التصدير يحفظ الأرصدة وكل المعاملات. الاستيراد يستبدل البيانات الحالية بالكامل — تأكد من أخذ نسخة احتياطية أولاً.</div>
         </div>
       </div>
 
@@ -509,7 +507,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="sett-section">
       <div class="sett-section-head">☁️ Google Drive</div>
       <div class="sett-section-body">
-        <div class="hint" style="margin:0 0 10px;" id="driveStatusText" data-i18n="set.driveDisabled">غير مفعّل — أدخل Client ID للبدء.</div>
+        <div class="hint hint--mb10" id="driveStatusText" data-i18n="set.driveDisabled">غير مفعّل — أدخل Client ID للبدء.</div>
         <div id="driveSetup">
           <label for="driveClientId">Google Client ID</label>
           <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
@@ -517,39 +515,39 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
             <button class="btn-secondary" id="btnSaveDriveClientId" data-i18n="set.driveSaveId">حفظ Client ID</button>
           </div>
         </div>
-        <div id="driveActions" style="display:none;">
-          <div class="hint" id="driveEmbeddedWarn" style="display:none; margin:0 0 8px; border:1px solid var(--gold); border-radius:var(--radius-sm); padding:8px 10px; color:var(--text);" data-i18n="set.driveEmbeddedWarn">
+        <div id="driveActions">
+          <div class="hint" id="driveEmbeddedWarn" data-i18n="set.driveEmbeddedWarn">
             ⚠️ افتح التطبيق في Chrome أو Safari مباشرةً لتسجيل الدخول.
           </div>
-          <div id="driveReconnectRow" style="display:none; padding:8px 0; font-size:var(--fs-base); color:var(--blue); align-items:center; gap:8px;" data-i18n="set.driveReconnecting">
+          <div id="driveReconnectRow" data-i18n="set.driveReconnecting">
             🔄 جارٍ الاتصال بـ Google Drive…
           </div>
           <div class="modal-actions modal-actions--tight">
             <button class="btn-primary" id="driveSignInBtn" data-i18n="set.driveSignIn">🔐 تسجيل الدخول بجوجل</button>
           </div>
-          <div class="modal-actions" id="driveSignedInActions" style="display:none;">
+          <div class="modal-actions" id="driveSignedInActions">
             <button class="btn-secondary" id="btnDriveSyncNow" data-i18n="set.driveSyncNow">⬆ مزامنة الآن</button>
             <button class="btn-secondary" id="btnDriveSignOut" data-i18n="set.driveSignOut">خروج</button>
           </div>
-          <div id="driveAutoSignInPrompt" style="display:none; margin-top:10px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:var(--radius-sm);">
-            <div style="font-size:var(--fs-base); font-weight:600; margin-bottom:6px;" data-i18n="set.driveAutoTitle">🔐 الاتصال التلقائي</div>
-            <div style="font-size:var(--fs-sm); color:var(--muted); margin-bottom:10px; line-height:1.6;" data-i18n="set.driveAutoBody">هل تريد الاتصال بـ Drive تلقائياً؟ لن تحتاج لتسجيل الدخول في كل مرة.</div>
+          <div id="driveAutoSignInPrompt">
+            <div class="drive-auto-title" data-i18n="set.driveAutoTitle">🔐 الاتصال التلقائي</div>
+            <div class="drive-auto-body" data-i18n="set.driveAutoBody">هل تريد الاتصال بـ Drive تلقائياً؟ لن تحتاج لتسجيل الدخول في كل مرة.</div>
             <div class="modal-actions">
               <button class="btn-primary" id="btnDriveAutoAlways" data-i18n="set.driveAutoAlways">✓ دائماً</button>
               <button class="btn-secondary" id="btnDriveAutoNotNow" data-i18n="set.driveAutoNotNow">ليس الآن</button>
             </div>
           </div>
-          <div id="driveAutoSignInRow" style="display:none; margin-top:10px; padding:10px 12px; background:var(--card2); border-radius:var(--radius-sm);">
-            <label style="display:flex; align-items:center; gap:12px; cursor:pointer;">
-              <input type="checkbox" id="driveAutoSignInChk" style="width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0;">
+          <div id="driveAutoSignInRow">
+            <label class="drive-auto-lbl">
+              <input type="checkbox" id="driveAutoSignInChk">
               <div>
-                <div style="font-size:var(--fs-base); font-weight:600;" data-i18n="set.driveAutoRowTitle">الاتصال التلقائي عند الفتح</div>
-                <div style="font-size:var(--fs-xs); color:var(--muted); margin-top:3px;" data-i18n="set.driveAutoRowSub">يتصل تلقائياً ما دامت جلسة Google نشطة</div>
+                <div class="drive-auto-row-ttl" data-i18n="set.driveAutoRowTitle">الاتصال التلقائي عند الفتح</div>
+                <div class="drive-auto-row-sub" data-i18n="set.driveAutoRowSub">يتصل تلقائياً ما دامت جلسة Google نشطة</div>
               </div>
             </label>
           </div>
           <div class="modal-actions modal-actions--tight">
-            <button class="btn-secondary" id="btnChangeDriveClientId" style="font-size:var(--fs-sm);" data-i18n="set.driveChangeId">تغيير Client ID</button>
+            <button class="btn-secondary" id="btnChangeDriveClientId" data-i18n="set.driveChangeId">تغيير Client ID</button>
           </div>
         </div>
       </div>
@@ -559,8 +557,8 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="sett-section">
       <div class="sett-section-head" data-i18n="set.maintHead">🔧 صيانة الأرصدة</div>
       <div class="sett-section-body">
-        <div class="hint" style="margin:0 0 10px;" data-i18n="set.maintHint">إذا شككت أن الأرصدة لا تطابق سجل معاملاتك، أعد حسابها من السجل (صفر + مجموع المعاملات).</div>
-        <button class="btn-secondary" style="width:100%; padding:13px;" id="btnRepairBalances" data-i18n="set.maintRepair">🔧 إصلاح الأرصدة من السجل</button>
+        <div class="hint hint--mb10" data-i18n="set.maintHint">إذا شككت أن الأرصدة لا تطابق سجل معاملاتك، أعد حسابها من السجل (صفر + مجموع المعاملات).</div>
+        <button class="btn-secondary" id="btnRepairBalances" data-i18n="set.maintRepair">🔧 إصلاح الأرصدة من السجل</button>
       </div>
     </div>
 
@@ -568,7 +566,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="sett-section sett-section--danger">
       <div class="sett-section-head" data-i18n="set.dangerHead">🗑 الحذف والتصفير</div>
       <div class="sett-section-body">
-        <div class="hint" style="margin:0 0 12px;" data-i18n="set.dangerHint">خيارات تصفير منفصلة. كل خيار يفعل ما يصفه اسمه فقط. الإجراءات التالية لا يمكن التراجع عنها.</div>
+        <div class="hint hint--mb12" data-i18n="set.dangerHint">خيارات تصفير منفصلة. كل خيار يفعل ما يصفه اسمه فقط. الإجراءات التالية لا يمكن التراجع عنها.</div>
         <div class="reset-list">
           <button class="reset-item" id="btnZeroTracked">
             <div class="reset-item-txt">
@@ -657,7 +655,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   <div class="modal">
     <div class="grabber"></div>
     <h3 id="qnTitle" data-i18n="qn.title">📝 ملاحظات سريعة ← معاملات</h3>
-    <div class="hint" style="margin-top:0;" data-i18n="qn.intro">اكتب كل معاملة في سطر مستقل: الوصف ثم السعر. البرنامج يحوّلها لمعاملات جاهزة تراجعها قبل الحفظ — بدون إدخال يدوي لكل واحدة.</div>
+    <div class="hint hint--mt0" data-i18n="qn.intro">اكتب كل معاملة في سطر مستقل: الوصف ثم السعر. البرنامج يحوّلها لمعاملات جاهزة تراجعها قبل الحفظ — بدون إدخال يدوي لكل واحدة.</div>
     <textarea id="qnNotes" class="qn-notes" rows="6" dir="auto" aria-label="الملاحظات السريعة" data-i18n-aria-label="qn.notesLabel" placeholder="قهوة ١٥&#10;بنزين ٥٠&#10;غداء مطعم ٤٥&#10;راتب ٥٠٠٠ +" data-i18n-ph="qn.ph" enterkeyhint="enter" autocomplete="off"></textarea>
     <div class="qn-sidehint" data-i18n-html="qn.sideHint">💡 سطر لكل معاملة: اكتب <b>ما هي المعاملة وسعرها</b> (مثل «قهوة ١٥»). أضِف <b>+</b> في آخر السطر أو اكتب «راتب/دخل» لتسجيلها كدخل.</div>
 
@@ -669,9 +667,9 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <button class="btn-primary" id="qnParseBtn" data-i18n="qn.parse">🔎 حوّل لمعاملات</button>
     </div>
 
-    <div id="qnPreviewWrap" style="display:none;">
-      <div class="section-title" style="margin-top:8px;"><span data-i18n="qn.previewTitle">معاينة المعاملات</span> <span class="count" id="qnPreviewCount" dir="ltr"></span></div>
-      <div class="hint" style="margin-top:0;" data-i18n-html="qn.previewHint">عدّل الوصف أو المبلغ، بدّل النوع (＋/－)، أو احذف أي سطر قبل الحفظ.</div>
+    <div id="qnPreviewWrap">
+      <div class="section-title section-title--mt8"><span data-i18n="qn.previewTitle">معاينة المعاملات</span> <span class="count" id="qnPreviewCount" dir="ltr"></span></div>
+      <div class="hint hint--mt0" data-i18n-html="qn.previewHint">عدّل الوصف أو المبلغ، بدّل النوع (＋/－)، أو احذف أي سطر قبل الحفظ.</div>
       <div id="qnPreviewList" class="qn-preview-list"></div>
       <div class="modal-actions">
         <button class="btn-secondary" id="btnQnCancelPreview" data-i18n="common.cancel">إلغاء</button>
@@ -689,31 +687,31 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="detail-stat-grid">
       <div class="detail-stat"><div class="l" data-i18n="detail.balance">الرصيد الحالي</div><div class="v" id="detailBalance">٠</div></div>
       <div class="detail-stat"><div class="l" data-i18n="detail.txCount">عدد المعاملات</div><div class="v" id="detailCount">٠</div></div>
-      <div class="detail-stat"><div class="l" data-i18n="detail.totalIncome">إجمالي الدخل</div><div class="v" id="detailIncome" style="color:var(--green)">٠</div></div>
-      <div class="detail-stat"><div class="l" data-i18n="detail.totalExpense">إجمالي المصروف</div><div class="v" id="detailExpense" style="color:var(--red)">٠</div></div>
+      <div class="detail-stat"><div class="l" data-i18n="detail.totalIncome">إجمالي الدخل</div><div class="v" id="detailIncome">٠</div></div>
+      <div class="detail-stat"><div class="l" data-i18n="detail.totalExpense">إجمالي المصروف</div><div class="v" id="detailExpense">٠</div></div>
     </div>
-    <div id="detailBudgetSetting" style="display:none; margin-bottom:14px;">
+    <div id="detailBudgetSetting">
       <label for="detailBudgetInput" data-i18n="detail.budgetLbl">الميزانية الشهرية (مصروفات)</label>
       <div class="row2">
         <input type="number" id="detailBudgetInput" min="0" step="any" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)" autocomplete="off" data-i18n-ph="detail.budgetPh" enterkeyhint="done">
-        <button class="btn-secondary" style="flex:0 0 auto; padding:0 18px;" id="btnSaveWalletBudget" data-i18n="common.save">حفظ</button>
+        <button class="btn-secondary" id="btnSaveWalletBudget" data-i18n="common.save">حفظ</button>
       </div>
-      <div class="hint" style="margin-top:0;" data-i18n="detail.budgetHint">عند الوصول إليها سيتلون شريط التقدم بالأحمر وتظهر علامة تحذير ⚠ على بطاقة المحفظة.</div>
+      <div class="hint hint--mt0" data-i18n="detail.budgetHint">عند الوصول إليها سيتلون شريط التقدم بالأحمر وتظهر علامة تحذير ⚠ على بطاقة المحفظة.</div>
     </div>
-    <div id="detailUpdateBalance" style="display:none; margin-bottom:14px;">
+    <div id="detailUpdateBalance">
       <label for="detailNewBalance" data-i18n="detail.syncLbl">مزامنة الرصيد الفعلي</label>
       <div class="row2">
         <input type="number" id="detailNewBalance" step="any" inputmode="decimal" placeholder="الرصيد الجديد" autocomplete="off" data-i18n-ph="detail.syncPh" enterkeyhint="done">
-        <button class="btn-primary" id="updateTrackedBalanceBtn" style="flex:0 0 auto; padding:0 18px;" data-i18n="detail.sync">مزامنة</button>
+        <button class="btn-primary" id="updateTrackedBalanceBtn" data-i18n="detail.sync">مزامنة</button>
       </div>
-      <div class="hint" style="margin-top:0;" data-i18n="detail.syncHint">هذه محفظة تتبع — أدخل رصيدك الفعلي الحالي (من تطبيق بنكك أو نقدًا) وسيتم تسجيل الفرق كمعاملة تلقائيًا.</div>
+      <div class="hint hint--mt0" data-i18n="detail.syncHint">هذه محفظة تتبع — أدخل رصيدك الفعلي الحالي (من تطبيق بنكك أو نقدًا) وسيتم تسجيل الفرق كمعاملة تلقائيًا.</div>
       <div class="track-mode-block">
-        <label style="margin-top:4px;" data-i18n="detail.trackModeLbl">عند ربط مصروف بهذه المحفظة من نموذج الإضافة:</label>
+        <label class="detail-track-lbl" data-i18n="detail.trackModeLbl">عند ربط مصروف بهذه المحفظة من نموذج الإضافة:</label>
         <div class="track-mode-toggle" role="group" aria-label="سلوك الربط">
           <button type="button" id="trackModeDebit" aria-pressed="true" data-i18n="detail.trackDebit">ينقص (رصيد فعلي)</button>
           <button type="button" id="trackModeCredit" aria-pressed="false" data-i18n="detail.trackCredit">يزيد (عدّاد إنفاق)</button>
         </div>
-        <div class="hint" style="margin-top:6px;" data-i18n="detail.trackModeHint">«رصيد فعلي»: المصروف ينقص الرصيد (مثل بطاقة/كاش). «عدّاد إنفاق»: المصروف يزيد الرقم (إجمالي ما صرفته على هذا البند).</div>
+        <div class="hint hint--mt6" data-i18n="detail.trackModeHint">«رصيد فعلي»: المصروف ينقص الرصيد (مثل بطاقة/كاش). «عدّاد إنفاق»: المصروف يزيد الرقم (إجمالي ما صرفته على هذا البند).</div>
       </div>
     </div>
     <div class="detail-tx-list" id="detailTxList"></div>
@@ -728,15 +726,15 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   <div class="modal">
     <div class="grabber"></div>
     <h3 data-i18n="dist.title">🔄 توزيع الدخل</h3>
-    <div class="hint" style="margin-top:0;"><span data-i18n="dist.hintPrefix">تم تسجيل دخل بقيمة </span><b id="distAmountLabel" dir="ltr" style="color:var(--gold)"></b><span data-i18n="dist.hintSuffix">. هل تريد توزيعه على المحافظ حسب نسبك المعتادة؟</span></div>
-    <div id="distBreakdown" style="margin:14px 0; display:flex; flex-direction:column; gap:6px;"></div>
+    <div class="hint hint--mt0"><span data-i18n="dist.hintPrefix">تم تسجيل دخل بقيمة </span><b id="distAmountLabel" dir="ltr"></b><span data-i18n="dist.hintSuffix">. هل تريد توزيعه على المحافظ حسب نسبك المعتادة؟</span></div>
+    <div id="distBreakdown"></div>
     <div class="modal-actions">
       <button class="btn-secondary" id="btnSkipDistribution" data-i18n="dist.skip">لا، إبقه هنا</button>
       <button class="btn-primary" id="confirmDistributionBtn" data-i18n="dist.confirm">✓ وزّعه الآن</button>
     </div>
     <div class="hint">
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:400; font-size:var(--fs-sm); color:var(--muted);">
-        <input type="checkbox" id="autoDistributeCheck" style="width:auto; margin:0;">
+      <label class="dist-auto-lbl">
+        <input type="checkbox" id="autoDistributeCheck">
         <span data-i18n="dist.autoAlways">وزّع كل دخل قادم تلقائيًا بدون سؤال</span>
       </label>
     </div>
@@ -860,7 +858,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <button class="btn-secondary" id="onbBack" type="button" data-i18n="onb.back">رجوع</button>
       <button class="btn-primary" id="onbNext" type="button" data-i18n="onb.next">التالي</button>
     </div>
-    <div class="onb-start" id="onbStart" style="display:none;">
+    <div class="onb-start" id="onbStart">
       <button class="btn-primary" type="button" id="btnOnbStartIncome" data-i18n="onb.startIncome">＋ سجّل أول دخل</button>
       <button class="btn-secondary" type="button" id="btnOnbStartBrowse" data-i18n="onb.startBrowse">أتصفّح أولاً</button>
     </div>
@@ -872,7 +870,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   <div class="modal">
     <div class="grabber"></div>
     <h3 data-i18n="review.title">☀️ مراجعة سريعة</h3>
-    <div id="dailyReviewContent" style="font-size:var(--fs-base); line-height:1.9;"></div>
+    <div id="dailyReviewContent"></div>
     <div class="modal-actions">
       <button class="btn-primary" id="btnCloseDailyReview" data-i18n="review.start">تمام، يلا نبدأ</button>
     </div>
@@ -884,12 +882,12 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   <div class="modal">
     <div class="grabber"></div>
     <h3 data-i18n="conflict.title">☁️ تعارض في البيانات</h3>
-    <div class="hint" style="margin-top:0; font-size:var(--fs-base); line-height:1.8;" data-i18n-html="conflict.hint">
-      وجدنا بيانات محفوظة على Drive <b style="color:var(--text)">وأيضًا</b> بيانات محلية على هذا الجهاز.<br>
+    <div class="hint conflict-hint" data-i18n-html="conflict.hint">
+      وجدنا بيانات محفوظة على Drive <b class="conflict-b">وأيضًا</b> بيانات محلية على هذا الجهاز.<br>
       أيٌّ منهما تريد الاحتفاظ به؟
     </div>
-    <div id="conflictInfo" style="margin-top:12px; font-size:var(--fs-sm); line-height:1.9;"></div>
-    <div style="display:flex; flex-direction:column; gap:10px; margin:16px 0;">
+    <div id="conflictInfo"></div>
+    <div class="conflict-btns">
       <button class="btn-primary" id="btnConflictDrive" data-i18n="conflict.useDrive">☁️ استخدم نسخة Drive (تستبدل المحلية)</button>
       <button class="btn-secondary" id="btnConflictLocal" data-i18n="conflict.useLocal">📱 احتفظ بالمحلية (ارفعها إلى Drive)</button>
     </div>
@@ -907,15 +905,15 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <input type="number" id="subAmount" step="any" min="0" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done">
     <label for="subBillingDay" data-i18n="sub.billingDay">يوم الاشتراك (1–31)</label>
     <input type="number" id="subBillingDay" min="1" max="31" step="1" inputmode="numeric" placeholder="15" enterkeyhint="done">
-    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:600; font-size:var(--fs-base); color:var(--text); margin-bottom:4px;">
-      <input type="checkbox" id="subActive" style="width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0;" checked>
+    <label class="sub-active-lbl">
+      <input type="checkbox" id="subActive" checked>
       <span data-i18n="sub.active">الاشتراك فعّال</span>
     </label>
     <div class="modal-actions">
       <button class="btn-secondary" id="btnCloseSubModal" data-i18n="common.cancel">إلغاء</button>
       <button class="btn-primary" id="btnSaveSubModal" data-i18n="common.save">حفظ</button>
     </div>
-    <div class="modal-actions" id="subDeleteRow" style="display:none;">
+    <div class="modal-actions" id="subDeleteRow">
       <button class="btn-danger" id="subDeleteBtn" data-i18n="sub.delete">🗑 حذف الاشتراك</button>
     </div>
   </div>
@@ -939,7 +937,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <button class="btn-secondary" id="btnCancelWalletDef" data-i18n="common.cancel">إلغاء</button>
       <button class="btn-primary" id="btnSaveWalletDef" data-i18n="common.save">حفظ</button>
     </div>
-    <div class="modal-actions" id="walletDefDeleteRow" style="display:none;">
+    <div class="modal-actions" id="walletDefDeleteRow">
       <button class="btn-danger" id="walletDefDeleteBtn" data-i18n="wdef.delete">🗑 حذف المحفظة</button>
     </div>
   </div>
@@ -1003,7 +1001,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       var safeMsg = String(msg == null ? '' : msg).slice(0,200)
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       box.innerHTML = '<b>⚠ حدث خطأ منع التطبيق من الاكتمال</b><br>' +
-        (msg ? ('التفاصيل: <span style="direction:ltr;display:inline-block;font-family:monospace;font-size:11px;">'+safeMsg+'</span><br>') : '') +
+        (msg ? ('التفاصيل: <span class="mhf-err-code">'+safeMsg+'</span><br>') : '') +
         'غالبًا الملف المرفوع ناقص أو تالف. أعد رفع index.html كاملًا (يفضَّل عبر Upload files بدل النسخ واللصق) وتأكد أن آخر سطر فيه هو &lt;/html&gt;.';
       document.body.appendChild(box);
     }catch(e){}

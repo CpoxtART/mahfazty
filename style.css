@@ -1982,3 +1982,88 @@ html[dir="ltr"] .wallet.track .bar i{
 html[dir="ltr"] .section-title::after{
   background:linear-gradient(to right, var(--line-soft), transparent);
 }
+
+/* ============================================================
+   v47.65 — Inline-style extraction
+   All style="…" HTML attributes moved here so style-src
+   'unsafe-inline' can be dropped from the CSP.
+   ============================================================ */
+
+/* IDs — hidden by default, shown/hidden by JS */
+#driveIndicator      { display:none; align-items:center; }
+#chartEmpty          { display:none; }
+#trackLinkHint       { display:none; margin-top:6px; }
+#editTransferHint    { display:none; margin-top:0; }
+#editDistSourceHint  { display:none; margin-top:0; }
+#driveActions        { display:none; }
+#driveEmbeddedWarn   { display:none; margin:0 0 8px; border:1px solid var(--gold); border-radius:var(--radius-sm); padding:8px 10px; color:var(--text); }
+#driveReconnectRow   { display:none; padding:8px 0; font-size:var(--fs-base); color:var(--blue); align-items:center; gap:8px; }
+#driveSignedInActions{ display:none; }
+#driveAutoSignInPrompt{ display:none; margin-top:10px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:var(--radius-sm); }
+#driveAutoSignInRow  { display:none; margin-top:10px; padding:10px 12px; background:var(--card2); border-radius:var(--radius-sm); }
+#importFile          { display:none; }
+#qnPreviewWrap       { display:none; }
+#detailBudgetSetting { display:none; margin-bottom:14px; }
+#detailUpdateBalance { display:none; margin-bottom:14px; }
+#onbStart            { display:none; }
+#subDeleteRow        { display:none; }
+#walletDefDeleteRow  { display:none; }
+
+/* IDs — non-display rules */
+#categoryFilterChip  { background:var(--blue-soft); border-color:var(--blue); }
+#categoryFilterLabel { color:var(--blue); }
+.cat-chip-x          { color:var(--blue); }
+#btnOpenTransfer     { margin-bottom:8px; width:100%; }
+#btnRepeatLast       { width:100%; padding:11px; font-size:var(--fs-base); border:1px solid var(--line); }
+#btnRepairBalances   { width:100%; padding:13px; }
+#btnChangeDriveClientId{ font-size:var(--fs-sm); }
+#detailIncome        { color:var(--green); }
+#detailExpense       { color:var(--red); }
+#btnSaveWalletBudget { flex:0 0 auto; padding:0 18px; }
+#updateTrackedBalanceBtn{ flex:0 0 auto; padding:0 18px; }
+#distAmountLabel     { color:var(--gold); }
+#distBreakdown       { margin:14px 0; display:flex; flex-direction:column; gap:6px; }
+#driveAutoSignInChk  { width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0; }
+#autoDistributeCheck { width:auto; margin:0; }
+#subActive           { width:18px; height:18px; accent-color:var(--gold); cursor:pointer; flex-shrink:0; }
+#dailyReviewContent  { font-size:var(--fs-base); line-height:1.9; }
+#conflictInfo        { margin-top:12px; font-size:var(--fs-sm); line-height:1.9; }
+
+/* Fatal-error code span (JS string in inline script) */
+.mhf-err-code{ direction:ltr; display:inline-block; font-family:monospace; font-size:11px; }
+
+/* Hint margin utility classes */
+.hint--mt0   { margin-top:0; }
+.hint--mt6   { margin-top:6px; }
+.hint--mt8   { margin-top:8px; }
+.hint--mb10  { margin:0 0 10px; }
+.hint--mb12  { margin:0 0 12px; }
+.hint--mt16mb10{ margin:16px 0 10px; }
+
+/* btn-row margin utilities */
+.btn-row--mb14{ margin-bottom:14px; }
+.btn-row--mb10{ margin-bottom:10px; }
+
+/* section-title margin utility */
+.section-title--mt8{ margin-top:8px; }
+
+/* Drive auto-connect prompt inner elements */
+.drive-auto-title{ font-size:var(--fs-base); font-weight:600; margin-bottom:6px; }
+.drive-auto-body { font-size:var(--fs-sm); color:var(--muted); margin-bottom:10px; line-height:1.6; }
+.drive-auto-lbl  { display:flex; align-items:center; gap:12px; cursor:pointer; }
+.drive-auto-row-ttl{ font-size:var(--fs-base); font-weight:600; }
+.drive-auto-row-sub{ font-size:var(--fs-xs); color:var(--muted); margin-top:3px; }
+
+/* Distribution auto-distribute label */
+.dist-auto-lbl{ display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:400; font-size:var(--fs-sm); color:var(--muted); }
+
+/* Subscriptions active label */
+.sub-active-lbl{ display:flex; align-items:center; gap:10px; cursor:pointer; text-transform:none; letter-spacing:0; font-weight:600; font-size:var(--fs-base); color:var(--text); margin-bottom:4px; }
+
+/* Conflict modal */
+.conflict-hint{ margin-top:0; font-size:var(--fs-base); line-height:1.8; }
+.conflict-b   { color:var(--text); }
+.conflict-btns{ display:flex; flex-direction:column; gap:10px; margin:16px 0; }
+
+/* Detail modal track-mode label */
+.detail-track-lbl{ margin-top:4px; }
