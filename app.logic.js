@@ -2827,13 +2827,14 @@ function _updateChangelogDot(){
 function renderChangelog(){
   const host = document.getElementById('changelogList');
   if(!host) return;
+  // title/items are {ar,en} bilingual objects — t() resolves to the current language
   host.innerHTML = CHANGELOG.map(e => `
     <div class="changelog-entry">
       <div class="changelog-entry-head">
-        <span class="changelog-entry-title">${escHtml(e.title)}</span>
+        <span class="changelog-entry-title">${escHtml(t(e.title))}</span>
         <span class="changelog-entry-date">${escHtml(e.date)}</span>
       </div>
-      <ul>${e.items.map(it => `<li>${escHtml(it)}</li>`).join('')}</ul>
+      <ul>${e.items.map(it => `<li>${escHtml(t(it))}</li>`).join('')}</ul>
     </div>
   `).join('');
 }
