@@ -1,9 +1,20 @@
 /* ============================================================
    ADD / EDIT / DELETE TRANSACTIONS
 ============================================================ */
+// Money writes are refused until loadState() has resolved — the app is
+// technically reachable before then (Tab past the splash, or the 6s fatal
+// watchdog force-hiding it over a slow IndexedDB restore), and a transaction
+// pushed into the transient empty state gets wiped when the real data lands.
+let _stateLoaded = false;
+function _stateNotReady(){
+  if(_stateLoaded) return false;
+  toast(t({ar:'⏳ التطبيق ما زال يُحمّل بياناتك — لحظة واحدة', en:'⏳ Still loading your data — one moment'}), true);
+  return true;
+}
 let _addTxBusy = false;
 async function addTx(type){
   if(_addTxBusy) return;
+  if(_stateNotReady()) return;
   // cross-op write guard (see commitQuickNotes): don't start a write while another
   // mutation is mid-flight across an await — prevents interleaved balance writes
   if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
@@ -350,9 +361,12 @@ function _qnGuessCategory(desc, type){
 }
 
 // Matches a number token in either ASCII, Arabic-Indic (٠-٩) or Persian (۰-۹)
-// digits, with an optional decimal part. Used on the ORIGINAL line (not the
-// space-stripped normalizeDigits output) so the description keeps its spaces.
-const _QN_NUM_RE = /[\d٠-٩۰-۹]+(?:[.,٫][\d٠-٩۰-۹]+)?/g;
+// digits, with optional 3-digit thousands groups (, or ٬) and an optional
+// decimal part. Used on the ORIGINAL line (not the space-stripped
+// normalizeDigits output) so the description keeps its spaces.
+// The grouping part matters: without it "1,234.56" tokenized as ["1,234","56"]
+// and the amount-is-last-number rule silently committed 56 instead of 1234.56.
+const _QN_NUM_RE = /[\d٠-٩۰-۹]+(?:[٬,][\d٠-٩۰-۹]{3})*(?:[.,٫][\d٠-٩۰-۹]+)?/g;
 // Cap the batch so a pasted wall of text can't build thousands of preview rows
 // (each row is several DOM nodes + handlers) and freeze the main thread. 300 is
 // far beyond any realistic "jot a few transactions" session.
@@ -763,7 +777,16 @@ function renderQuickNotesPreview(){
   });
   list.querySelectorAll('.qn-row-desc').forEach(inp => inp.oninput = () => { _qnPreview[+inp.dataset.i].desc = inp.value; });
   // Primary wallet: open the shared in-page popup, update model + label on pick.
-  const _qnPick = (btn, open) => { btn.onclick = open; btn.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); open(); } }; };
+  // The click handler must swallow the keyboard echo: our keydown runs open(),
+  // then the global Enter/Space handler synthesizes el.click() (detail 0) — and
+  // openWalletPop treats a second call on the same anchor as a toggle, so the
+  // popup opened and instantly closed for keyboard users. Suppress only clicks
+  // that closely follow OUR keydown so assistive-tech clicks (also detail 0,
+  // but with no preceding keydown) still work.
+  const _qnPick = (btn, open) => {
+    btn.onclick = (e) => { if(!e.detail && btn._kbdEchoAt && Date.now() - btn._kbdEchoAt < 1000) return; open(); };
+    btn.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ btn._kbdEchoAt = Date.now(); e.preventDefault(); open(); } };
+  };
   list.querySelectorAll('.qn-cs-primary').forEach(btn => _qnPick(btn, () => {
     const i = +btn.dataset.i;
     const items = SELECTABLE_WALLETS.map(w => ({ id:w.id, name:w.name, bal: fmt(state.wallets[w.id] ?? 0) }));
@@ -825,6 +848,7 @@ function _qnFreshWalletIds(){
 }
 async function commitQuickNotes(){
   if(_qnCommitBusy) return;
+  if(_stateNotReady()) return;
   // cross-op write guard: refuse to start while another mutation is mid-flight
   // (each write path has its own busy flag, but none blocked the others across an
   // await — two interleaving writers could corrupt balances)
@@ -1178,6 +1202,7 @@ async function deleteTx(id){
       return;
     }
   }
+  if(_stateNotReady()) return;
   // cross-op write guard (see commitQuickNotes) — block interleaving with another in-flight write
   if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   _txMutationStamp++;
@@ -1331,13 +1356,16 @@ function _closeTopmostOverlay(){
     if(typeof hideDriveBanner === 'function') hideDriveBanner();
     return true;
   }
-  if(addDrawerOpen){
-    closeAddDrawer();
-    return true;
-  }
+  // Modals (z-index 1000) always paint ABOVE the add drawer (900) — e.g. the
+  // daily-review or Drive-conflict modal can open over an open drawer — so the
+  // visible-topmost overlay to close is a modal first, then the drawer.
   const open = [...document.querySelectorAll('.modal-overlay.open')];
   if(open.length){
     closeModal(open[open.length-1].id);
+    return true;
+  }
+  if(addDrawerOpen){
+    closeAddDrawer();
     return true;
   }
   return false;
@@ -1352,12 +1380,15 @@ window.addEventListener('popstate', () => {
   if(_overlayHistDepth <= 0) return; // a real navigation, not one of our entries — let it proceed
   _inPopstateClose = true;
   try{
-    if(addDrawerOpen){
+    // modals paint above the drawer — close the visible one first (same
+    // ordering as _closeTopmostOverlay; see the comment there)
+    const open = [...document.querySelectorAll('.modal-overlay.open')];
+    if(open.length){
+      closeModal(open[open.length-1].id);
+    } else if(addDrawerOpen){
       closeAddDrawer();
     } else {
-      const open = [...document.querySelectorAll('.modal-overlay.open')];
-      if(open.length) closeModal(open[open.length-1].id);
-      else _overlayHistDepth = 0; // safety net: nothing open but we thought we had depth — resync
+      _overlayHistDepth = 0; // safety net: nothing open but we thought we had depth — resync
     }
   } finally {
     _inPopstateClose = false;
@@ -1436,6 +1467,13 @@ function openModal(id){
     }
   }
   modal.classList.add('open');
+  // Re-append so DOM order matches OPEN order. All overlays share z-index:1000,
+  // so among open ones the later-in-DOM paints on top — without this, opening
+  // the edit modal from inside the wallet-detail modal (whose markup sits later
+  // in index.html) put the edit sheet INVISIBLY BEHIND it, and the focus traps
+  // + Escape/back handlers (all of which take the LAST open overlay in DOM
+  // order as "topmost") targeted the wrong dialog.
+  if(wasClosed) document.body.appendChild(modal);
   // blur the trigger BEFORE hiding its ancestor from the a11y tree — aria-hidden
   // on an element that still holds focus is an ARIA violation (and Chrome logs a
   // warning for it); the real focus-in-modal happens a frame later below.
@@ -1800,7 +1838,15 @@ function stripOrphanedDistributionLegs(txList){
   return removed;
 }
 
+let _importBusy = false;
 async function applyImport(text){
+  // Same cross-operation guard every money writer has — an import beginning
+  // while addTx/commitQuickNotes is parked on an await would wholesale-replace
+  // the state that operation is about to write back. The busy flag also stops
+  // a double-tap of the import button from running two overlapping imports
+  // (each confirm() blocks, but the second resumes during the first's awaits).
+  if(_importBusy) return;
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   let data;
   try{ data = JSON.parse(text); }
   catch(e){ toast(t({ar:'⚠ تنسيق JSON غير صالح', en:'⚠ Invalid JSON format'}), true); return; }
@@ -1809,6 +1855,7 @@ async function applyImport(text){
     toast(t({ar:'⚠ ملف غير صحيح — لا يحتوي على wallets أو transactions', en:'⚠ Invalid file — missing wallets or transactions'}), true); return;
   }
   if(!confirm(t({ar:'سيتم استبدال كل البيانات الحالية. متابعة؟', en:'This will replace all current data. Continue?'}))) return;
+  _importBusy = true;
   _txMutationStamp++; // wholesale data replacement — invalidate derived caches
   _opInFlight++; // block the cross-tab storage reload mid-import, same as other wholesale replacements
   try{
@@ -1869,6 +1916,11 @@ async function applyImport(text){
       !seenIds.has(tx.id) && seenIds.add(tx.id)
     ).map(tx => ({
       ...tx,
+      // clamp to [MIN_TX_TS, now] — every direct-entry path enforces this
+      // (buildTxTs/saveEdit), but a backup from a fast-clock device or a
+      // hand-edited file isn't bound by it. A future ts pins above everything
+      // and corrupts the "this month" filters and totals.
+      ts: Math.max(MIN_TX_TS, Math.min(tx.ts, Date.now())),
       category: normalizeCategory(tx.category),
       // addTx() caps manual entry to 120 chars (see app.logic.js) — a crafted or
       // corrupt backup file isn't bound by that input-side limit, and an unbounded
@@ -1989,6 +2041,7 @@ async function applyImport(text){
   }
   } finally {
     _opInFlight--;
+    _importBusy = false;
   }
 }
 
@@ -3064,8 +3117,15 @@ function _bindEvents(){
   const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
   // role="button" elements: activate on click + Enter/Space keydown
   const act = (el, fn) => { on(el,'click',fn); on(el,'keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fn(e);} }); };
-  // custom-select elements: suppress ghost click (detail===0) + keydown
-  const sel = (el, fn) => { on(el,'click',e=>{ if(!e.detail)return; fn(e); }); on(el,'keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fn(e);} }); };
+  // custom-select elements: suppress ONLY the click echo that follows our own
+  // keydown (the global Enter/Space handler synthesizes el.click() with
+  // detail 0). A bare detail-0 click with no recent keydown is assistive-tech
+  // activation (TalkBack/VoiceOver also report detail 0) and must go through —
+  // the old blanket `if(!e.detail)return` made these controls dead for AT users.
+  const sel = (el, fn) => {
+    on(el,'click',e=>{ if(!e.detail && el._kbdEchoAt && Date.now() - el._kbdEchoAt < 1000) return; fn(e); });
+    on(el,'keydown',e=>{ if(e.key==='Enter'||e.key===' '){ el._kbdEchoAt = Date.now(); e.preventDefault(); fn(e); } });
+  };
 
   // Header
   on($('themeToggle'),'click',toggleTheme);
@@ -3206,6 +3266,7 @@ function _bindEvents(){
 _bindEvents();
 
 loadState().then(()=>{
+  _stateLoaded = true; // money writers are gated on this (see _stateNotReady)
   hideSplash();
   loadQuickNotesDraft();    // restore any unconverted quick-notes draft
   updateQuickNotesBadge();  // reflect its line count on the home banner
@@ -3300,6 +3361,11 @@ function scheduleNextMidnightRefresh(){
     _monthlyExpenseCacheKey = '';
     capDateInputsToToday();
     render(true);
+    // a tab kept visible across midnight otherwise misses that day's review
+    // (incl. the "subscriptions due today" line) and the drift check — both
+    // self-guard via lastReviewDate/driftNotified, so re-running is safe here
+    checkDailyReview();
+    checkBalanceDrift();
     // re-arm for the following midnight
     const n = new Date();
     const nm = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1);

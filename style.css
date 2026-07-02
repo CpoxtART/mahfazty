@@ -768,7 +768,9 @@
   /* --muted2 is the contrast-tuned muted token; full opacity keeps placeholders
      at WCAG AA. The previous --muted × .6 alpha dropped well under 4.5:1. */
   .form input::placeholder, .modal input::placeholder, .modal textarea::placeholder{color:var(--muted2); opacity:1;}
-  .form input[type=number]{font-variant-numeric: tabular-nums;}
+  /* amount fields are type=text + inputmode (so Arabic-Indic digits reach the
+     parser instead of being blanked by the number-input spec) — match both */
+  .form input[type=number], .form input[inputmode=decimal], .form input[inputmode=numeric]{font-variant-numeric: tabular-nums;}
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
   input[type=number]{-moz-appearance:textfield;}
@@ -1354,7 +1356,8 @@
   /* distribution editor inputs must stay fixed-width inside the flex row;
      the generic .modal input[type=number] rule (higher specificity) would otherwise
      force them to width:100% and break the layout */
-  .modal .dist-edit-row input[type=number]{
+  .modal .dist-edit-row input[type=number],
+  .modal .dist-edit-row input[inputmode=decimal]{
     width:70px; margin-bottom:0; padding:8px; flex:0 0 70px;
   }
   .modal input:focus{outline:none; border-color:var(--gold); box-shadow:var(--focus-ring);}
@@ -1743,7 +1746,8 @@
   box-shadow:var(--focus-ring);
 }
 .add-drawer .drawer-body input::placeholder{ color:var(--muted2); opacity:1; }
-.add-drawer .drawer-body input[type=number]{ font-variant-numeric:tabular-nums; }
+.add-drawer .drawer-body input[type=number],
+.add-drawer .drawer-body input[inputmode=decimal]{ font-variant-numeric:tabular-nums; }
 .add-drawer .drawer-body input[type=date]{ color-scheme:dark; }
 body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 

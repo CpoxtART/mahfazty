@@ -774,6 +774,9 @@ async function adoptCloudSnapshot(cloud){
       // other entry point enforces (a cloud copy isn't bound by addTx's rounding)
       .map(tx => ({
         ...tx,
+        // same [MIN_TX_TS, now] clamp as applyImport — a cloud copy written by a
+        // fast-clock device could otherwise carry future timestamps
+        ts: Math.max(MIN_TX_TS, Math.min(tx.ts, Date.now())),
         desc: typeof tx.desc === 'string' && tx.desc.length > 120 ? tx.desc.slice(0,120) : tx.desc,
         amount: round2(tx.amount)
       }));

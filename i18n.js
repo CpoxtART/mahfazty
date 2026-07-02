@@ -95,6 +95,7 @@ function setLang(lang){
   // one is already open left it showing stale-language text until something
   // else happened to re-trigger it.
   try{ if(typeof renderLayoutEditor === 'function') renderLayoutEditor(); }catch(e){}
+  try{ if(typeof renderAccentSwatches === 'function') renderAccentSwatches(); }catch(e){}
   try{ if(typeof renderWalletDefsEditor === 'function') renderWalletDefsEditor(); }catch(e){}
   try{ if(typeof renderDistributionEditor === 'function') renderDistributionEditor(); }catch(e){}
   try{ if(typeof refreshDriveSettingsUI === 'function') refreshDriveSettingsUI(); }catch(e){}
@@ -144,6 +145,7 @@ var I18N_STRINGS = {
   'qn.title':         { ar: '📝 ملاحظات سريعة ← معاملات', en: '📝 Quick notes → transactions' },
   'qn.intro':         { ar: 'اكتب كل معاملة في سطر مستقل: الوصف ثم السعر. البرنامج يحوّلها لمعاملات جاهزة تراجعها قبل الحفظ — بدون إدخال يدوي لكل واحدة.', en: 'Write one transaction per line: description then price. The app turns them into ready transactions you review before saving — no manual entry for each.' },
   'qn.ph':            { ar: 'قهوة ١٥\nبنزين ٥٠\nغداء مطعم ٤٥\nراتب ٥٠٠٠ +', en: 'Coffee 15\nGas 50\nLunch 45\nSalary 5000 +' },
+  'qn.notesLabel':    { ar: 'الملاحظات السريعة', en: 'Quick notes' },
   'qn.sideHint':      { ar: '💡 سطر لكل معاملة: <b>الوصف وسعره</b> (مثل «قهوة ١٥»). أضِف <b>+</b> في آخر السطر أو اكتب «راتب/دخل» لتسجيلها كدخل.<br>👛 بعد «حوّل لمعاملات» يطلع لكل سطر قائمتان: <b>المحفظة الرئيسية</b> و<b>محفظة التتبّع</b> — تختار منهما مباشرةً.', en: '💡 One line per transaction: <b>description and price</b> (e.g. “Coffee 15”). Add <b>+</b> at the end or write “salary/income” to record it as income.<br>👛 After “Convert”, each line gets two dropdowns — <b>primary wallet</b> and <b>tracking wallet</b> — pick directly from them.' },
   'qn.walletLbl':     { ar: 'المحفظة الافتراضية لكل الأسطر — وبعد التحويل تقدر تعطي كل معاملة محفظتها', en: 'Default wallet for all lines — after converting, you can give each transaction its own wallet' },
   'qn.parse':         { ar: '🔎 حوّل لمعاملات', en: '🔎 Convert to transactions' },
@@ -179,6 +181,7 @@ var I18N_STRINGS = {
   'sum.chartEmpty':   { ar: 'سجّل معاملتين لترى حركة رصيدك هنا', en: 'Log two transactions to see your balance flow here' },
 
   // ── bottom nav ──
+  'nav.mainAria':     { ar: 'التنقل الرئيسي', en: 'Main navigation' },
   'nav.home':         { ar: 'الرئيسي', en: 'Home' },
   'nav.transactions': { ar: 'المعاملات', en: 'Transactions' },
   'nav.analytics':    { ar: 'تحليلات', en: 'Insights' },
@@ -251,6 +254,7 @@ var I18N_STRINGS = {
   'detail.trackModeLbl':{ ar: 'عند ربط مصروف بهذه المحفظة من نموذج الإضافة:', en: 'When linking an expense to this wallet from the add form:' },
   'detail.trackDebit':{ ar: 'ينقص (رصيد فعلي)', en: 'Decreases (actual balance)' },
   'detail.trackCredit':{ ar: 'يزيد (عدّاد إنفاق)', en: 'Increases (spending counter)' },
+  'detail.trackModeAria':{ ar: 'سلوك الربط', en: 'Link behavior' },
   'detail.trackModeHint':{ ar: '«رصيد فعلي»: المصروف ينقص الرصيد (مثل بطاقة/كاش). «عدّاد إنفاق»: المصروف يزيد الرقم (إجمالي ما صرفته على هذا البند).', en: '"Actual balance": the expense decreases the balance (like a card/cash). "Spending counter": the expense increases the number (total spent on this item).' },
 
   // ── distribute-income modal ──
@@ -305,11 +309,11 @@ var I18N_STRINGS = {
   'onb.s6Li2':        { ar: '<b>✏️ عدّل الأسماء ورتّب</b> — كل مجموعة على حدة بأسهم أعلى/أسفل.', en: '<b>✏️ Edit names and reorder</b> — each group separately with up/down arrows.' },
   'onb.s6Li3':        { ar: '<b>🗑 احذف ما لا تحتاجه</b> — مع حماية من حذف محفظة مرتبطة برصيد أو معاملات.', en: "<b>🗑 Delete what you don't need</b> — protected from deleting a wallet tied to a balance or transactions." },
   'onb.s6Li4':        { ar: '<b>⚙ إعدادات أنظف</b> — مقسّمة إلى ٣ تبويبات: الترتيب، المحافظ، البيانات.', en: '<b>⚙ Cleaner settings</b> — split into 3 tabs: Layout, Wallets, Data.' },
-  'onb.s6Note':       { ar: '💡 تبدأ بـ ١٠ محافظ جاهزة، وتخصّصها كما يناسب حياتك من ⚙ الإعدادات ← المحافظ.', en: '💡 You start with 10 ready-made wallets, and customize them to fit your life from ⚙ Settings ← Wallets.' },
+  'onb.s6Note':       { ar: '💡 تبدأ بـ ١٠ محافظ جاهزة، وتخصّصها كما يناسب حياتك من ⚙ الإعدادات ← المحافظ.', en: '💡 You start with 10 ready-made wallets, and customize them to fit your life from ⚙ Settings → Wallets.' },
   'onb.s7Title':      { ar: 'خصّصها على ذوقك', en: 'Make it yours' },
   'onb.s7Li1':        { ar: '<b>🌐 لغتان: عربي/English</b> — بدّلها بضغطة من زر اللغة بالأعلى.', en: '<b>🌐 Two languages: Arabic/English</b> — switch with one tap from the language button up top.' },
   'onb.s7Li2':        { ar: '<b>🌗 المظهر</b> — فاتح أو داكن أو أسود أو تلقائي حسب جهازك.', en: '<b>🌗 Appearance</b> — light, dark, black, or auto to match your device.' },
-  'onb.s7Li3':        { ar: '<b>🎨 لون التطبيق</b> — اختر لونك المفضّل من ⚙ الإعدادات ← المظهر.', en: '<b>🎨 Accent color</b> — pick your favorite from ⚙ Settings ← Appearance.' },
+  'onb.s7Li3':        { ar: '<b>🎨 لون التطبيق</b> — اختر لونك المفضّل من ⚙ الإعدادات ← المظهر.', en: '<b>🎨 Accent color</b> — pick your favorite from ⚙ Settings → Appearance.' },
   'onb.s7Li4':        { ar: '<b>☀️ مراجعة يومية</b> — ملخّص سريع لحركة أمسك وما يستحقّ انتباهك.', en: '<b>☀️ Daily review</b> — a quick recap of yesterday and what needs your attention.' },
   'onb.s7Note':       { ar: '💡 كل هذا اختياري — التطبيق جاهز للعمل من أول لحظة بدون أي ضبط.', en: '💡 All optional — the app works out of the box with zero setup.' },
   'onb.back':         { ar: 'رجوع', en: 'Back' },
@@ -397,6 +401,7 @@ var I18N_STRINGS = {
   'set.driveEmbeddedWarn':{ ar: '⚠️ افتح التطبيق في Chrome أو Safari مباشرةً لتسجيل الدخول.', en: '⚠️ Open the app directly in Chrome or Safari to sign in.' },
   'set.driveReconnecting':{ ar: '🔄 جارٍ الاتصال بـ Google Drive…', en: '🔄 Connecting to Google Drive…' },
   'set.driveSignIn':  { ar: '🔐 تسجيل الدخول بجوجل', en: '🔐 Sign in with Google' },
+  'drive.bannerAria': { ar: 'الاتصال بـ Google Drive', en: 'Connect to Google Drive' },
   'set.driveSyncNow': { ar: '⬆ مزامنة الآن', en: '⬆ Sync now' },
   'set.driveSignOut': { ar: 'خروج', en: 'Sign out' },
   'set.driveAutoTitle':{ ar: '🔐 الاتصال التلقائي', en: '🔐 Auto-Connect' },

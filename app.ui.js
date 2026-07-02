@@ -138,10 +138,11 @@ function renderWallets(){
     div.onkeydown = (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); setWalletFilter(w.id); } };
     const pctEl = div.querySelector('.pct');
     if(pctEl){
-      // e.detail===0 means a keyboard-triggered ghost click — the keydown path
-      // below already handled it, so skip to avoid double-opening the detail modal.
-      pctEl.onclick = (e) => { e.stopPropagation(); if(!e.detail) return; openWalletDetail(w.id); };
-      pctEl.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); openWalletDetail(w.id); } };
+      // suppress only the keyboard-echo click (detail 0 right after our own
+      // keydown) — a bare detail-0 click is assistive-tech activation and must
+      // work (see the `sel` helper in _bindEvents for the same pattern).
+      pctEl.onclick = (e) => { e.stopPropagation(); if(!e.detail && pctEl._kbdEchoAt && Date.now() - pctEl._kbdEchoAt < 1000) return; openWalletDetail(w.id); };
+      pctEl.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ pctEl._kbdEchoAt = Date.now(); e.preventDefault(); e.stopPropagation(); openWalletDetail(w.id); } };
     }
     grid.appendChild(div);
   });
@@ -357,6 +358,8 @@ function setWalletDefType(isTrack){
 let _saveWalletDefBusy = false;
 async function saveWalletDefModal(){
   if(_saveWalletDefBusy) return;
+  // cross-op write guard (see commitQuickNotes) — this writes balances/defs across awaits
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   const nameInput = document.getElementById('walletDefName');
   const name = stripBidiControls(nameInput.value).trim().slice(0,40);
   if(!name){ toast(t({ar:'⚠ أدخل اسم المحفظة', en:'⚠ Enter a wallet name'}), true); nameInput.focus(); return; }
@@ -1190,6 +1193,8 @@ function openSubModal(id){
 let _saveSubBusy = false;
 async function saveSubModal(){
   if(_saveSubBusy) return;
+  // cross-op write guard (see commitQuickNotes)
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   const nameInput = document.getElementById('subName');
   const amountInput = document.getElementById('subAmount');
   const dayInput = document.getElementById('subBillingDay');
@@ -1224,6 +1229,8 @@ async function saveSubModal(){
 }
 async function deleteSubModal(){
   if(_saveSubBusy || !editingSubId) return;
+  // cross-op write guard (see commitQuickNotes)
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   if(!confirm(t({ar:'حذف هذا الاشتراك نهائياً؟', en:'Permanently delete this subscription?'}))) return;
   _saveSubBusy = true;
   _opInFlight++;
@@ -1336,13 +1343,18 @@ const CATEGORY_KEYWORDS = {
 };
 
 function parseArabicNumber(text){
-  // Normalize Arabic-Indic/Persian digits and strip thousands separators so a
-  // mix of digits and words ("٥ آلاف", "5,000", "خمسة آلاف") is handled uniformly.
-  const norm = normalizeDigits(text);
-  const tokens = norm.split(/\s+/);
+  // Tokenize the ORIGINAL transcript FIRST, then normalize each token.
+  // normalizeDigits strips ALL whitespace (its "1 000" thousands support), so
+  // normalizing the whole phrase before splitting collapsed every multi-word
+  // transcript into one unparseable token — "صرفت خمسين على عشاء" became
+  // "صرفتخمسينعلىعشاء" and every realistic voice phrase failed with
+  // "لم يتم العثور على رقم". Per-token normalization keeps the digit/separator
+  // handling without destroying the word boundaries.
+  const tokens = String(text == null ? '' : text).split(/\s+/).map(normalizeDigits);
   const values = [];            // ordered numeric values pulled from digits AND words
   let sawAny = false;
-  for(let raw of tokens){
+  for(let i = 0; i < tokens.length; i++){
+    let raw = tokens[i];
     if(!raw) continue;
     // a token may be a digit group, possibly stuck to a scale word ("5آلاف")
     if(/^\d/.test(raw)){
@@ -1352,6 +1364,12 @@ function parseArabicNumber(text){
     }
     const clean = raw.replace(/[^ء-ي]/g,'');
     if(!clean) continue;
+    // two-token compounds ("احد عشر" = 11) — must be tried BEFORE the single
+    // word, or "عشر" (10) claims the second token and the pair reads as 10
+    const _next = i + 1 < tokens.length ? String(tokens[i+1]).replace(/[^ء-ي]/g,'') : '';
+    if(_next && VOICE_NUMBER_WORDS[clean + ' ' + _next] !== undefined){
+      values.push(VOICE_NUMBER_WORDS[clean + ' ' + _next]); sawAny = true; i++; continue;
+    }
     if(VOICE_NUMBER_WORDS[clean] !== undefined){ values.push(VOICE_NUMBER_WORDS[clean]); sawAny = true; continue; }
     // strip a leading connective و ("وعشرين" → "عشرين") and retry — but only when
     // the remainder is itself a number word, so real words like "واحد" stay intact
@@ -1677,6 +1695,7 @@ function toggleTransferMenu(dir){
 let _doTransferBusy = false;
 async function doTransfer(){
   if(_doTransferBusy) return;
+  if(typeof _stateNotReady === 'function' && _stateNotReady()) return;
   const amountInput = document.getElementById('transferAmount');
   const amt = round2(parseAmount(amountInput.value)); // cent precision — match display, avoid sub-cent drift
   if(!isFinite(amt) || amt <= 0){ toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true); amountInput.focus(); return; }
@@ -1802,6 +1821,8 @@ async function updateTrackedBalance(){
 let _saveWalletBudgetBusy = false;
 async function saveWalletBudget(){
   if(!detailWalletId || _saveWalletBudgetBusy) return;
+  // cross-op write guard (see commitQuickNotes)
+  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
   // Guard against a wallet deleted from another tab while this detail modal was
   // open (cross-tab storage listener skips loadState while any modal is open).
   if(!WALLET_DEFS.find(x => x.id === detailWalletId)){
@@ -1849,7 +1870,7 @@ function renderDistributionEditor(){
     row.className = 'dist-edit-row';
     row.innerHTML = `
       <span class="name">${escHtml(w ? w.name : d.id)}</span>
-      <input type="number" min="0" max="100" step="any" inputmode="decimal" value="${d.pct}" data-idx="${i}">
+      <input type="text" inputmode="decimal" value="${d.pct}" data-idx="${i}" autocomplete="off">
       <span class="pct-sign">%</span>
     `;
     row.querySelector('input').oninput = (e)=>{
@@ -2048,10 +2069,15 @@ function renderAnalytics(){
   const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
   let cmpHtml = '';
   if(prevTotal > 0 && (dayOfMonth > 1 || curTotal > 0)){
-    const diff = curTotal - prevTotal;
-    const pct = Math.abs(diff/prevTotal*100).toFixed(0);
+    // Compare against the previous month PRORATED to the same day — a raw
+    // full-month comparison shows "▼ ~95%" on the 2nd of every month and only
+    // becomes meaningful at month end. day 0 of this month = last day of prev.
+    const daysInPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+    const prevSameDay = prevTotal * Math.min(1, dayOfMonth / daysInPrevMonth);
+    const diff = curTotal - prevSameDay;
+    const pct = Math.abs(diff/prevSameDay*100).toFixed(0);
     const up = diff > 0;
-    cmpHtml = `<div class="sub ${up?'up':'down'}">${up?'▲':'▼'} ${pct}${t({ar:'% عن الشهر الماضي', en:'% vs last month'})}</div>`;
+    cmpHtml = `<div class="sub ${up?'up':'down'}">${up?'▲':'▼'} ${pct}${t({ar:'% عن نفس الفترة من الشهر الماضي', en:'% vs same period last month'})}</div>`;
   } else {
     cmpHtml = `<div class="sub">${t({ar:'لا توجد بيانات للشهر الماضي', en:'No data for last month'})}</div>`;
   }
