@@ -55,8 +55,11 @@ function renderWallets(){
     cta.innerHTML = `
       <div class="wallet-cta-title">👋 ${escHtml(t({ar:'ابدأ رحلتك', en:'Start your journey'}))}</div>
       <div class="wallet-cta-sub">${escHtml(t({ar:'سجّل أول دخل ليتوزّع تلقائياً على محافظك حسب النِّسب.', en:'Record your first income to auto-distribute it across your wallets by percentage.'}))}</div>
-      <button class="wallet-cta-btn" type="button" onclick="openAddDrawer(); setAddFormType('income');">＋ ${escHtml(t({ar:'سجّل أول دخل', en:'Record first income'}))}</button>
+      <button class="wallet-cta-btn" type="button">＋ ${escHtml(t({ar:'سجّل أول دخل', en:'Record first income'}))}</button>
     `;
+    // bound as a property (not an onclick= attribute) — inline handler attributes
+    // are blocked by the CSP now that script-src has no 'unsafe-inline'.
+    cta.querySelector('.wallet-cta-btn').onclick = () => { openAddDrawer(); setAddFormType('income'); };
     grid.appendChild(cta);
   }
 
@@ -112,13 +115,14 @@ function renderWallets(){
     // wallet (⚖️) — same gold chip style every other wallet badge uses, still
     // a button that opens the balance-sync screen on tap.
     const trackSharePct = grandTotal > 0 ? Math.max(0, Math.round((val/grandTotal)*100)) : 0;
-    // role/tabindex/onkeydown so this nested control is reachable on its own —
-    // it opens a *different* screen (wallet detail) than the card it sits inside
-    // (which only filters), so it needs its own keyboard path, not just the card's.
-    const pctKeydown = (id) => `if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();openWalletDetail('${id}');}`;
+    // role/tabindex + property-bound handlers (below, after innerHTML) so this
+    // nested control is reachable on its own — it opens a *different* screen
+    // (wallet detail) than the card it sits inside (which only filters), so it
+    // needs its own keyboard path, not just the card's. Handlers are attached as
+    // properties, not onclick= attributes, which the CSP now blocks.
     const pctBtn = w.track
-      ? `<div class="pct" role="button" tabindex="0" onclick="event.stopPropagation(); if(event.detail===0)return; openWalletDetail('${w.id}')" onkeydown="${pctKeydown(w.id)}" aria-label="${escHtml(t({ar:`مزامنة الرصيد الفعلي لـ ${w.name} — ${trackSharePct}% من إجمالي محافظك`, en:`Sync actual balance for ${w.name} — ${trackSharePct}% of your total wallets`}))}" title="${escHtml(t({ar:'مزامنة الرصيد الفعلي', en:'Sync actual balance'}))}">⚖️ ${trackSharePct}%</div>`
-      : `<div class="pct" role="button" tabindex="0" onclick="event.stopPropagation(); if(event.detail===0)return; openWalletDetail('${w.id}')" onkeydown="${pctKeydown(w.id)}" aria-label="${escHtml(t({ar:`تفاصيل ${w.name}`, en:`Details for ${w.name}`}))}" title="${escHtml(t({ar:'التفاصيل', en:'Details'}))}">ⓘ ${escHtml(w.crisisOnly && state.crisisMode ? crisisWalletIds().reduce((s,id)=>{const wd=WALLET_DEFS.find(x=>x.id===id);return s+(wd?(parseFloat(getWalletPctLabel(wd))||0):0);},0)+'%' : getWalletPctLabel(w))}</div>`;
+      ? `<div class="pct" role="button" tabindex="0" aria-label="${escHtml(t({ar:`مزامنة الرصيد الفعلي لـ ${w.name} — ${trackSharePct}% من إجمالي محافظك`, en:`Sync actual balance for ${w.name} — ${trackSharePct}% of your total wallets`}))}" title="${escHtml(t({ar:'مزامنة الرصيد الفعلي', en:'Sync actual balance'}))}">⚖️ ${trackSharePct}%</div>`
+      : `<div class="pct" role="button" tabindex="0" aria-label="${escHtml(t({ar:`تفاصيل ${w.name}`, en:`Details for ${w.name}`}))}" title="${escHtml(t({ar:'التفاصيل', en:'Details'}))}">ⓘ ${escHtml(w.crisisOnly && state.crisisMode ? crisisWalletIds().reduce((s,id)=>{const wd=WALLET_DEFS.find(x=>x.id===id);return s+(wd?(parseFloat(getWalletPctLabel(wd))||0):0);},0)+'%' : getWalletPctLabel(w))}</div>`;
     div.innerHTML = `
       <div class="top">
         <div class="name">${escHtml(w.name)}</div>
@@ -132,6 +136,13 @@ function renderWallets(){
     div.title = w.track ? t({ar:`${w.name} — رقم تتبع فقط، غير مُحتسب بالإجمالي المتاح للصرف`, en:`${w.name} — a tracking number only, not counted in the total available to spend`}) : '';
     div.onclick = () => setWalletFilter(w.id);
     div.onkeydown = (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); setWalletFilter(w.id); } };
+    const pctEl = div.querySelector('.pct');
+    if(pctEl){
+      // e.detail===0 means a keyboard-triggered ghost click — the keydown path
+      // below already handled it, so skip to avoid double-opening the detail modal.
+      pctEl.onclick = (e) => { e.stopPropagation(); if(!e.detail) return; openWalletDetail(w.id); };
+      pctEl.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); openWalletDetail(w.id); } };
+    }
     grid.appendChild(div);
   });
 
@@ -221,17 +232,17 @@ function renderWalletDefsEditor(){
       // via the small badge on the dashboard card, which users reported needing
       // time to even notice exists.
       const viewBtn = track
-        ? `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:'مزامنة الرصيد الفعلي لـ', en:'Sync actual balance for'}))} ${escHtml(w.name)}" title="${escHtml(t({ar:'مزامنة الرصيد الفعلي', en:'Sync actual balance'}))}">⚖️</button>`
-        : `<button class="rd-view" onclick="openWalletDetail('${w.id}')" aria-label="${escHtml(t({ar:'تفاصيل', en:'Details for'}))} ${escHtml(w.name)}" title="${escHtml(t({ar:'التفاصيل والميزانية', en:'Details and budget'}))}">ⓘ</button>`;
+        ? `<button class="rd-view" data-act="view" data-wid="${w.id}" aria-label="${escHtml(t({ar:'مزامنة الرصيد الفعلي لـ', en:'Sync actual balance for'}))} ${escHtml(w.name)}" title="${escHtml(t({ar:'مزامنة الرصيد الفعلي', en:'Sync actual balance'}))}">⚖️</button>`
+        : `<button class="rd-view" data-act="view" data-wid="${w.id}" aria-label="${escHtml(t({ar:'تفاصيل', en:'Details for'}))} ${escHtml(w.name)}" title="${escHtml(t({ar:'التفاصيل والميزانية', en:'Details and budget'}))}">ⓘ</button>`;
       return `
       <div class="reorder-row">
         <div class="reorder-label">${escHtml(w.name)}</div>
         <div class="reorder-btns">
           ${viewBtn}
-          <button onclick="openWalletDefModal('${w.id}')" aria-label="${escHtml(t({ar:'تعديل', en:'Edit'}))} ${escHtml(w.name)}">✎</button>
-          <button onclick="moveWalletDef('${w.id}',-1)" ${i===0?'disabled':''} aria-label="${escHtml(t({ar:'تحريك لأعلى', en:'Move up'}))}">▲</button>
-          <button onclick="moveWalletDef('${w.id}',1)" ${i===list.length-1?'disabled':''} aria-label="${escHtml(t({ar:'تحريك لأسفل', en:'Move down'}))}">▼</button>
-          <button class="rd-del" onclick="deleteWalletDef('${w.id}')" ${blockDelete?'disabled':''} aria-label="${escHtml(t({ar:'حذف', en:'Delete'}))} ${escHtml(w.name)}">🗑</button>
+          <button data-act="edit" data-wid="${w.id}" aria-label="${escHtml(t({ar:'تعديل', en:'Edit'}))} ${escHtml(w.name)}">✎</button>
+          <button data-act="up" data-wid="${w.id}" ${i===0?'disabled':''} aria-label="${escHtml(t({ar:'تحريك لأعلى', en:'Move up'}))}">▲</button>
+          <button data-act="down" data-wid="${w.id}" ${i===list.length-1?'disabled':''} aria-label="${escHtml(t({ar:'تحريك لأسفل', en:'Move down'}))}">▼</button>
+          <button class="rd-del" data-act="del" data-wid="${w.id}" ${blockDelete?'disabled':''} aria-label="${escHtml(t({ar:'حذف', en:'Delete'}))} ${escHtml(w.name)}">🗑</button>
         </div>
       </div>`;
     }).join('');
@@ -248,6 +259,17 @@ function renderWalletDefsEditor(){
       ${group(true)}
     </div>
   `;
+  // property-bound (CSP blocks onclick= attributes in generated markup)
+  const WD_ACTS = {
+    view: id => openWalletDetail(id),
+    edit: id => openWalletDefModal(id),
+    up:   id => moveWalletDef(id, -1),
+    down: id => moveWalletDef(id, 1),
+    del:  id => deleteWalletDef(id),
+  };
+  host.querySelectorAll('button[data-act]').forEach(b => {
+    b.onclick = () => WD_ACTS[b.dataset.act](b.dataset.wid);
+  });
 }
 
 // Refresh every cache/UI surface that reads wallet id/name/order, beyond the
@@ -536,6 +558,9 @@ function _updateTrackModeToggleUI(walletId){
 function capTab(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function switchTab(tab){
+  // bottom-nav convention: each tab opens at its top — without this, scrolling
+  // deep into Transactions then tapping 📊 lands mid-way down Analytics.
+  if(tab !== currentTab) window.scrollTo({top:0});
   currentTab = tab;
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('tab' + capTab(tab));
@@ -746,15 +771,15 @@ function renderLayoutEditor(){
     `<div class="reorder-row">
       <span class="reorder-label">${label}</span>
       <div class="reorder-btns">
-        <button onclick="moveLayout('${scope}','${key}',-1)" ${idx===0?'disabled':''} aria-label="${moveUpLabel}">▲</button>
-        <button onclick="moveLayout('${scope}','${key}',1)" ${idx===len-1?'disabled':''} aria-label="${moveDownLabel}">▼</button>
+        <button data-mv-scope="${scope}" data-mv-key="${key}" data-mv="-1" ${idx===0?'disabled':''} aria-label="${moveUpLabel}">▲</button>
+        <button data-mv-scope="${scope}" data-mv-key="${key}" data-mv="1" ${idx===len-1?'disabled':''} aria-label="${moveDownLabel}">▼</button>
       </div>
     </div>`;
 
   // Build the segmented tab strip
   const tabs = LAYOUT_EDITOR_TABS.map(td => {
     const lbl = t(td.label);
-    return `<button class="le-tab${_layoutEditorTab===td.id?' active':''}" onclick="switchLayoutEditorTab('${td.id}')" aria-label="${lbl}">${td.icon} <span>${lbl}</span></button>`;
+    return `<button class="le-tab${_layoutEditorTab===td.id?' active':''}" data-let="${td.id}" aria-label="${lbl}">${td.icon} <span>${lbl}</span></button>`;
   }).join('');
   let html = `<div class="le-tabs">${tabs}</div>`;
 
@@ -780,12 +805,21 @@ function renderLayoutEditor(){
     html += `<div class="reorder-group">
       <div class="reorder-row">
         <span class="reorder-label">${t({ar:`🧾 معاملات لكل دفعة (حد أقصى ${RECENT_TX_LIMIT_MAX})`, en:`🧾 Transactions per batch (max ${RECENT_TX_LIMIT_MAX})`})}</span>
-        <select class="recent-limit-select" aria-label="${t({ar:'عدد المعاملات المعروضة', en:'Number of transactions shown'})}" onchange="setRecentTxLimit(parseInt(this.value,10))">${optHtml}</select>
+        <select class="recent-limit-select" aria-label="${t({ar:'عدد المعاملات المعروضة', en:'Number of transactions shown'})}">${optHtml}</select>
       </div>
     </div>`;
   }
 
   host.innerHTML = html;
+  // property-bound (CSP blocks onclick=/onchange= attributes in generated markup)
+  host.querySelectorAll('button[data-mv]').forEach(b => {
+    b.onclick = () => moveLayout(b.dataset.mvScope, b.dataset.mvKey, parseInt(b.dataset.mv, 10));
+  });
+  host.querySelectorAll('.le-tab[data-let]').forEach(b => {
+    b.onclick = () => switchLayoutEditorTab(b.dataset.let);
+  });
+  const limitSel = host.querySelector('.recent-limit-select');
+  if(limitSel) limitSel.onchange = () => setRecentTxLimit(parseInt(limitSel.value, 10));
 }
 
 function switchLayoutEditorTab(id){
@@ -2293,9 +2327,14 @@ function renderTxList(){
   if(filtered.length === 0){
     if(state.transactions.length === 0 && !searchQuery && currentFilter==='all'){
       list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات بعد.', en:'No transactions yet.'})}<br><br>
-        <button class="btn-primary" onclick="document.querySelector('.fab-btn').click()" style="width:auto; padding:10px 20px; display:inline-block; margin-bottom:8px;">＋ ${t({ar:'أضف أول معاملة', en:'Add your first transaction'})}</button><br>
-        <button class="btn-secondary" onclick="openSettingsTab('data')" style="width:auto; padding:8px 16px; display:inline-block; font-size:var(--fs-sm);">⬆ ${t({ar:'استيراد من JSON', en:'Import from JSON'})}</button>
+        <button class="btn-primary empty-add-first" style="width:auto; padding:10px 20px; display:inline-block; margin-bottom:8px;">＋ ${t({ar:'أضف أول معاملة', en:'Add your first transaction'})}</button><br>
+        <button class="btn-secondary empty-import-json" style="width:auto; padding:8px 16px; display:inline-block; font-size:var(--fs-sm);">⬆ ${t({ar:'استيراد من JSON', en:'Import from JSON'})}</button>
       </div>`;
+      // property-bound (CSP blocks onclick= attributes in generated markup)
+      const addBtn = list.querySelector('.empty-add-first');
+      if(addBtn) addBtn.onclick = toggleAddDrawer;
+      const impBtn = list.querySelector('.empty-import-json');
+      if(impBtn) impBtn.onclick = () => openSettingsTab('data');
     } else {
       list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات', en:'No transactions'})}${searchQuery ? t({ar:' مطابقة لبحثك', en:' matching your search'}) : t({ar:' في هذه الفترة', en:' in this period'})}</div>`;
     }

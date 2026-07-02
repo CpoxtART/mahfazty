@@ -1687,7 +1687,11 @@ function exportData(){
     dismissedRecurring: Array.from(dismissedRecurring),
     deletedTxIds: deletedTxIds,
     subscriptions: subscriptions,
-    uiPrefs: collectUiPrefs()
+    uiPrefs: collectUiPrefs(),
+    // the quick-notes draft is UNENTERED transactions (its lines become txs
+    // later) — losing it on a device migration is real data loss, so it must
+    // survive the backup roundtrip like everything else.
+    quickNotes: _quickNotesDraft
   };
   const json = JSON.stringify(payload, null, 2);
   // Only mirror small payloads into the <textarea> — dumping multi-MB JSON into it
@@ -1938,6 +1942,13 @@ async function applyImport(text){
   if(data.lang === 'ar' || data.lang === 'en'){
     try{ setLang(data.lang); }catch(_){ }
   }
+  // restore the quick-notes draft (only when the backup carries a non-empty one —
+  // don't blank a local draft because an older backup predates the field)
+  if(typeof data.quickNotes === 'string' && data.quickNotes.trim()){
+    _quickNotesDraft = data.quickNotes;
+    saveQuickNotesDraft();
+    updateQuickNotesBadge();
+  }
   try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(Date.now())); }catch(_){ }
   prevSpendable = null; // reset animation baseline after full data replacement
 
@@ -2132,9 +2143,15 @@ async function wipeAll(){
   // mobile a fast double-tap could dismiss both confirms and wipe data by
   // accident. Requiring the user to type the confirmation word makes it a deliberate action.
   const _deleteWord = t({ar:'حذف', en:'DELETE'});
+  // When Drive sync is set up the wipe propagates: tombstones push to Drive and
+  // every other synced device deletes too. Users read this as "reset THIS phone"
+  // unless told otherwise — say it explicitly in the confirmation.
+  const _driveWarn = (typeof driveAccessToken !== 'undefined' && (driveAccessToken || driveClientId))
+    ? t({ar:'\nسيشمل الحذف نسخة Google Drive وكل الأجهزة المتزامنة أيضاً.', en:'\nThis also deletes the Google Drive copy and applies to every synced device.'})
+    : '';
   const answer = prompt(t({
-    ar: `⚠️ سيتم حذف جميع الأرصدة والمعاملات نهائياً ولا يمكن التراجع.\n\nاكتب كلمة "${_deleteWord}" للتأكيد:`,
-    en: `⚠️ This will permanently delete all balances and transactions. This cannot be undone.\n\nType "${_deleteWord}" to confirm:`,
+    ar: `⚠️ سيتم حذف جميع الأرصدة والمعاملات نهائياً ولا يمكن التراجع.${_driveWarn}\n\nاكتب كلمة "${_deleteWord}" للتأكيد:`,
+    en: `⚠️ This will permanently delete all balances and transactions. This cannot be undone.${_driveWarn}\n\nType "${_deleteWord}" to confirm:`,
   }));
   if(answer === null) return; // cancelled
   if(answer.trim() !== _deleteWord){ toast(t({ar:'أُلغي الحذف — لم تُكتب كلمة التأكيد بشكل صحيح', en:'Deletion cancelled — confirmation word was not typed correctly'})); return; }
@@ -2185,6 +2202,9 @@ async function wipeAll(){
   await saveTx();
   await saveConfig();
   await saveSubs();
+  // trackLinkMode was reset in memory above but lives in layout prefs — without
+  // this, a reload restores the pre-wipe link modes while Drive already got {}.
+  if(typeof saveLayoutPrefs === 'function') saveLayoutPrefs();
   closeModal('settingsModal');
   render();
   if(typeof renderTrackLinkPicker === 'function') renderTrackLinkPicker();
@@ -2661,6 +2681,9 @@ function applyUpdate(){
     clearTimeout(driveSyncTimer); driveSyncTimer = null;
     if(driveAccessToken){ try{ driveSyncToCloud(); }catch(_){} }
   }
+  // Flush the debounced IndexedDB write too — the SKIP_WAITING/controllerchange
+  // reload below can land inside the 400ms window and drop the last save.
+  flushIdbBackup();
   clearTimeout(_updateBannerTimer); _updateBannerTimer = null;
   _updateBannerShowing = false;
   const btn = document.getElementById('btnUpdateNow');
@@ -2674,8 +2697,16 @@ function applyUpdate(){
 }
 
 async function forceClearAndUpdate(){
+  // Offline guard: this wipes every cache bucket BEFORE re-fetching — run it
+  // with no network and the PWA has no cached shell to boot from (503 until
+  // connectivity returns). Refuse instead of bricking offline availability.
+  if(!navigator.onLine){
+    toast(t({ar:'⚠ لا يوجد اتصال بالإنترنت — التحديث القسري يحتاج الشبكة لإعادة تحميل الملفات', en:'⚠ No internet connection — force refresh needs the network to re-download files'}));
+    return;
+  }
   const btn = document.querySelector('.btn-cache-refresh');
   if(btn){ btn.disabled = true; btn.textContent = `⏳ ${t({ar:'جاري...', en:'Working...'})}`; }
+  flushIdbBackup(); // don't let the hard reload race the debounced save
   _reloadOnControllerChange = true; // also reload via controllerchange if the new SW takes over before our explicit reload below
   try{
     // Wipe every cache bucket the browser holds for this origin
@@ -3202,6 +3233,17 @@ document.addEventListener('visibilitychange', () => {
     // tab must not lose the most recent save waiting on the 400ms debounce
     flushIdbBackup();
   }
+});
+
+// visibilitychange alone is not enough: same-tab navigations and reloads
+// (update banner, forceClearAndUpdate, user F5) fire pagehide WITHOUT a
+// hidden-state transition in some browsers, and a few mobile browsers kill
+// the tab firing only pagehide. This is the flush the scheduleIdbBackup
+// comment promises — without it a transaction saved <400ms before a reload
+// dies with the debounce timer.
+window.addEventListener('pagehide', () => {
+  if(driveSyncTimer){ clearTimeout(driveSyncTimer); driveSyncTimer = null; if(driveAccessToken){ try{ driveSyncToCloud(); }catch(_){} } }
+  flushIdbBackup();
 });
 
 // Without this, going offline left the header showing whatever it last said

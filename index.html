@@ -511,7 +511,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <div class="hint hint--mb10" id="driveStatusText" data-i18n="set.driveDisabled">غير مفعّل — أدخل Client ID للبدء.</div>
         <div id="driveSetup">
           <label for="driveClientId">Google Client ID</label>
-          <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
+          <input type="text" id="driveClientId" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off" spellcheck="false" autocapitalize="off">
           <div class="modal-actions modal-actions--tight">
             <button class="btn-secondary" id="btnSaveDriveClientId" data-i18n="set.driveSaveId">حفظ Client ID</button>
           </div>

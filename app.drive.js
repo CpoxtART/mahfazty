@@ -923,15 +923,30 @@ async function resolveConflict(useCloud){
     await adoptCloudSnapshot(cloud);
     toast(t({ar:'☁️ تم استخدام نسخة Drive', en:'☁️ Used the Drive version'}));
   } else {
+    // The user explicitly rejected the cloud copy — mark it as "already seen"
+    // BEFORE pushing, or driveSyncToCloud()'s pre-push reconciliation
+    // (remoteEdited !== _driveLastSyncedEditedAt) union-merges the rejected
+    // cloud transactions back into local and uploads a hybrid instead of the
+    // "local version" the modal promised.
+    _driveLastSyncedEditedAt = (typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0) ? cloud.dataEditedAt : 0;
     await driveSyncToCloud();
     toast(t({ar:'☁️ تم رفع نسختك المحلية إلى Drive', en:'☁️ Uploaded your local version to Drive'}));
   }
 }
 
+let _driveManualSyncBusy = false;
 function driveManualSync(){
+  // busy-guard + in-place button feedback: the header sync badge is hidden
+  // behind the settings modal's backdrop, so without this the button looks
+  // dead for the whole upload and invites double-taps that queue duplicates.
+  if(_driveManualSyncBusy) return;
+  _driveManualSyncBusy = true;
+  const btn = document.getElementById('btnDriveSyncNow');
+  _setBtnSaving(btn, true, t({ar:'⏳ يزامن...', en:'⏳ Syncing...'}));
   // only toast success when the upload actually succeeded — driveSyncToCloud
   // catches its own errors (and toasts them), returning false on failure/queue
-  driveSyncToCloud().then(ok => { if(ok) toast(t({ar:'✓ تمت المزامنة مع Drive', en:'✓ Synced with Drive'})); });
+  driveSyncToCloud().then(ok => { if(ok) toast(t({ar:'✓ تمت المزامنة مع Drive', en:'✓ Synced with Drive'})); })
+    .finally(() => { _driveManualSyncBusy = false; _setBtnSaving(btn, false); });
 }
 
 // Debounced auto-sync: called after every local save
