@@ -29,6 +29,16 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.68',
+    date: '2026-07-02',
+    title: 'إغلاق المؤجلات — حذف لا يرتد، واستعادة حقيقية',
+    items: [
+      'متوسط: حذف اشتراك أو محفظة على جهاز ما عاد "يُبعث من الموت" من الجهاز الآخر المتزامن — أضيفت وسوم حذف (tombstones) للاشتراكات وتعريفات المحافظ تنتشر عبر Drive مثل المعاملات تماماً. محفظة موسومة بالحذف لكنها تحمل بيانات على جهازك تبقى حية (البيانات تغلب الحذف).',
+      'متوسط: استيراد نسخة احتياطية صار استبدالاً حقيقياً حتى مع Drive متصل — كل ما كان موجوداً قبل الاستيراد وغائب عن ملف النسخة يوسَم بالحذف، فلا يعيده الدمج السحابي التالي.',
+      'خفيف: قفل تمرير الخلفية خلف النوافذ صار مقاوماً لـ iOS Safari — تثبيت الصفحة بموضعها (position:fixed) بدل overflow:hidden الذي يتجاهله سفاري أثناء سحب الإصبع، مع استعادة موضع التمرير عند الإغلاق.',
+    ],
+  },
+  {
     version: 'v47.67',
     date: '2026-07-02',
     title: 'تدقيق عميق بزوايا جديدة — 15 إصلاحاً',
@@ -1059,10 +1069,27 @@ let dismissedRecurring = new Set();
 // Without these, a union merge would resurrect a transaction deleted on another
 // device. Pruned to the last 90 days so the set stays bounded.
 let deletedTxIds = {};
+// Same role for subscriptions and wallet definitions — mergeCloudData unions
+// both by id, so without tombstones a subscription/wallet deleted on device A
+// reappears from device B's copy on the very next sync, forever ping-ponging.
+let deletedSubIds = {};
+let deletedWalletDefIds = {};
 const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 function pruneTombstones(){
   const cutoff = Date.now() - TOMBSTONE_TTL_MS;
   for(const id in deletedTxIds){ if(!(deletedTxIds[id] > cutoff)) delete deletedTxIds[id]; }
+  for(const id in deletedSubIds){ if(!(deletedSubIds[id] > cutoff)) delete deletedSubIds[id]; }
+  for(const id in deletedWalletDefIds){ if(!(deletedWalletDefIds[id] > cutoff)) delete deletedWalletDefIds[id]; }
+}
+// Union a {id: deletedAtMs} tombstone map from an external snapshot (cloud/IDB/
+// import) into a local one — newest stamp wins, non-numeric entries dropped.
+function _unionTombstoneMap(local, incoming){
+  if(!incoming || typeof incoming !== 'object') return local;
+  for(const id in incoming){
+    const t = incoming[id];
+    if(typeof t === 'number' && (!local[id] || t > local[id])) local[id] = t;
+  }
+  return local;
 }
 
 /* v9.3 */
@@ -1215,6 +1242,36 @@ function escHtml(str){
     .replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;')
     .replace(/'/g,'&#x27;');
+}
+
+// Body scroll lock for modals/drawers. overflow:hidden alone is not enough on
+// iOS Safari — it keeps scrolling the page under a finger dragging the backdrop,
+// and the page jumps when the on-screen keyboard opens. Pin the body with
+// position:fixed at the current offset instead, and restore the offset on
+// unlock. Idempotent (a flag, not a counter) because both openModal and the add
+// drawer call lock, and both close paths already gate the unlock on
+// _anyOverlayOpen() — the LAST closer is the one that actually unlocks.
+let _bodyScrollLocked = false;
+let _bodyLockScrollY = 0;
+function lockBodyScroll(){
+  if(_bodyScrollLocked) return;
+  _bodyScrollLocked = true;
+  _bodyLockScrollY = window.scrollY || window.pageYOffset || 0;
+  const s = document.body.style;
+  s.overflow = 'hidden';
+  s.position = 'fixed';
+  s.top = (-_bodyLockScrollY) + 'px';
+  // left/right 0 (not width) so the body's own max-width + margin:auto keep
+  // centering it exactly as in normal flow
+  s.left = '0';
+  s.right = '0';
+}
+function unlockBodyScroll(){
+  if(!_bodyScrollLocked) return;
+  _bodyScrollLocked = false;
+  const s = document.body.style;
+  s.overflow = ''; s.position = ''; s.top = ''; s.left = ''; s.right = '';
+  window.scrollTo(0, _bodyLockScrollY);
 }
 
 // Short tactile pulse on meaningful actions (add/delete/toggle) — makes the app
@@ -1555,6 +1612,8 @@ async function loadState(){
       }
       dismissedRecurring = new Set(Array.isArray(c.dismissedRecurring) ? c.dismissedRecurring : []);
       if(c.deletedTxIds && typeof c.deletedTxIds === 'object') deletedTxIds = c.deletedTxIds;
+      if(c.deletedSubIds && typeof c.deletedSubIds === 'object') deletedSubIds = c.deletedSubIds;
+      if(c.deletedWalletDefIds && typeof c.deletedWalletDefIds === 'object') deletedWalletDefIds = c.deletedWalletDefIds;
       _lsHadConfig = true;
     }
   }catch(e){}
@@ -1636,6 +1695,8 @@ async function loadState(){
         if(typeof t === 'number' && (!deletedTxIds[id] || t > deletedTxIds[id])) deletedTxIds[id] = t;
       }
     }
+    _unionTombstoneMap(deletedSubIds, _idb.deletedSubIds);
+    _unionTombstoneMap(deletedWalletDefIds, _idb.deletedWalletDefIds);
     if(Array.isArray(_idb.subscriptions)){
       try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(_idb.subscriptions)); }catch(e){}
     }
@@ -1721,10 +1782,15 @@ function mergeCloudData(cloud, cloudNewer){
   //    cloudNewer) so a wallet added on the OTHER device is already known
   //    locally before validTx below runs; otherwise its transactions would be
   //    silently rejected as "unknown wallet" and lost on this device.
+  // union wallet-def tombstones from the cloud FIRST so both the "add cloud-only
+  // defs" step below and the local-removal step after the tx merge see them
+  _unionTombstoneMap(deletedWalletDefIds, cloud.deletedWalletDefIds);
   const cloudWD = Array.isArray(cloud.walletDefs) ? sanitizeWalletDefs(cloud.walletDefs) : null;
   if(cloudWD){
     const localIds = new Set(WALLET_DEFS.map(w => w.id));
-    const onlyOnCloud = cloudWD.filter(w => !localIds.has(w.id));
+    // a def that exists only on the cloud AND is tombstoned is a deletion still
+    // propagating — re-adding it here is exactly the resurrection bug
+    const onlyOnCloud = cloudWD.filter(w => !localIds.has(w.id) && !deletedWalletDefIds[w.id]);
     if(onlyOnCloud.length){
       const merged = WALLET_DEFS.concat(onlyOnCloud);
       applyWalletDefs(merged);
@@ -1803,11 +1869,38 @@ function mergeCloudData(cloud, cloudNewer){
   }
   _allTxSortedCache = null;
 
-  // 4) merge subscriptions by id (union; cloud wins on a true id clash)
+  // 3b) apply wallet-def tombstones to LOCAL defs, now that the merged ledger is
+  //     known: drop a tombstoned local def only when nothing references it —
+  //     no transactions and a zero balance ('core' is structural, never dropped).
+  //     A tombstoned wallet that still holds data keeps living on this device;
+  //     data beats a stale deletion.
+  {
+    const doomed = [];
+    WALLET_DEFS.forEach(w => {
+      if(!deletedWalletDefIds[w.id]) return;
+      const hasData = w.id === 'core' || Math.abs(state.wallets[w.id] || 0) > 0 ||
+        state.transactions.some(t => t.wallet === w.id);
+      // tombstoned but still holding data → legitimately alive on this device;
+      // clear the local tombstone so it stops being treated as pending-delete.
+      if(hasData) delete deletedWalletDefIds[w.id];
+      else doomed.push(w);
+    });
+    if(doomed.length){
+      const doomedIds = new Set(doomed.map(w => w.id));
+      applyWalletDefs(WALLET_DEFS.filter(w => !doomedIds.has(w.id)));
+      doomed.forEach(w => { delete state.wallets[w.id]; delete budgets[w.id]; delete trackLinkMode[w.id]; });
+      DISTRIBUTION = DISTRIBUTION.filter(d => !doomedIds.has(d.id));
+    }
+  }
+
+  // 4) merge subscriptions by id (union; cloud wins on a true id clash),
+  //    skipping anything tombstoned on either side so deletes propagate
+  //    instead of ping-ponging back from the other device's copy.
+  _unionTombstoneMap(deletedSubIds, cloud.deletedSubIds);
   const subById = new Map();
-  subscriptions.forEach(s => subById.set(s.id, s));
+  subscriptions.forEach(s => { if(!deletedSubIds[s.id]) subById.set(s.id, s); });
   (Array.isArray(cloud.subscriptions) ? cloud.subscriptions : []).forEach(s => {
-    if(s && s.id && s.name && isFinite(s.amount) && s.amount > 0) subById.set(s.id, _normalizeSub(s));
+    if(s && s.id && s.name && isFinite(s.amount) && s.amount > 0 && !deletedSubIds[s.id]) subById.set(s.id, _normalizeSub(s));
   });
   subscriptions = [...subById.values()];
 
@@ -1911,7 +2004,7 @@ async function saveConfig(){
   pruneTombstones();
   let ok = false;
   try{
-    localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION, deletedTxIds: deletedTxIds}));
+    localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION, deletedTxIds: deletedTxIds, deletedSubIds: deletedSubIds, deletedWalletDefIds: deletedWalletDefIds}));
     localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts));
     ok = true;
   }catch(e){ toast(t({ar:'⚠ فشل حفظ الإعدادات محليًا', en:'⚠ Failed to save settings locally'}), true); }
@@ -2025,6 +2118,11 @@ async function idbBackup(savedAt){
           }
           deletedTxIds = mergedTombstones;
         }
+        // same cross-tab union for the sub / wallet-def tombstone maps
+        if(existing){
+          _unionTombstoneMap(deletedSubIds, existing.deletedSubIds);
+          _unionTombstoneMap(deletedWalletDefIds, existing.deletedWalletDefIds);
+        }
         if(existing && Array.isArray(existing.transactions)){
           const byId = new Map();
           state.transactions.forEach(t => { if(t && t.id && !mergedTombstones[t.id]) byId.set(t.id, t); });
@@ -2048,6 +2146,8 @@ async function idbBackup(savedAt){
           distribution: DISTRIBUTION,
           dismissedRecurring: Array.from(dismissedRecurring),
           deletedTxIds: mergedTombstones,
+          deletedSubIds: deletedSubIds,
+          deletedWalletDefIds: deletedWalletDefIds,
           subscriptions: subscriptions,
           // mirrored so a wiped localStorage can still recover "Drive was connected"
           // (see loadState) instead of Drive sync silently going dark with no UI cue

@@ -420,6 +420,9 @@ async function deleteWalletDef(id){
   _saveWalletDefBusy = true;
   _opInFlight++;
   try{
+    // tombstone so merge sync propagates the deletion instead of the other
+    // device's copy re-adding this wallet on the next union merge
+    deletedWalletDefIds[id] = Date.now();
     applyWalletDefs(WALLET_DEFS.filter(x => x.id !== id));
     delete state.wallets[id];
     if(!w.track){ DISTRIBUTION = DISTRIBUTION.filter(d => d.id !== id); }
@@ -922,7 +925,7 @@ function openAddDrawer(){
   // in app.logic.js for why) — the real focus-in-drawer happens a frame later below.
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
   _setBackgroundHidden(true);
-  document.body.style.overflow = 'hidden';
+  lockBodyScroll();
   capDateInputsToToday();
   // Same back-button bookkeeping as openModal/closeModal (see app.logic.js) so
   // hardware/gesture back closes the drawer instead of navigating away. Guarded
@@ -944,7 +947,7 @@ function closeAddDrawer(){
   addDrawerOpen = false;
   document.getElementById('addDrawer').classList.remove('open');
   document.getElementById('addDrawerOverlay').classList.remove('open');
-  if(!_anyOverlayOpen()){ document.body.style.overflow = ''; _setBackgroundHidden(false); }
+  if(!_anyOverlayOpen()){ unlockBodyScroll(); _setBackgroundHidden(false); }
   // Closing via the back button skips the click-outside handler that normally
   // collapses this dropdown, so it could otherwise show pre-expanded the next
   // time the drawer opens (same fix as closeModal's editWalletMenuWrap cleanup).
@@ -1225,8 +1228,12 @@ async function deleteSubModal(){
   _saveSubBusy = true;
   _opInFlight++;
   try{
+    // tombstone so the deletion propagates through merge sync instead of the
+    // other device's copy resurrecting it on the next union merge
+    deletedSubIds[editingSubId] = Date.now();
     subscriptions = subscriptions.filter(s=>s.id!==editingSubId);
     await saveSubs();
+    await saveConfig(); // tombstones live in config
     renderSubscriptions();
     closeModal('subModal');
     toast(t({ar:'🗑 تم حذف الاشتراك', en:'🗑 Subscription deleted'}));

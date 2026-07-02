@@ -1443,7 +1443,7 @@ function openModal(id){
   _setBackgroundHidden(true);
   // lock background scroll so the page behind the sheet doesn't move while a
   // modal (and the on-screen keyboard) is open on mobile
-  document.body.style.overflow = 'hidden';
+  lockBodyScroll();
   if(id==='settingsModal'){
     if(typeof _distDraft !== 'undefined') _distDraft = null; // fresh draft each time settings opens
     updateSettingsStats();
@@ -1470,7 +1470,7 @@ function closeModal(id){
   const wasOpen = modal.classList.contains('open');
   modal.classList.remove('open');
   // restore background scroll/aria-hidden only once no modal/drawer remains open
-  if(!_anyOverlayOpen()){ document.body.style.overflow = ''; _setBackgroundHidden(false); }
+  if(!_anyOverlayOpen()){ unlockBodyScroll(); _setBackgroundHidden(false); }
   if(id === 'editModal'){
     editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id;
     _editingDistSource = false; _editingTransferLeg = false; // reset so the next openEdit() starts clean
@@ -1686,6 +1686,8 @@ function exportData(){
     distribution: DISTRIBUTION,
     dismissedRecurring: Array.from(dismissedRecurring),
     deletedTxIds: deletedTxIds,
+    deletedSubIds: deletedSubIds,
+    deletedWalletDefIds: deletedWalletDefIds,
     subscriptions: subscriptions,
     uiPrefs: collectUiPrefs(),
     // the quick-notes draft is UNENTERED transactions (its lines become txs
@@ -1811,6 +1813,13 @@ async function applyImport(text){
   _opInFlight++; // block the cross-tab storage reload mid-import, same as other wholesale replacements
   try{
 
+  // Snapshot what exists BEFORE the import so anything absent from the backup
+  // can be tombstoned afterwards — without that, "replace all current data" is
+  // a lie whenever Drive is connected: the next push re-pulls the old cloud
+  // copy and union-merges every rolled-away transaction right back in.
+  const _preImportTxIds = state.transactions.map(t => t && t.id).filter(Boolean);
+  const _preImportSubIds = subscriptions.map(s => s && s.id).filter(Boolean);
+
   // wallet defs are part of the same wholesale snapshot — replace BEFORE the
   // wallets/transactions validation below, since both reference WALLET_DEFS
   // by id (a custom wallet from the backup would otherwise look "unknown").
@@ -1917,6 +1926,20 @@ async function applyImport(text){
   if(Array.isArray(data.subscriptions)){
     subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
+  // roundtrip the sub/wallet-def tombstone maps carried by newer backups
+  _unionTombstoneMap(deletedSubIds, data.deletedSubIds);
+  _unionTombstoneMap(deletedWalletDefIds, data.deletedWalletDefIds);
+  // Tombstone everything that existed before the import and is absent from the
+  // backup — this is what makes "استبدال كل البيانات الحالية" hold up against
+  // the Drive union-merge (see the pre-import snapshot at the top).
+  {
+    const _now = Date.now();
+    const _importedTxIds = new Set(state.transactions.map(t => t.id));
+    _preImportTxIds.forEach(id => { if(!_importedTxIds.has(id)) deletedTxIds[id] = _now; });
+    const _importedSubIds = new Set(subscriptions.map(s => s.id));
+    _preImportSubIds.forEach(id => { if(!_importedSubIds.has(id)) deletedSubIds[id] = _now; });
+    pruneTombstones();
+  }
   if(data.uiPrefs) applyUiPrefs(data.uiPrefs);
   // clear any in-flight selection/edit pointers that now reference replaced/deleted txs
   editingTxId = null;
@@ -2017,8 +2040,12 @@ async function clearAllSubscriptions(){
   if(!confirm(t({ar:`سيتم حذف جميع الاشتراكات (${subscriptions.length}). لا يمكن التراجع.\n\nهل تريد المتابعة؟`, en:`This will delete all subscriptions (${subscriptions.length}). This cannot be undone.\n\nContinue?`}))) return;
   _opInFlight++;
   try{
+    // tombstone each so the wipe propagates through merge sync (see deleteSubModal)
+    const _now = Date.now();
+    subscriptions.forEach(s => { if(s && s.id) deletedSubIds[s.id] = _now; });
     subscriptions = [];
     await saveSubs();
+    await saveConfig(); // tombstones live in config
     render(true);
     toast(t({ar:'✓ تم حذف كل الاشتراكات', en:'✓ All subscriptions deleted'}));
   } finally { _opInFlight--; }
@@ -2164,6 +2191,7 @@ async function wipeAll(){
   // (the old behaviour) let a cloud/other-device copy resurrect everything.
   const _wipeNow = Date.now();
   state.transactions.forEach(t => { if(t && t.id) deletedTxIds[t.id] = _wipeNow; });
+  subscriptions.forEach(s => { if(s && s.id) deletedSubIds[s.id] = _wipeNow; }); // subs are wiped below — propagate that too
   pruneTombstones(); // trim expired entries so the bulk addition doesn't push config over quota
   WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
   state.transactions = [];

@@ -679,6 +679,8 @@ async function driveSyncToCloud(){
       distribution: DISTRIBUTION,
       dismissedRecurring: Array.from(dismissedRecurring),
       deletedTxIds: deletedTxIds,
+      deletedSubIds: deletedSubIds,
+      deletedWalletDefIds: deletedWalletDefIds,
       subscriptions: subscriptions,
       uiPrefs: collectUiPrefs()
     });
@@ -789,6 +791,12 @@ async function adoptCloudSnapshot(cloud){
       if(typeof t === 'number' && isFinite(t) && t > 0) deletedTxIds[id] = t;
     }
   }
+  // wholesale adopt = take the cloud's tombstone maps too, so a deletion still
+  // propagating to other devices isn't forgotten by the device that just adopted
+  deletedSubIds = {};
+  _unionTombstoneMap(deletedSubIds, cloud.deletedSubIds);
+  deletedWalletDefIds = {};
+  _unionTombstoneMap(deletedWalletDefIds, cloud.deletedWalletDefIds);
   if(Array.isArray(cloud.subscriptions)){
     subscriptions = cloud.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
