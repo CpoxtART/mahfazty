@@ -29,6 +29,16 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.73',
+    date: '2026-07-03',
+    title: { ar: 'فواصل الآلاف التلقائية + إصلاح تعرّف الملاحظات على المحافظ', en: 'Automatic thousands separators + fixed wallet recognition in Quick Notes' },
+    items: [
+      { ar: 'جديد: حقول المبلغ تُنسّق الآن تلقائياً بفواصل الآلاف وأنت تكتب — "1000" تصبح "1,000"، وهكذا حتى المليارات، في نموذج الإضافة والتعديل والتحويل والاشتراكات وميزانية المحفظة ومزامنة الرصيد وأسطر الملاحظات السريعة. المؤشر يبقى في مكانه الصحيح أثناء الكتابة حتى لو عدّلت رقماً في المنتصف.', en: 'New: amount fields now auto-format with thousands separators as you type — "1000" becomes "1,000", up through the billions — in the add form, edit modal, transfer, subscriptions, wallet budget, balance sync, and Quick Notes rows. The cursor stays exactly where it should even when editing a digit in the middle of a number.' },
+      { ar: 'إصلاح: الملاحظات السريعة كانت تفشل في التعرف على أي محفظة إذا كانت الكلمة الأخيرة بالسطر غير معروفة — حتى لو كانت الكلمة قبلها اسم محفظة صحيحاً (مثال: «...المتعة كاردز» كانت تفشل بالكامل لأن «كاردز» غير معروفة، رغم أن «المتعة» صحيحة). أُضيف «كاردز» و«كارد» كأسماء بديلة لمحفظة البطاقات.', en: 'Fix: Quick Notes failed to recognize ANY wallet if the line\'s last word wasn\'t a known alias — even when the word right before it WAS a valid wallet name (e.g. "...Joy Cardz" failed entirely because "Cardz" was unrecognized, even though "Joy" was valid). Added "كاردز"/"كارد" as Arabic aliases for the Cards wallet.' },
+      { ar: 'إصلاح ثانوي: رقم ملتصق مباشرة بحرف جر عربي («ب500» بدون مسافة) كان يترك ذلك الحرف عالقاً وحيداً في وصف المعاملة بعد حذف الرقم — أُصلح.', en: 'Minor fix: a number glued directly to a leading Arabic preposition ("ب500", no space) used to leave that single letter stranded in the transaction description after the number was removed — fixed.' },
+    ],
+  },
+  {
     version: 'v47.72',
     date: '2026-07-03',
     title: { ar: 'صيانة داخلية: تقسيم الكود لملفات أصغر وأنظف', en: 'Internal maintenance: splitting the code into smaller, cleaner files' },
@@ -1289,6 +1299,72 @@ function parseAmount(str){
   const v = parseFloat(norm);
   if(!isFinite(v) || Math.abs(v) > MAX_AMOUNT) return NaN;
   return v;
+}
+
+// Pure string transform behind liveFormatThousands()/groupThousandsDisplay()
+// below: normalizes all digits to ASCII (matching fmt()'s display convention
+// everywhere else in the app) and inserts "," every 3 digits in the integer
+// part. "." or Arabic "٫" both mean "decimal point here" and normalize to
+// "." — the digits after it are normalized but never regrouped, so an
+// in-progress "1,000." isn't fought while more digits are still being typed.
+const _toAsciiDigits = s => s.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+                              .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0));
+function groupThousands(str){
+  let raw = _toAsciiDigits(String(str == null ? '' : str)).replace(/[,٬]/g, ''); // drop existing grouping
+  const decIdx = raw.search(/[.٫]/);
+  let intPart = decIdx === -1 ? raw : raw.slice(0, decIdx);
+  const decPart = decIdx === -1 ? '' : '.' + raw.slice(decIdx + 1).replace(/[^\d]/g, '');
+  const isNeg = intPart.startsWith('-');
+  if(isNeg) intPart = intPart.slice(1);
+  intPart = intPart.replace(/[^\d]/g, ''); // drop anything else that slipped through
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (isNeg ? '-' : '') + grouped + decPart;
+}
+// One-shot grouping for a value being written into an input's HTML (not live
+// typing) — e.g. pre-filling the Quick Notes preview row from a parsed
+// amount. No cursor to preserve, so this is just groupThousands() with a
+// friendlier name at call sites.
+function groupThousandsDisplay(n){
+  return groupThousands(String(n == null ? '' : n));
+}
+// Live thousands-separator formatting for money <input>s: as the user types,
+// "1000" becomes "1,000", "1000000" becomes "1,000,000", etc. — the grouping
+// regex handles any magnitude (millions/billions/trillions) with no
+// special-casing. Meant to be wired via `el.addEventListener('input', () =>
+// liveFormatThousands(el))`; every other 'input' listener on the same field
+// keeps working unmodified because it reads the value through parseAmount(),
+// which already tolerates thousands separators (normalizeDigits strips them).
+//
+// Arabic-Indic/Persian digits the user types are normalized to ASCII as part
+// of formatting — matching fmt()'s display convention everywhere else in the
+// app (money is always *shown* in ASCII digits) — so typing "١٠٠٠" also
+// becomes "1,000" live.
+//
+// Cursor handling: naively reformatting on every keystroke jumps the caret to
+// the end, which is unusable once a comma is inserted before the point the
+// user is typing. Fixed by counting digits before the caret in the OLD value,
+// then placing the caret after that many digits in the NEW (regrouped) value
+// — comma insertions shift position but never change digit count or order.
+function liveFormatThousands(el){
+  const oldValue = el.value;
+  const oldPos = el.selectionStart == null ? oldValue.length : el.selectionStart;
+  const isDigit = ch => /[\d٠-٩۰-۹]/.test(ch);
+  let digitsBeforeCaret = 0;
+  for(let i = 0; i < oldPos && i < oldValue.length; i++){ if(isDigit(oldValue[i])) digitsBeforeCaret++; }
+
+  const newValue = groupThousands(oldValue);
+  if(newValue === oldValue) return; // no change — leave the caret alone
+  el.value = newValue;
+  let count = 0, newPos = newValue.length;
+  if(digitsBeforeCaret === 0){
+    newPos = 0;
+  } else {
+    for(let i = 0; i < newValue.length; i++){
+      if(isDigit(newValue[i])) count++;
+      if(count === digitsBeforeCaret){ newPos = i + 1; break; }
+    }
+  }
+  try{ el.setSelectionRange(newPos, newPos); }catch(_){} // some input states disallow it (e.g. type=number, unused here)
 }
 
 // Shared by escHtml() and any other text that ends up displayed/rendered

@@ -88,7 +88,7 @@ const _QN_BUILTIN_WALLET_ALIASES = {
   giving:      ['العطاء'],
   crisis_fund: ['الاحتياطي','الاحتياطي المدمج'],
   uber:        ['اوبر'],
-  cards:       ['البطاقات','بطاقات البنك','بطاقات بنكية'],
+  cards:       ['البطاقات','بطاقات البنك','بطاقات بنكية','كاردز','كارد','الكاردز'],
   cash:        ['كاش','نقدي','نقدا'],
 };
 function _qnWalletMatchList(){
@@ -176,8 +176,18 @@ function parseQuickNotes(text){
     const amtRaw = nums[nums.length-1];           // amount = last number (description comes first)
     const amount = round2(parseAmount(amtRaw));   // parseAmount folds Arabic/Persian digits itself
     let desc = line;
-    const idx = desc.lastIndexOf(amtRaw);
-    if(idx >= 0) desc = desc.slice(0, idx) + desc.slice(idx + amtRaw.length);
+    const numEnd = desc.lastIndexOf(amtRaw);
+    let cutStart = numEnd;
+    // A number glued directly to a leading Arabic preposition ("ب500" = "for
+    // 500", no space) otherwise leaves that single letter orphaned once the
+    // number itself is cut out ("...مكسرات ب500" → "...مكسرات ب"). Same
+    // glued-clitic set _qnCliticVariants uses elsewhere for wallet names —
+    // extend the cut backward over the clitic when it's a standalone
+    // one-letter "word" (preceded by start-of-string or whitespace).
+    if(cutStart > 0 && /[بلكفو]/.test(desc[cutStart-1]) && (cutStart === 1 || /\s/.test(desc[cutStart-2]))){
+      cutStart -= 1;
+    }
+    if(numEnd >= 0) desc = desc.slice(0, cutStart) + desc.slice(numEnd + amtRaw.length);
     desc = desc.replace(/\+/g,' ').replace(/\s+/g,' ').trim();
     desc = desc.replace(/(ريال|ر\.?\s?س|درهم|دينار|جنيه|sar|usd|riyal|\$)\s*$/i,'').trim(); // drop a trailing currency word
     const valid = isFinite(amount) && amount > 0;
@@ -437,7 +447,7 @@ function renderQuickNotesPreview(){
         `<span class="qn-row-cat" role="img" aria-label="${escHtml(cat.name)}" title="${escHtml(cat.name)}">${cat.icon}</span>` +
         `<span class="qn-wlabel" aria-hidden="true">👛</span>` +
         `<div class="custom-select qn-cs qn-cs-primary" data-i="${i}" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="${escHtml(t({ar:'المحفظة الرئيسية لهذا السطر', en:'Primary wallet for this line'}))}"><span class="qn-cs-label">${escHtml(primaryName)}</span><span class="arrow">▾</span></div>` +
-        `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? r.amount : ''}" placeholder="0" autocomplete="off" aria-invalid="${!r.valid}" aria-label="${escHtml(t({ar:'المبلغ', en:'Amount'}))}"${r.valid ? '' : ` aria-describedby="qnRowWarn${i}"`}>` +
+        `<input class="qn-row-amt" data-i="${i}" inputmode="decimal" value="${r.valid ? groupThousandsDisplay(r.amount) : ''}" placeholder="0" autocomplete="off" aria-invalid="${!r.valid}" aria-label="${escHtml(t({ar:'المبلغ', en:'Amount'}))}"${r.valid ? '' : ` aria-describedby="qnRowWarn${i}"`}>` +
       `</div>` +
       (tracks.length ? `<div class="qn-row-track-row">` +
         `<span class="qn-wlabel" aria-hidden="true">🏦</span>` +
@@ -487,6 +497,7 @@ function renderQuickNotesPreview(){
     });
   }));
   list.querySelectorAll('.qn-row-amt').forEach(inp => inp.oninput = () => {
+    liveFormatThousands(inp); // "1000" -> "1,000" as the user types
     const i = +inp.dataset.i;
     const v = round2(parseAmount(inp.value));
     _qnPreview[i].amount = v;

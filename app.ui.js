@@ -848,7 +848,7 @@ function openSubModal(id){
   const sub = id ? subscriptions.find(s=>s.id===id) : null;
   document.getElementById('subModalTitle').textContent = sub ? t('sub.editTitle') : t('sub.title');
   document.getElementById('subName').value = sub ? sub.name : '';
-  document.getElementById('subAmount').value = sub ? sub.amount : '';
+  document.getElementById('subAmount').value = sub ? groupThousandsDisplay(sub.amount) : '';
   document.getElementById('subBillingDay').value = sub ? (sub.billingDay||'') : '';
   const activeEl = document.getElementById('subActive');
   if(activeEl) activeEl.checked = sub ? (sub.active !== false) : true;
@@ -1418,7 +1418,7 @@ function openWalletDetail(walletId){
   } else {
     updateWrap.style.display = 'none';
     budgetWrap.style.display = 'block';
-    document.getElementById('detailBudgetInput').value = budgets[walletId] || '';
+    document.getElementById('detailBudgetInput').value = budgets[walletId] ? groupThousandsDisplay(budgets[walletId]) : '';
   }
 
   const txs = state.transactions.filter(t=>t.wallet===walletId).sort((a,b)=>b.ts-a.ts);

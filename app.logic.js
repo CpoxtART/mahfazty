@@ -395,7 +395,7 @@ function openEdit(id){
   _ewb.tabIndex = _editingTransferLeg ? -1 : 0;
   _ewb.setAttribute('aria-disabled', String(!!_editingTransferLeg));
   document.getElementById('editDesc').value = tx.desc || '';
-  document.getElementById('editAmount').value = (Number(tx.amount) || 0).toFixed(2); // match the 2-decimal display used everywhere else
+  document.getElementById('editAmount').value = groupThousandsDisplay((Number(tx.amount) || 0).toFixed(2)); // match the 2-decimal display used everywhere else
   const d = new Date(tx.ts);
   document.getElementById('editDate').value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   openModal('editModal');
@@ -916,6 +916,13 @@ function _bindEvents(){
     on(el,'click',e=>{ if(!e.detail && el._kbdEchoAt && Date.now() - el._kbdEchoAt < 1000) return; fn(e); });
     on(el,'keydown',e=>{ if(e.key==='Enter'||e.key===' '){ el._kbdEchoAt = Date.now(); e.preventDefault(); fn(e); } });
   };
+  // Live thousands-separator formatting ("1000" -> "1,000" as you type) on
+  // every static money field. Added as an extra 'input' listener alongside
+  // whatever else already listens on these fields — safe regardless of
+  // firing order, since every reader goes through parseAmount(), which
+  // already tolerates grouped input.
+  ['amountInput','editAmount','transferAmount','subAmount','detailBudgetInput','detailNewBalance']
+    .forEach(id => on($(id), 'input', () => liveFormatThousands($(id))));
 
   // Header
   on($('themeToggle'),'click',toggleTheme);
