@@ -29,6 +29,15 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.72',
+    date: '2026-07-03',
+    title: { ar: 'صيانة داخلية: تقسيم الكود لملفات أصغر وأنظف', en: 'Internal maintenance: splitting the code into smaller, cleaner files' },
+    items: [
+      { ar: 'صيانة: أكبر ملفين في التطبيق (app.logic.js بـ 3489 سطراً، app.ui.js بـ 2549 سطراً) قُسِّما إلى 7 ملفات أصغر ومتخصصة — الملاحظات السريعة، النوافذ المنبثقة وسجل التصفح، إدارة البيانات (تصدير/استيراد/تصفير/إصلاح)، الترحيب والمراجعة اليومية، دورة حياة PWA، الإدخال الصوتي، وتخصيص الترتيب — كل ملف بنطاق واحد واضح. لا تغيير في أي سلوك ظاهر؛ فقط إعادة تنظيم لسهولة الصيانة المستقبلية.', en: "Maintenance: the app's two largest files (app.logic.js at 3489 lines, app.ui.js at 2549 lines) were split into 7 smaller, focused files — Quick Notes, modals & back-button history, data management (export/import/reset/repair), onboarding & daily review, PWA lifecycle, voice input, and layout customization — each with one clear scope. No visible behavior change; purely a reorganization for easier future maintenance." },
+      { ar: 'إصلاح ثانوي مكتشف أثناء الصيانة: دالة ترتيب التبويبات/الأقسام (sanitizeOrder) كانت تخطئ أحياناً في تحديد موضع عنصر مفقود عند تطابق رقمي عرضي بين حسابين داخليين — أُصلح.', en: 'Minor fix found during maintenance: the tab/section ordering function (sanitizeOrder) could occasionally misplace a missing item when two internal calculations happened to produce the same number — fixed.' },
+    ],
+  },
+  {
     version: 'v47.71',
     date: '2026-07-03',
     title: { ar: 'إصلاح حرج: تصفير رصيد المحفظة كان يرتد بعد المزامنة', en: 'Critical fix: zeroing a wallet balance was reverting after sync' },

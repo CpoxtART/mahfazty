@@ -21,7 +21,11 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 // Same order the browser loads them in (index.html) — top-level const/let are
 // shared lexically only when run as ONE script, mirroring real <script> tags.
-const FILES = ['i18n.js', 'app.core.js', 'app.ui.js', 'app.charts.js', 'app.drive.js', 'app.logic.js'];
+const FILES = [
+  'i18n.js', 'app.core.js', 'app.ui.js', 'app.voice.js', 'app.layout.js',
+  'app.charts.js', 'app.drive.js', 'app.quicknotes.js', 'app.data.js',
+  'app.engage.js', 'app.pwa.js', 'app.overlay.js', 'app.logic.js',
+];
 
 const handler = {
   get(_t, prop) {

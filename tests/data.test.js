@@ -51,7 +51,15 @@ test('sanitizeOrder — keeps valid keys, appends missing, dedupes', () => {
   // spread into a host-realm array — values returned from the vm sandbox carry
   // the sandbox's Array.prototype, which deepStrictEqual treats as unequal.
   assert.deepEqual([...app.sanitizeOrder(['c', 'a'], def)], ['c', 'a', 'b']);
-  assert.deepEqual([...app.sanitizeOrder(['z', 'b', 'b'], def)], ['b', 'a', 'c']);
+  // 'b' is present; 'a' (no earlier default neighbor present) inserts before the
+  // nearest later present key ('b'); 'c' (whose earlier neighbor 'b' is now
+  // present) inserts right after it — 'a','b','c'. This value was corrected
+  // alongside a real bug in sanitizeOrder() itself: the old code used
+  // `insertAt === valid.length` to mean "the backward loop found nothing", but a
+  // legitimate backward-loop result can coincide numerically with valid.length,
+  // wrongly re-running the forward loop and silently overwriting a correct
+  // position (see app.layout.js).
+  assert.deepEqual([...app.sanitizeOrder(['z', 'b', 'b'], def)], ['a', 'b', 'c']);
   assert.deepEqual([...app.sanitizeOrder(null, def)], ['a', 'b', 'c']);
 });
 

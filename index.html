@@ -1026,15 +1026,24 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 })();
 </script>
 <!-- app split into ordered classic scripts (shared global scope, equivalent to
-     the old single app.js). Load order matters: core → ui → charts → drive →
-     logic (bootstrap). app.charts.js (canvas charts) and app.drive.js (Google
-     Drive sync) were split out of app.ui.js / app.logic.js; both must precede
-     app.logic.js so their declarations are in scope when its bottom-of-file
-     init runs (and app.logic.js reassigns app.charts.js's _pieChartSig). -->
+     the old single app.js). app.logic.js's bottom-of-file init (_bindEvents(),
+     loadState().then(...)) must run LAST, after every renderer/handler it
+     references exists — everything else just needs to precede it; nothing here
+     is called at another file's PARSE time except app.overlay.js's one
+     _wireGrabber(..., closeAddDrawer) call, which is why app.overlay.js must
+     load after app.ui.js. All cross-file calls elsewhere happen from event
+     handlers or render()/boot, well after every script below has finished. -->
 <script src="i18n.js"></script>
 <script src="app.core.js"></script>
 <script src="app.ui.js"></script>
+<script src="app.voice.js"></script>
+<script src="app.layout.js"></script>
 <script src="app.charts.js"></script>
 <script src="app.drive.js"></script>
+<script src="app.quicknotes.js"></script>
+<script src="app.data.js"></script>
+<script src="app.engage.js"></script>
+<script src="app.pwa.js"></script>
+<script src="app.overlay.js"></script>
 <script src="app.logic.js"></script>
 </body></html>

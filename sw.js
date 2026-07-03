@@ -1,9 +1,11 @@
-const CACHE = 'mhfzty-v47.71';
+const CACHE = 'mhfzty-v47.72';
 // Note: sw.js itself is intentionally NOT precached — the browser fetches and
 // byte-compares it directly to drive updates; caching it via the Cache API is a
 // no-op at best and can interfere with that update check.
 const PRECACHE = [
-  './index.html', './style.css', './i18n.js', './app.core.js', './app.ui.js', './app.charts.js', './app.drive.js', './app.logic.js',
+  './index.html', './style.css', './i18n.js', './app.core.js', './app.ui.js', './app.voice.js', './app.layout.js',
+  './app.charts.js', './app.drive.js', './app.quicknotes.js', './app.data.js', './app.engage.js', './app.pwa.js',
+  './app.overlay.js', './app.logic.js',
   // referenced from index.html's <head> (favicon/apple-touch-icon) and footer
   // (privacy/terms) — omitted before, undermining the "works offline from the
   // very first visit" guarantee the install handler below is meant to provide.
