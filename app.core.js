@@ -5,12 +5,14 @@
 const LS_PREFIX = 'walletTracker_';
 
 const WALLET_DEFS = [
-  {id:'core',        name:'Core Expenses',       initial:0, track:false, pct:'55%'},
+  {id:'core',        name:'Core Expenses',       initial:0, track:false, pct:'50%'},
   {id:'wishlist',    name:'Wishlist',            initial:0, track:false, pct:'10%'},
   {id:'growth',      name:'Growth',              initial:0, track:false, pct:'10%'},
   {id:'investments', name:'Investments',         initial:0, track:false, pct:'10%'},
   {id:'joy',         name:'Joy of Life',         initial:0, track:false, pct:'10%'},
   {id:'giving',      name:'Giving',              initial:0, track:false, pct:'5%'},
+  // reinstated in v47.75 as a permanent default (was folded into Core in v47.31)
+  {id:'reserve',     name:'Reserve',             initial:0, track:false, pct:'5%'},
   // crisisOnly: hidden in normal mode, appears only when crisis/alternative mode is active
   {id:'crisis_fund', name:'Merged Reserve',      initial:0, track:false, crisisOnly:true},
   {id:'uber',        name:'Uber',                initial:0, track:true,  pct:'تتبع'},
@@ -28,6 +30,15 @@ const WALLET_DEFS = [
 // whole number — v47.1, v47.2, v47.3, ... up to v47.99 — then roll over to
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
+  {
+    version: 'v47.75',
+    date: '2026-07-03',
+    title: { ar: '«Reserve» عادت محفظة افتراضية دائمة بنسبة 5%', en: '"Reserve" is a permanent default wallet again, with a 5% share' },
+    items: [
+      { ar: 'تغيير (بطلب مستخدم): محفظة "Reserve" — التي أُلغيت في v47.31 ودُمجت نسبتها (5%) مع Core Expenses — عادت الآن كمحفظة افتراضية دائمة بنسبة توزيع 5% ثابتة، وCore Expenses رجعت لـ 50% كما كانت قبل الدمج.', en: 'Change (user-requested): the "Reserve" wallet — removed in v47.31 with its 5% folded into Core Expenses — is now back as a permanent default wallet with a fixed 5% distribution share, and Core Expenses is back to 50% like before the merge.' },
+      { ar: 'إصلاح: أي حساب كانت عنده محفظة "Reserve" يتيمة بنسبة 0% (من قبل v47.31) يحصل الآن تلقائيًا على نسبة 5% الصحيحة بدل الصفر — سواء عند فتح التطبيق أو عند مزامنة/استيراد نسخة قديمة. إن كانت نسبة Core عندك مخصّصة يدويًا (غير 55%)، لا نلمسها ونكتفي بإضافة نسبة Reserve.', en: 'Fix: any account with an orphaned 0%-share "Reserve" wallet (a leftover from before v47.31) now automatically gets the correct 5% share instead of zero — whether on app launch or when syncing/importing an older backup. If your Core percentage was manually customized (not 55%), it is left untouched and only the Reserve share is added.' },
+    ],
+  },
   {
     version: 'v47.74',
     date: '2026-07-03',
@@ -998,7 +1009,31 @@ function applyWalletDefs(clean){
   } else if(!WALLET_DEFS[cfIdx].crisisOnly){
     WALLET_DEFS[cfIdx] = {...WALLET_DEFS[cfIdx], crisisOnly: true};
   }
+  // "Reserve" was a default wallet, got folded into Core Expenses in v47.31, then
+  // reinstated as a permanent default in v47.75 — always ensure it exists (same
+  // pattern as crisis_fund above) so an account created in that window gets it
+  // back too, not just fresh installs. _ensureReserveShare() (below) handles
+  // giving it back its 5% distribution share.
+  if(WALLET_DEFS.findIndex(w => w.id === 'reserve') === -1){
+    const givingIdx = WALLET_DEFS.findIndex(w => w.id === 'giving');
+    const pos = givingIdx === -1 ? Math.max(0, cfIdx === -1 ? WALLET_DEFS.length : cfIdx) : givingIdx + 1;
+    WALLET_DEFS.splice(pos, 0, {id:'reserve', name:'Reserve', initial:0, track:false, pct:'5%'});
+  }
   recomputeSelectableWallets();
+}
+// Companion to the reserve-wallet guarantee in applyWalletDefs() above: if the
+// wallet exists but DISTRIBUTION has no matching share (a pre-v47.31 account
+// whose Reserve wallet was left at an orphaned 0%, or a wallet just re-added by
+// applyWalletDefs()), give it the 5% back. Takes it out of Core if Core still
+// sits at the old v47.31 merged 55% so the total lands on exactly 100% instead
+// of silently going over; otherwise (Core was customized) just adds the 5% —
+// openDistributionModal()/settings already handle a >100% total gracefully.
+function _ensureReserveShare(){
+  if(!WALLET_DEFS.find(w => w.id === 'reserve' && !w.track)) return;
+  if(DISTRIBUTION.find(d => d.id === 'reserve')) return;
+  DISTRIBUTION = DISTRIBUTION.concat([{id:'reserve', pct:5}]);
+  const core = DISTRIBUTION.find(d => d.id === 'core');
+  if(core && core.pct === 55) core.pct = 50;
 }
 // Custom wallets (added via Settings → إدارة المحافظ) are loaded synchronously
 // here, before SELECTABLE_WALLETS/CRISIS_WALLET_IDS-dependent code below runs,
@@ -1072,12 +1107,13 @@ function trackWalletDefs(){ return WALLET_DEFS.filter(w => w.track); }
 
 // Wallets that participate in automatic income distribution, with their share %
 const DEFAULT_DISTRIBUTION = [
-  {id:'core',        pct:55},
+  {id:'core',        pct:50},
   {id:'wishlist',    pct:10},
   {id:'growth',      pct:10},
   {id:'investments', pct:10},
   {id:'joy',         pct:10},
   {id:'giving',      pct:5},
+  {id:'reserve',     pct:5},
 ];
 let DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
 
@@ -1884,6 +1920,8 @@ async function loadState(){
   try{ trackLinkMode = sanitizeTrackLinkMode(JSON.parse(localStorage.getItem(LS_PREFIX + 'trackLinkMode') || 'null')); }
   catch(e){}
 
+  _ensureReserveShare();
+
   _txMutationStamp++; // fresh data set loaded — invalidate any derived caches
   const _di = document.getElementById('dateInput');
   if(_di) _di.value = todayISO();
@@ -2032,6 +2070,8 @@ function mergeCloudData(cloud, cloudNewer){
   }
   // dismissedRecurring: union both sides (a dismissal on either device sticks)
   if(Array.isArray(cloud.dismissedRecurring)) cloud.dismissedRecurring.forEach(k => dismissedRecurring.add(k));
+
+  _ensureReserveShare();
 
   // 6) rebuild balances from the merged ledger so they're provably consistent
   reconcileBalances();

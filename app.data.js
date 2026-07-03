@@ -283,6 +283,7 @@ async function applyImport(text){
   if(data.budgets && typeof data.budgets === 'object') budgets = sanitizeBudgets(data.budgets);
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
   if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
+  _ensureReserveShare();
   if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring.filter(k => typeof k === 'string' && k));
   if(data.deletedTxIds && typeof data.deletedTxIds === 'object' && !Array.isArray(data.deletedTxIds)){
     deletedTxIds = {};

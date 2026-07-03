@@ -805,6 +805,7 @@ async function adoptCloudSnapshot(cloud){
     subscriptions = cloud.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
   if(cloud.uiPrefs) applyUiPrefs(cloud.uiPrefs);
+  _ensureReserveShare();
   _txMutationStamp++; // adopted a new cloud data set — invalidate derived caches
   prevSpendable = null; // force fresh hero animation after loading a new data set
   await saveBalances(); await saveTx(); await saveConfig(); await saveSubs(); await saveWalletDefs();
