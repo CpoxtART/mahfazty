@@ -29,6 +29,15 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.74',
+    date: '2026-07-03',
+    title: { ar: 'إصلاح حرج: خطأ تحديث نادر كان يمنع فتح التطبيق بالكامل', en: 'Critical fix: a rare update glitch could block the app from loading at all' },
+    items: [
+      { ar: 'حرج (مُبلَّغ من مستخدم): بعض من كان لديه تحديث معلّق منذ عدة إصدارات وطبّقه أخيراً واجه شاشة خطأ كاملة تمنع فتح التطبيق («Identifier VOICE_NUMBER_WORDS has already been declared»). السبب: عند إضافة ملفات كود جديدة في تحديث سابق (تقسيم الكود لملفات أصغر)، كانت آلية التحديث في بعض المتصفحات تجلب نسخة قديمة من ملف قديم من ذاكرة التخزين المؤقت للمتصفح نفسه (وليس ذاكرة التطبيق) بالتزامن مع الملف الجديد — فيتصادم الاثنان. الإصلاح: تحديث التطبيق الآن يتجاوز ذاكرة تخزين المتصفح المؤقتة تماماً ويجلب كل ملف طازجاً دائماً عند كل تحديث، فلا يتكرر هذا التصادم أبداً في تحديثات لاحقة.', en: 'Critical (user-reported): someone with an update pending for several versions who finally applied it hit a full error screen that blocked the app from opening ("Identifier VOICE_NUMBER_WORDS has already been declared"). Root cause: when new code files were added in a previous update (splitting the code into smaller files), the update mechanism in some browsers could pull a stale copy of an old file from the BROWSER\'s own cache (not the app\'s cache) alongside the genuinely new file — the two collided. Fix: updates now always bypass the browser\'s own cache and fetch every file fresh on every update, so this exact collision can never recur on future updates.' },
+      { ar: 'ملاحظة لمن واجه الخطأ فعلاً: هذا الإصلاح يمنع تكرار المشكلة مستقبلاً، لكن الجهاز المتأثر قد يحتاج مسحاً يدوياً لبيانات الموقع مرة واحدة (من إعدادات المتصفح) للخروج من الحالة العالقة الحالية، لأن التطبيق نفسه لا يستطيع العمل لإصلاح نفسه أثناء ظهور هذا الخطأ بالذات.', en: "Note for anyone who actually hit the error: this fix prevents it from happening again going forward, but the already-affected device may need a one-time manual clear of the site's data (from the browser's settings) to break out of the current stuck state, since the app itself can't run to self-heal while this specific error is showing." },
+    ],
+  },
+  {
     version: 'v47.73',
     date: '2026-07-03',
     title: { ar: 'فواصل الآلاف التلقائية + إصلاح تعرّف الملاحظات على المحافظ', en: 'Automatic thousands separators + fixed wallet recognition in Quick Notes' },

@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v47.73';
+const CACHE = 'mhfzty-v47.74';
 // Note: sw.js itself is intentionally NOT precached — the browser fetches and
 // byte-compares it directly to drive updates; caching it via the Cache API is a
 // no-op at best and can interfere with that update check.
@@ -12,6 +12,23 @@ const PRECACHE = [
   './favicon-32.png', './apple-touch-icon.png', './privacy.html', './terms.html'
 ];
 
+// Fetch bypassing the BROWSER's own HTTP cache (Cache-Control/ETag/heuristic
+// freshness) — every place this SW populates its own Cache API storage MUST
+// use this, not a plain fetch()/cache.add(). Without {cache:'reload'}, a
+// browser that already has e.g. app.ui.js sitting in its ordinary HTTP cache
+// from a much older visit can hand that STALE response back to the SW during
+// precache, even while the SW correctly fetches a brand-new file (like one
+// introduced by a later split) fresh — silently mixing an old and a new file
+// version in the same page load. That exact mix (old app.ui.js, still
+// containing a declaration later moved to a new app.voice.js, loaded
+// alongside the new app.voice.js) is what caused the "Identifier ... has
+// already been declared" fatal error some users hit updating across the
+// v47.72 file split — the Cache API bucket was rebuilt correctly, but the
+// browser's OWN cache handed back a stale response before that ever ran.
+function _freshFetch(url){
+  return fetch(url, { cache: 'reload' });
+}
+
 self.addEventListener('install', e => {
   // Cache each file independently — addAll() is all-or-nothing and a single
   // transient 404 would sink offline support for every other file.
@@ -20,7 +37,9 @@ self.addEventListener('install', e => {
   // both of which post a SKIP_WAITING message handled below.
   e.waitUntil(
     caches.open(CACHE).then(c =>
-      Promise.all(PRECACHE.map(url => c.add(url).catch(() => {})))
+      Promise.all(PRECACHE.map(url =>
+        _freshFetch(url).then(res => res.ok ? c.put(url, res) : null).catch(() => {})
+      ))
     )
   );
 });
@@ -59,7 +78,7 @@ self.addEventListener('fetch', e => {
   // because the bare directory path "/mahfazty/" isn't a stored key).
   if(e.request.mode === 'navigate'){
     e.respondWith(
-      fetch(e.request).then(res => {
+      _freshFetch(e.request).then(res => {
         if(res && res.ok){
           const clone = res.clone();
           // Best-effort cache refresh — a rejected put() (e.g. storage pressure)
@@ -84,7 +103,7 @@ self.addEventListener('fetch', e => {
 
   e.respondWith(
     caches.match(e.request).then(cached => {
-      const fresh = fetch(e.request).then(res => {
+      const fresh = _freshFetch(e.request).then(res => {
         if(res && res.ok){
           const clone = res.clone();
           // Best-effort cache refresh — a rejected put() (e.g. storage pressure)
