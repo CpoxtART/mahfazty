@@ -6,6 +6,20 @@
    invoked at runtime by switchTab()/render(), so cross-file call order is fine;
    the file just needs to precede app.logic.js, which reassigns _pieChartSig.
 ============================================================ */
+// Compact K/M/B number formatting shared by the pie-chart center label and the
+// line-chart Y-axis labels — both independently implemented the same
+// 999.5k/999.5M rounded-boundary rule (so 999,950 promotes to "1M" instead of
+// the impossible "1000K"); unified here so that rule only needs fixing once.
+// signed=true keeps a leading "-" for negative values (the line chart's Y-axis
+// can go negative; the pie chart's total never does).
+function fmtCompact(n, signed){
+  const abs = Math.abs(n);
+  const s = (signed && n < 0) ? '-' : '';
+  if(abs >= 999.5e6) return s + (abs/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
+  if(abs >= 999.5e3) return s + (abs/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+  if(abs >= 1e3) return s + (abs/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+  return s + (signed ? Math.round(abs) : Math.round(abs).toLocaleString('en-US'));
+}
 /* ============================================================
    CATEGORY PIE CHART
 ============================================================ */
@@ -132,18 +146,10 @@ function renderPieChart(){
   ctx.fill();
   // total label in center
   const isLightPie = document.body.classList.contains('light');
-  const fmtPieShort = n => {
-    // thresholds use the rounded boundary (999.5k/999.5M) so a value like 999,950
-    // promotes to "1M" instead of rendering the impossible "1000K"
-    if(n >= 999.5e6) return (n/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
-    if(n >= 999.5e3) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
-    if(n >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
-    return Math.round(n).toLocaleString('en-US');
-  };
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = isLightPie ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.45)';
-  const totalLabel = fmtPieShort(total);
+  const totalLabel = fmtCompact(total, false);
   // auto-shrink to fit the donut hole — very large totals (e.g. corrupted/huge
   // imports) can otherwise overflow fillText past the inner circle into the ring
   let pieFontPx = Math.round(size*0.09);
@@ -246,10 +252,9 @@ function renderChart(){
   ctx.stroke();
 
   const grad = ctx.createLinearGradient(0,0,0,cssH);
-  const isLightForChart = document.body.classList.contains('light');
   const gradTop = finalNet>=0
-    ? (isLightForChart ? 'rgba(62,141,89,.18)'   : 'rgba(134,195,154,.20)')
-    : (isLightForChart ? 'rgba(192,90,87,.18)'   : 'rgba(227,145,143,.20)');
+    ? (isLightTheme ? 'rgba(62,141,89,.18)'   : 'rgba(134,195,154,.20)')
+    : (isLightTheme ? 'rgba(192,90,87,.18)'   : 'rgba(227,145,143,.20)');
   grad.addColorStop(0, gradTop);
   grad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.lineTo(padX+w, padY+h);
@@ -277,18 +282,9 @@ function renderChart(){
   ctx.font = `600 9px system-ui, sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  const fmtShort = n => {
-    const abs = Math.abs(n);
-    const s = n < 0 ? '-' : '';
-    // rounded boundaries (999.5k/999.5M) prevent "1000K"/"1000M" at the edges
-    if(abs >= 999.5e6) return s + (abs/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
-    if(abs >= 999.5e3) return s + (abs/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
-    if(abs >= 1e3) return s + (abs/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
-    return s + Math.round(abs);
-  };
   if(!flat){
-    ctx.fillText(fmtShort(max), labelX, padY);
-    ctx.fillText(fmtShort(min), labelX, padY + h);
+    ctx.fillText(fmtCompact(max, true), labelX, padY);
+    ctx.fillText(fmtCompact(min, true), labelX, padY + h);
   }
   if(min < 0 && max > 0){
     ctx.fillStyle = isLightTheme ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.25)';

@@ -300,14 +300,15 @@ function isEmbeddedOrStandalone(){
 }
 
 function refreshDriveSettingsUI(){
-  const setupEl = document.getElementById('driveSetup');
-  const actionsEl = document.getElementById('driveActions');
-  const statusEl = document.getElementById('driveStatusText');
-  const signInBtn = document.getElementById('driveSignInBtn');
-  const signedInActions = document.getElementById('driveSignedInActions');
-  const embeddedWarn = document.getElementById('driveEmbeddedWarn');
-  const autoSignInRow = document.getElementById('driveAutoSignInRow');
-  const autoSignInChk = document.getElementById('driveAutoSignInChk');
+  const $ = id => document.getElementById(id);
+  const setupEl = $('driveSetup');
+  const actionsEl = $('driveActions');
+  const statusEl = $('driveStatusText');
+  const signInBtn = $('driveSignInBtn');
+  const signedInActions = $('driveSignedInActions');
+  const embeddedWarn = $('driveEmbeddedWarn');
+  const autoSignInRow = $('driveAutoSignInRow');
+  const autoSignInChk = $('driveAutoSignInChk');
 
   if(embeddedWarn) embeddedWarn.style.display = (!driveAccessToken && isEmbeddedOrStandalone()) ? 'block' : 'none';
 

@@ -29,6 +29,17 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.71',
+    date: '2026-07-03',
+    title: { ar: 'إصلاح حرج: تصفير رصيد المحفظة كان يرتد بعد المزامنة', en: 'Critical fix: zeroing a wallet balance was reverting after sync' },
+    items: [
+      { ar: 'حرج: أزرار «تصفير محافظ التتبع» و«تصفير المحافظ العادية» كانتا تكتبان صفراً مباشرة على الرصيد بدون أي أثر في سجل المعاملات — فور تشغيل أي مزامنة مع Drive (خلال ~1.5 ثانية تلقائياً)، كانت الدالة الداخلية لإعادة حساب الأرصدة من السجل تُعيد الرصيد القديم فوراً وبصمت، للمحافظ العادية بشكل مؤكّد 100% (تحقّقنا منه مباشرة) وللمحافظ التتبعية بنفس فئة الخطر. السبب الجذري ليس «الحذف محلي فقط بدون مزامنة» كما بدا — بل العكس: التصفير لم يكن له أي وجود حقيقي في البيانات المُزامنة أصلاً. الإصلاح: كلا الزرّين الآن يسجّلان معاملة «تسوية» توازن الرصيد إلى صفر (نفس الآلية المستخدمة أصلاً في مزامنة رصيد محفظة تتبع واحدة) بدل كتابة الرقم مباشرة — فيصبح التصفير جزءاً حقيقياً من السجل يُزامَن ويصمد أمام أي عملية مزامنة أو إصلاح أرصدة لاحقة.', en: 'Critical: the "reset tracking wallets" and "reset regular wallets" buttons wrote a bare zero directly onto the balance with no trace in the transaction ledger — the moment any Drive sync ran (automatically within ~1.5s), the internal balance-recalculation-from-ledger logic silently restored the old balance. Confirmed 100% reproducible for regular wallets, and in the same risk class for tracked wallets. The root cause wasn\'t "the delete stays local and never reaches sync" as it appeared — it was the reverse: the reset was never a real fact in the synced data to begin with. Fix: both buttons now record a "balance reset" adjustment transaction that brings the balance to zero (the same mechanism already used for single tracked-wallet balance sync) instead of writing the number directly — making the reset a real, durable ledger entry that survives any sync or balance-repair operation afterward.' },
+      { ar: 'تحقّق: أُعيد إنتاج الخلل ببيئة اختبار حقيقية، وأُثبت الإصلاح ضد محاكاة دمج بيانات سحابية أقدم ثم إعادة حساب يدوي — الرصيد يبقى صفراً في الحالتين.', en: 'Verified: the bug was reproduced in a real browser test environment, and the fix was proven against a simulated older-cloud-snapshot merge followed by a manual recalculation — the balance stays at zero in both cases.' },
+      { ar: 'إصلاح إضافي: عدة أزرار حساسة (إصلاح الأرصدة من السجل، حذف كل الاشتراكات، تصفير الرصيد والمعاملات، حذف كل البيانات) كانت تفتقر لحارس منع التداخل مع عملية أخرى قيد التنفيذ — أُضيف لها جميعاً.', en: 'Additional fix: several sensitive buttons (repair balances from ledger, delete all subscriptions, reset balance and transactions, delete all data) were missing the standard cross-operation write guard — added to all of them.' },
+      { ar: 'صيانة داخلية: إزالة دالة غير مستخدمة، وتوحيد 3 مواضع منطق مكرر (فحص صحة المعاملة، استعادة أرصدة المحافظ، دمج وسوم الحذف) في دوال مشتركة — بدون أي تغيير في السلوك الظاهر.', en: 'Internal maintenance: removed one unused function, and consolidated 3 duplicated logic blocks (transaction validity check, wallet-balance restore, tombstone-map merging) into shared helpers — no change in visible behavior.' },
+    ],
+  },
+  {
     version: 'v47.70',
     date: '2026-07-03',
     title: { ar: 'سجل «ما الجديد؟» صار ثنائي اللغة بالكامل', en: 'The "What\'s new?" log is now fully bilingual' },
@@ -981,18 +992,6 @@ let _walletDefsLoadFailed = false;
   }catch(e){ _walletDefsLoadFailed = true; }
 })();
 
-// Bar width baseline. Initials are all 0 (fresh app), so a static max is useless;
-// derive the scale from the largest current non-track balance at render time so
-// the bars stay proportional as real balances grow. Floor of 1 avoids /0.
-function maxWalletVal(){
-  let m = 1;
-  WALLET_DEFS.forEach(w => {
-    if(w.track) return;
-    const v = parseFloat(state.wallets[w.id]) || 0;
-    if(v > m) m = v;
-  });
-  return m;
-}
 // In crisis/alternative mode the budget wallets (wishlist, growth, joy, giving, …)
 // are hidden and replaced by the single crisis_fund wallet.
 // crisisOnly wallets are intentionally excluded from this list — they are NOT hidden
@@ -1060,6 +1059,17 @@ let _txMutationStamp = 0;
 // cross-tab storage listener checks this so another tab's save can't trigger a
 // loadState() that resets `state` mid-mutation and corrupts balances.
 let _opInFlight = 0;
+// Shared guard for every money-writing entry point: refuse to start while
+// another mutation is mid-flight across an await. Was copy-pasted verbatim at
+// 11+ call sites; centralized here so a future wording/behavior change only
+// needs one edit.
+function _opBusy(){
+  if(_opInFlight > 0){
+    toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true);
+    return true;
+  }
+  return false;
+}
 let currentFilter = 'all';
 let walletFilter = null;
 let categoryFilter = null;
@@ -1114,6 +1124,30 @@ function _unionTombstoneMap(local, incoming){
     if(typeof t === 'number' && (!local[id] || t > local[id])) local[id] = t;
   }
   return local;
+}
+// The single "is this transaction well-formed" rule — used at every boundary
+// that ingests transactions from outside the app's own write paths (initial
+// load, cloud merge, import). Was defined twice, verbatim, in two different
+// closures (loadState and mergeCloudData); centralized so a future rule
+// change (e.g. adjusting the MAX_AMOUNT ceiling) can't be applied to only one.
+function isValidTx(t){
+  return !!(t && t.id && (t.type === 'income' || t.type === 'expense') &&
+    typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
+    typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 && t.amount <= MAX_AMOUNT &&
+    WALLET_DEFS.find(w => w.id === t.wallet));
+}
+// Restore wallet balances from a persisted snapshot ({walletId: number}) —
+// used identically for the localStorage copy, the wallet-defs IDB-recovery
+// path, and the primary IDB snapshot; coerces to a finite number so a
+// tampered/corrupt source can't poison balances with NaN/Infinity.
+function _restoreWalletBalances(source){
+  if(!source) return;
+  WALLET_DEFS.forEach(w => {
+    if(source[w.id] !== undefined){
+      const v = parseFloat(source[w.id]);
+      if(isFinite(v)) state.wallets[w.id] = round2(v);
+    }
+  });
 }
 
 /* v9.3 */
@@ -1603,14 +1637,7 @@ async function loadState(){
     if(bal){
       const saved = JSON.parse(bal);
       // only restore known wallet ids — prevents orphaned keys from corrupted imports.
-      // coerce to a finite number so a tampered/corrupt backup ("abc", null, 1e999→Infinity)
-      // can't poison balances with NaN/Infinity that then propagates through all math.
-      WALLET_DEFS.forEach(w => {
-        if(saved[w.id] !== undefined){
-          const v = parseFloat(saved[w.id]);
-          if(isFinite(v)) state.wallets[w.id] = round2(v);
-        }
-      });
+      _restoreWalletBalances(saved);
       _lsHadBalances = true;
     }
   }catch(e){}
@@ -1642,11 +1669,7 @@ async function loadState(){
     }
   }catch(e){}
 
-  const _validTx = arr => (Array.isArray(arr) ? arr : []).filter(t =>
-    t && t.id && (t.type === 'income' || t.type === 'expense') &&
-    typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
-    typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 && t.amount <= MAX_AMOUNT &&
-    WALLET_DEFS.find(w => w.id === t.wallet));
+  const _validTx = arr => (Array.isArray(arr) ? arr : []).filter(isValidTx);
 
   // ── Transactions: IndexedDB is the PRIMARY store (scales far past localStorage's
   //    ~5MB cap). localStorage may still hold a legacy copy from older versions or
@@ -1672,14 +1695,7 @@ async function loadState(){
     if(_cleanWD){
       applyWalletDefs(_cleanWD);
       WALLET_DEFS.forEach(w => { if(state.wallets[w.id] === undefined) state.wallets[w.id] = 0; });
-      if(_idb.wallets){
-        WALLET_DEFS.forEach(w => {
-          if(_idb.wallets[w.id] !== undefined){
-            const v = parseFloat(_idb.wallets[w.id]);
-            if(isFinite(v)) state.wallets[w.id] = round2(v);
-          }
-        });
-      }
+      _restoreWalletBalances(_idb.wallets);
       try{ localStorage.setItem(LS_PREFIX + 'walletDefs', JSON.stringify(WALLET_DEFS)); }catch(e){}
     }
   } else if(_walletDefsLoadFailed){
@@ -1698,14 +1714,7 @@ async function loadState(){
     // IndexedDB snapshot is the source of truth
     state.transactions = _validTx(_idb.transactions);
     // If localStorage was wiped (cleared storage), recover the small data too
-    if(!_lsHadBalances && _idb.wallets){
-      WALLET_DEFS.forEach(w => {
-        if(_idb.wallets[w.id] !== undefined){
-          const v = parseFloat(_idb.wallets[w.id]);
-          if(isFinite(v)) state.wallets[w.id] = round2(v);
-        }
-      });
-    }
+    if(!_lsHadBalances) _restoreWalletBalances(_idb.wallets);
     if(!_lsHadConfig){
       if(typeof _idb.crisisMode === 'boolean') state.crisisMode = _idb.crisisMode;
       if(typeof _idb.autoDistribute === 'boolean') autoDistribute = _idb.autoDistribute;
@@ -1714,10 +1723,7 @@ async function loadState(){
       if(_idb.distribution && Array.isArray(_idb.distribution)) DISTRIBUTION = sanitizeDistribution(_idb.distribution);
     }
     if(_idb.deletedTxIds && typeof _idb.deletedTxIds === 'object' && !Array.isArray(_idb.deletedTxIds)){
-      for(const id in _idb.deletedTxIds){
-        const t = _idb.deletedTxIds[id];
-        if(typeof t === 'number' && (!deletedTxIds[id] || t > deletedTxIds[id])) deletedTxIds[id] = t;
-      }
+      _unionTombstoneMap(deletedTxIds, _idb.deletedTxIds);
     }
     _unionTombstoneMap(deletedSubIds, _idb.deletedSubIds);
     _unionTombstoneMap(deletedWalletDefIds, _idb.deletedWalletDefIds);
@@ -1848,17 +1854,11 @@ function mergeCloudData(cloud, cloudNewer){
     }
   }
 
-  const validTx = t => t && t.id && (t.type === 'income' || t.type === 'expense') &&
-    typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
-    typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 && t.amount <= MAX_AMOUNT &&
-    WALLET_DEFS.find(w => w.id === t.wallet);
+  const validTx = isValidTx;
 
   // 1) union tombstones from both sides
   if(cloud.deletedTxIds && typeof cloud.deletedTxIds === 'object'){
-    for(const id in cloud.deletedTxIds){
-      const t = cloud.deletedTxIds[id];
-      if(typeof t === 'number' && (!deletedTxIds[id] || t > deletedTxIds[id])) deletedTxIds[id] = t;
-    }
+    _unionTombstoneMap(deletedTxIds, cloud.deletedTxIds);
   }
   pruneTombstones();
 
@@ -2135,11 +2135,7 @@ async function idbBackup(savedAt){
         let mergedTx = state.transactions;
         let mergedTombstones = deletedTxIds;
         if(existing && existing.deletedTxIds && typeof existing.deletedTxIds === 'object'){
-          mergedTombstones = Object.assign({}, deletedTxIds);
-          for(const id in existing.deletedTxIds){
-            const t = existing.deletedTxIds[id];
-            if(typeof t === 'number' && (!mergedTombstones[id] || t > mergedTombstones[id])) mergedTombstones[id] = t;
-          }
+          mergedTombstones = _unionTombstoneMap(Object.assign({}, deletedTxIds), existing.deletedTxIds);
           deletedTxIds = mergedTombstones;
         }
         // same cross-tab union for the sub / wallet-def tombstone maps

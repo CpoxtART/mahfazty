@@ -359,7 +359,7 @@ let _saveWalletDefBusy = false;
 async function saveWalletDefModal(){
   if(_saveWalletDefBusy) return;
   // cross-op write guard (see commitQuickNotes) — this writes balances/defs across awaits
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
   const nameInput = document.getElementById('walletDefName');
   const name = stripBidiControls(nameInput.value).trim().slice(0,40);
   if(!name){ toast(t({ar:'⚠ أدخل اسم المحفظة', en:'⚠ Enter a wallet name'}), true); nameInput.focus(); return; }
@@ -1194,7 +1194,7 @@ let _saveSubBusy = false;
 async function saveSubModal(){
   if(_saveSubBusy) return;
   // cross-op write guard (see commitQuickNotes)
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
   const nameInput = document.getElementById('subName');
   const amountInput = document.getElementById('subAmount');
   const dayInput = document.getElementById('subBillingDay');
@@ -1230,7 +1230,7 @@ async function saveSubModal(){
 async function deleteSubModal(){
   if(_saveSubBusy || !editingSubId) return;
   // cross-op write guard (see commitQuickNotes)
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
   if(!confirm(t({ar:'حذف هذا الاشتراك نهائياً؟', en:'Permanently delete this subscription?'}))) return;
   _saveSubBusy = true;
   _opInFlight++;
@@ -1702,7 +1702,7 @@ async function doTransfer(){
   if(!transferFrom || !transferTo){ toast(t({ar:'⚠ اختر المحفظتين أولاً', en:'⚠ Choose both wallets first'}), true); return; }
   if(transferFrom === transferTo){ toast(t({ar:'⚠ اختر محفظتين مختلفتين', en:'⚠ Choose two different wallets'}), true); return; }
   // cross-op write guard (see commitQuickNotes) — block interleaving with another in-flight write
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
   _doTransferBusy = true;
   _txMutationStamp++; // only once committed past validation — invalid taps shouldn't bump it
   _opInFlight++;
@@ -1784,7 +1784,7 @@ async function updateTrackedBalance(){
   const diff = round2(newVal - current);
   if(diff === 0){ toast(t({ar:'لا يوجد تغيير بالرصيد', en:'No change to the balance'})); return; }
   // cross-op write guard (see commitQuickNotes) — block interleaving with another in-flight write
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
 
   _updateBalanceBusy = true;
   _opInFlight++;
@@ -1821,8 +1821,7 @@ async function updateTrackedBalance(){
 let _saveWalletBudgetBusy = false;
 async function saveWalletBudget(){
   if(!detailWalletId || _saveWalletBudgetBusy) return;
-  // cross-op write guard (see commitQuickNotes)
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
   // Guard against a wallet deleted from another tab while this detail modal was
   // open (cross-tab storage listener skips loadState while any modal is open).
   if(!WALLET_DEFS.find(x => x.id === detailWalletId)){
@@ -1831,6 +1830,9 @@ async function saveWalletBudget(){
     return;
   }
   _saveWalletBudgetBusy = true;
+  // was missing from _opInFlight entirely — its own await could interleave with
+  // another guarded writer since no one else could see it was mid-flight
+  _opInFlight++;
   try{
     const raw = document.getElementById('detailBudgetInput').value.trim();
     if(raw === ''){
@@ -1852,6 +1854,7 @@ async function saveWalletBudget(){
     toast(t({ar:'✓ تم حفظ الميزانية', en:'✓ Budget saved'}));
   } finally {
     _saveWalletBudgetBusy = false;
+    _opInFlight--;
   }
 }
 
@@ -1918,22 +1921,34 @@ function normalizeDistribution(){
   return true;
 }
 
+let _saveDistBusy = false;
 async function saveDistribution(){
-  if(!_distDraft) return;
+  if(!_distDraft || _saveDistBusy) return;
   const total = _distDraft.reduce((s,d)=>s+(d.pct||0), 0);
   if(parseFloat(total.toFixed(1)) !== 100){
     if(!(total > 0)){ toast(t({ar:'⚠ أدخل نِسبًا صحيحة أولاً', en:'⚠ Enter valid ratios first'}), true); return; }
     if(!confirm(t({ar:`الإجمالي ${total.toFixed(1)}% وليس 100%.\n\nسيتم تعديل النسب تلقائيًا لتصبح 100% مع الحفاظ على تناسبها. متابعة؟`, en:`Total is ${total.toFixed(1)}%, not 100%.\n\nRatios will be auto-adjusted to 100% while keeping their proportions. Continue?`}))) return;
   }
-  // always normalize before saving (even when total rounds to 100%, raw float can differ)
-  normalizeDistribution();
-  // commit the validated+normalized draft to the live DISTRIBUTION array
-  _distDraft.forEach((d, i) => { if(i < DISTRIBUTION.length) DISTRIBUTION[i].pct = d.pct; });
-  _distDraft = null; // draft committed — a new open will build a fresh snapshot
-  renderDistributionEditor(); // reflect the normalized values back into the inputs
-  await saveConfig();
-  renderWallets();
-  toast(t({ar:'✓ تم حفظ النسب (المجموع 100٪)', en:'✓ Ratios saved (total 100%)'}));
+  // was missing this file's standard busy-flag + _opInFlight guard entirely —
+  // DISTRIBUTION drives every future income auto-split, so a save racing a
+  // concurrent wallet-def edit or Drive sync could interleave writes to it.
+  if(_opBusy()) return;
+  _saveDistBusy = true;
+  _opInFlight++;
+  try{
+    // always normalize before saving (even when total rounds to 100%, raw float can differ)
+    normalizeDistribution();
+    // commit the validated+normalized draft to the live DISTRIBUTION array
+    _distDraft.forEach((d, i) => { if(i < DISTRIBUTION.length) DISTRIBUTION[i].pct = d.pct; });
+    _distDraft = null; // draft committed — a new open will build a fresh snapshot
+    renderDistributionEditor(); // reflect the normalized values back into the inputs
+    await saveConfig();
+    renderWallets();
+    toast(t({ar:'✓ تم حفظ النسب (المجموع 100٪)', en:'✓ Ratios saved (total 100%)'}));
+  } finally {
+    _saveDistBusy = false;
+    _opInFlight--;
+  }
 }
 
 function resetDistribution(){

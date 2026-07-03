@@ -17,7 +17,7 @@ async function addTx(type){
   if(_stateNotReady()) return;
   // cross-op write guard (see commitQuickNotes): don't start a write while another
   // mutation is mid-flight across an await — prevents interleaved balance writes
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
   _addTxBusy = true;
   _opInFlight++;
   _txMutationStamp++;
@@ -852,7 +852,7 @@ async function commitQuickNotes(){
   // cross-op write guard: refuse to start while another mutation is mid-flight
   // (each write path has its own busy flag, but none blocked the others across an
   // await — two interleaving writers could corrupt balances)
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
   const committable = _qnPreview.filter(r => r.valid && isFinite(r.amount) && r.amount > 0);
   if(!committable.length){ toast(t({ar:'⚠ لا توجد معاملات صالحة — كل سطر يحتاج سعرًا', en:'⚠ No valid transactions — each line needs a price'}), true); return; }
   const validIds = _qnFreshWalletIds();
@@ -1033,7 +1033,7 @@ let _saveEditBusy = false;
 async function saveEdit(){
   if(_saveEditBusy) return; // double-tap guard: a second tap before the first
   // cross-op write guard (see commitQuickNotes) — block interleaving with another in-flight write
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
   _saveEditBusy = true;     // completes would reverse+reapply the balance twice
   _opInFlight++;
   const _saveBtn = document.getElementById('saveEditBtn');
@@ -1204,7 +1204,7 @@ async function deleteTx(id){
   }
   if(_stateNotReady()) return;
   // cross-op write guard (see commitQuickNotes) — block interleaving with another in-flight write
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
   _txMutationStamp++;
   _opInFlight++;
   try{
@@ -1846,7 +1846,7 @@ async function applyImport(text){
   // a double-tap of the import button from running two overlapping imports
   // (each confirm() blocks, but the second resumes during the first's awaits).
   if(_importBusy) return;
-  if(_opInFlight > 0){ toast(t({ar:'⏳ هناك عملية قيد التنفيذ — أعد المحاولة بعد لحظة', en:'⏳ Another operation is in progress — try again in a moment'}), true); return; }
+  if(_opBusy()) return;
   let data;
   try{ data = JSON.parse(text); }
   catch(e){ toast(t({ar:'⚠ تنسيق JSON غير صالح', en:'⚠ Invalid JSON format'}), true); return; }
@@ -2046,51 +2046,98 @@ async function applyImport(text){
 }
 
 // ── Granular reset/clear actions (Deletion & Reset section) ──────────────
-// Each does exactly what its label says. Tracked wallets carry no ledger, so
-// zeroing them is clean. Regular wallets are derived from transactions, so
-// zeroing them without clearing the ledger creates a mismatch the repair tool
-// would undo — we warn about that explicitly.
-
-// Zero the manually-tracked wallets (Uber, Bank Cards, Cash). The transaction
-// records themselves are untouched, so this is safe AT THE MOMENT IT RUNS —
-// but it is not a permanent invariant: applyTxToBalance() re-derives a track
-// wallet's delta from each linked transaction's trackWallet/trackSign fields
-// every time that transaction is later edited or deleted (see saveEdit/deleteTx),
-// so editing an OLD track-linked transaction after this reset will re-apply its
-// (now stale) delta on top of the zeroed balance. reconcileBalances() can't fix
-// this either, since it deliberately skips track wallets (see applyTxToBalance).
+// Each does exactly what its label says.
+//
+// BUG FIX (both functions below): they used to set state.wallets[id] = 0
+// directly, bypassing the ledger entirely. That "zero" was purely a snapshot
+// value with nothing backing it — and the very next Drive sync would silently
+// undo it:
+//   - Regular wallets are DERIVED (balance = 0 + Σledger). reconcileBalances()
+//     runs unconditionally at the end of every mergeCloudData() call — even
+//     when the pre-push reconciliation decides local should win (cloudNewer
+//     = false) — and recomputes the balance from the UNCHANGED ledger,
+//     resurrecting the exact pre-zero total within ~1.5s of tapping the
+//     button (confirmed via direct reproduction: a bare balance zero with no
+//     ledger change is undone by the very next mergeCloudData call).
+//   - Tracked wallets aren't ledger-derived, but a raw state.wallets write is
+//     still just an in-memory snapshot with no representation in the synced
+//     transaction stream — it doesn't participate in the tombstone/
+//     editedAt-wins merge machinery every other durable change goes through,
+//     so it's vulnerable to being clobbered by any path that touches
+//     state.wallets wholesale (e.g. a stale snapshot adopted after a
+//     reconnect) with nothing to make the zero "win".
+// Fix: write a real offsetting ADJUSTMENT TRANSACTION per wallet (the exact
+// mechanism updateTrackedBalance() already uses for a single tracked-wallet
+// sync) instead of a bare balance write. That makes the zero part of the
+// ledger itself: reconcileBalances() computes 0 naturally for regular
+// wallets because the ledger sum really is 0, and for both wallet kinds the
+// zero now syncs through the same robust per-transaction tombstone/merge
+// path as every other change instead of riding along as an unbacked number.
 async function zeroTrackedWallets(){
   if(!confirm(t({ar:'سيتم تصفير أرصدة محافظ التتبع (أوبر، البطاقات، الكاش) إلى صفر.\n\nالمعاملات لا تتأثر. هل تريد المتابعة؟', en:'This will reset tracking wallet balances (Uber, cards, cash) to zero.\n\nTransactions are not affected. Continue?'}))) return;
+  if(_opBusy()) return;
   _txMutationStamp++;
   _opInFlight++;
   try{
-    WALLET_DEFS.forEach(w => { if(w.track) state.wallets[w.id] = 0; });
+    _zeroWalletsByLedgerAdjustment(w => w.track);
     prevSpendable = null;
     await saveBalances();
+    await saveTx();
     render(true);
     toast(t({ar:'✓ تم تصفير محافظ التتبع', en:'✓ Tracking wallets reset'}));
   } finally { _opInFlight--; }
 }
 
-// Zero the regular (non-tracked) wallets while keeping the ledger. This makes
-// balances diverge from the transaction history on purpose.
+// Zero the regular (non-tracked) wallets. Unlike the old behavior, this no
+// longer diverges from the ledger — see the fix note above — so the "won't
+// match your transaction history" warning that used to apply here doesn't
+// anymore; each affected wallet's zero is now itself a ledger entry.
 async function zeroRegularWallets(){
-  if(!confirm(t({ar:'⚠️ سيتم تصفير أرصدة المحافظ العادية إلى صفر مع بقاء كل المعاملات.\n\nهذا يجعل الأرصدة لا تطابق سجل المعاملات (قد تظهر أرقام غير متوقعة في الإحصائيات).\n\nهل تريد المتابعة؟', en:'⚠️ This will reset regular wallet balances to zero while keeping all transactions.\n\nThis makes balances not match the transaction ledger (unexpected numbers may appear in stats).\n\nContinue?'}))) return;
+  if(!confirm(t({ar:'سيتم تصفير أرصدة المحافظ العادية إلى صفر (بتسجيل معاملة تسوية لكل محفظة). سجل معاملاتك السابق يبقى كما هو.\n\nهل تريد المتابعة؟', en:"This will reset regular wallet balances to zero (by recording one adjustment transaction per wallet). Your past transaction history stays intact.\n\nContinue?"}))) return;
+  if(_opBusy()) return;
   _txMutationStamp++;
   _opInFlight++;
   try{
-    WALLET_DEFS.forEach(w => { if(!w.track) state.wallets[w.id] = 0; });
+    _zeroWalletsByLedgerAdjustment(w => !w.track);
     prevSpendable = null;
     await saveBalances();
+    await saveTx();
     render(true);
     toast(t({ar:'✓ تم تصفير المحافظ العادية', en:'✓ Regular wallets reset'}));
   } finally { _opInFlight--; }
+}
+
+// Shared helper: for every wallet matching `pred` with a non-zero balance,
+// insert one offsetting adjustment transaction (same shape/category as
+// updateTrackedBalance's single-wallet sync) and apply it via
+// applyTxToBalance — the durable, sync-safe way to bring a balance to zero.
+function _zeroWalletsByLedgerAdjustment(pred){
+  const now = Date.now();
+  WALLET_DEFS.forEach((w, i) => {
+    if(!pred(w)) return;
+    const current = round2(state.wallets[w.id] ?? 0);
+    if(current === 0) return; // nothing to offset — don't clutter the ledger
+    const tx = {
+      // stagger timestamps by 1ms per wallet so a batch of resets sorts and
+      // syncs deterministically instead of colliding on one instant
+      id: 'tx_' + now + '_z' + i + Math.random().toString(36).slice(2,4),
+      wallet: w.id,
+      desc: t({ar:'تصفير الرصيد', en:'Balance reset'}),
+      amount: Math.abs(current),
+      type: current > 0 ? 'expense' : 'income',
+      category: 'adjustment', // excluded from pie chart, recurring detection, analytics
+      ts: now + i,
+    };
+    state.transactions.push(tx);
+    applyTxToBalance(tx, +1);
+  });
 }
 
 // Remove every subscription. Balances and transactions are untouched.
 async function clearAllSubscriptions(){
   if(!subscriptions.length){ toast(t({ar:'لا توجد اشتراكات للحذف', en:'No subscriptions to delete'})); return; }
   if(!confirm(t({ar:`سيتم حذف جميع الاشتراكات (${subscriptions.length}). لا يمكن التراجع.\n\nهل تريد المتابعة؟`, en:`This will delete all subscriptions (${subscriptions.length}). This cannot be undone.\n\nContinue?`}))) return;
+  if(_opBusy()) return;
   _opInFlight++;
   try{
     // tombstone each so the wipe propagates through merge sync (see deleteSubModal)
@@ -2116,6 +2163,7 @@ async function clearBalancesAndTx(){
   }));
   if(answer === null) return;
   if(answer.trim() !== _resetWord){ toast(t({ar:'أُلغي — لم تُكتب كلمة التأكيد بشكل صحيح', en:'Cancelled — confirmation word was not typed correctly'})); return; }
+  if(_opBusy()) return;
   _txMutationStamp++;
   _opInFlight++;
   try{
@@ -2146,6 +2194,11 @@ async function clearBalancesAndTx(){
 // Self-healing repair: recompute balances from the transaction ledger (0 + Σ).
 // Shows the detected drift first so the user knows exactly what will change.
 async function repairBalancesFromLedger(){
+  // was missing _opInFlight protection entirely, despite mutating both
+  // state.transactions (orphan-leg strip) and state.wallets across two awaits
+  if(_opBusy()) return;
+  _opInFlight++;
+  try{
   // Remove any orphaned distribution legs before computing the expected balances,
   // otherwise the dry-run will conclude "already correct" despite the bad state.
   {
@@ -2185,6 +2238,7 @@ async function repairBalancesFromLedger(){
   closeModal('settingsModal');
   render(true);
   toast(t({ar:'🔧 تم إصلاح الأرصدة من السجل', en:'🔧 Balances fixed from the ledger'}));
+  } finally { _opInFlight--; }
 }
 
 // Lightweight, non-mutating drift check restricted to ledger-derived wallets (excludes
@@ -2235,6 +2289,7 @@ async function wipeAll(){
   }));
   if(answer === null) return; // cancelled
   if(answer.trim() !== _deleteWord){ toast(t({ar:'أُلغي الحذف — لم تُكتب كلمة التأكيد بشكل صحيح', en:'Deletion cancelled — confirmation word was not typed correctly'})); return; }
+  if(_opBusy()) return;
   _txMutationStamp++; // wholesale wipe — invalidate derived caches
   _opInFlight++; // block the cross-tab storage reload mid-wipe across the multi-await sequence below
   try{
