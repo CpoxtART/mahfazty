@@ -7,7 +7,7 @@
  *      against the live SW's GET_VERSION reply) and the unseen-changelog badge
  *   3. the ?v=X.Y query on every <script>/<link rel=stylesheet> asset URL in
  *      index.html and every versioned PRECACHE entry in sw.js — per-release
- *      cache keys are what make the 13-file set update ATOMICALLY (see the
+ *      cache keys are what make the 16-file set update ATOMICALLY (see the
  *      comment above PRECACHE in sw.js)
  * A release that bumps one but not the others either spams spurious drift
  * re-checks every boot (harmless but wasteful) or, worse, serves a mixed
@@ -37,7 +37,7 @@ test('sw.js CACHE version matches CHANGELOG[0].version', () => {
 
 test('every ?v= asset version in index.html matches the CACHE version', () => {
   const versions = [...htmlSrc.matchAll(/\?v=([\d.]+)/g)].map(m => m[1]);
-  assert.ok(versions.length >= 15, `expected >=15 versioned asset URLs in index.html, found ${versions.length}`);
+  assert.ok(versions.length >= 16, `expected >=16 versioned asset URLs in index.html, found ${versions.length}`);
   const distinct = [...new Set(versions)];
   assert.deepStrictEqual(distinct, [cacheMatch[1]],
     `index.html ?v= values ${JSON.stringify(distinct)} must all equal the sw.js CACHE version ${cacheMatch[1]}`);
@@ -58,7 +58,7 @@ test('sw.js PRECACHE versioned entries agree with index.html URLs', () => {
   // representative sample resolves to exactly the URLs index.html references,
   // so precache keys and page requests hit the same cache entries.
   const v = cacheMatch[1];
-  ['app.core.js', 'app.logic.js', 'i18n.js', 'changelog.js'].forEach(f => {
+  ['app.core.js', 'app.logic.js', 'app.main.js', 'i18n.js', 'changelog.js'].forEach(f => {
     assert.ok(htmlSrc.includes(`${f}?v=${v}`), `index.html references ${f}?v=${v}`);
   });
   assert.ok(htmlSrc.includes(`style.css?v=${v}`), `index.html references style.css?v=${v}`);

@@ -2,7 +2,7 @@
    ONBOARDING & DAILY ENGAGEMENT
    Split out of app.logic.js. Splash hide, the first-run welcome tour, the
    daily quick-review modal, and the shareable monthly report export.
-   Loaded AFTER app.ui.js and BEFORE app.logic.js. Calls render (app.logic.js),
+   Loaded AFTER app.ui.js and BEFORE app.main.js. Calls render (app.main.js),
    openAddDrawer (app.ui.js) and openModal (app.overlay.js) at runtime only.
 ============================================================ */
 function hideSplash(){

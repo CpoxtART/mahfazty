@@ -2,10 +2,11 @@
    QUICK NOTES -> TRANSACTIONS
    Split out of app.logic.js. Free-form-text-to-transactions feature: parsing,
    the shared in-page wallet-picker popup, the preview/commit flow.
-   Loaded AFTER app.ui.js and BEFORE app.logic.js. Calls addTx/runDistribution
-   (app.logic.js) and openModal (app.overlay.js) at runtime — cross-file call
-   order is fine since none of this executes until the boot sequence in
-   app.logic.js actually runs, well after every script has loaded.
+   Loaded AFTER app.ui.js and BEFORE app.logic.js/app.main.js. Calls
+   addTx/runDistribution (app.logic.js) and openModal (app.overlay.js) at
+   runtime — cross-file call order is fine since none of this executes until
+   the boot sequence in app.main.js actually runs, well after every script
+   has loaded.
 ============================================================ */
 let _qnWallet = null;        // chosen target wallet id for the parsed rows
 let _qnPreview = [];         // current parsed/preview rows

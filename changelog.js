@@ -8,19 +8,27 @@
    CHANGELOG[0].version read happens later, at runtime, in app.pwa.js) doesn't
    touch it at parse time — but app.core.js's sanitizers/render code reference
    the CHANGELOG identifier at RUNTIME (Settings' "what's new" list, the
-   unseen-badge check), so this file only needs to precede app.logic.js, same
+   unseen-badge check), so this file only needs to precede app.main.js, same
    as every other split file.
 ============================================================ */
 // Manually curated "what's new" log shown from Settings → 📋 ما الجديد؟.
 // Newest entry first; add one entry per shipped feature round (not every
 // commit) and keep `version` matching the CACHE bump in sw.js for that round
-// — the unseen-badge logic in app.logic.js compares against CHANGELOG[0].version.
+// — the unseen-badge logic in app.pwa.js compares against CHANGELOG[0].version.
 //
 // Numbering: whole numbers (v47, v48, ...) are the baseline. Smaller follow-up
 // rounds on top of that baseline get a decimal point instead of their own
 // whole number — v47.1, v47.2, v47.3, ... up to v47.99 — then roll over to
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
+  {
+    version: 'v47.82',
+    date: '2026-07-04',
+    title: { ar: 'فصل تنظيمي: app.logic.js إلى معاملات + app.main.js إلى تشغيل التطبيق', en: 'Organizational split: app.logic.js into transactions + app.main.js into app runtime' },
+    items: [
+      { ar: 'صيانة: app.logic.js كان يحمل عنوان "إضافة/تعديل/حذف المعاملات" لكنه فعليًا يحوي أيضًا نظام التنبيهات، محرك العرض render()، ربط أحداث الواجهة الكاملة (نحو 80 مستمعًا)، وتسلسل الإقلاع والاستماع لدورة حياة التطبيق (الرؤية/الاتصال/علامة التبويب المتعددة/منتصف الليل). قُسّم الآن إلى ملفين: app.logic.js أصبح فعليًا مقتصرًا على معاملات المال فقط كما يوحي عنوانه، وملف جديد app.main.js يحمل كل ما سبق ذكره من تشغيل التطبيق. لا تغيير وظيفي — إعادة تنظيم فقط لتطابق أسماء الملفات مسؤولياتها الفعلية.', en: 'Maintenance: app.logic.js carried the header "ADD/EDIT/DELETE TRANSACTIONS" but actually also held the toast system, the render() engine, the entire UI event binding (~80 listeners), and the boot sequence plus app-lifecycle listening (visibility/online-offline/multi-tab/midnight refresh). Split into two files: app.logic.js is now genuinely limited to money transactions as its header implies, and a new app.main.js carries everything else listed above. No functional change — reorganization only, so file names match their actual responsibilities.' },
+    ],
+  },
   {
     version: 'v47.81',
     date: '2026-07-04',

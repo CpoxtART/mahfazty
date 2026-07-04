@@ -324,7 +324,7 @@ function isValidTx(t){
 // click with NO recent keydown on this exact element is genuine assistive-tech
 // activation (TalkBack/VoiceOver also report detail 0 on their synthesized
 // clicks) and must still go through — only suppress within a 1s window of an
-// actual keydown here. Copy-pasted 3x (app.logic.js's `_bindEvents`, the
+// actual keydown here. Copy-pasted 3x (app.main.js's `_bindEvents`, the
 // wallet-grid pct button, the quick-notes wallet picker) before being
 // centralized; fn receives the triggering event so a caller needing
 // e.stopPropagation() (a nested control inside another clickable element)

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <!-- Content-Security-Policy: all inline event handlers moved to _bindEvents() /
-     event delegation in app.logic.js — script-src uses SHA-256 hashes only, no
+     event delegation in app.main.js — script-src uses SHA-256 hashes only, no
      'unsafe-inline'. style-src keeps 'unsafe-inline' because JS render functions
      write runtime-computed values (transform:scaleX, background-color, canvas size)
      as style="…" attributes in innerHTML; moving those to CSSOM is a future task. -->
@@ -22,12 +22,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;600;700&display=swap">
 <!-- ?v= MUST match sw.js's CACHE version and CHANGELOG[0].version — enforced by
-     tests/version.test.js. Fresh cache keys per release make the 13-file set
+     tests/version.test.js. Fresh cache keys per release make the 16-file set
      ATOMIC: after a deploy, the (network-first) new index.html references URLs
      the old SW bucket has never cached, so every file fetches fresh together —
      no mixed old/new set (the v47.74 "Identifier already declared" class);
      offline keeps serving the old index.html whose old ?v= URLs are all cached. -->
-<link rel="stylesheet" href="style.css?v=47.81">
+<link rel="stylesheet" href="style.css?v=47.82">
 </head>
 <body>
 <script>
@@ -1028,7 +1028,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 })();
 </script>
 <!-- app split into ordered classic scripts (shared global scope, equivalent to
-     the old single app.js). app.logic.js's bottom-of-file init (_bindEvents(),
+     the old single app.js). app.main.js's bottom-of-file init (_bindEvents(),
      loadState().then(...)) must run LAST, after every renderer/handler it
      references exists — everything else just needs to precede it; nothing here
      is called at another file's PARSE time except app.overlay.js's one
@@ -1036,24 +1036,28 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
      load after app.ui.js. All cross-file calls elsewhere happen from event
      handlers or render()/boot, well after every script below has finished.
      changelog.js is pure data (no functions, no parse-time references to
-     anything else) — it only needs to precede app.logic.js, same as every
+     anything else) — it only needs to precede app.main.js, same as every
      other file; placed right after i18n.js since it's logically the same
-     "static config" tier as app.core.js's WALLET_DEFS. -->
+     "static config" tier as app.core.js's WALLET_DEFS. app.logic.js (tx CRUD)
+     just needs to precede app.main.js like every other file; placed right
+     before it since app.main.js's render()/toast() calls from tx-CRUD flows
+     read most naturally as "the file right after". -->
 <!-- ?v= on every script MUST match sw.js's CACHE version — see the style.css
      comment above for why (atomic per-release cache keys); enforced by
      tests/version.test.js. -->
-<script src="i18n.js?v=47.81"></script>
-<script src="changelog.js?v=47.81"></script>
-<script src="app.core.js?v=47.81"></script>
-<script src="app.ui.js?v=47.81"></script>
-<script src="app.voice.js?v=47.81"></script>
-<script src="app.layout.js?v=47.81"></script>
-<script src="app.charts.js?v=47.81"></script>
-<script src="app.drive.js?v=47.81"></script>
-<script src="app.quicknotes.js?v=47.81"></script>
-<script src="app.data.js?v=47.81"></script>
-<script src="app.engage.js?v=47.81"></script>
-<script src="app.pwa.js?v=47.81"></script>
-<script src="app.overlay.js?v=47.81"></script>
-<script src="app.logic.js?v=47.81"></script>
+<script src="i18n.js?v=47.82"></script>
+<script src="changelog.js?v=47.82"></script>
+<script src="app.core.js?v=47.82"></script>
+<script src="app.ui.js?v=47.82"></script>
+<script src="app.voice.js?v=47.82"></script>
+<script src="app.layout.js?v=47.82"></script>
+<script src="app.charts.js?v=47.82"></script>
+<script src="app.drive.js?v=47.82"></script>
+<script src="app.quicknotes.js?v=47.82"></script>
+<script src="app.data.js?v=47.82"></script>
+<script src="app.engage.js?v=47.82"></script>
+<script src="app.pwa.js?v=47.82"></script>
+<script src="app.overlay.js?v=47.82"></script>
+<script src="app.logic.js?v=47.82"></script>
+<script src="app.main.js?v=47.82"></script>
 </body></html>

@@ -24,7 +24,7 @@ const ROOT = path.join(__dirname, '..');
 const FILES = [
   'i18n.js', 'changelog.js', 'app.core.js', 'app.ui.js', 'app.voice.js', 'app.layout.js',
   'app.charts.js', 'app.drive.js', 'app.quicknotes.js', 'app.data.js',
-  'app.engage.js', 'app.pwa.js', 'app.overlay.js', 'app.logic.js',
+  'app.engage.js', 'app.pwa.js', 'app.overlay.js', 'app.logic.js', 'app.main.js',
 ];
 
 const handler = {

@@ -3,7 +3,7 @@
    Split out of app.logic.js. Dynamic manifest generation, the update-banner
    flow (detect -> prompt -> apply new Service Worker), and the "What's new?"
    changelog modal.
-   Loaded AFTER app.ui.js and BEFORE app.logic.js (which still owns
+   Loaded AFTER app.ui.js and BEFORE app.main.js (which still owns
    flushIdbBackup/driveSyncToCloud references used here at runtime).
 ============================================================ */
 function buildManifestBlob(isLight){

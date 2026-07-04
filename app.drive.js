@@ -1,7 +1,7 @@
 /* ============================================================
    GOOGLE DRIVE AUTO-SYNC  (split out of app.logic.js)
-   Loaded via its own <script> tag BEFORE app.logic.js so its
-   const/function declarations are in scope when app.logic.js's
+   Loaded via its own <script> tag BEFORE app.main.js so its
+   const/function declarations are in scope when app.main.js's
    bottom-of-file init runs. This file is declaration-only — it
    has no top-level executable statements.
 ============================================================ */
@@ -619,7 +619,7 @@ async function driveFindFile(){
 async function _mergeCloudIntoLocal(cloud, cloudNewer){
   // Defer the swap while the user has a modal/the add-drawer open, or another
   // mutation is mid-flight — same guards the cross-tab storage listener uses
-  // (app.logic.js's window 'storage' handler) — so an in-progress edit isn't
+  // (app.main.js's window 'storage' handler) — so an in-progress edit isn't
   // yanked out from under editingTxId/pendingIncomeTx by the array being
   // replaced mid-flow. _opInFlight also covers windows the DOM checks miss,
   // e.g. addTx's auto-distribution step which keeps _opInFlight raised after

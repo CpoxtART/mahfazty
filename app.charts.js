@@ -1,10 +1,10 @@
 /* ============================================================
    CANVAS CHARTS  (split out of app.ui.js)
    The category pie chart + the running-balance line chart.
-   Loaded via its own <script> AFTER app.ui.js and BEFORE app.logic.js.
+   Loaded via its own <script> AFTER app.ui.js and BEFORE app.main.js.
    Declaration-only (no top-level executable statements). Functions here are
    invoked at runtime by switchTab()/render(), so cross-file call order is fine;
-   the file just needs to precede app.logic.js, which reassigns _pieChartSig.
+   the file just needs to precede app.main.js, which reassigns _pieChartSig.
 ============================================================ */
 // Compact K/M/B number formatting shared by the pie-chart center label and the
 // line-chart Y-axis labels — both independently implemented the same

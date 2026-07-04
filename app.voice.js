@@ -3,7 +3,7 @@
    Split out of app.ui.js. Arabic number-word parsing, category/type
    guessing from a spoken transcript, and the mic button's recognition
    lifecycle. Only reachable via startVoiceInput(), wired in _bindEvents()
-   (app.logic.js) — safe to load anywhere after app.ui.js.
+   (app.main.js) — safe to load anywhere after app.ui.js.
 ============================================================ */
 const VOICE_NUMBER_WORDS = {
   'صفر':0,'واحد':1,'وحده':1,'وحدة':1,'اثنين':2,'إثنين':2,'تنين':2,'اثنان':2,'ثلاثة':3,'ثلاثه':3,'ثلاث':3,

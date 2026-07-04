@@ -3,8 +3,8 @@
    Split out of app.logic.js. Export/import, the granular reset & repair
    tools (zero/clear/wipe/repair-balances), and the distribution/budget
    sanitizers used when ingesting an import or a Drive snapshot.
-   Loaded AFTER app.ui.js and BEFORE app.logic.js. Calls saveBalances/saveTx
-   (app.core.js), render (app.logic.js) and openModal (app.overlay.js) at
+   Loaded AFTER app.ui.js and BEFORE app.main.js. Calls saveBalances/saveTx
+   (app.core.js), render (app.main.js) and openModal (app.overlay.js) at
    runtime only.
 ============================================================ */
 // Drop any distribution entries whose wallet id no longer exists (e.g. from an

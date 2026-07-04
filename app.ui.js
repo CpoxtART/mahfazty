@@ -1721,7 +1721,7 @@ function getFilteredTx(){
   // _txMutationStamp catches in-place edits (amount/desc/date/wallet/category on
   // an EXISTING tx) that don't change state.transactions.length — without it,
   // render() had to blanket-reset this cache on every single call regardless
-  // of whether anything relevant actually changed (see render(), app.logic.js).
+  // of whether anything relevant actually changed (see render(), app.main.js).
   const sig = state.transactions.length + '|' + currentFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery + '|' + dateKey + '|' + _txMutationStamp;
   if(sig === _filteredTxSig && _filteredTxCache) return _filteredTxCache;
   _filteredTxSig = sig;
