@@ -443,7 +443,15 @@
     box-shadow:0 2px 4px rgba(0,0,0,.3);
   }
   .crisis-toggle.active .switch{background:var(--red);}
+  /* translateX is a PHYSICAL transform, not direction-aware like inset-inline-end
+     above — in RTL the knob rests at the physical-left (inline-end) and +19px
+     correctly slides it right toward inline-start. In LTR, inline-end resolves
+     to the physical-right, so the knob already rests at the right — the same
+     +19px pushed it PAST the track's right edge instead of sliding it left
+     toward inline-start. Flip the sign in LTR to match the same inline-start
+     travel direction. */
   .crisis-toggle.active .switch::after{transform:translateX(19px);}
+  html[dir="ltr"] .crisis-toggle.active .switch::after{transform:translateX(-19px);}
 
   /* ================= QUICK NOTES → TRANSACTIONS ================= */
   /* Banner mirrors the crisis-toggle look so it reads as a sibling control */

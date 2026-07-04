@@ -12,31 +12,16 @@ let _qnPreview = [];         // current parsed/preview rows
 let _quickNotesDraft = '';   // persisted free-form notes text
 let _qnCommitBusy = false;
 
-// keyword → category guesses (matched against normalizeSearch so Arabic
-// orthographic variants and casing fold together). Bilingual on purpose.
-const _QN_CAT_KEYWORDS = [
-  {cat:'food',          words:['قهوه','قهوة','كوفي','كافيه','شاي','فطور','غداء','عشاء','اكل','طعام','مطعم','برجر','بيتزا','وجبه','عصير','حلى','coffee','cafe','food','lunch','dinner','breakfast','restaurant','meal','snack','juice']},
-  {cat:'transport',     words:['بنزين','وقود','تكسي','اوبر','كريم','مواصلات','سياره','سيارة','باص','قطار','رحله','رحلة','تذكره','تذكرة','gas','fuel','taxi','uber','careem','transport','bus','train','ride','ticket']},
-  {cat:'shopping',      words:['تسوق','ملابس','سوق','متجر','حذاء','قميص','هديه','هدية','عبايه','shopping','clothes','store','mall','shoes','gift']},
-  {cat:'bills',         words:['فاتوره','فاتورة','فواتير','كهرباء','ماء','مويه','نت','انترنت','جوال','اتصالات','ايجار','إيجار','bill','bills','electricity','water','internet','phone','mobile','rent']},
-  {cat:'health',        words:['دواء','صيدليه','صيدلية','دكتور','طبيب','مستشفى','عياده','عيادة','صحه','صحة','تحليل','pharmacy','doctor','hospital','clinic','health','medicine']},
-  {cat:'entertainment', words:['لعبه','لعبة','العاب','سينما','فيلم','ترفيه','اشتراك','نتفلكس','نتفليكس','game','games','cinema','movie','netflix','spotify','subscription','entertainment']},
-  {cat:'salary',        words:['راتب','مرتب','دخل','مدخول','مكافاه','مكافأة','salary','income','wage','payroll','bonus']},
-];
-// independent income detection (a line is income if it ends with/contains "+"
-// or names an income-type concept) — keep in sync with the salary keywords above
-const _QN_INCOME_WORDS = ['راتب','مرتب','دخل','مدخول','ايداع','إيداع','استرجاع','مكافاه','مكافأة','salary','income','deposit','refund','bonus','payroll'];
+// Category/income keyword tables now live in app.voice.js (CATEGORY_KEYWORDS,
+// INCOME_KEYWORDS, guessCategoryShared, isIncomeTextShared) — unified in
+// v47.78 so voice input and Quick Notes share one list instead of two
+// independently-maintained copies (app.voice.js loads before this file).
 
 function _qnNorm(s){ return (typeof normalizeSearch === 'function') ? normalizeSearch(s) : String(s||'').toLowerCase().trim(); }
 function _qnGuessCategory(desc, type){
-  const d = _qnNorm(desc);
-  if(d){
-    for(const grp of _QN_CAT_KEYWORDS){
-      if(grp.cat === 'salary' && type !== 'income') continue; // salary words only apply to income rows
-      if(grp.words.some(w => d.includes(_qnNorm(w)))) return grp.cat;
-    }
-  }
-  return type === 'income' ? 'salary' : 'other';
+  // Quick Notes wants a concrete fallback (voice's guessCategoryShared alone
+  // returns null on no match) — 'salary' for an income row, else 'other'.
+  return guessCategoryShared(desc, type) || (type === 'income' ? 'salary' : 'other');
 }
 
 // Matches a number token in either ASCII, Arabic-Indic (٠-٩) or Persian (۰-۹)
@@ -165,8 +150,7 @@ function parseQuickNotes(text){
     if(rows.length >= QN_MAX_LINES){ _qnTruncated = true; break; }
     const line = rawLine.trim();
     if(!line) continue;
-    const normSearch = _qnNorm(line);
-    const isIncome = /\+/.test(line) || _QN_INCOME_WORDS.some(w => normSearch.includes(_qnNorm(w)));
+    const isIncome = /\+/.test(line) || isIncomeTextShared(line);
     const type = isIncome ? 'income' : 'expense';
     const nums = line.match(_QN_NUM_RE);
     if(!nums || !nums.length){

@@ -22,21 +22,22 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const swSrc = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 const htmlSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-const coreSrc = fs.readFileSync(path.join(ROOT, 'app.core.js'), 'utf8');
+// CHANGELOG lives in changelog.js (split out of app.core.js in v47.78).
+const changelogSrc = fs.readFileSync(path.join(ROOT, 'changelog.js'), 'utf8');
 
 const cacheMatch = swSrc.match(/const CACHE = 'mhfzty-v([\d.]+)'/);
-const changelogMatch = coreSrc.match(/version:\s*'v([\d.]+)'/); // first occurrence = CHANGELOG[0]
+const changelogMatch = changelogSrc.match(/version:\s*'v([\d.]+)'/); // first occurrence = CHANGELOG[0]
 
 test('sw.js CACHE version matches CHANGELOG[0].version', () => {
   assert.ok(cacheMatch, 'sw.js CACHE constant found');
   assert.ok(changelogMatch, 'CHANGELOG[0].version found');
   assert.strictEqual(cacheMatch[1], changelogMatch[1],
-    `sw.js CACHE (v${cacheMatch[1]}) and app.core.js CHANGELOG[0] (v${changelogMatch[1]}) must be bumped together`);
+    `sw.js CACHE (v${cacheMatch[1]}) and changelog.js CHANGELOG[0] (v${changelogMatch[1]}) must be bumped together`);
 });
 
 test('every ?v= asset version in index.html matches the CACHE version', () => {
   const versions = [...htmlSrc.matchAll(/\?v=([\d.]+)/g)].map(m => m[1]);
-  assert.ok(versions.length >= 14, `expected >=14 versioned asset URLs in index.html, found ${versions.length}`);
+  assert.ok(versions.length >= 15, `expected >=15 versioned asset URLs in index.html, found ${versions.length}`);
   const distinct = [...new Set(versions)];
   assert.deepStrictEqual(distinct, [cacheMatch[1]],
     `index.html ?v= values ${JSON.stringify(distinct)} must all equal the sw.js CACHE version ${cacheMatch[1]}`);
@@ -57,7 +58,7 @@ test('sw.js PRECACHE versioned entries agree with index.html URLs', () => {
   // representative sample resolves to exactly the URLs index.html references,
   // so precache keys and page requests hit the same cache entries.
   const v = cacheMatch[1];
-  ['app.core.js', 'app.logic.js', 'i18n.js'].forEach(f => {
+  ['app.core.js', 'app.logic.js', 'i18n.js', 'changelog.js'].forEach(f => {
     assert.ok(htmlSrc.includes(`${f}?v=${v}`), `index.html references ${f}?v=${v}`);
   });
   assert.ok(htmlSrc.includes(`style.css?v=${v}`), `index.html references style.css?v=${v}`);

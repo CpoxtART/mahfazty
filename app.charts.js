@@ -29,56 +29,64 @@ function fmtCompact(n, signed){
 // class elsewhere) used to re-scan all transactions from scratch for nothing.
 let _pieChartCache = null;
 let _pieChartSig = '';
+// Pure compute: full-ledger scan + largest-remainder percentage rounding +
+// last-month comparison. Extracted from renderPieChart (v47.78) so this
+// classic off-by-one-prone rounding algorithm is unit-testable in the Node
+// sandbox without dragging in canvas/DOM calls — the render half below is
+// unchanged, just no longer fused to the compute half.
+function _computePieData(){
+  const filtered = state.transactions
+    .filter(tx => inRange(tx.ts))
+    .filter(tx => !walletFilter || tx.wallet === walletFilter)
+    .filter(tx => tx.type==='expense' && !isSystemCategory(tx));
+
+  const totals = {};
+  filtered.forEach(tx => {
+    const cat = tx.category || 'other';
+    totals[cat] = (totals[cat]||0) + tx.amount;
+  });
+  const total = Object.values(totals).reduce((a,b)=>a+b,0);
+  let entries = [], pctMap = {}, prevTotals = null;
+  // guard against an all-zero-amount set (e.g. crafted import) — every downstream
+  // amt/total below would be NaN/Infinity and the donut + legend would render broken
+  if(total > 0){
+    entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+
+    // largest-remainder rounding so the displayed integer percentages always sum
+    // to exactly 100 (plain toFixed(0) per slice could yield 99% or 101%)
+    let floorSum = 0;
+    const fracs = entries.map(([catId, amt]) => {
+      const exact = amt / total * 100;
+      const fl = Math.floor(exact);
+      pctMap[catId] = fl; floorSum += fl;
+      return { catId, frac: exact - fl };
+    });
+    let leftover = Math.round(100 - floorSum);
+    fracs.sort((a,b)=> b.frac - a.frac);
+    for(let i=0; i<leftover && i<fracs.length; i++) pctMap[fracs[i].catId] += 1;
+
+    // per-category comparison vs last month (only meaningful when viewing "month")
+    if(currentFilter === 'month'){
+      prevTotals = {};
+      const [prevStart, prevEnd] = monthRange(1);
+      state.transactions.forEach(tx=>{
+        if(tx.type!=='expense' || isSystemCategory(tx)) return;
+        if(tx.ts < prevStart || tx.ts >= prevEnd) return;
+        if(walletFilter && tx.wallet !== walletFilter) return;
+        const cat = tx.category || 'other';
+        prevTotals[cat] = (prevTotals[cat]||0) + tx.amount;
+      });
+    }
+  }
+  return { filteredLen: filtered.length, total, entries, pctMap, prevTotals };
+}
 function renderPieChart(){
   const wrap = document.getElementById('pieContent');
   const sig = _txMutationStamp + '|' + currentFilter + '|' + walletFilter;
   let data = (sig === _pieChartSig && _pieChartCache) ? _pieChartCache : null;
 
   if(!data){
-    const filtered = state.transactions
-      .filter(tx => inRange(tx.ts))
-      .filter(tx => !walletFilter || tx.wallet === walletFilter)
-      .filter(tx => tx.type==='expense' && !isSystemCategory(tx));
-
-    const totals = {};
-    filtered.forEach(tx => {
-      const cat = tx.category || 'other';
-      totals[cat] = (totals[cat]||0) + tx.amount;
-    });
-    const total = Object.values(totals).reduce((a,b)=>a+b,0);
-    let entries = [], pctMap = {}, prevTotals = null;
-    // guard against an all-zero-amount set (e.g. crafted import) — every downstream
-    // amt/total below would be NaN/Infinity and the donut + legend would render broken
-    if(total > 0){
-      entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
-
-      // largest-remainder rounding so the displayed integer percentages always sum
-      // to exactly 100 (plain toFixed(0) per slice could yield 99% or 101%)
-      let floorSum = 0;
-      const fracs = entries.map(([catId, amt]) => {
-        const exact = amt / total * 100;
-        const fl = Math.floor(exact);
-        pctMap[catId] = fl; floorSum += fl;
-        return { catId, frac: exact - fl };
-      });
-      let leftover = Math.round(100 - floorSum);
-      fracs.sort((a,b)=> b.frac - a.frac);
-      for(let i=0; i<leftover && i<fracs.length; i++) pctMap[fracs[i].catId] += 1;
-
-      // per-category comparison vs last month (only meaningful when viewing "month")
-      if(currentFilter === 'month'){
-        prevTotals = {};
-        const [prevStart, prevEnd] = monthRange(1);
-        state.transactions.forEach(tx=>{
-          if(tx.type!=='expense' || isSystemCategory(tx)) return;
-          if(tx.ts < prevStart || tx.ts >= prevEnd) return;
-          if(walletFilter && tx.wallet !== walletFilter) return;
-          const cat = tx.category || 'other';
-          prevTotals[cat] = (prevTotals[cat]||0) + tx.amount;
-        });
-      }
-    }
-    data = { filteredLen: filtered.length, total, entries, pctMap, prevTotals };
+    data = _computePieData();
     _pieChartCache = data;
     _pieChartSig = sig;
   }

@@ -22,7 +22,7 @@ const ROOT = path.join(__dirname, '..');
 // Same order the browser loads them in (index.html) — top-level const/let are
 // shared lexically only when run as ONE script, mirroring real <script> tags.
 const FILES = [
-  'i18n.js', 'app.core.js', 'app.ui.js', 'app.voice.js', 'app.layout.js',
+  'i18n.js', 'changelog.js', 'app.core.js', 'app.ui.js', 'app.voice.js', 'app.layout.js',
   'app.charts.js', 'app.drive.js', 'app.quicknotes.js', 'app.data.js',
   'app.engage.js', 'app.pwa.js', 'app.overlay.js', 'app.logic.js',
 ];
@@ -77,6 +77,8 @@ function loadApp() {
       // import/data-integrity sanitizers (arg-based, pure)
       sanitizeDistribution, sanitizeBudgets, sanitizeWalletDefs,
       sanitizeOrder, sanitizeTrackLinkMode, buildTxTs, parseArabicNumber,
+      // shared category/income keyword-guessing (voice + Quick Notes, unified v47.78)
+      guessCategoryShared, isIncomeTextShared, guessCategory, guessType, _qnGuessCategory,
       // state-dependent money/derivation functions, plus a live state ref and the
       // default WALLET_DEFS so tests can stage a scenario then assert.
       reconcileBalances, sumExpenses,
@@ -98,6 +100,11 @@ function loadApp() {
       setDistribution: (v) => { DISTRIBUTION = v; },
       getTransactions: () => state.transactions,
       setTransactions: (v) => { state.transactions = v; },
+      // pie-chart compute (largest-remainder % rounding) — currentFilter and
+      // walletFilter are reassigned lets, same accessor pattern as above.
+      _computePieData,
+      setCurrentFilter: (v) => { currentFilter = v; },
+      setWalletFilter: (v) => { walletFilter = v; },
     };`;
 
   // The app's top-level loadState() may reject against the stubs — that's

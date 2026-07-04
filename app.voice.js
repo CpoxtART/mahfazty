@@ -20,6 +20,20 @@ const VOICE_NUMBER_WORDS = {
   'الف':1000,'ألف':1000,'آلاف':1000,'الاف':1000,'ألفين':2000,'الفين':2000,
   'مليون':1000000,'ملايين':1000000,'مليونين':2000000
 };
+// English counterpart — added in v47.78 so an English-language user's spoken
+// numbers parse too (voiceRecognition.lang now follows the app's language
+// instead of being hardcoded to 'ar-SA'). Only needed for engines that
+// transcribe spoken numbers as words ("fifty"); ones that already transcribe
+// as digits ("50") go through the digit-detection branch below regardless of
+// language. _combineNumberValues' multiply/add semantics are language-agnostic
+// (tens+ones add, hundred/thousand/million multiply) so no combining-logic
+// changes were needed — this is purely a word→value lookup table.
+const VOICE_NUMBER_WORDS_EN = {
+  zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
+  eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15, sixteen:16, seventeen:17, eighteen:18, nineteen:19,
+  twenty:20, thirty:30, forty:40, fifty:50, sixty:60, seventy:70, eighty:80, ninety:90,
+  hundred:100, thousand:1000, million:1000000,
+};
 
 // Combine an ordered list of numeric values using Arabic scale semantics
 // (hundred/thousand/million multiply, smaller values add): [5,1000]→5000,
@@ -34,15 +48,46 @@ function _combineNumberValues(values){
   return total + current;
 }
 
-const CATEGORY_KEYWORDS = {
-  food: ['عشاء','غداء','فطور','اكل','أكل','مطعم','قهوة','كافيه','مأكولات'],
-  transport: ['تكسي','تاكسي','بنزين','وقود','مواصلات','سيارة','أوبر','اوبر','باص'],
-  shopping: ['تسوق','سوق','ملابس','شراء','محل'],
-  bills: ['فاتورة','فواتير','كهرباء','ماء','انترنت','إنترنت','اتصالات','موبايل'],
-  health: ['دواء','صيدلية','طبيب','مستشفى','علاج'],
-  entertainment: ['سينما','ترفيه','لعبة','العاب','ألعاب','رحلة'],
-  salary: ['راتب','دخل','مكافأة','أجرة','اجرة'],
-};
+// Shared bilingual keyword tables — used by BOTH voice input (below) and Quick
+// Notes free-text parsing (app.quicknotes.js's _qnGuessCategory). Previously
+// each entry point kept its own independent list: this one was Arabic-only
+// with plain substring matching, while Quick Notes' was bilingual and folded
+// through normalizeSearch (Arabic orthographic variants: "قهوه"/"قهوة" etc.).
+// Voice was strictly weaker as a result. Unified here (v47.78) — an improved
+// keyword only needs adding once, and both consumers get the same
+// orthographic-variant folding via normalizeSearch. Salary words are only
+// consulted for an already-income-typed row (see guessCategoryShared) since
+// "راتب"/"salary" describes what the money IS, not a place it was spent.
+const CATEGORY_KEYWORDS = [
+  {cat:'food',          words:['عشاء','غداء','فطور','اكل','أكل','مطعم','قهوة','قهوه','كوفي','كافيه','شاي','برجر','بيتزا','وجبه','عصير','حلى','مأكولات','coffee','cafe','food','lunch','dinner','breakfast','restaurant','meal','snack','juice']},
+  {cat:'transport',     words:['تكسي','تاكسي','بنزين','وقود','مواصلات','سيارة','سياره','أوبر','اوبر','كريم','باص','قطار','رحلة','رحله','تذكرة','تذكره','gas','fuel','taxi','uber','careem','transport','bus','train','ride','ticket']},
+  {cat:'shopping',      words:['تسوق','سوق','ملابس','شراء','محل','متجر','حذاء','قميص','هدية','هديه','عبايه','shopping','clothes','store','mall','shoes','gift']},
+  {cat:'bills',         words:['فاتورة','فاتوره','فواتير','كهرباء','ماء','مويه','انترنت','إنترنت','نت','اتصالات','موبايل','جوال','ايجار','إيجار','bill','bills','electricity','water','internet','phone','mobile','rent']},
+  {cat:'health',        words:['دواء','صيدلية','صيدليه','طبيب','دكتور','مستشفى','علاج','عيادة','عياده','صحة','صحه','تحليل','pharmacy','doctor','hospital','clinic','health','medicine']},
+  {cat:'entertainment', words:['سينما','ترفيه','لعبة','لعبه','العاب','ألعاب','رحلة','فيلم','اشتراك','نتفلكس','نتفليكس','game','games','cinema','movie','netflix','spotify','subscription','entertainment']},
+  {cat:'salary',        words:['راتب','مرتب','دخل','مدخول','مكافأة','مكافاه','أجرة','اجرة','salary','income','wage','payroll','bonus']},
+];
+// income detection: a line/transcript is income if it names an income-type
+// concept, independent of category (a raw "+" marker also triggers income in
+// Quick Notes, checked separately there — this list is just the word side).
+const INCOME_KEYWORDS = ['استلمت','استقبلت','دخل','راتب','مرتب','مدخول','ربحت','كسبت','حولوا لي','حول لي','حولني','حولولي','وصلني','وصل لي','وصلتني','جاني','جاتني','جانا','هدية','هديه','مكافأة','مكافاه','بونص','عائد','فائدة','أرسلوا لي','ارسلولي','ايداع','إيداع','استرجاع','salary','income','deposit','refund','bonus','payroll','wage'];
+// Shared category guess: normalizeSearch-folds both the haystack and each
+// keyword so Arabic orthographic variants and casing match identically for
+// every consumer. type is only used to gate the salary group (see comment
+// above); pass null/omit if the caller doesn't track a type yet.
+function guessCategoryShared(text, type){
+  const d = (typeof normalizeSearch === 'function') ? normalizeSearch(text) : String(text||'').toLowerCase();
+  if(!d) return null;
+  for(const grp of CATEGORY_KEYWORDS){
+    if(grp.cat === 'salary' && type !== 'income') continue;
+    if(grp.words.some(w => d.includes(normalizeSearch(w)))) return grp.cat;
+  }
+  return null;
+}
+function isIncomeTextShared(text){
+  const d = (typeof normalizeSearch === 'function') ? normalizeSearch(text) : String(text||'').toLowerCase();
+  return !!d && INCOME_KEYWORDS.some(w => d.includes(normalizeSearch(w)));
+}
 
 function parseArabicNumber(text){
   // Tokenize the ORIGINAL transcript FIRST, then normalize each token.
@@ -65,18 +110,26 @@ function parseArabicNumber(text){
       if(!raw) continue;
     }
     const clean = raw.replace(/[^ء-ي]/g,'');
-    if(!clean) continue;
-    // two-token compounds ("احد عشر" = 11) — must be tried BEFORE the single
-    // word, or "عشر" (10) claims the second token and the pair reads as 10
-    const _next = i + 1 < tokens.length ? String(tokens[i+1]).replace(/[^ء-ي]/g,'') : '';
-    if(_next && VOICE_NUMBER_WORDS[clean + ' ' + _next] !== undefined){
-      values.push(VOICE_NUMBER_WORDS[clean + ' ' + _next]); sawAny = true; i++; continue;
+    if(clean){
+      // two-token compounds ("احد عشر" = 11) — must be tried BEFORE the single
+      // word, or "عشر" (10) claims the second token and the pair reads as 10
+      const _next = i + 1 < tokens.length ? String(tokens[i+1]).replace(/[^ء-ي]/g,'') : '';
+      if(_next && VOICE_NUMBER_WORDS[clean + ' ' + _next] !== undefined){
+        values.push(VOICE_NUMBER_WORDS[clean + ' ' + _next]); sawAny = true; i++; continue;
+      }
+      if(VOICE_NUMBER_WORDS[clean] !== undefined){ values.push(VOICE_NUMBER_WORDS[clean]); sawAny = true; continue; }
+      // strip a leading connective و ("وعشرين" → "عشرين") and retry — but only when
+      // the remainder is itself a number word, so real words like "واحد" stay intact
+      if(clean.length > 2 && clean[0] === 'و' && VOICE_NUMBER_WORDS[clean.slice(1)] !== undefined){
+        values.push(VOICE_NUMBER_WORDS[clean.slice(1)]); sawAny = true; continue;
+      }
     }
-    if(VOICE_NUMBER_WORDS[clean] !== undefined){ values.push(VOICE_NUMBER_WORDS[clean]); sawAny = true; continue; }
-    // strip a leading connective و ("وعشرين" → "عشرين") and retry — but only when
-    // the remainder is itself a number word, so real words like "واحد" stay intact
-    if(clean.length > 2 && clean[0] === 'و' && VOICE_NUMBER_WORDS[clean.slice(1)] !== undefined){
-      values.push(VOICE_NUMBER_WORDS[clean.slice(1)]); sawAny = true;
+    // English words — a separate pass (not merged with the Arabic one above)
+    // since the Arabic filter strips Latin letters to '' and vice versa; a
+    // token can only ever match one script.
+    const cleanEn = raw.replace(/[^a-zA-Z]/g,'').toLowerCase();
+    if(cleanEn && VOICE_NUMBER_WORDS_EN[cleanEn] !== undefined){
+      values.push(VOICE_NUMBER_WORDS_EN[cleanEn]); sawAny = true;
     }
   }
   if(!sawAny) return null;
@@ -84,16 +137,12 @@ function parseArabicNumber(text){
   return isFinite(result) ? result : null;
 }
 
-function guessCategory(text){
-  for(const [catId, keywords] of Object.entries(CATEGORY_KEYWORDS)){
-    if(keywords.some(k => text.includes(k))) return catId;
-  }
-  return null;
+function guessCategory(text, type){
+  return guessCategoryShared(text, type);
 }
 
 function guessType(text){
-  const incomeWords = ['استلمت','استقبلت','دخل','راتب','ربحت','كسبت','حولوا لي','حول لي','حولني','حولولي','وصلني','وصل لي','وصلتني','جاني','جاتني','جانا','هدية','مكافأة','بونص','عائد','فائدة','أرسلوا لي','ارسلولي'];
-  return incomeWords.some(w => text.includes(w)) ? 'income' : 'expense';
+  return isIncomeTextShared(text) ? 'income' : 'expense';
 }
 
 let voiceRecognition = null;
@@ -141,7 +190,10 @@ function startVoiceInput(){
     btn.classList.remove('listening');
     voiceRecognition = null;
   };
-  voiceRecognition.lang = 'ar-SA';
+  // Follow the app's language setting instead of a hardcoded 'ar-SA' — an
+  // English-language user's speech was previously always recognized as
+  // Arabic regardless of their chosen UI language.
+  voiceRecognition.lang = _currentLang() === 'en' ? 'en-US' : 'ar-SA';
   voiceRecognition.interimResults = false;
   voiceRecognition.maxAlternatives = 1;
 
@@ -184,8 +236,10 @@ function startVoiceInput(){
 
 function applyVoiceTranscript(text){
   const amount = parseArabicNumber(text);
-  const category = guessCategory(text);
+  // type first — guessCategory needs it to decide whether the salary keyword
+  // group applies (salary describes what the money IS, not where it was spent).
   const type = guessType(text);
+  const category = guessCategory(text, type);
 
   // strip number-ish tokens from text to build a cleaner description
   let desc = text
@@ -193,6 +247,9 @@ function applyVoiceTranscript(text){
     .replace(/[٠-٩]+/g, '')
     .trim();
   Object.keys(VOICE_NUMBER_WORDS).forEach(w => { desc = desc.replace(new RegExp(w,'g'), ''); });
+  // English number words too — \b is safe here (ASCII-only), unlike the
+  // whitespace-anchor approach the Arabic particle strip below needs.
+  Object.keys(VOICE_NUMBER_WORDS_EN).forEach(w => { desc = desc.replace(new RegExp('\\b'+w+'\\b','gi'), ''); });
   desc = desc.replace(/\s{2,}/g,' ').trim();
   // remove common verbs/particles. JS \b is ASCII-only so it never matches around
   // Arabic letters — use whitespace anchors instead so these are actually stripped.
@@ -200,6 +257,10 @@ function applyVoiceTranscript(text){
   // strip without butchering real words.)
   ['صرفت','دفعت','اشتريت','استلمت','استقبلت','على','ريال','دينار','من'].forEach(w=>{
     desc = desc.replace(new RegExp('(^|\\s)'+w+'(?=\\s|$)','g'), ' ');
+  });
+  // English counterparts — \b is fine here (ASCII-only words)
+  ['spent','paid','bought','on','from','dollars','dollar','riyals','riyal'].forEach(w=>{
+    desc = desc.replace(new RegExp('\\b'+w+'\\b','gi'), ' ');
   });
   desc = desc.replace(/\s{2,}/g,' ').trim();
 

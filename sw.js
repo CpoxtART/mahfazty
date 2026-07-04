@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v47.77';
+const CACHE = 'mhfzty-v47.78';
 // The ?v= suffix on every script/stylesheet URL below MUST match this CACHE
 // version AND index.html's script tags (enforced by tests/version.test.js).
 // Why: cache keys include the query string, so each release gets FRESH keys for
@@ -20,7 +20,7 @@ const ASSET_V = CACHE.split('-v')[1];
 const PRECACHE = [
   './index.html',
   `./style.css?v=${ASSET_V}`,
-  ...['i18n.js','app.core.js','app.ui.js','app.voice.js','app.layout.js','app.charts.js','app.drive.js',
+  ...['i18n.js','changelog.js','app.core.js','app.ui.js','app.voice.js','app.layout.js','app.charts.js','app.drive.js',
       'app.quicknotes.js','app.data.js','app.engage.js','app.pwa.js','app.overlay.js','app.logic.js']
     .map(f => `./${f}?v=${ASSET_V}`),
   // referenced from index.html's <head> (favicon/apple-touch-icon) and footer
