@@ -367,51 +367,6 @@ document.addEventListener('click', function(e){
   });
 });
 
-// memoize the earliest-tx scan (O(n)) so re-opening settings doesn't re-scan
-// thousands of transactions; keyed by _txMutationStamp so it auto-invalidates
-// on any add/edit/delete.
-let _firstTxStamp = -1, _firstTxMs = null;
-// .sett-stat-v is forced direction:ltr, but ICU's ar-EG numeric date/time
-// formatting embeds bidi control chars (and on some platforms, e.g. Android
-// Chrome, a different digit/separator order entirely) meant for RTL text —
-// fighting the forced LTR direction and visibly scrambling the digits.
-// Build the strings from plain digits instead of relying on locale
-// formatting at all, sidestepping ICU's platform-specific bidi quirks.
-const pad2 = n => String(n).padStart(2, '0');
-function fmtStatDate(ms){
-  const d = new Date(ms);
-  return `${d.getDate()}/${d.getMonth()+1}/${pad2(d.getFullYear() % 100)}`;
-}
-function fmtStatDateTime(ms){
-  const d = new Date(ms);
-  return `${d.getDate()}/${d.getMonth()+1} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-function updateSettingsStats(){
-  // Thousands-grouped via a plain regex instead of toLocaleString — same
-  // ICU-bidi-fragility reasoning as fmtStatDate/fmtStatDateTime above.
-  document.getElementById('statTxCount').textContent = String(state.transactions.length).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  if(_firstTxStamp !== _txMutationStamp){
-    _firstTxStamp = _txMutationStamp;
-    _firstTxMs = state.transactions.length
-      ? state.transactions.reduce((min,t)=> t.ts<min ? t.ts : min, state.transactions[0].ts)
-      : null;
-  }
-  document.getElementById('statFirstTx').textContent = _firstTxMs !== null
-    ? fmtStatDate(_firstTxMs)
-    : '—';
-  try{
-    const last = localStorage.getItem(LS_PREFIX + 'lastEdit');
-    document.getElementById('statLastEdit').textContent = last
-      ? fmtStatDateTime(parseInt(last))
-      : '—';
-  }catch(e){
-    document.getElementById('statLastEdit').textContent = '—';
-  }
-  // Show active cache version
-  const cacheEl = document.getElementById('statCacheVer');
-  if(cacheEl){
-    caches.keys().then(keys => {
-      cacheEl.textContent = keys.length ? keys.join(', ') : t({ar:'لا يوجد كاش', en:'No cache'});
-    }).catch(()=>{ cacheEl.textContent = '—'; });
-  }
-}
+// Settings-stats rendering (updateSettingsStats + its date helpers) moved to
+// app.layout.js (v47.77) — it's Settings-tab content, not modal/focus-trap/
+// history machinery, which is this file's actual charter.

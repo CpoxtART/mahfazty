@@ -38,7 +38,7 @@ function renderPieChart(){
     const filtered = state.transactions
       .filter(tx => inRange(tx.ts))
       .filter(tx => !walletFilter || tx.wallet === walletFilter)
-      .filter(tx => tx.type==='expense' && tx.category !== 'transfer' && tx.category !== 'adjustment');
+      .filter(tx => tx.type==='expense' && !isSystemCategory(tx));
 
     const totals = {};
     filtered.forEach(tx => {
@@ -70,7 +70,7 @@ function renderPieChart(){
         prevTotals = {};
         const [prevStart, prevEnd] = monthRange(1);
         state.transactions.forEach(tx=>{
-          if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
+          if(tx.type!=='expense' || isSystemCategory(tx)) return;
           if(tx.ts < prevStart || tx.ts >= prevEnd) return;
           if(walletFilter && tx.wallet !== walletFilter) return;
           const cat = tx.category || 'other';
@@ -202,14 +202,31 @@ function renderChart(){
 
   const netChange = filtered.reduce((s,tx)=> s + (tx.type==='income' ? tx.amount : -tx.amount), 0);
   let running = walletFilter ? ((state.wallets[walletFilter] ?? 0) - netChange) : 0;
-  const points = filtered.map(tx => {
+  let points = filtered.map(tx => {
     running += (tx.type==='income' ? tx.amount : -tx.amount);
     return running;
   });
   points.unshift(walletFilter ? ((state.wallets[walletFilter] ?? 0) - netChange) : 0);
 
-  const min = Math.min(...points);
-  const max = Math.max(...points);
+  // Loop instead of Math.min/max(...points) — a spread call blows the engine's
+  // argument-count ceiling (~65k-124k, engine-dependent) once a near-the-import-
+  // cap ledger (applyImport allows up to 100k tx) is filtered to "all", crashing
+  // the whole chart render instead of drawing it.
+  let min = points[0], max = points[0];
+  for(let i=1;i<points.length;i++){ const p = points[i]; if(p<min) min=p; if(p>max) max=p; }
+  // Downsample for drawing ONLY — min/max/labels above already reflect the FULL
+  // series. Past a couple thousand points, one canvas pixel covers many points
+  // anyway (cssW is typically a few hundred px), so this is visually lossless
+  // while keeping ctx.lineTo() calls and DPR-scaled coordinate math bounded.
+  // Always keeps the first/last point and strides evenly across the rest.
+  const MAX_DRAW_POINTS = 2000;
+  if(points.length > MAX_DRAW_POINTS){
+    const stride = points.length / MAX_DRAW_POINTS;
+    const sampled = [];
+    for(let i=0;i<MAX_DRAW_POINTS;i++) sampled.push(points[Math.floor(i*stride)]);
+    sampled.push(points[points.length-1]);
+    points = sampled;
+  }
   // when every point is identical the spread is 0; draw the line through the
   // vertical centre instead of pinning it to the bottom (range fallback of 1)
   const flat = max === min;

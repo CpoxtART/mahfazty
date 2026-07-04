@@ -319,18 +319,9 @@ async function runDistribution(sourceTx, amount){
   return true;
 }
 
-/**
- * Round a money value to 2 decimals, correcting binary-float misrounding.
- * @param {number} n
- * @returns {number}
- */
-function round2(n){
-  // Plain Math.round(n*100)/100 misrounds values like 1.005 → 1 (should be
-  // 1.01) because 1.005*100 is actually 100.49999... in binary float. The
-  // Number.EPSILON nudge corrects that without affecting any normal value.
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
+// round2 moved to app.core.js's FORMAT HELPERS section (v47.77) — it's the
+// money-math primitive everything depends on, so it belongs with
+// fmt/parseAmount/normalizeDigits, not in the transaction-CRUD file.
 
 function applyTxToBalance(tx, sign){
   if(!tx || !isFinite(tx.amount) || tx.amount <= 0) return;
@@ -530,7 +521,7 @@ function repeatLastTx(){
   let last = null;
   for(let i = 0; i < sorted.length; i++){
     const t = sorted[i];
-    if(t.category !== 'transfer' && t.category !== 'adjustment'){ last = t; break; }
+    if(!isSystemCategory(t)){ last = t; break; }
   }
   if(!last){ toast(t({ar:'لا توجد معاملة سابقة لتكرارها', en:'No previous transaction to repeat'})); return; }
   document.getElementById('descInput').value = last.desc || '';
@@ -907,15 +898,9 @@ function _bindEvents(){
   const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
   // role="button" elements: activate on click + Enter/Space keydown
   const act = (el, fn) => { on(el,'click',fn); on(el,'keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fn(e);} }); };
-  // custom-select elements: suppress ONLY the click echo that follows our own
-  // keydown (the global Enter/Space handler synthesizes el.click() with
-  // detail 0). A bare detail-0 click with no recent keydown is assistive-tech
-  // activation (TalkBack/VoiceOver also report detail 0) and must go through —
-  // the old blanket `if(!e.detail)return` made these controls dead for AT users.
-  const sel = (el, fn) => {
-    on(el,'click',e=>{ if(!e.detail && el._kbdEchoAt && Date.now() - el._kbdEchoAt < 1000) return; fn(e); });
-    on(el,'keydown',e=>{ if(e.key==='Enter'||e.key===' '){ el._kbdEchoAt = Date.now(); e.preventDefault(); fn(e); } });
-  };
+  // custom-select elements: see bindKbdSelect (app.core.js) for the echo-
+  // suppression rationale — centralized there, was a local closure here.
+  const sel = bindKbdSelect;
   // Live thousands-separator formatting ("1000" -> "1,000" as you type) on
   // every static money field. Added as an extra 'input' listener alongside
   // whatever else already listens on these fields — safe regardless of

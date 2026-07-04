@@ -1,14 +1,32 @@
-const CACHE = 'mhfzty-v47.76';
+const CACHE = 'mhfzty-v47.77';
+// The ?v= suffix on every script/stylesheet URL below MUST match this CACHE
+// version AND index.html's script tags (enforced by tests/version.test.js).
+// Why: cache keys include the query string, so each release gets FRESH keys for
+// the whole 13-file set. Without this, the runtime stale-while-revalidate
+// below refreshed each file's single fixed cache entry independently and
+// asynchronously — after a deploy, a tab could load some files already
+// refreshed to the new release alongside others still at the old one, from
+// the SAME cache bucket. That mixed old/new set is the exact fatal
+// "Identifier has already been declared" class v47.74 fixed for the browser's
+// OWN HTTP cache (_freshFetch below) but which remained open through the SW's
+// cache. With per-release keys, the new (network-first) index.html references
+// URLs the old bucket never had → every file misses cache and fetches fresh
+// together; offline, the old index.html keeps referencing its own fully-cached
+// old set. Old-version entries die with their bucket on activate.
+const ASSET_V = CACHE.split('-v')[1];
 // Note: sw.js itself is intentionally NOT precached — the browser fetches and
 // byte-compares it directly to drive updates; caching it via the Cache API is a
 // no-op at best and can interfere with that update check.
 const PRECACHE = [
-  './index.html', './style.css', './i18n.js', './app.core.js', './app.ui.js', './app.voice.js', './app.layout.js',
-  './app.charts.js', './app.drive.js', './app.quicknotes.js', './app.data.js', './app.engage.js', './app.pwa.js',
-  './app.overlay.js', './app.logic.js',
+  './index.html',
+  `./style.css?v=${ASSET_V}`,
+  ...['i18n.js','app.core.js','app.ui.js','app.voice.js','app.layout.js','app.charts.js','app.drive.js',
+      'app.quicknotes.js','app.data.js','app.engage.js','app.pwa.js','app.overlay.js','app.logic.js']
+    .map(f => `./${f}?v=${ASSET_V}`),
   // referenced from index.html's <head> (favicon/apple-touch-icon) and footer
   // (privacy/terms) — omitted before, undermining the "works offline from the
   // very first visit" guarantee the install handler below is meant to provide.
+  // Unversioned: standalone leaf documents/images with no cross-file coupling.
   './favicon-32.png', './apple-touch-icon.png', './privacy.html', './terms.html'
 ];
 

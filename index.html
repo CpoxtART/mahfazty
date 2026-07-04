@@ -21,7 +21,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css">
+<!-- ?v= MUST match sw.js's CACHE version and CHANGELOG[0].version — enforced by
+     tests/version.test.js. Fresh cache keys per release make the 13-file set
+     ATOMIC: after a deploy, the (network-first) new index.html references URLs
+     the old SW bucket has never cached, so every file fetches fresh together —
+     no mixed old/new set (the v47.74 "Identifier already declared" class);
+     offline keeps serving the old index.html whose old ?v= URLs are all cached. -->
+<link rel="stylesheet" href="style.css?v=47.77">
 </head>
 <body>
 <script>
@@ -1033,17 +1039,20 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
      _wireGrabber(..., closeAddDrawer) call, which is why app.overlay.js must
      load after app.ui.js. All cross-file calls elsewhere happen from event
      handlers or render()/boot, well after every script below has finished. -->
-<script src="i18n.js"></script>
-<script src="app.core.js"></script>
-<script src="app.ui.js"></script>
-<script src="app.voice.js"></script>
-<script src="app.layout.js"></script>
-<script src="app.charts.js"></script>
-<script src="app.drive.js"></script>
-<script src="app.quicknotes.js"></script>
-<script src="app.data.js"></script>
-<script src="app.engage.js"></script>
-<script src="app.pwa.js"></script>
-<script src="app.overlay.js"></script>
-<script src="app.logic.js"></script>
+<!-- ?v= on every script MUST match sw.js's CACHE version — see the style.css
+     comment above for why (atomic per-release cache keys); enforced by
+     tests/version.test.js. -->
+<script src="i18n.js?v=47.77"></script>
+<script src="app.core.js?v=47.77"></script>
+<script src="app.ui.js?v=47.77"></script>
+<script src="app.voice.js?v=47.77"></script>
+<script src="app.layout.js?v=47.77"></script>
+<script src="app.charts.js?v=47.77"></script>
+<script src="app.drive.js?v=47.77"></script>
+<script src="app.quicknotes.js?v=47.77"></script>
+<script src="app.data.js?v=47.77"></script>
+<script src="app.engage.js?v=47.77"></script>
+<script src="app.pwa.js?v=47.77"></script>
+<script src="app.overlay.js?v=47.77"></script>
+<script src="app.logic.js?v=47.77"></script>
 </body></html>

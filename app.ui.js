@@ -16,7 +16,7 @@ function _buildMonthlyExpenseCache(){
   const now = new Date();
   const cache = {};
   state.transactions.forEach(tx=>{
-    if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
+    if(tx.type!=='expense' || isSystemCategory(tx)) return;
     const d = new Date(tx.ts);
     if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
       // round2 per-step (not just at the end) so summing many transactions
@@ -138,11 +138,14 @@ function renderWallets(){
     div.onkeydown = (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); setWalletFilter(w.id); } };
     const pctEl = div.querySelector('.pct');
     if(pctEl){
-      // suppress only the keyboard-echo click (detail 0 right after our own
-      // keydown) — a bare detail-0 click is assistive-tech activation and must
-      // work (see the `sel` helper in _bindEvents for the same pattern).
-      pctEl.onclick = (e) => { e.stopPropagation(); if(!e.detail && pctEl._kbdEchoAt && Date.now() - pctEl._kbdEchoAt < 1000) return; openWalletDetail(w.id); };
-      pctEl.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ pctEl._kbdEchoAt = Date.now(); e.preventDefault(); e.stopPropagation(); openWalletDetail(w.id); } };
+      // pctEl sits inside div's own click/keydown handler above (setWalletFilter)
+      // — stop propagation UNCONDITIONALLY (own listeners, ahead of bindKbdSelect's)
+      // so a suppressed keyboard-echo click still doesn't bubble up and fire the
+      // parent's action too. See bindKbdSelect (app.core.js) for the keyboard-
+      // echo-suppression rationale shared with the two other wallet pickers.
+      pctEl.addEventListener('click', e => e.stopPropagation());
+      pctEl.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') e.stopPropagation(); });
+      bindKbdSelect(pctEl, () => openWalletDetail(w.id));
     }
     grid.appendChild(div);
   });
@@ -682,7 +685,7 @@ function updateHeroStats(){
   if(_hSig !== _heroStatsSig || !_heroStatsCache){
     let mIncome=0, mExpense=0;
     state.transactions.forEach(tx=>{
-      if(tx.category === 'transfer' || tx.category === 'adjustment') return;
+      if(isSystemCategory(tx)) return;
       const d = new Date(tx.ts);
       if(d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()){
         if(tx.type==='income') mIncome+=tx.amount; else mExpense+=tx.amount;
@@ -726,6 +729,10 @@ function renderRecentTx(){
   // Build the whole list off-DOM in a fragment, then attach once — appending each
   // of up to 500 rows directly to the live list triggers a reflow per insertion.
   const frag = document.createDocumentFragment();
+  // Hoisted per-render — Intl formatter CONSTRUCTION (not formatting) is the
+  // costly part, and this used to build a fresh one per row.
+  const _timeFmt = new Intl.DateTimeFormat(_dateLocale(), {hour:'2-digit', minute:'2-digit', numberingSystem:'latn'});
+  const _dayLabelFmt = new Intl.DateTimeFormat(_dateLocale(), {weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
 
   visible.forEach(tx => {
     const wallet = WALLET_DEFS.find(w=>w.id===tx.wallet);
@@ -739,14 +746,14 @@ function renderRecentTx(){
       lbl.className = 'tx-day-label';
       lbl.textContent = dayStr===todayStr ? t({ar:'اليوم', en:'Today'})
         : dayStr===yesterdayStr ? t({ar:'أمس', en:'Yesterday'})
-        : date.toLocaleDateString(_dateLocale(),{weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
+        : _dayLabelFmt.format(date);
       frag.appendChild(lbl);
       card = document.createElement('div');
       card.className = 'recent-card';
       card.setAttribute('role','list');
       frag.appendChild(card);
     }
-    const timeStr = date.toLocaleTimeString(_dateLocale(),{hour:'2-digit',minute:'2-digit',numberingSystem:'latn'});
+    const timeStr = _timeFmt.format(date);
     const sign = tx.type==='expense'?'-':'+';
     const cls = tx.type==='expense'?'neg':'pos';
     const row = document.createElement('div');
@@ -1426,7 +1433,7 @@ function openWalletDetail(walletId){
   const txs = state.transactions.filter(t=>t.wallet===walletId).sort((a,b)=>b.ts-a.ts);
   let inc=0, exp=0;
   txs.forEach(t => {
-    if(t.category==='transfer' || t.category==='adjustment') return;
+    if(isSystemCategory(t)) return;
     t.type==='income' ? inc+=t.amount : exp+=t.amount;
   });
   document.getElementById('detailCount').textContent = String(txs.length);
@@ -1484,7 +1491,7 @@ function monthRange(monthsAgo){
 function sumExpenses(start, end, categoryId, wFilter){
   let total = 0;
   state.transactions.forEach(tx=>{
-    if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
+    if(tx.type!=='expense' || isSystemCategory(tx)) return;
     if(tx.ts < start || tx.ts >= end) return;
     if(categoryId && tx.category !== categoryId) return;
     if(wFilter && tx.wallet !== wFilter) return;
@@ -1534,7 +1541,7 @@ function renderAnalytics(){
   } else {
     cmpHtml = `<div class="sub">${t({ar:'لا توجد بيانات للشهر الماضي', en:'No data for last month'})}</div>`;
   }
-  grid.innerHTML += `
+  const cardHtml = `
     <div class="analytics-card">
       <div class="l">${t({ar:'مصروف هذا الشهر', en:"This month's spending"})}</div>
       <div class="v">${fmt(curTotal)}</div>
@@ -1558,7 +1565,9 @@ function renderAnalytics(){
         <div class="sub">${t({ar:'يحتاج بيانات أكثر', en:'Needs more data'})}</div>
       </div>`;
   }
-  grid.innerHTML += projHtml;
+  // Single assignment instead of two `+=` passes — each += re-parses the
+  // grid's already-accumulated HTML from scratch before appending the next bit.
+  grid.innerHTML = cardHtml + projHtml;
 }
 
 let _recurringCache = null;
@@ -1575,7 +1584,7 @@ function detectRecurring(){
 
   const groups = {};
   state.transactions.forEach(tx=>{
-    if(tx.type!=='expense' || tx.category==='transfer' || tx.category==='adjustment') return;
+    if(tx.type!=='expense' || isSystemCategory(tx)) return;
     // normalizeSearch folds Arabic orthographic variants (alef/ya/teh-marbuta,
     // tashkeel) so "نتفلكس" and "نتفلیکس" group as the same recurring pattern
     // instead of being treated as unrelated one-off transactions (see normalizeSearch).
@@ -1800,7 +1809,7 @@ function renderTxList(){
   filtered.forEach(tx => {
     // exclude inter-wallet transfers AND manual balance adjustments so the
     // income/expense summary matches the category pie chart (which excludes both)
-    if(tx.category === 'transfer' || tx.category === 'adjustment') return;
+    if(isSystemCategory(tx)) return;
     if(tx.type === 'income') income += tx.amount;
     else expense += tx.amount;
   });
@@ -1829,6 +1838,18 @@ function renderTxList(){
 
   let lastDay = null;
   const visible = filtered.slice(0, _txVisibleCount);
+  // Hoisted per-render: Intl formatter CONSTRUCTION is the expensive part of
+  // toLocale*String (~0.1ms+ each) and it used to run 3× per row; and rows are
+  // batched into a fragment so the live #txList takes ONE append (a per-row
+  // live append forced a reflow per row — the same fix renderRecentTx already
+  // got in v47.38, which this list never received).
+  const _frag = document.createDocumentFragment();
+  const _timeFmt = new Intl.DateTimeFormat(_dateLocale(), {hour:'2-digit', minute:'2-digit', numberingSystem:'latn'});
+  const _ariaDateFmt = new Intl.DateTimeFormat(_dateLocale(), {day:'numeric', month:'long', numberingSystem:'latn'});
+  const _dayLabelFmt = new Intl.DateTimeFormat(_dateLocale(), {weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
+  const _todayKey = new Date().toDateString();
+  const _yest = new Date(); _yest.setDate(_yest.getDate()-1); // calendar day (not 24h) — DST-safe
+  const _yestKey = _yest.toDateString();
   visible.forEach(tx => {
     const wallet = WALLET_DEFS.find(w => w.id === tx.wallet);
     const date = new Date(tx.ts);
@@ -1837,12 +1858,8 @@ function renderTxList(){
       lastDay = dayKey;
       const lbl = document.createElement('div');
       lbl.className = 'tx-day-label';
-      const isToday = dayKey === new Date().toDateString();
-      // step back one calendar day (not 24h) so DST transition days still label correctly
-      const _yest = new Date(); _yest.setDate(_yest.getDate()-1);
-      const isYesterday = dayKey === _yest.toDateString();
-      lbl.textContent = isToday ? t({ar:'اليوم', en:'Today'}) : isYesterday ? t({ar:'أمس', en:'Yesterday'}) : date.toLocaleDateString(_dateLocale(), {weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
-      list.appendChild(lbl);
+      lbl.textContent = dayKey === _todayKey ? t({ar:'اليوم', en:'Today'}) : dayKey === _yestKey ? t({ar:'أمس', en:'Yesterday'}) : _dayLabelFmt.format(date);
+      _frag.appendChild(lbl);
     }
 
     const wrap = document.createElement('div');
@@ -1857,7 +1874,7 @@ function renderTxList(){
     div.className = 'tx';
     const sign = tx.type === 'expense' ? '-' : '+';
     const cls = tx.type === 'expense' ? 'neg' : 'pos';
-    const timeStr = date.toLocaleTimeString(_dateLocale(), {hour:'2-digit', minute:'2-digit', numberingSystem:'latn'});
+    const timeStr = _timeFmt.format(date);
     const cat = getCategory(tx.category);
     div.innerHTML = `
       <div class="info">
@@ -1874,7 +1891,7 @@ function renderTxList(){
     // see the matching aria-label in renderRecentTx: setAttribute needs bidi
     // stripping, not HTML-escaping, since it never interprets markup.
     div.setAttribute('aria-label',
-      `${t(tx.type==='expense'?{ar:'مصروف',en:'Expense'}:{ar:'دخل',en:'Income'})} ${fmt(tx.amount)}${t({ar:'،',en:','})} ${stripBidiControls(tx.desc) || (wallet?wallet.name:'')}${t({ar:'،',en:','})} ${cat.name}${t({ar:'،',en:','})} ${date.toLocaleDateString(_dateLocale(),{day:'numeric',month:'long',numberingSystem:'latn'})} ${timeStr}`);
+      `${t(tx.type==='expense'?{ar:'مصروف',en:'Expense'}:{ar:'دخل',en:'Income'})} ${fmt(tx.amount)}${t({ar:'،',en:','})} ${stripBidiControls(tx.desc) || (wallet?wallet.name:'')}${t({ar:'،',en:','})} ${cat.name}${t({ar:'،',en:','})} ${_ariaDateFmt.format(date)} ${timeStr}`);
     // `wrap` (parent) already carries role="listitem" for the list structure, so
     // this nested element can be the actual interactive control — previously it
     // was click-only, leaving keyboard/screen-reader users no way to open it.
@@ -1887,8 +1904,9 @@ function renderTxList(){
 
     wrap.appendChild(bg);
     wrap.appendChild(div);
-    list.appendChild(wrap);
+    _frag.appendChild(wrap);
   });
+  list.appendChild(_frag); // single live-DOM append for the whole batch
 
   // One set of delegated touch listeners on the list container (bound once),
   // instead of 4 listeners per row that accumulated on every re-render.

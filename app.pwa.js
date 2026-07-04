@@ -287,6 +287,16 @@ function setupPWA(){
       if(hadController && _reloadOnControllerChange){
         sessionStorage.setItem('_swJustUpdated', '1');
         window.location.reload();
+      } else if(hadController){
+        // This tab got CLAIMED by a new SW it never asked for — another tab (or
+        // a dismissed/missed banner here) drove skipWaiting+activate, and
+        // clients.claim() re-parents every open tab. This tab now runs OLD
+        // in-memory JS under the NEW SW whose activate step already deleted
+        // the old cache bucket; without a recheck it would stay stale
+        // indefinitely (the 15-min poll can't help — the new SW is already
+        // "current", so no waiting worker ever appears). Re-run the drift
+        // check to funnel into the normal banner → applyUpdate flow.
+        _checkSWDriftAtBoot();
       }
     });
   }catch(e){}

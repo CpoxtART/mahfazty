@@ -466,16 +466,11 @@ function renderQuickNotesPreview(){
   });
   list.querySelectorAll('.qn-row-desc').forEach(inp => inp.oninput = () => { _qnPreview[+inp.dataset.i].desc = inp.value; });
   // Primary wallet: open the shared in-page popup, update model + label on pick.
-  // The click handler must swallow the keyboard echo: our keydown runs open(),
-  // then the global Enter/Space handler synthesizes el.click() (detail 0) — and
-  // openWalletPop treats a second call on the same anchor as a toggle, so the
-  // popup opened and instantly closed for keyboard users. Suppress only clicks
-  // that closely follow OUR keydown so assistive-tech clicks (also detail 0,
-  // but with no preceding keydown) still work.
-  const _qnPick = (btn, open) => {
-    btn.onclick = (e) => { if(!e.detail && btn._kbdEchoAt && Date.now() - btn._kbdEchoAt < 1000) return; open(); };
-    btn.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ btn._kbdEchoAt = Date.now(); e.preventDefault(); open(); } };
-  };
+  // Must swallow the keyboard echo — see bindKbdSelect (app.core.js): without
+  // it, our keydown runs open(), then the synthesized detail-0 click ran it
+  // again, and openWalletPop treats a second call on the same anchor as a
+  // toggle, so the popup opened and instantly closed for keyboard users.
+  const _qnPick = bindKbdSelect;
   list.querySelectorAll('.qn-cs-primary').forEach(btn => _qnPick(btn, () => {
     const i = +btn.dataset.i;
     const items = SELECTABLE_WALLETS.map(w => ({ id:w.id, name:w.name, bal: fmt(state.wallets[w.id] ?? 0) }));

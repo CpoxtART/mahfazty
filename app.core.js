@@ -31,6 +31,19 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.77',
+    date: '2026-07-03',
+    title: { ar: 'جولة إصلاحات 2: تحديث ذري بدون تصادم إصدارات، وتحسينات أداء', en: 'Fix round 2: atomic updates without version collisions, plus performance wins' },
+    items: [
+      { ar: 'إصلاح عالٍ (وقائي): كل ملفات التطبيق أصبحت تحمل رقم إصدار في رابطها (?v=)، فتُحدَّث كلها معًا دفعة واحدة عند كل تحديث بدل أن يُحدَّث كل ملف على حدة بشكل غير متزامن — يمنع نهائيًا احتمال تحميل خليط من ملفات قديمة وجديدة معًا بعد نشر تحديث (نفس فئة خطأ «Identifier معرّف مسبقًا» الذي أُصلح جزئيًا في v47.74).', en: 'High fix (preventive): every app file now carries a version number in its URL (?v=), so the whole set updates together atomically instead of each file refreshing independently and asynchronously — permanently forecloses ever loading a mixed old/new file set after a deploy (the same "Identifier already declared" bug class partially fixed in v47.74).' },
+      { ar: 'إصلاح متوسط: تبويب مفتوح فوته إشعار التحديث (مثلاً كان مفتوحًا وقت النشر) صار يعيد فحص التحديث تلقائيًا لما تُحدَّث نسخة التطبيق من تبويب آخر، بدل أن يبقى عالقًا على نسخة قديمة إلى أن يُغلق يدويًا.', en: "Medium fix: a tab that missed the update notification (e.g. it was open at deploy time) now automatically rechecks for an update when another tab updates the app's version, instead of staying stuck on the old version until manually closed." },
+      { ar: 'أداء: قائمة المعاملات في تبويب التقارير تُبنى الآن دفعة واحدة خارج الصفحة بدل صف صف (كانت تُعيد رسم الصفحة مع كل صف)، ومهلات التاريخ/الوقت تُبنى مرة واحدة لكل عرض بدل كل صف — يقلّل التأخير الملحوظ عند فتح قائمة موسّعة.', en: "Performance: the Reports tab's transaction list is now built off-page in one batch instead of row-by-row (each row used to trigger a page reflow), and date/time formatters are built once per render instead of once per row — reduces noticeable lag when opening an expanded list." },
+      { ar: 'أداء (وقائي): الرسم البياني للرصيد لم يعد يستخدم استدعاءً واحدًا يحمل كل نقطة بيانة (قد ينهار عند سجل قريب من حد الاستيراد 100,000 معاملة)، وصار يبسّط عدد النقاط المرسومة للسجلات الكبيرة جدًا دون التأثير على الشكل المرئي.', en: "Performance (preventive): the balance chart no longer uses a single call carrying every data point (could crash on a ledger near the 100,000-transaction import cap), and now thins the drawn points for very large ledgers without affecting the visual shape." },
+      { ar: 'صيانة: قاعدة استبعاد التحويلات والتسويات اليدوية من ملخصات الدخل/المصروف وُحّدت في مكان واحد بدل تكرارها بنفس الصيغة في 5 ملفات؛ منطق قمع «صدى» ضغطة الكيبورد (Enter/مسافة) للعناصر المخصصة وُحّد أيضًا بدل 3 نسخ منفصلة؛ round2 انتقلت لتجاور بقية أدوات تنسيق الأرقام.', en: 'Maintenance: the rule excluding transfers and manual adjustments from income/expense summaries is now one shared check instead of the same pattern repeated across 5 files; the keyboard-echo suppression logic for custom-select controls (Enter/Space) is likewise unified instead of 3 separate copies; round2 moved to sit alongside the rest of the number-formatting helpers.' },
+      { ar: 'اختبار جديد: يتحقق تلقائيًا أن رقم إصدار sw.js وسجل التغييرات وروابط الملفات في index.html متطابقة دائمًا — كانت هذه المزامنة يدوية بالكامل وعرضة للنسيان.', en: "New test: automatically verifies sw.js's version, the changelog, and index.html's asset URLs always stay in lockstep — this pairing was entirely manual before and easy to forget." },
+    ],
+  },
+  {
     version: 'v47.76',
     date: '2026-07-03',
     title: { ar: 'جولة إصلاحات من تدقيق شامل: حذف المحافظ الافتراضية، تطابق أرصدة التتبع بين الأجهزة، وحماية أقوى للبيانات', en: 'Fix round from a full audit: default-wallet deletion, cross-device tracked-balance convergence, and stronger data protection' },
@@ -1269,6 +1282,34 @@ function isValidTx(t){
     typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 && t.amount <= MAX_AMOUNT &&
     WALLET_DEFS.find(w => w.id === t.wallet));
 }
+// Wires a custom-select-style control (role="button", not a native <button>)
+// for both click and Enter/Space keydown activation, while suppressing the
+// click ECHO that follows our own keydown: activating a non-native control via
+// keydown still lets the browser's default action fire a synthesized detail-0
+// click right after, which would otherwise double-invoke fn. A bare detail-0
+// click with NO recent keydown on this exact element is genuine assistive-tech
+// activation (TalkBack/VoiceOver also report detail 0 on their synthesized
+// clicks) and must still go through — only suppress within a 1s window of an
+// actual keydown here. Copy-pasted 3x (app.logic.js's `_bindEvents`, the
+// wallet-grid pct button, the quick-notes wallet picker) before being
+// centralized; fn receives the triggering event so a caller needing
+// e.stopPropagation() (a nested control inside another clickable element)
+// still can.
+function bindKbdSelect(el, fn){
+  if(!el) return;
+  el.addEventListener('click', e => { if(!e.detail && el._kbdEchoAt && Date.now() - el._kbdEchoAt < 1000) return; fn(e); });
+  el.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ el._kbdEchoAt = Date.now(); e.preventDefault(); fn(e); } });
+}
+// A "system" category is one that isn't real spending/income — inter-wallet
+// transfers and manual balance adjustments both move money without it having
+// actually been earned or spent, so every income/expense summary (analytics,
+// pie chart, daily/monthly review, repeatLastTx's "last real transaction"
+// lookup) excludes them. Was inlined ~10x across 5 files as a copy-pasted
+// two-clause check; centralized so a future 3rd system category isn't a
+// shotgun edit where a missed site quietly produces a wrong total in one screen.
+function isSystemCategory(tx){
+  return !!tx && (tx.category === 'transfer' || tx.category === 'adjustment');
+}
 // Restore wallet balances from a persisted snapshot ({walletId: number}) —
 // used identically for the localStorage copy, the wallet-defs IDB-recovery
 // path, and the primary IDB snapshot; coerces to a finite number so a
@@ -1340,6 +1381,17 @@ let _reloadOnControllerChange = false;
 /* ============================================================
    FORMAT HELPERS
 ============================================================ */
+/**
+ * Round a money value to 2 decimals, correcting binary-float misrounding.
+ * @param {number} n
+ * @returns {number}
+ */
+function round2(n){
+  // Plain Math.round(n*100)/100 misrounds values like 1.005 → 1 (should be
+  // 1.01) because 1.005*100 is actually 100.49999... in binary float. The
+  // Number.EPSILON nudge corrects that without affecting any normal value.
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
 /**
  * Format a number as a 2-decimal display string with thousands separators.
  * @param {number} n

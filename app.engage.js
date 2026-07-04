@@ -117,7 +117,7 @@ function buildDailyReviewContent(){
   state.transactions.forEach(tx=>{
     // exclude transfers AND manual balance adjustments so "أمس" matches the
     // income/expense totals shown everywhere else in the app
-    if(tx.ts >= yStart && tx.ts < yEnd && tx.category!=='transfer' && tx.category!=='adjustment'){
+    if(tx.ts >= yStart && tx.ts < yEnd && !isSystemCategory(tx)){
       if(tx.type==='expense'){ yExpense = round2(yExpense + tx.amount); yCount++; }
       else { yIncome = round2(yIncome + tx.amount); }
     }
@@ -211,7 +211,7 @@ function exportMonthlyReport(){
     // skip transfers AND manual balance adjustments — otherwise an 'adjustment'
     // tx would be bucketed under "أخرى" and the report totals would diverge from
     // the in-app income/expense summary the user sees
-    if(tx.ts < start || tx.ts >= end || tx.category==='transfer' || tx.category==='adjustment') return;
+    if(tx.ts < start || tx.ts >= end || isSystemCategory(tx)) return;
     if(tx.type==='income') totalIncome = round2(totalIncome + tx.amount);
     else {
       totalExpense = round2(totalExpense + tx.amount);
