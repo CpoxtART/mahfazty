@@ -22,6 +22,15 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.85',
+    date: '2026-07-04',
+    title: { ar: 'إصلاح: تعارض نادر بين رفع وسحب بيانات Drive', en: 'Fix: a rare race between Drive push and pull' },
+    items: [
+      { ar: 'إصلاح متوسط (تدقيق شامل جديد): رفع البيانات إلى Drive (driveSyncToCloud) وسحبها منه (driveSyncFromCloud) كانا يستخدمان علمي "مشغول" منفصلين تمامًا بلا أي تنسيق بينهما. في نافذة ضيقة جدًا — مثلاً: التطبيق بالخلفية مدة كافية ليُجمّد المتصفح طلب رفع كان قيد التنفيذ، ثم عند العودة ينتهي صلاح رمز الدخول فتُطلق إعادة اتصال تسحب وتدمج تغييرات من جهاز آخر وتحاول رفعها — كان يمكن لطلب الرفع القديم (المجمَّد، ويحمل نسخة من البيانات قبل الدمج) أن يصل للخادم بعد رفع الدمج الجديد، فيمحو التغييرات القادمة من الجهاز الآخر على Drive بصمت (تُستعاد تلقائيًا خلال ثوانٍ بالمزامنة التالية عادةً، لكنها نافذة فقدان بيانات حقيقية وإن كانت ضيقة جدًا). أُصلح بجعل الاتجاهين يحترمان علم الآخر: عملية سحب/دمج جارية تُؤجّل أي محاولة رفع خارجية جديدة (والعكس)، مع استثناء واحد فقط: رفع السحب لنتيجة دمجه الخاص، الذي يمر مباشرة لأنه جزء من نفس العملية المتسلسلة.', en: 'Medium fix (from a fresh comprehensive audit): pushing to Drive (driveSyncToCloud) and pulling from it (driveSyncFromCloud) used two completely independent "busy" flags with zero coordination between them. In a very narrow window — e.g. the app backgrounded long enough for the browser to freeze an in-flight push, then on return the access token expires and triggers a reconnect that pulls and merges another device\'s changes and tries to push them — the old (frozen, pre-merge) push request could reach the server AFTER the new merge\'s push, silently wiping the other device\'s changes back off Drive (usually self-healed within seconds by the next sync, but a real, if very narrow, data-loss window). Fixed by having each direction respect the other\'s flag: an in-progress pull/merge now defers any new external push attempt (and vice versa), with exactly one exception — a pull\'s own push of its merge result, which proceeds directly since it\'s part of the same sequential operation.' },
+      { ar: 'صيانة: إزالة كود ميت متبقٍ من جولات إعادة تنظيم سابقة — عنصر واجهة مخفي دائمًا (driveReconnectRow) ومفتاح ترجمته المرتبط، وقواعد CSS لبطاقة "محفظة الأزمة المجمّعة" (crisis-combined) لم تعد مستخدمة منذ استبدال طريقة عرضها.', en: 'Maintenance: removed dead code left over from earlier reorganization rounds — a permanently-hidden UI element (driveReconnectRow) and its associated translation key, and CSS rules for the "combined crisis wallet" card (crisis-combined) that have been unused since its display approach was replaced.' },
+    ],
+  },
+  {
     version: 'v47.84',
     date: '2026-07-04',
     title: { ar: 'ملاحظات تنظيمية دقيقة: تسمية الدوال الداخلية وتوثيق دوال التحقق', en: 'Fine-grained organizational cleanup: internal naming + sanitizer cross-references' },

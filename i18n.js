@@ -399,7 +399,6 @@ var I18N_STRINGS = {
   'set.driveDisabled':{ ar: 'غير مفعّل — أدخل Client ID للبدء.', en: 'Not enabled — enter a Client ID to start.' },
   'set.driveSaveId':  { ar: 'حفظ Client ID', en: 'Save Client ID' },
   'set.driveEmbeddedWarn':{ ar: '⚠️ افتح التطبيق في Chrome أو Safari مباشرةً لتسجيل الدخول.', en: '⚠️ Open the app directly in Chrome or Safari to sign in.' },
-  'set.driveReconnecting':{ ar: '🔄 جارٍ الاتصال بـ Google Drive…', en: '🔄 Connecting to Google Drive…' },
   'set.driveSignIn':  { ar: '🔐 تسجيل الدخول بجوجل', en: '🔐 Sign in with Google' },
   'drive.bannerAria': { ar: 'الاتصال بـ Google Drive', en: 'Connect to Google Drive' },
   'set.driveSyncNow': { ar: '⬆ مزامنة الآن', en: '⬆ Sync now' },

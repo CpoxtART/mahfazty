@@ -640,11 +640,20 @@ async function _mergeCloudIntoLocal(cloud, cloudNewer){
 // Push current local state to Drive (create file if needed)
 let _driveSyncBusy = false;
 let _driveResyncPending = false; // a change arrived mid-sync — re-sync afterwards
-async function driveSyncToCloud(){
+async function driveSyncToCloud(isTrailingPushFromPull){
   if(!driveAccessToken) return false;
   // if a sync is already running, remember that newer changes need flushing
   // afterwards instead of dropping them silently
   if(_driveSyncBusy){ _driveResyncPending = true; return false; }
+  // A pull/merge (driveSyncFromCloud) currently running already mutated `state`
+  // with another device's changes — an EXTERNAL push starting now would still
+  // build its payload from that already-merged state (safe), but the risk is
+  // the reverse: this push might have been mid-flight BEFORE the merge started,
+  // with its payload already captured from the pre-merge state. Since we can't
+  // tell which case we're in from here, defer to the pull's own trailing push
+  // (called with isTrailingPushFromPull=true below, which bypasses this check)
+  // instead of racing it — the two directions must never write concurrently.
+  if(_driveSyncFromCloudBusy && !isTrailingPushFromPull){ _driveResyncPending = true; return false; }
   _driveSyncBusy = true;
   setDriveIndicator('syncing');
   try{
@@ -814,6 +823,14 @@ let _driveSyncFromCloudBusy = false;
 async function driveSyncFromCloud(isInitial, interactive){
   if(!driveAccessToken) return;
   if(_driveSyncFromCloudBusy) return;
+  // A push (driveSyncToCloud) already mid-flight captured its payload from
+  // `state` BEFORE any merge this pull would apply — proceeding here could
+  // merge in another device's changes only for that in-flight push's stale
+  // payload to land afterward and silently overwrite them on Drive. Defer;
+  // the push's own finally reschedules itself via _driveResyncPending if
+  // anything changed meanwhile, and the next natural trigger (reconnect/
+  // launch) retries this pull.
+  if(_driveSyncBusy) return;
   _driveSyncFromCloudBusy = true;
   // A debounced local push may be armed from a save in the last 1.5s. Cancel it so
   // it can't fire mid-pull and clobber the cloud before we've merged it in.
@@ -823,7 +840,7 @@ async function driveSyncFromCloud(isInitial, interactive){
     await driveFindFile();
     if(!driveFileId){
       // nothing on Drive yet — push current local state up
-      await driveSyncToCloud();
+      await driveSyncToCloud(true);
       return;
     }
     const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {
@@ -866,7 +883,7 @@ async function driveSyncFromCloud(isInitial, interactive){
       // rows). Config is taken from whichever side edited last.
       const cloudNewer = cloudTime > localTime;
       const { added, removed } = await _mergeCloudIntoLocal(cloud, cloudNewer);
-      await driveSyncToCloud(); // push the merged result so the cloud converges too
+      await driveSyncToCloud(true); // push the merged result so the cloud converges too
       if(added || removed){
         toast(t({ar:`☁️ تمت المزامنة — ${added ? `أُضيف ${added} ` : ''}${removed ? `حُذف ${removed} ` : ''}من جهاز آخر`, en:`☁️ Synced — ${added ? `${added} added ` : ''}${removed ? `${removed} deleted ` : ''}from another device`}));
       }

@@ -641,13 +641,6 @@
      consistent "there's an option here" visual language instead of a second
      ad-hoc color. The track identity is already carried elsewhere on the card
      (blue value, blue bar, the "تتبع · غير محتسب" tag). */
-  /* This card is a derived summary (sum of merged crisis wallets), not a
-     navigable wallet — it has no click handler, so it shouldn't borrow the
-     pointer cursor/press animation every other .wallet card uses for that. */
-  .wallet.crisis-combined{cursor:default;}
-  .wallet.crisis-combined:active{transform:none;}
-  .wallet.crisis-combined .pct{color:var(--red); background:rgba(var(--red-rgb),.12); border:none; cursor:default;}
-  .wallet.crisis-combined .pct:active{ transform:none; }
   /* invisibly extend the ⓘ tap target to ~44px without enlarging the visible pill */
   .wallet .pct::after{content:''; position:absolute; inset:-14px -10px;}
   .wallet .val{font-size:var(--money-lg); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; text-align:right; transition: color .25s; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -739,15 +732,6 @@
   .dist-total.ok{color:var(--green);}
   .wallet.track .bar i{background:linear-gradient(to left, var(--blue), var(--blue-dim));}
   .wallet.neg-val .bar i{background:var(--red);}
-
-  /* crisis combined card */
-  .wallet.crisis-combined{
-    grid-column:1 / -1;
-    border-color:var(--red);
-    background:linear-gradient(135deg, var(--red-soft), var(--card));
-  }
-  .wallet.crisis-combined .name{color:var(--red);}
-  .wallet.crisis-combined .val{color:var(--red);}
 
   /* ================= FORM ================= */
   .form{
@@ -1941,7 +1925,6 @@ html[dir="ltr"] .section-title::after{
 #editDistSourceHint  { display:none; margin-top:0; }
 #driveActions        { display:none; }
 #driveEmbeddedWarn   { display:none; margin:0 0 8px; border:1px solid var(--gold); border-radius:var(--radius-sm); padding:8px 10px; color:var(--text); }
-#driveReconnectRow   { display:none; padding:8px 0; font-size:var(--fs-base); color:var(--blue); align-items:center; gap:8px; }
 #driveSignedInActions{ display:none; }
 #driveAutoSignInPrompt{ display:none; margin-top:10px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:var(--radius-sm); }
 #driveAutoSignInRow  { display:none; margin-top:10px; padding:10px 12px; background:var(--card2); border-radius:var(--radius-sm); }
