@@ -89,3 +89,25 @@ test('monthRange — month window boundaries incl. year rollover', () => {
   assert.equal(d13.getFullYear(), now.getFullYear() - (now.getMonth() >= 1 ? 1 : 2),
     'going 13 months back lands in the correct earlier year');
 });
+
+test('cache-invalidation registry — invalidateOnTxCommit/invalidateOnRender run every registered callback', () => {
+  // app.ui.js already registers _allTxSortedCache/_monthlyExpenseCache's own
+  // clears at parse time — this just confirms a NEW registrant (as a future
+  // cache would add) gets invoked too, without touching any existing entries.
+  let txCommitCalls = 0, renderCalls = 0;
+  app.invalidateOnTxCommit(() => { txCommitCalls++; });
+  app.invalidateOnRender(() => { renderCalls++; });
+
+  app.runTxCommitInvalidators();
+  assert.equal(txCommitCalls, 1, 'a tx-commit invalidator fires on runTxCommitInvalidators()');
+  assert.equal(renderCalls, 0, 'a tx-commit invalidator must not fire on the render trigger');
+
+  app.runRenderInvalidators();
+  assert.equal(renderCalls, 1, 'a render invalidator fires on runRenderInvalidators()');
+  assert.equal(txCommitCalls, 1, 'a render invalidator must not fire on the tx-commit trigger');
+
+  app.runTxCommitInvalidators();
+  app.runRenderInvalidators();
+  assert.equal(txCommitCalls, 2, 'invalidators run again on every subsequent trigger, not just once');
+  assert.equal(renderCalls, 2);
+});

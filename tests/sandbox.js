@@ -109,6 +109,10 @@ function loadApp() {
       _computePieData,
       setCurrentFilter: (v) => { currentFilter = v; },
       setWalletFilter: (v) => { walletFilter = v; },
+      // cache-invalidation registry (app.core.js)
+      invalidateOnTxCommit, invalidateOnRender,
+      runTxCommitInvalidators: _runTxCommitInvalidators,
+      runRenderInvalidators: _runRenderInvalidators,
     };`;
 
   // The app's top-level loadState() may reject against the stubs — that's

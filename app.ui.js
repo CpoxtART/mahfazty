@@ -10,6 +10,11 @@ function getWalletPctLabel(w){
 
 let _monthlyExpenseCache = null;
 let _monthlyExpenseCacheKey = '';
+// Keyed only by year-month (not a full signature), so it can't self-invalidate
+// off _txMutationStamp the way the Sig-based caches do — it needs an explicit
+// clear whenever something is about to be drawn. Registers into app.core.js's
+// render-invalidation list instead of render() (app.main.js) hand-listing it.
+invalidateOnRender(() => { _monthlyExpenseCache = null; _monthlyExpenseCacheKey = ''; });
 let _heroStatsCache = null;
 let _heroStatsSig = '';
 function _buildMonthlyExpenseCache(){
@@ -1674,6 +1679,13 @@ let _searchDebounce = null;
 let _txVisibleCount = 50;
 let _recentVisibleCount = RECENT_TX_LIMIT_DEFAULT; // transactions tab — full chronological log, paginated (page size = recentTxLimit)
 let _allTxSortedCache = null; // cached newest-first copy of all tx (see getAllTxSorted)
+// Registers with app.core.js's cache-invalidation registry instead of being
+// hand-listed at every place the transactions array gets replaced/committed
+// (saveTx/loadState/mergeCloudData) — a backward reference into app.core.js,
+// which has already fully loaded and executed by the time this file parses,
+// so it's safe at parse time (unlike a forward reference into a not-yet-run
+// file, the one case this codebase actually has to guard against).
+invalidateOnTxCommit(() => { _allTxSortedCache = null; });
 // Fold Arabic orthographic variants so search is forgiving: a user typing
 // "قهوه" should match "قهوة", "احمد" should match "أحمد", "مصطفى" ↔ "مصطفي".
 // Also strips tashkeel (diacritics) and tatweel, and lowercases Latin text.

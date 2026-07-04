@@ -223,6 +223,28 @@ let DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
 
 let state = { wallets:{}, transactions:[], crisisMode:false };
 let _txMutationStamp = 0;
+// Cache-invalidation registry: most memo caches (_filteredTxSig, _analyticsSig,
+// _heroStatsSig, _pieChartSig, _recurringCacheSig, _firstTxStamp) are
+// self-invalidating — their signature embeds _txMutationStamp above, so a
+// stale read is impossible without any explicit clear anywhere (see the
+// comment in render(), app.main.js). A couple of caches have no signature to
+// compare against and instead need an explicit clear at the right moment;
+// those moments used to be hand-listed inline at every call site — miss one
+// when a NEW such cache is added and it silently goes stale. The two lists
+// below give each trigger ONE place a cache registers into instead:
+//   invalidateOnTxCommit — fires whenever the transactions array is
+//   committed/replaced: saveTx() for routine saves, loadState()/
+//   mergeCloudData() for bulk boot/sync replacement.
+//   invalidateOnRender — fires whenever a real render() pass proceeds (not
+//   skipped by its own signature check) — for caches keyed coarser than a
+//   full signature (e.g. by calendar day/month) that only need to catch up
+//   whenever something is about to be drawn anyway.
+let _txCommitInvalidators = [];
+let _renderInvalidators = [];
+function invalidateOnTxCommit(fn){ _txCommitInvalidators.push(fn); }
+function invalidateOnRender(fn){ _renderInvalidators.push(fn); }
+function _runTxCommitInvalidators(){ _txCommitInvalidators.forEach(fn => fn()); }
+function _runRenderInvalidators(){ _renderInvalidators.forEach(fn => fn()); }
 // >0 while a multi-step async mutation is running (add/delete/distribute). The
 // cross-tab storage listener checks this so another tab's save can't trigger a
 // loadState() that resets `state` mid-mutation and corrupts balances.
@@ -1090,7 +1112,7 @@ async function loadState(){
     const _now = Date.now();
     stripOrphanedDistributionLegs(state.transactions).forEach(t => { deletedTxIds[t.id] = _now; });
   }
-  _allTxSortedCache = null; // freshly replaced array — drop the sorted cache
+  _runTxCommitInvalidators(); // freshly replaced array — drop caches keyed off it
 
   // If the DB couldn't be opened (blocked by another tab / corrupt) and we ended up
   // with NO transactions despite having used the app before, the data is intact in
@@ -1244,7 +1266,7 @@ function mergeCloudData(cloud, cloudNewer){
     const _now = Date.now();
     stripOrphanedDistributionLegs(state.transactions).forEach(t => { deletedTxIds[t.id] = _now; });
   }
-  _allTxSortedCache = null;
+  _runTxCommitInvalidators();
 
   // 3b) apply wallet-def tombstones to LOCAL defs, now that the merged ledger is
   //     known: drop a tombstoned local def only when nothing references it —
@@ -1448,7 +1470,7 @@ async function saveBalances(){
   scheduleIdbBackup(ts);
 }
 async function saveTx(){
-  _allTxSortedCache = null;
+  _runTxCommitInvalidators();
   const ts = Date.now();
   // Transactions are stored in IndexedDB (idbBackup below) so they scale far past
   // the ~5MB localStorage cap. Here we only stamp the small timestamps. If IDB is

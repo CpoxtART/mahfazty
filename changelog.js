@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.83',
+    date: '2026-07-04',
+    title: { ar: 'نظام مركزي لإبطال الذاكرة المؤقتة عبر الملفات', en: 'Centralized cross-file cache-invalidation registry' },
+    items: [
+      { ar: 'صيانة: محفظتان مؤقتتان (نسخة المعاملات المرتّبة، ومصروف الشهر لكل محفظة) بلا "بصمة" ذاتية التحقق كباقي محفظات التطبيق — كانتا تُفرَّغان بأسطر صريحة مكرّرة يدويًا في كل مكان تتغير فيه البيانات (3 مواضع لكل واحدة، عبر ملفين مختلفين). أي محفظة جديدة من هذا النوع مستقبلًا كانت ستحتاج نفس البحث اليدوي عن كل هذي المواضع — ونسيان موضع واحد يعني بيانات قديمة تظهر بصمت. أُضيف نظام تسجيل صغير (invalidateOnTxCommit وinvalidateOnRender في app.core.js): أي محفظة تسجّل دالة التفريغ الخاصة بها مرة واحدة، والكود في نقاط التغيير (saveTx، loadState، mergeCloudData) أو نقطة العرض render() ينادي كل الدوال المسجَّلة بدل تعديل كل موضع يدويًا. لا تغيير في أي سلوك ظاهر — تحقّق مباشر عبر المتصفح يؤكد أن كلا المحفظتين ما زالتا تتحدّثان بشكل صحيح بعد كل معاملة.', en: "Maintenance: two memo caches (the sorted-transactions copy, and each wallet's monthly-expense total) have no self-verifying \"signature\" the way the app's other caches do — they were cleared by explicit, hand-duplicated lines at every place the data changes (3 spots each, across two different files). Any future cache of this kind would need the same manual hunt for all those spots — and missing one means stale data silently showing up. Added a small registration system (invalidateOnTxCommit and invalidateOnRender in app.core.js): a cache registers its own clear-callback once, and the code at the actual change points (saveTx, loadState, mergeCloudData) or the render() point calls every registered callback instead of each spot being hand-edited. No visible behavior change — verified directly in a live browser that both caches still update correctly after every transaction." },
+    ],
+  },
+  {
     version: 'v47.82',
     date: '2026-07-04',
     title: { ar: 'فصل تنظيمي: app.logic.js إلى معاملات + app.main.js إلى تشغيل التطبيق', en: 'Organizational split: app.logic.js into transactions + app.main.js into app runtime' },

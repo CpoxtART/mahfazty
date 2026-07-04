@@ -126,7 +126,7 @@ function render(force){
   const sig = computeRenderSig();
   if(!force && sig === _renderSig) return; // nothing visual changed
   _renderSig = sig;
-  _monthlyExpenseCache = null; // invalidate budget bars per-render
+  _runRenderInvalidators(); // invalidate budget bars (and any future render-tied cache) per-render
   // _recurringCache, _filteredTxSig, _analyticsSig, _heroStatsSig, _pieChartSig
   // are intentionally NOT nulled here (as of v47.79) — every one of their sigs
   // now includes _txMutationStamp, which already captures in-place edits
@@ -447,9 +447,8 @@ loadState().then(()=>{
 // Refresh time-sensitive UI (budget bars, day/week filter, analytics) when user returns to tab
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible'){
-    _monthlyExpenseCache = null;
-    _monthlyExpenseCacheKey = '';
-    capDateInputsToToday(); // "today" may have rolled over while tab was hidden
+    _runRenderInvalidators(); // "today" may have rolled over while tab was hidden
+    capDateInputsToToday();
     checkForSWUpdate(); // returning to the app is the prime moment to catch a new version
     // The background refresh timer (_scheduleTokenRefresh) is a setTimeout that mobile
     // OSes routinely freeze while the PWA is backgrounded, so a token can sit expired
@@ -508,8 +507,7 @@ function scheduleNextMidnightRefresh(){
   const now = new Date();
   const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   setTimeout(function midnightRefresh(){
-    _monthlyExpenseCache = null;
-    _monthlyExpenseCacheKey = '';
+    _runRenderInvalidators();
     capDateInputsToToday();
     render(true);
     // a tab kept visible across midnight otherwise misses that day's review
