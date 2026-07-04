@@ -63,6 +63,11 @@ function _unionTombstoneMap(local, incoming){
 // an imported backup, or a Drive snapshot) before it's allowed to replace the
 // live WALLET_DEFS. Returns a fresh array of plain {id,name,initial,track,pct}
 // objects, or null if the input is unusable (caller should keep what it has).
+// The rest of the `sanitize*` family (same job — validate one piece of
+// possibly-corrupt/untrusted incoming data before it touches live state) lives
+// wherever the data it cleans is otherwise handled: sanitizeDistribution/
+// sanitizeBudgets in app.data.js (import/data-management), sanitizeOrder/
+// sanitizeTrackLinkMode in app.layout.js (layout/tab-order prefs).
 function sanitizeWalletDefs(arr){
   if(!Array.isArray(arr) || !arr.length) return null;
   const seen = new Set();
@@ -560,7 +565,7 @@ function parseAmount(str){
 // in-progress "1,000." isn't fought while more digits are still being typed.
 const _toAsciiDigits = s => s.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
                               .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0));
-function groupThousands(str){
+function _groupThousands(str){
   let raw = _toAsciiDigits(String(str == null ? '' : str)).replace(/[,٬]/g, ''); // drop existing grouping
   const decIdx = raw.search(/[.٫]/);
   let intPart = decIdx === -1 ? raw : raw.slice(0, decIdx);
@@ -573,10 +578,10 @@ function groupThousands(str){
 }
 // One-shot grouping for a value being written into an input's HTML (not live
 // typing) — e.g. pre-filling the Quick Notes preview row from a parsed
-// amount. No cursor to preserve, so this is just groupThousands() with a
+// amount. No cursor to preserve, so this is just _groupThousands() with a
 // friendlier name at call sites.
 function groupThousandsDisplay(n){
-  return groupThousands(String(n == null ? '' : n));
+  return _groupThousands(String(n == null ? '' : n));
 }
 // Live thousands-separator formatting for money <input>s: as the user types,
 // "1000" becomes "1,000", "1000000" becomes "1,000,000", etc. — the grouping
@@ -603,7 +608,7 @@ function liveFormatThousands(el){
   let digitsBeforeCaret = 0;
   for(let i = 0; i < oldPos && i < oldValue.length; i++){ if(isDigit(oldValue[i])) digitsBeforeCaret++; }
 
-  const newValue = groupThousands(oldValue);
+  const newValue = _groupThousands(oldValue);
   if(newValue === oldValue) return; // no change — leave the caret alone
   el.value = newValue;
   let count = 0, newPos = newValue.length;

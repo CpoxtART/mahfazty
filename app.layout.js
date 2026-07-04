@@ -7,7 +7,7 @@
    Loaded AFTER app.ui.js and BEFORE app.charts.js/app.drive.js/app.logic.js
    (all of which call into this file's renderers/setters at runtime).
 ============================================================ */
-function capTab(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+function _capTab(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function switchTab(tab){
   // bottom-nav convention: each tab opens at its top — without this, scrolling
@@ -15,10 +15,10 @@ function switchTab(tab){
   if(tab !== currentTab) window.scrollTo({top:0});
   currentTab = tab;
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  const panel = document.getElementById('tab' + capTab(tab));
+  const panel = document.getElementById('tab' + _capTab(tab));
   if(panel) panel.classList.add('active');
   tabOrder.forEach(k => {
-    const btn = document.getElementById('nav' + capTab(k));
+    const btn = document.getElementById('nav' + _capTab(k));
     if(btn){
       const on = k === tab;
       btn.classList.toggle('active', on);
@@ -190,7 +190,7 @@ function renderBottomNav(){
     if(!d) return '';
     const on = key === currentTab;
     const label = t('nav.' + key); // falls back to the Arabic TAB_DEFS label via the table
-    return `<button class="nav-item${on ? ' active' : ''}" id="nav${capTab(key)}" aria-label="${escHtml(label)}" aria-current="${on ? 'page' : 'false'}"><span class="nav-ic">${d.icon}</span><span>${escHtml(label)}</span></button>`;
+    return `<button class="nav-item${on ? ' active' : ''}" id="nav${_capTab(key)}" aria-label="${escHtml(label)}" aria-current="${on ? 'page' : 'false'}"><span class="nav-ic">${d.icon}</span><span>${escHtml(label)}</span></button>`;
   };
   const fabLabel = escHtml(t('drawer.addTx'));
   inner.innerHTML =
@@ -200,7 +200,7 @@ function renderBottomNav(){
 }
 function applySectionOrder(){
   Object.keys(sectionOrder).forEach(tab => {
-    const panel = document.getElementById('tab' + capTab(tab));
+    const panel = document.getElementById('tab' + _capTab(tab));
     if(!panel) return;
     sectionOrder[tab].forEach(key => {
       const el = panel.querySelector(':scope > .ui-sec[data-sec="' + key + '"]');

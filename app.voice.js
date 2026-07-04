@@ -137,11 +137,11 @@ function parseArabicNumber(text){
   return isFinite(result) ? result : null;
 }
 
-function guessCategory(text, type){
+function _guessCategory(text, type){
   return guessCategoryShared(text, type);
 }
 
-function guessType(text){
+function _guessType(text){
   return isIncomeTextShared(text) ? 'income' : 'expense';
 }
 
@@ -227,19 +227,19 @@ function startVoiceInput(){
       toast(t({ar:'🎤 لم يُفهم الكلام — حاول مجددًا', en:'🎤 Speech not understood — try again'}), true);
       return;
     }
-    applyVoiceTranscript(transcript);
+    _applyVoiceTranscript(transcript);
   };
 
   try{ voiceRecognition.start(); }
   catch(e){ cleanup(); toast(t({ar:'⚠ تعذر بدء التعرف الصوتي', en:'⚠ Could not start voice recognition'}), true); }
 }
 
-function applyVoiceTranscript(text){
+function _applyVoiceTranscript(text){
   const amount = parseArabicNumber(text);
-  // type first — guessCategory needs it to decide whether the salary keyword
+  // type first — _guessCategory needs it to decide whether the salary keyword
   // group applies (salary describes what the money IS, not where it was spent).
-  const type = guessType(text);
-  const category = guessCategory(text, type);
+  const type = _guessType(text);
+  const category = _guessCategory(text, type);
 
   // strip number-ish tokens from text to build a cleaner description
   let desc = text

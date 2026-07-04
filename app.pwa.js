@@ -3,10 +3,10 @@
    Split out of app.logic.js. Dynamic manifest generation, the update-banner
    flow (detect -> prompt -> apply new Service Worker), and the "What's new?"
    changelog modal.
-   Loaded AFTER app.ui.js and BEFORE app.main.js (which still owns
-   flushIdbBackup/driveSyncToCloud references used here at runtime).
+   Loaded AFTER app.ui.js and BEFORE app.main.js. Calls flushIdbBackup
+   (app.core.js) and driveSyncToCloud (app.drive.js) at runtime only.
 ============================================================ */
-function buildManifestBlob(isLight){
+function _buildManifestBlob(isLight){
   // must match the dark-mode value used by applyTheme()'s <meta name="theme-color">
   // (app.core.js) and the inline pre-paint script in index.html — otherwise the
   // installed PWA's OS chrome/splash color drifts from what the in-app UI shows.
@@ -52,7 +52,7 @@ function applyManifest(isLight){
   try{
     const link = document.getElementById('manifestLink');
     if(!link) return;
-    const next = URL.createObjectURL(buildManifestBlob(isLight));
+    const next = URL.createObjectURL(_buildManifestBlob(isLight));
     link.setAttribute('href', next);
     if(_manifestBlobUrl) URL.revokeObjectURL(_manifestBlobUrl);
     _manifestBlobUrl = next;

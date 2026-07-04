@@ -576,19 +576,19 @@ document.body.addEventListener('focusin', (e) => {
 function openAddDrawer(){
   const wasClosed = !addDrawerOpen;
   // remember what had focus so we can restore it on close (a11y) — same
-  // stack openModal/closeModal use in app.logic.js
+  // stack openModal/closeModal use in app.overlay.js
   if(wasClosed) _focusStack.push(document.activeElement);
   addDrawerOpen = true;
   switchDrawerTab(0); // always open on Details tab so amount/date are immediately visible
   document.getElementById('addDrawer').classList.add('open');
   document.getElementById('addDrawerOverlay').classList.add('open');
   // blur the trigger BEFORE hiding its ancestor from the a11y tree (see openModal
-  // in app.logic.js for why) — the real focus-in-drawer happens a frame later below.
+  // in app.overlay.js for why) — the real focus-in-drawer happens a frame later below.
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
   _setBackgroundHidden(true);
   lockBodyScroll();
   capDateInputsToToday();
-  // Same back-button bookkeeping as openModal/closeModal (see app.logic.js) so
+  // Same back-button bookkeeping as openModal/closeModal (see app.overlay.js) so
   // hardware/gesture back closes the drawer instead of navigating away. Guarded
   // by wasClosed so re-entrant calls (none currently, but matches the modal
   // pattern defensively) don't push a duplicate history entry.

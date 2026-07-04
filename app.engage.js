@@ -248,24 +248,24 @@ function exportMonthlyReport(){
       // so don't fall back to clipboard copy (which would show a confusing
       // "copied!" toast right after the user chose to cancel, not copy).
       if(e && e.name === 'AbortError') return;
-      copyReportToClipboard(report);
+      _copyReportToClipboard(report);
     });
   } else {
-    copyReportToClipboard(report);
+    _copyReportToClipboard(report);
   }
 }
 
-function copyReportToClipboard(report){
+function _copyReportToClipboard(report){
   if(navigator.clipboard){
     navigator.clipboard.writeText(report).then(()=>{
       toast(t({ar:'✓ تم نسخ التقرير للحافظة', en:'✓ Report copied to clipboard'}));
-    }).catch(()=> downloadReport(report));
+    }).catch(()=> _downloadReport(report));
   } else {
-    downloadReport(report);
+    _downloadReport(report);
   }
 }
 
-function downloadReport(report){
+function _downloadReport(report){
   // UTF-8 BOM so Arabic text renders correctly when opened directly in Windows
   // Notepad/Excel instead of mojibake (neither auto-detects UTF-8 without it).
   const blob = new Blob(['﻿', report], {type:'text/plain;charset=utf-8'});

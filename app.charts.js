@@ -12,7 +12,7 @@
 // the impossible "1000K"); unified here so that rule only needs fixing once.
 // signed=true keeps a leading "-" for negative values (the line chart's Y-axis
 // can go negative; the pie chart's total never does).
-function fmtCompact(n, signed){
+function _fmtCompact(n, signed){
   const abs = Math.abs(n);
   const s = (signed && n < 0) ? '-' : '';
   if(abs >= 999.5e6) return s + (abs/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
@@ -157,7 +157,7 @@ function renderPieChart(){
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = isLightPie ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.45)';
-  const totalLabel = fmtCompact(total, false);
+  const totalLabel = _fmtCompact(total, false);
   // auto-shrink to fit the donut hole — very large totals (e.g. corrupted/huge
   // imports) can otherwise overflow fillText past the inner circle into the ring
   let pieFontPx = Math.round(size*0.09);
@@ -308,8 +308,8 @@ function renderChart(){
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   if(!flat){
-    ctx.fillText(fmtCompact(max, true), labelX, padY);
-    ctx.fillText(fmtCompact(min, true), labelX, padY + h);
+    ctx.fillText(_fmtCompact(max, true), labelX, padY);
+    ctx.fillText(_fmtCompact(min, true), labelX, padY + h);
   }
   if(min < 0 && max > 0){
     ctx.fillStyle = isLightTheme ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.25)';

@@ -78,7 +78,7 @@ function loadApp() {
       sanitizeDistribution, sanitizeBudgets, sanitizeWalletDefs,
       sanitizeOrder, sanitizeTrackLinkMode, buildTxTs, parseArabicNumber,
       // shared category/income keyword-guessing (voice + Quick Notes, unified v47.78)
-      guessCategoryShared, isIncomeTextShared, guessCategory, guessType, _qnGuessCategory,
+      guessCategoryShared, isIncomeTextShared, guessCategory: _guessCategory, guessType: _guessType, _qnGuessCategory,
       // Quick Notes free-text parser (the trailing-wallet-name peeling logic)
       parseQuickNotes,
       recomputeSelectableWallets,
