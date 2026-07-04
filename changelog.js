@@ -22,6 +22,16 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.81',
+    date: '2026-07-04',
+    title: { ar: 'تنظيف أخير من التدقيق الشامل: بقايا صغيرة', en: 'Final cleanup from the full audit: remaining minor items' },
+    items: [
+      { ar: 'صيانة: منطق بناء نسخة البيانات (للتصدير ولمزامنة Drive) كان مكررًا حرفيًا في ملفين — وُحّد في مكان واحد.', en: 'Maintenance: the logic for assembling a data snapshot (for export and for Drive sync) was duplicated verbatim across two files — unified into one place.' },
+      { ar: 'إصلاح منخفض: قائمة تبويب "التقارير" الطويلة كانت بدون زر "طيّ" بعد التوسيع، خلافًا لتبويب "المعاملات" الذي عنده هذا الزر أصلًا — أُضيف الآن بنفس الأسلوب.', en: 'Low fix: the Reports tab\'s long transaction list had no way to collapse back after expanding, unlike the Transactions tab which already had this — added, matching the same pattern.' },
+      { ar: 'إصلاح منخفض (وقائي): محافظ التتبع (أوبر/البطاقات/الكاش) كانت تحفظ كلمة "تتبع" العربية داخليًا كقيمة تقنية بدل نص عرض — لا تظهر فعليًا لأن مكان العرض الفعلي يترجمها دائمًا، لكن أي كود مستقبلي يقرأها مباشرة كان سيُظهر عربي حتى بالواجهة الإنجليزية. استُبدلت بقيمة محايدة غير مرتبطة بلغة.', en: 'Low fix (preventive): tracked wallets (Uber/Cards/Cash) internally stored the Arabic word "تتبع" as a technical value rather than display text — never actually shown since the real display path always translates it, but any future code reading it directly would have leaked Arabic even in the English interface. Replaced with a neutral, language-independent value.' },
+    ],
+  },
+  {
     version: 'v47.80',
     date: '2026-07-04',
     title: { ar: 'إتمام توحيد قوائم اختيار المحفظة بالكامل', en: 'Completing the wallet-picker unification fully' },

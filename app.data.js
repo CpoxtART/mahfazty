@@ -33,30 +33,19 @@ function sanitizeBudgets(obj){
 }
 function exportData(){
   const payload = {
-    exportedAt: new Date().toISOString(),
-    // carry the data-edit timestamp + theme so a restore on another device orders
-    // Drive conflicts correctly and keeps the user's chosen appearance. This is the
-    // MODE ('light'/'dark'/'auto'), not the resolved color — otherwise a user on
-    // 'auto' would have today's resolved color baked in and frozen on every other
-    // device that restores this backup, instead of each device following its own system.
-    dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
+    // shared with driveSyncToCloud (app.drive.js) — see _buildSyncPayload (app.core.js)
+    ..._buildSyncPayload(),
+    // export-only extras: carry theme/accent/lang so a restore on another device
+    // keeps the user's chosen appearance. theme is the MODE ('light'/'dark'/
+    // 'auto'), not the resolved color — otherwise a user on 'auto' would have
+    // today's resolved color baked in and frozen on every other device that
+    // restores this backup, instead of each device following its own system.
+    // Drive sync never carries these — each device keeps its own appearance/
+    // language/draft, so they're added here rather than in the shared builder.
     theme: _currentThemeMode(),
     accent: _currentAccent('day'),
     accentDark: _currentAccent('night'),
     lang: _currentLang(),
-    wallets: state.wallets,
-    walletDefs: WALLET_DEFS,
-    transactions: state.transactions,
-    crisisMode: state.crisisMode,
-    budgets: budgets,
-    autoDistribute: autoDistribute,
-    distribution: DISTRIBUTION,
-    dismissedRecurring: Array.from(dismissedRecurring),
-    deletedTxIds: deletedTxIds,
-    deletedSubIds: deletedSubIds,
-    deletedWalletDefIds: deletedWalletDefIds,
-    subscriptions: subscriptions,
-    uiPrefs: collectUiPrefs(),
     // the quick-notes draft is UNENTERED transactions (its lines become txs
     // later) — losing it on a device migration is real data loss, so it must
     // survive the backup roundtrip like everything else.

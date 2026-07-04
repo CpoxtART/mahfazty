@@ -33,7 +33,7 @@ const FACTORY_DEFS = [
   { id: 'core', name: 'Core Expenses', initial: 0, track: false, pct: '50%' },
   { id: 'wishlist', name: 'Wishlist', initial: 0, track: false, pct: '10%' },
   { id: 'giving', name: 'Giving', initial: 0, track: false, pct: '5%' },
-  { id: 'uber', name: 'Uber', initial: 0, track: true, pct: 'تتبع' },
+  { id: 'uber', name: 'Uber', initial: 0, track: true, pct: 'track' },
 ];
 
 test('applyWalletDefs — re-inserts missing reserve + crisis_fund defaults (migration)', () => {

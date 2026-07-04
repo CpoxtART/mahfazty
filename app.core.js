@@ -15,9 +15,15 @@ const WALLET_DEFS = [
   {id:'reserve',     name:'Reserve',             initial:0, track:false, pct:'5%'},
   // crisisOnly: hidden in normal mode, appears only when crisis/alternative mode is active
   {id:'crisis_fund', name:'Merged Reserve',      initial:0, track:false, crisisOnly:true},
-  {id:'uber',        name:'Uber',                initial:0, track:true,  pct:'تتبع'},
-  {id:'cards',       name:'Bank Cards',          initial:0, track:true,  pct:'تتبع'},
-  {id:'cash',        name:'Cash',                initial:0, track:true,  pct:'تتبع'},
+  // pct is a neutral internal marker for track wallets, never displayed as-is —
+  // getWalletPctLabel (app.ui.js) always intercepts w.track BEFORE it would
+  // fall back to reading this field, translating via t({ar:'تتبع', en:'Track'})
+  // instead. Kept as a plain non-language-specific string (not the Arabic
+  // literal it used to be) so a future display path that bypasses
+  // getWalletPctLabel can't leak untranslated Arabic in English mode.
+  {id:'uber',        name:'Uber',                initial:0, track:true,  pct:'track'},
+  {id:'cards',       name:'Bank Cards',          initial:0, track:true,  pct:'track'},
+  {id:'cash',        name:'Cash',                initial:0, track:true,  pct:'track'},
 ];
 
 // Tombstones for delete propagation in multi-device merge sync: {txId: deletedAtMs}.
@@ -78,7 +84,9 @@ function sanitizeWalletDefs(arr){
     // prototype pollution. Cheap to foreclose at the gate.
     if(!id || !/^[a-zA-Z0-9_\-]+$/.test(id) || id === '__proto__' || id === 'constructor' || id === 'prototype' || !name || seen.has(id)) return;
     seen.add(id);
-    out.push({id, name, initial:0, track: !!w.track, pct: typeof w.pct === 'string' ? w.pct : (w.track ? 'تتبع' : '0%'), ...(w.crisisOnly ? {crisisOnly:true} : {})});
+    // pct is a neutral internal marker for track wallets (see WALLET_DEFS above) —
+    // never displayed as-is, so no Arabic literal here either.
+    out.push({id, name, initial:0, track: !!w.track, pct: typeof w.pct === 'string' ? w.pct : (w.track ? 'track' : '0%'), ...(w.crisisOnly ? {crisisOnly:true} : {})});
   });
   // Every screen that lets the user pick a spendable wallet (add form, transfers)
   // assumes at least one non-track wallet exists — a corrupt/edited blob with only
@@ -1360,6 +1368,34 @@ function _ingestWalletBalances(snapshot){
       if(isFinite(v)) state.wallets[w.id] = round2(v); // reject NaN/Infinity from a corrupt snapshot
     }
   });
+}
+// Shared snapshot ASSEMBLY — exportData() (app.data.js) and driveSyncToCloud()
+// (app.drive.js) each built this same plain-object snapshot independently
+// (verified line-for-line identical for the financial-data fields). Unified so
+// adding a new persisted field only needs one edit instead of two — the class
+// of bug this guards against already happened once (trackLinkMode was missed
+// by wipeAll on one path; quickNotes was initially export-only). Export-only
+// extras (theme/accent/lang/quickNotes — Drive never syncs per-device
+// appearance/language/draft prefs, only financial data) are added by
+// exportData() itself on top of this, not included here.
+function _buildSyncPayload(){
+  return {
+    exportedAt: new Date().toISOString(),
+    dataEditedAt: parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0,
+    wallets: state.wallets,
+    walletDefs: WALLET_DEFS,
+    transactions: state.transactions,
+    crisisMode: state.crisisMode,
+    budgets: budgets,
+    autoDistribute: autoDistribute,
+    distribution: DISTRIBUTION,
+    dismissedRecurring: Array.from(dismissedRecurring),
+    deletedTxIds: deletedTxIds,
+    deletedSubIds: deletedSubIds,
+    deletedWalletDefIds: deletedWalletDefIds,
+    subscriptions: subscriptions,
+    uiPrefs: collectUiPrefs(),
+  };
 }
 
 // Recompute every (non-track) wallet balance purely from the transaction ledger

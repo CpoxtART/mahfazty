@@ -674,24 +674,11 @@ async function driveSyncToCloud(){
       }catch(_){ /* best-effort reconciliation — if the check itself fails, push local state as-is, no worse than before this fix */ }
     }
 
+    // shared with exportData (app.data.js) — see _buildSyncPayload (app.core.js).
+    // Drive intentionally does NOT carry theme/accent/lang/quickNotes — those
+    // are per-device appearance/language/draft, not financial data to sync.
     const dataEditedAtVal = parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0;
-    const payload = JSON.stringify({
-      exportedAt: new Date().toISOString(),
-      dataEditedAt: dataEditedAtVal,
-      wallets: state.wallets,
-      walletDefs: WALLET_DEFS,
-      transactions: state.transactions,
-      crisisMode: state.crisisMode,
-      autoDistribute: autoDistribute,
-      budgets: budgets,
-      distribution: DISTRIBUTION,
-      dismissedRecurring: Array.from(dismissedRecurring),
-      deletedTxIds: deletedTxIds,
-      deletedSubIds: deletedSubIds,
-      deletedWalletDefIds: deletedWalletDefIds,
-      subscriptions: subscriptions,
-      uiPrefs: collectUiPrefs()
-    });
+    const payload = JSON.stringify(_buildSyncPayload());
 
     if(driveFileId){
       const res = await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {

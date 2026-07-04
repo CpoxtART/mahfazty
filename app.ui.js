@@ -380,7 +380,10 @@ async function saveWalletDefModal(){
     } else {
       const track = _walletDefModalTrack;
       const id = 'w_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
-      WALLET_DEFS.push({ id, name, initial:0, track, pct: track ? 'تتبع' : '0%' });
+      // pct is a neutral internal marker for track wallets (see WALLET_DEFS,
+      // app.core.js) — getWalletPctLabel always translates via t() instead of
+      // reading this raw field, so it must never be a language-specific literal.
+      WALLET_DEFS.push({ id, name, initial:0, track, pct: track ? 'track' : '0%' });
       recomputeSelectableWallets();
       state.wallets[id] = 0;
       // the distribution editor iterates DISTRIBUTION, not WALLET_DEFS — a new
@@ -1882,6 +1885,16 @@ function renderTxList(){
         });
     more.onclick = () => { _txVisibleCount += 50; renderTxList(); };
     list.appendChild(more);
+  } else if(_txVisibleCount > 50 && filtered.length > 50){
+    // Already expanded beyond the first page — offer a way to collapse back,
+    // same pattern as the Transactions tab's collapse control (renderRecentTx)
+    // which this list never got.
+    const collapse = document.createElement('button');
+    collapse.className = 'btn-secondary';
+    collapse.style.cssText = 'margin:10px auto; display:block; width:auto; padding:10px 24px; font-size:var(--fs-base);';
+    collapse.textContent = `⬆ ${t({ar:'طيّ القائمة', en:'Collapse list'})}`;
+    collapse.onclick = () => { _txVisibleCount = 50; renderTxList(); document.getElementById('tabReports')?.scrollIntoView({behavior:'smooth', block:'start'}); };
+    list.appendChild(collapse);
   }
 }
 

@@ -16,9 +16,9 @@ const app = loadApp();
 const DEFS = [
   { id: 'core', name: 'Core Expenses', initial: 0, track: false, pct: '50%' },
   { id: 'joy', name: 'Joy of Life', initial: 0, track: false, pct: '10%' },
-  { id: 'uber', name: 'Uber', initial: 0, track: true, pct: 'تتبع' },
-  { id: 'cards', name: 'Bank Cards', initial: 0, track: true, pct: 'تتبع' },
-  { id: 'cash', name: 'Cash', initial: 0, track: true, pct: 'تتبع' },
+  { id: 'uber', name: 'Uber', initial: 0, track: true, pct: 'track' },
+  { id: 'cards', name: 'Bank Cards', initial: 0, track: true, pct: 'track' },
+  { id: 'cash', name: 'Cash', initial: 0, track: true, pct: 'track' },
 ];
 
 function stage(){
