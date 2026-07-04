@@ -258,27 +258,13 @@ function openWalletPop(anchor, items, currentId, onPick){
       : `<span>${escHtml(it.name)}</span>`;
     const pick = () => { const f = _wpOnPick; closeWalletPop(); if(f) f(it.id); };
     o.onclick = pick;
-    o.onkeydown = (e) => {
-      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick(); return; }
-      // Arrow navigation within the listbox
-      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
-        e.preventDefault();
-        const opts = [...pop.querySelectorAll('.opt')];
-        const idx = opts.indexOf(o);
-        const next = e.key === 'ArrowDown'
-          ? opts[(idx + 1) % opts.length]
-          : opts[(idx - 1 + opts.length) % opts.length];
-        if(next){ opts.forEach(x => { x.tabIndex = -1; }); next.tabIndex = 0; try{ next.focus({preventScroll:true}); }catch(_){} }
-      }
-      if(e.key === 'Home' || e.key === 'End'){
-        e.preventDefault();
-        const opts = [...pop.querySelectorAll('.opt')];
-        const next = e.key === 'Home' ? opts[0] : opts[opts.length - 1];
-        if(next){ opts.forEach(x => { x.tabIndex = -1; }); next.tabIndex = 0; try{ next.focus({preventScroll:true}); }catch(_){} }
-      }
-    };
+    // Arrow/Home/End navigation is delegated once on `pop` via wireOptionArrowNav
+    // (app.core.js) — shared with the three legacy in-form wallet dropdowns
+    // (app.ui.js) since v47.79, this was the original/only implementation.
+    o.onkeydown = (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick(); } };
     pop.appendChild(o);
   });
+  wireOptionArrowNav(pop);
   _wpAnchor = anchor; _wpOnPick = onPick;
   anchor.classList.add('open'); anchor.setAttribute('aria-expanded', 'true');
   // fixed-position under the anchor (or above it if there's no room below)

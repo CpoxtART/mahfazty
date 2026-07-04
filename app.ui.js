@@ -468,9 +468,13 @@ function renderWalletSelect(){
   menu.innerHTML = '';
   SELECTABLE_WALLETS.forEach(w => {
     const opt = document.createElement('div');
-    opt.className = 'opt' + (w.id === selectedWallet ? ' selected' : '');
+    const isSel = w.id === selectedWallet;
+    opt.className = 'opt' + (isSel ? ' selected' : '');
     opt.setAttribute('role','option');
-    opt.tabIndex = 0; // keyboard-reachable when the menu is open
+    opt.setAttribute('aria-selected', String(isSel));
+    // roving tabindex (see wireOptionArrowNav): only the selected/first option
+    // is Tab-reachable; Arrow/Home/End move within the list once focus is inside.
+    opt.tabIndex = isSel ? 0 : -1;
     const val = (w.crisisOnly && state.crisisMode)
       ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
       : (state.wallets[w.id] ?? 0);
@@ -479,6 +483,10 @@ function renderWalletSelect(){
     opt.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); selectWallet(w.id); } };
     menu.appendChild(opt);
   });
+  // no option was selected (shouldn't normally happen) — fall back to the first
+  // one so the roving tabindex always has exactly one reachable entry
+  if(!menu.querySelector('.opt[tabindex="0"]')){ const first = menu.querySelector('.opt'); if(first) first.tabIndex = 0; }
+  wireOptionArrowNav(menu);
   const wDef = WALLET_DEFS.find(w => w.id === selectedWallet);
   document.getElementById('walletSelectLabel').textContent = wDef ? wDef.name : t({ar:'اختر محفظة', en:'Choose a wallet'});
 }
@@ -941,9 +949,11 @@ function renderEditWalletSelect(){
   menu.innerHTML = '';
   list.forEach(w => {
     const opt = document.createElement('div');
-    opt.className = 'opt' + (w.id === editWallet ? ' selected' : '');
+    const isSel = w.id === editWallet;
+    opt.className = 'opt' + (isSel ? ' selected' : '');
     opt.setAttribute('role','option');
-    opt.tabIndex = 0;
+    opt.setAttribute('aria-selected', String(isSel));
+    opt.tabIndex = isSel ? 0 : -1; // roving tabindex, see wireOptionArrowNav
     const val = state.wallets[w.id] ?? 0;
     opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
     const _pick = () => { editWallet = w.id; document.getElementById('editWalletMenuWrap').classList.remove('open'); const eb = document.getElementById('editWalletBtn'); eb.classList.remove('open'); eb.setAttribute('aria-expanded','false'); renderEditWalletSelect(); };
@@ -951,6 +961,8 @@ function renderEditWalletSelect(){
     opt.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _pick(); } };
     menu.appendChild(opt);
   });
+  if(!menu.querySelector('.opt[tabindex="0"]')){ const first = menu.querySelector('.opt'); if(first) first.tabIndex = 0; }
+  wireOptionArrowNav(menu);
   const wDef = WALLET_DEFS.find(w => w.id === editWallet);
   document.getElementById('editWalletLabel').textContent = wDef ? wDef.name : t({ar:'اختر محفظة', en:'Choose a wallet'});
 }
@@ -1104,9 +1116,11 @@ function renderTransferMenus(){
     menu.innerHTML = '';
     SELECTABLE_WALLETS.forEach(w=>{
       const opt = document.createElement('div');
-      opt.className = 'opt' + (w.id===selected ? ' selected' : '');
+      const isSel = w.id===selected;
+      opt.className = 'opt' + (isSel ? ' selected' : '');
       opt.setAttribute('role','option');
-      opt.tabIndex = 0;
+      opt.setAttribute('aria-selected', String(isSel));
+      opt.tabIndex = isSel ? 0 : -1; // roving tabindex, see wireOptionArrowNav
       const val = state.wallets[w.id] ?? 0;
       opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
       const _pick = () => {
@@ -1122,6 +1136,8 @@ function renderTransferMenus(){
       opt.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _pick(); } };
       menu.appendChild(opt);
     });
+    if(!menu.querySelector('.opt[tabindex="0"]')){ const first = menu.querySelector('.opt'); if(first) first.tabIndex = 0; }
+    wireOptionArrowNav(menu);
     const wDef = WALLET_DEFS.find(w=>w.id===selected);
     document.getElementById('transfer'+(dir==='from'?'From':'To')+'Label').textContent = wDef ? wDef.name : t({ar:'اختر محفظة', en:'Choose a wallet'});
   });
@@ -1515,8 +1531,10 @@ function renderAnalytics(){
   const [curStart, curEnd] = monthRange(0);
   const [prevStart, prevEnd] = monthRange(1);
 
-  // cache analytics totals — expensive full-scan, only recompute when txs or filter change
-  const aSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + curStart + '|' + (walletFilter||'');
+  // cache analytics totals — expensive full-scan, only recompute when txs or filter
+  // change. _txMutationStamp catches in-place edits that don't change length/last-id
+  // (see the identical reasoning on getFilteredTx's sig, app.ui.js).
+  const aSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + curStart + '|' + (walletFilter||'') + '|' + _txMutationStamp;
   if(aSig !== _analyticsSig || !_analyticsCache){
     _analyticsCache = { cur: sumExpenses(curStart, curEnd, null, walletFilter), prev: sumExpenses(prevStart, prevEnd, null, walletFilter) };
     _analyticsSig = aSig;
@@ -1767,7 +1785,11 @@ function getFilteredTx(){
   // shift at a day boundary) so the cache invalidates across a midnight/month/
   // year rollover instead of showing the previous period's transactions
   const dateKey = currentFilter === 'all' ? '' : todayISO();
-  const sig = state.transactions.length + '|' + currentFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery + '|' + dateKey;
+  // _txMutationStamp catches in-place edits (amount/desc/date/wallet/category on
+  // an EXISTING tx) that don't change state.transactions.length — without it,
+  // render() had to blanket-reset this cache on every single call regardless
+  // of whether anything relevant actually changed (see render(), app.logic.js).
+  const sig = state.transactions.length + '|' + currentFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery + '|' + dateKey + '|' + _txMutationStamp;
   if(sig === _filteredTxSig && _filteredTxCache) return _filteredTxCache;
   _filteredTxSig = sig;
   const _now = new Date(); // compute once for the whole filter pass (not per-tx)

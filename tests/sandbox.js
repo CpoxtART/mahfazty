@@ -79,6 +79,10 @@ function loadApp() {
       sanitizeOrder, sanitizeTrackLinkMode, buildTxTs, parseArabicNumber,
       // shared category/income keyword-guessing (voice + Quick Notes, unified v47.78)
       guessCategoryShared, isIncomeTextShared, guessCategory, guessType, _qnGuessCategory,
+      // Quick Notes free-text parser (the trailing-wallet-name peeling logic)
+      parseQuickNotes,
+      recomputeSelectableWallets,
+      getSelectableWallets: () => SELECTABLE_WALLETS,
       // state-dependent money/derivation functions, plus a live state ref and the
       // default WALLET_DEFS so tests can stage a scenario then assert.
       reconcileBalances, sumExpenses,
@@ -87,7 +91,7 @@ function loadApp() {
       // multi-device conflict and how default wallets migrate; regressions here
       // corrupt balances silently, so they get direct unit coverage.
       applyWalletDefs, _ensureReserveShare, mergeCloudData, _applyTrackEffects,
-      isValidTx,
+      isValidTx, _ingestWalletDefs, _ingestWalletBalances,
       // the tombstone maps are REASSIGNED by some code paths (loadState, adopt) —
       // accessors keep the tests pointed at the live object, not a stale capture.
       getDeletedWalletDefIds: () => deletedWalletDefIds,

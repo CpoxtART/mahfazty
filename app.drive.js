@@ -757,25 +757,11 @@ async function adoptCloudSnapshot(cloud){
   // wallet defs first — wholesale snapshot replace, same as applyImport(), so the
   // wallets/transactions validation below (which checks WALLET_DEFS by id) already
   // knows about every wallet the cloud snapshot references.
-  if(Array.isArray(cloud.walletDefs)){
-    const cleanWD = sanitizeWalletDefs(cloud.walletDefs);
-    if(cleanWD){
-      // union the cloud's wallet-def tombstones FIRST (same reason as applyImport):
-      // applyWalletDefs consults them before re-inserting the default 'reserve'/
-      // 'crisis_fund' wallets, and a snapshot written after a deletion carries it here.
-      _unionTombstoneMap(deletedWalletDefIds, cloud.deletedWalletDefIds);
-      applyWalletDefs(cleanWD);
-    }
-  }
-  if(cloud.wallets){
-    WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
-    WALLET_DEFS.forEach(w => {
-      if(cloud.wallets[w.id] !== undefined){
-        const v = parseFloat(cloud.wallets[w.id]);
-        if(isFinite(v)) state.wallets[w.id] = round2(v); // reject NaN/Infinity from a corrupt cloud snapshot
-      }
-    });
-  }
+  // Shared with applyImport (app.data.js) — see _ingestWalletDefs/_ingestWalletBalances
+  // (app.core.js). _ingestWalletBalances also closes a gap this call site used to
+  // have on its own: a strict shape check on `wallets` instead of a bare truthy one.
+  _ingestWalletDefs(cloud);
+  _ingestWalletBalances(cloud);
   if(Array.isArray(cloud.transactions)){ // harden against a crafted non-array value
     const _seenIds = new Set();
     // isValidTx is the shared well-formedness rule (app.core.js) — adoption adds

@@ -226,3 +226,46 @@ test('isValidTx — shared rule rejects malformed txs at every boundary', () => 
   assert.ok(!app.isValidTx(TX('tx_bad3', { type: 'transfer' })), 'invalid type');
   assert.ok(!app.isValidTx(TX('tx_bad4', { ts: Infinity })), 'non-finite ts');
 });
+
+// ── shared snapshot-ingestion helpers (applyImport + adoptCloudSnapshot) ───
+
+test('_ingestWalletDefs — replaces WALLET_DEFS and unions wallet-def tombstones', () => {
+  stage({ defs: FACTORY_DEFS, dist: [] });
+  app._ingestWalletDefs({
+    walletDefs: [{ id: 'core', name: 'Core Expenses', initial: 0, track: false, pct: '100%' }],
+    deletedWalletDefIds: { wishlist: Date.now() },
+  });
+  assert.deepStrictEqual([...app.WALLET_DEFS.map(w => w.id)].sort(), ['core', 'crisis_fund', 'reserve'].sort(),
+    'wallet defs replaced (reserve/crisis_fund auto-restored by applyWalletDefs)');
+  assert.ok(app.getDeletedWalletDefIds().wishlist, 'incoming tombstone unioned in');
+});
+
+test('_ingestWalletDefs — a snapshot with no walletDefs array is a no-op', () => {
+  stage({ defs: FACTORY_DEFS, dist: [] });
+  const before = [...app.WALLET_DEFS.map(w => w.id)];
+  app._ingestWalletDefs({});
+  assert.deepStrictEqual([...app.WALLET_DEFS.map(w => w.id)], before);
+});
+
+test('_ingestWalletBalances — restores balances for every known wallet, zeroing omitted ones', () => {
+  stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 999, wishlist: 999 } });
+  app._ingestWalletBalances({ wallets: { core: 50 } }); // wishlist omitted from the snapshot
+  assert.strictEqual(app.state.wallets.core, 50);
+  assert.strictEqual(app.state.wallets.wishlist, 0, 'omitted wallet zeroed, not left stale');
+});
+
+test('_ingestWalletBalances — rejects a crafted array `wallets` instead of silently zeroing everything', () => {
+  // this is the exact gap adoptCloudSnapshot had before the v47.79 consolidation:
+  // a bare truthy check let an array-shaped `wallets` pass, then every lookup
+  // returned undefined and silently zeroed all balances with no restore/warning
+  stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 42 } });
+  app._ingestWalletBalances({ wallets: ['not', 'an', 'object'] });
+  assert.strictEqual(app.state.wallets.core, 42, 'malformed wallets value left balances untouched');
+});
+
+test('_ingestWalletBalances — rejects NaN/Infinity values from a corrupt snapshot', () => {
+  stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 42 } });
+  app._ingestWalletBalances({ wallets: { core: 'not-a-number', wishlist: Infinity } });
+  assert.strictEqual(app.state.wallets.core, 0, 'invalid value rejected, wallet zeroed not corrupted');
+  assert.strictEqual(app.state.wallets.wishlist, 0);
+});

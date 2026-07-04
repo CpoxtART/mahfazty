@@ -199,35 +199,13 @@ async function applyImport(text){
   // wallet defs are part of the same wholesale snapshot — replace BEFORE the
   // wallets/transactions validation below, since both reference WALLET_DEFS
   // by id (a custom wallet from the backup would otherwise look "unknown").
-  if(Array.isArray(data.walletDefs)){
-    const cleanWD = sanitizeWalletDefs(data.walletDefs);
-    if(cleanWD){
-      // union the backup's wallet-def tombstones FIRST — applyWalletDefs consults
-      // them before re-inserting the default 'reserve'/'crisis_fund' wallets, and
-      // a backup taken after the user deleted one carries the deletion here.
-      // (The full tombstone union further below is unaffected — this map union
-      // is idempotent, newest-stamp-wins.)
-      _unionTombstoneMap(deletedWalletDefIds, data.deletedWalletDefIds);
-      applyWalletDefs(cleanWD);
-    }
-  }
-
-  // data.wallets must be a plain id-keyed object — an array (or any other
-  // truthy non-object-shaped value) would pass the old `!data.wallets` check
-  // yet return undefined for every WALLET_DEFS[w.id] lookup below, silently
-  // zeroing every balance with no restore and no warning.
-  if(data.wallets && typeof data.wallets === 'object' && !Array.isArray(data.wallets)){
-    // a backup is a complete snapshot — clear all balances first so wallets that
-    // are omitted from the imported file don't keep stale values that would
-    // mismatch the freshly-replaced transaction list
-    WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
-    WALLET_DEFS.forEach(w => {
-      if(data.wallets[w.id] !== undefined){
-        const v = parseFloat(data.wallets[w.id]);
-        if(isFinite(v)) state.wallets[w.id] = round2(v); // reject NaN/Infinity from crafted files
-      }
-    });
-  }
+  // Shared with adoptCloudSnapshot (app.drive.js) — see _ingestWalletDefs.
+  _ingestWalletDefs(data);
+  // a backup is a complete snapshot — clear all balances first so wallets that
+  // are omitted from the imported file don't keep stale values that would
+  // mismatch the freshly-replaced transaction list. Shared with
+  // adoptCloudSnapshot — see _ingestWalletBalances.
+  _ingestWalletBalances(data);
   let _droppedTx = 0;
   if(data.transactions){
     const incoming = Array.isArray(data.transactions) ? data.transactions : [];

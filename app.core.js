@@ -326,6 +326,35 @@ function bindKbdSelect(el, fn){
   el.addEventListener('click', e => { if(!e.detail && el._kbdEchoAt && Date.now() - el._kbdEchoAt < 1000) return; fn(e); });
   el.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ el._kbdEchoAt = Date.now(); e.preventDefault(); fn(e); } });
 }
+// Shared roving-tabindex arrow-key navigation for a listbox of .opt elements —
+// ArrowUp/ArrowDown moves focus within the list (wrapping), Home/End jumps to
+// the first/last option, matching the standard aria listbox keyboard pattern.
+// Delegated on the container (bound once via a marker flag) so re-rendering
+// the option list on every selection change doesn't need to re-wire anything.
+// Previously only the shared wallet popup (openWalletPop, app.quicknotes.js)
+// had this; the three legacy in-form dropdowns (add-form primary wallet, edit
+// modal, transfer from/to — all in app.ui.js) supported only Tab/Enter/Space,
+// each option individually focusable (tabIndex=0) rather than roving.
+// Callers must set exactly one option's tabIndex to 0 (the rest -1) after
+// rendering — this only handles the arrow/Home/End key response, not the
+// initial roving-tabindex setup.
+function wireOptionArrowNav(container){
+  if(!container || container._arrowNavWired) return;
+  container._arrowNavWired = true;
+  container.addEventListener('keydown', (e) => {
+    if(e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+    const opts = [...container.querySelectorAll('.opt')];
+    const idx = opts.indexOf(document.activeElement);
+    if(idx === -1) return; // focus isn't on an option — let the key do whatever it normally does
+    e.preventDefault();
+    let next;
+    if(e.key === 'ArrowDown') next = opts[(idx + 1) % opts.length];
+    else if(e.key === 'ArrowUp') next = opts[(idx - 1 + opts.length) % opts.length];
+    else if(e.key === 'Home') next = opts[0];
+    else next = opts[opts.length - 1];
+    if(next){ opts.forEach(o => { o.tabIndex = -1; }); next.tabIndex = 0; try{ next.focus({preventScroll:true}); }catch(_){} }
+  });
+}
 // A "system" category is one that isn't real spending/income — inter-wallet
 // transfers and manual balance adjustments both move money without it having
 // actually been earned or spent, so every income/expense summary (analytics,
@@ -1288,6 +1317,49 @@ function _applyTrackEffects(tx, sign){
       state.wallets[tw.id] = round2((state.wallets[tw.id] ?? 0) + dir * tx.amount);
     }
   }
+}
+
+// ── Shared external-snapshot ingestion helpers ──────────────────────────────
+// applyImport() (app.data.js) and adoptCloudSnapshot() (app.drive.js) both
+// wholesale-replace WALLET_DEFS/state.wallets from an external snapshot
+// object, and until v47.79 each carried its own copy of this exact logic
+// (verified byte-identical modulo the local variable name). Extracted here so
+// a future fix only needs to land once. Their TRANSACTION/tombstone/config
+// restoration is deliberately NOT merged the same way — comparing both call
+// sites line by line surfaced real, meaningful divergences (import unions
+// existing tombstones and reconciles against a pre-import local snapshot so
+// "replace all data" holds up against Drive's union merge, adopt resets
+// tombstones to the cloud's copy wholesale; import enforces a transaction-
+// count cap and calls normalizeCategory, adopt currently does neither) that
+// look like they reflect the two paths' different trust models (a user's own
+// hand-editable backup file vs. an already-vetted other-device snapshot)
+// rather than accidental drift — forcing them identical risked silently
+// changing sync-correctness behavior for what's meant to be a pure DRY pass.
+function _ingestWalletDefs(snapshot){
+  if(!Array.isArray(snapshot.walletDefs)) return;
+  const cleanWD = sanitizeWalletDefs(snapshot.walletDefs);
+  if(!cleanWD) return;
+  // union the tombstones FIRST — applyWalletDefs consults deletedWalletDefIds
+  // before re-inserting the default 'reserve'/'crisis_fund' wallets, and a
+  // snapshot written after the user deleted one carries that deletion here.
+  _unionTombstoneMap(deletedWalletDefIds, snapshot.deletedWalletDefIds);
+  applyWalletDefs(cleanWD);
+}
+function _ingestWalletBalances(snapshot){
+  // strict shape check (not just truthy) — a crafted/corrupt snapshot whose
+  // `wallets` is an array (or any other non-plain-object truthy value) would
+  // otherwise pass a loose check yet return undefined for every WALLET_DEFS[w.id]
+  // lookup below, silently zeroing every balance with no restore and no warning.
+  // (adoptCloudSnapshot used a looser `if(cloud.wallets)` check before this
+  // consolidation — closing that gap here fixes it there too.)
+  if(!snapshot.wallets || typeof snapshot.wallets !== 'object' || Array.isArray(snapshot.wallets)) return;
+  WALLET_DEFS.forEach(w => { state.wallets[w.id] = 0; });
+  WALLET_DEFS.forEach(w => {
+    if(snapshot.wallets[w.id] !== undefined){
+      const v = parseFloat(snapshot.wallets[w.id]);
+      if(isFinite(v)) state.wallets[w.id] = round2(v); // reject NaN/Infinity from a corrupt snapshot
+    }
+  });
 }
 
 // Recompute every (non-track) wallet balance purely from the transaction ledger

@@ -758,16 +758,16 @@ function render(force){
   if(!force && sig === _renderSig) return; // nothing visual changed
   _renderSig = sig;
   _monthlyExpenseCache = null; // invalidate budget bars per-render
-  // _recurringCache is intentionally NOT nulled here — detectRecurring()'s sig now
-  // includes _txMutationStamp, which already captures all mutations. Nulling here
-  // caused a full O(n) re-scan on every filter change / crisis toggle / etc.
-  // invalidate content caches keyed only on length/last-id — edits (amount,
-  // desc, date, wallet, category) don't change those, so they must be reset
-  // here to reflect in-place edits in the list, chart, analytics and hero.
-  _filteredTxSig = '';
-  _analyticsSig = '';
-  _heroStatsSig = '';
-  _pieChartSig = ''; // same reasoning as above — pie totals also depend on in-place edits / day-rollover, not just _txMutationStamp
+  // _recurringCache, _filteredTxSig, _analyticsSig, _heroStatsSig, _pieChartSig
+  // are intentionally NOT nulled here (as of v47.79) — every one of their sigs
+  // now includes _txMutationStamp, which already captures in-place edits
+  // (amount/desc/date/wallet/category on an existing tx) that don't change
+  // state.transactions.length or the last tx's id. Blanket-clearing them here
+  // forced a full O(n) re-scan + re-sort on every single render() call
+  // (wallet-filter tap, crisis toggle, balance edit, anything) regardless of
+  // whether anything relevant actually changed — heroStats/pieChart already
+  // included the stamp and got zero benefit from the reset; getFilteredTx/
+  // analytics now do too.
   // Always-visible / cheap essentials (home hero + wallets + form dropdowns)
   renderWallets();
   renderWalletSelect();
