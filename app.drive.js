@@ -322,17 +322,24 @@ function refreshDriveSettingsUI(){
   setupEl.style.display = 'none';
   actionsEl.style.display = 'block';
 
+  // The auto-connect toggle governs the NEXT app open, so it's relevant in both
+  // the connected and disconnected states — and its checked state must reflect
+  // the STORED preference every time Settings renders. It used to stay hidden
+  // here (only enableDriveAutoSignIn ever showed it) and never re-read the
+  // preference, so after a reload the toggle was invisible/desynced and the
+  // user had no way to see or turn off "always connect".
+  if(autoSignInRow) autoSignInRow.style.display = 'block';
+  if(autoSignInChk) autoSignInChk.checked = loadDriveAutoSignIn();
+
   if(driveAccessToken){
     statusEl.textContent = t({ar:'متصل ✓ — البيانات تُحفظ تلقائيًا على Google Drive (مجلد بيانات التطبيق الخاص).', en:'Connected ✓ — data is saved automatically to Google Drive (private app data folder).'});
     signInBtn.style.display = 'none';
     signedInActions.style.display = 'flex';
-    if(autoSignInRow){ autoSignInRow.style.display = 'none'; } // preference no longer applies; hide
     setDriveIndicator('ok');
   } else {
     statusEl.textContent = t({ar:'اضغط على زر أدناه أو على أيقونة ☁️ في الأعلى لتسجيل الدخول.', en:'Tap the button below or the ☁️ icon above to sign in.'});
     signInBtn.style.display = 'block';
     signedInActions.style.display = 'none';
-    if(autoSignInRow) autoSignInRow.style.display = 'none';
     setDriveIndicator('idle');
   }
 }
@@ -752,7 +759,13 @@ async function adoptCloudSnapshot(cloud){
   // knows about every wallet the cloud snapshot references.
   if(Array.isArray(cloud.walletDefs)){
     const cleanWD = sanitizeWalletDefs(cloud.walletDefs);
-    if(cleanWD) applyWalletDefs(cleanWD);
+    if(cleanWD){
+      // union the cloud's wallet-def tombstones FIRST (same reason as applyImport):
+      // applyWalletDefs consults them before re-inserting the default 'reserve'/
+      // 'crisis_fund' wallets, and a snapshot written after a deletion carries it here.
+      _unionTombstoneMap(deletedWalletDefIds, cloud.deletedWalletDefIds);
+      applyWalletDefs(cleanWD);
+    }
   }
   if(cloud.wallets){
     WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
@@ -765,12 +778,10 @@ async function adoptCloudSnapshot(cloud){
   }
   if(Array.isArray(cloud.transactions)){ // harden against a crafted non-array value
     const _seenIds = new Set();
+    // isValidTx is the shared well-formedness rule (app.core.js) — adoption adds
+    // only the duplicate-id guard on top, plus the clamping in the map below.
     state.transactions = cloud.transactions.filter(tx =>
-      tx && typeof tx.id === 'string' && tx.id && !_seenIds.has(tx.id) && _seenIds.add(tx.id) &&
-      (tx.type === 'income' || tx.type === 'expense') &&
-      typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
-      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 && tx.amount <= MAX_AMOUNT &&
-      WALLET_DEFS.find(w => w.id === tx.wallet))
+      isValidTx(tx) && !_seenIds.has(tx.id) && _seenIds.add(tx.id))
       // same input-side cap as applyImport(), plus the same cent-rounding every
       // other entry point enforces (a cloud copy isn't bound by addTx's rounding)
       .map(tx => ({

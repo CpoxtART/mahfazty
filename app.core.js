@@ -31,11 +31,27 @@ const WALLET_DEFS = [
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.76',
+    date: '2026-07-03',
+    title: { ar: 'جولة إصلاحات من تدقيق شامل: حذف المحافظ الافتراضية، تطابق أرصدة التتبع بين الأجهزة، وحماية أقوى للبيانات', en: 'Fix round from a full audit: default-wallet deletion, cross-device tracked-balance convergence, and stronger data protection' },
+    items: [
+      { ar: 'إصلاح عالٍ: حذف محفظة Reserve أو «الاحتياطي المدمج» من إدارة المحافظ كان يفشل بصمت — التطبيق يعرض «تم الحذف» لكن منطق الترحيل يعيد إضافتها فورًا داخل نفس العملية. الآن الحذف يثبت نهائيًا (محليًا وعبر المزامنة وبعد إعادة الفتح)، ومن حذفها يقدر يرجعها بإنشاء محفظة جديدة بنفس الاسم.', en: 'High fix: deleting the Reserve or "Merged Reserve" wallet from Manage Wallets silently failed — the app showed "deleted" but the migration logic re-added it within the same operation. Deletion now sticks for good (locally, across sync, and after reopening), and anyone who deletes it can bring it back by creating a new wallet with the same name.' },
+      { ar: 'إصلاح عالٍ (خفي منذ شهور، اكتُشف أثناء إصلاح ما سبق): تحميل بيانات المحافظ المخصّصة عند فتح التطبيق كان يتعطّل داخليًا في كل مرة لدى أي مستخدم لديه محافظ محفوظة، ويُصنَّف خطأً كـ«بيانات تالفة» فيُعاد تحميلها بصمت من النسخة الاحتياطية الداخلية — التي قد تكون أقدم من النسخة الأساسية بلحظات، ما قد يُرجِع تعديلًا حديثًا جدًا على المحافظ (كحذفٍ أو إعادة تسمية) دون أي إشعار. أُصلح الخلل من جذره وأصبح التحميل الأساسي يعمل فعليًا كما صُمِّم.', en: "High fix (hidden for months, uncovered while fixing the above): loading custom wallet data at app open was internally crashing every time for any user with saved wallets, getting misclassified as \"corrupt data\", and silently re-served from the internal backup copy — which could be moments older than the primary copy, quietly reverting a very recent wallet change (like a delete or rename) with no indication. Fixed at the root; the primary load now actually works as designed." },
+      { ar: 'إصلاح عالٍ (قديم): أرصدة محافظ التتبع (أوبر/البطاقات/الكاش) لم تكن تتطابق بين جهازين أبدًا — تعديل الرصيد على جهاز يصل كسجل معاملة للجهاز الآخر لكن رصيده المعروض لا يتحرك. الآن أي تعديل/حذف لمعاملة تتبع قادمة من جهاز آخر يحرّك الرصيد المعروض فورًا بنفس المقدار.', en: "High fix (longstanding): tracked-wallet balances (Uber/Cards/Cash) never converged between two devices — a balance adjustment on one device arrived as a ledger entry on the other, but its displayed balance never moved. Now any tracked transaction merged in (or deleted) from another device moves the displayed balance immediately by the same amount." },
+      { ar: 'إصلاح عالٍ: عند امتلاء مساحة التخزين المحلية كان آخر تعديل يضيع بصمت عند إعادة الفتح (النسخة القديمة العالقة كانت «تفوز» على النسخة الاحتياطية الأحدث رغم رسالة «يتم الحفظ في النسخة الاحتياطية»). الآن التطبيق يكتشف هذه الحالة تلقائيًا ويرجّح النسخة الاحتياطية الأحدث.', en: 'High fix: when local storage filled up, the latest edit was silently lost on reopen (the stuck old copy "won" over the newer backup copy despite the "saving to the backup copy" message). The app now detects this state automatically and prefers the newer backup.' },
+      { ar: 'إصلاح متوسط: زر «الاتصال التلقائي عند الفتح» في إعدادات Drive كان يختفي بعد إعادة التشغيل ولا يعكس الاختيار المحفوظ — الآن يظهر دائمًا بعد ضبط Client ID ويعكس حالته الحقيقية.', en: 'Medium fix: the "auto-connect on open" toggle in Drive settings vanished after a restart and never reflected the stored choice — it now always shows once a Client ID is set, mirroring its real state.' },
+      { ar: 'إصلاح متوسط: حساب قديم بقيت فيه نسبة Reserve يتيمة على 0% مع Core على 55% (توقيع الدمج القديم بالضبط) يُصلَّح الآن تلقائيًا إلى 5%/50% — دون لمس أي نسب خصّصها المستخدم بنفسه.', en: 'Medium fix: an older account left with an orphaned 0% Reserve share while Core sat at the old merged 55% (the exact legacy signature) is now auto-repaired to 5%/50% — without touching any user-customized ratios.' },
+      { ar: 'متانة: قاعدة التحقق من صحة المعاملات أصبحت موحّدة في كل منافذ الدخول (الفتح، المزامنة، الاستيراد، تبنّي نسخة سحابية) بدل أربع نسخ متقاربة؛ وربط معاملات التتبع (trackWallet) صار محميًا من الضياع عند وصول نسخة سحابية قديمة، بنفس حماية روابط التوزيع.', en: 'Robustness: the transaction-validity rule is now one shared implementation across every entry point (load, sync, import, cloud adoption) instead of four near-copies; and tracked-transaction links (trackWallet) are now protected from being lost to a stale cloud copy, same as distribution links.' },
+      { ar: 'أمان (وقائي): معرّفات المحافظ من نوع __proto__/constructor مرفوضة الآن عند الاستيراد (سد استباقي لتلوث النموذج الأولي)، وحقل النسبة في محرر التوزيع صار يُهرَّب دائمًا، وأُضيف form-action لسياسة أمان المحتوى.', en: 'Security (preventive): __proto__/constructor-style wallet ids are now rejected at import (proactive prototype-pollution foreclosure), the ratio field in the distribution editor is always escaped, and form-action was added to the Content-Security-Policy.' },
+      { ar: 'اختبارات: 15 اختبارًا آليًا جديدًا تغطي منطق الدمج بين الأجهزة وترحيل المحافظ الافتراضية ونسب التوزيع — بالضبط المنطقة التي خرجت منها أخطاء هذه الجولة، حتى لا تتكرر بصمت.', en: 'Tests: 15 new automated tests covering cross-device merge logic, default-wallet migration, and distribution shares — exactly the area this round\'s bugs came from, so they can\'t silently recur.' },
+    ],
+  },
+  {
     version: 'v47.75',
     date: '2026-07-03',
     title: { ar: '«Reserve» عادت محفظة افتراضية دائمة بنسبة 5%', en: '"Reserve" is a permanent default wallet again, with a 5% share' },
     items: [
-      { ar: 'تغيير (بطلب مستخدم): محفظة "Reserve" — التي أُلغيت في v47.31 ودُمجت نسبتها (5%) مع Core Expenses — عادت الآن كمحفظة افتراضية دائمة بنسبة توزيع 5% ثابتة، وCore Expenses رجعت لـ 50% كما كانت قبل الدمج.', en: 'Change (user-requested): the "Reserve" wallet — removed in v47.31 with its 5% folded into Core Expenses — is now back as a permanent default wallet with a fixed 5% distribution share, and Core Expenses is back to 50% like before the merge.' },
+      { ar: 'تغيير (بطلب مستخدم): محفظة "Reserve" — التي أُلغيت في v47.31 ودُمجت نسبتها (5%) مع Core Expenses — عادت الآن كمحفظة افتراضية دائمة بنسبة توزيع 5% ثابتة، ومحفظة Core Expenses رجعت لـ 50% كما كانت قبل الدمج.', en: 'Change (user-requested): the "Reserve" wallet — removed in v47.31 with its 5% folded into Core Expenses — is now back as a permanent default wallet with a fixed 5% distribution share, and Core Expenses is back to 50% like before the merge.' },
       { ar: 'إصلاح: أي حساب كانت عنده محفظة "Reserve" يتيمة بنسبة 0% (من قبل v47.31) يحصل الآن تلقائيًا على نسبة 5% الصحيحة بدل الصفر — سواء عند فتح التطبيق أو عند مزامنة/استيراد نسخة قديمة. إن كانت نسبة Core عندك مخصّصة يدويًا (غير 55%)، لا نلمسها ونكتفي بإضافة نسبة Reserve.', en: 'Fix: any account with an orphaned 0%-share "Reserve" wallet (a leftover from before v47.31) now automatically gets the correct 5% share instead of zero — whether on app launch or when syncing/importing an older backup. If your Core percentage was manually customized (not 55%), it is left untouched and only the Reserve share is added.' },
     ],
   },
@@ -965,6 +981,39 @@ const CHANGELOG = [
     ],
   },
 ];
+// Tombstones for delete propagation in multi-device merge sync: {txId: deletedAtMs}.
+// Without these, a union merge would resurrect a transaction deleted on another
+// device. Tx/sub tombstones are pruned to the last 90 days so the sets stay bounded.
+// Declared here (not with the rest of the mutable state below) because
+// applyWalletDefs() consults deletedWalletDefIds and already runs at parse time
+// via the _loadCustomWalletDefsSync IIFE just after it — a later `let` would TDZ-throw.
+let deletedTxIds = {};
+// Same role for subscriptions and wallet definitions — mergeCloudData unions
+// both by id, so without tombstones a subscription/wallet deleted on device A
+// reappears from device B's copy on the very next sync, forever ping-ponging.
+let deletedSubIds = {};
+let deletedWalletDefIds = {};
+const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+function pruneTombstones(){
+  const cutoff = Date.now() - TOMBSTONE_TTL_MS;
+  for(const id in deletedTxIds){ if(!(deletedTxIds[id] > cutoff)) delete deletedTxIds[id]; }
+  for(const id in deletedSubIds){ if(!(deletedSubIds[id] > cutoff)) delete deletedSubIds[id]; }
+  // deletedWalletDefIds is deliberately NOT pruned: it's bounded by wallet count
+  // (tiny), custom wallet ids are never reused (generated w_<ts>_<rand>), and the
+  // default-wallet ids ('reserve'/'crisis_fund') rely on a PERMANENT tombstone to
+  // record "the user deleted this default" — applyWalletDefs() would otherwise
+  // resurrect them the moment a 90-day expiry dropped the record.
+}
+// Union a {id: deletedAtMs} tombstone map from an external snapshot (cloud/IDB/
+// import) into a local one — newest stamp wins, non-numeric entries dropped.
+function _unionTombstoneMap(local, incoming){
+  if(!incoming || typeof incoming !== 'object') return local;
+  for(const id in incoming){
+    const t = incoming[id];
+    if(typeof t === 'number' && (!local[id] || t > local[id])) local[id] = t;
+  }
+  return local;
+}
 // Validates/cleans a candidate wallet-defs array (from localStorage, IndexedDB,
 // an imported backup, or a Drive snapshot) before it's allowed to replace the
 // live WALLET_DEFS. Returns a fresh array of plain {id,name,initial,track,pct}
@@ -983,7 +1032,12 @@ function sanitizeWalletDefs(arr){
     // [...str].slice() counts Unicode code points, not UTF-16 code units — avoids
     // stranding a lone surrogate when the 40th position falls inside an emoji pair.
     const name = typeof w.name === 'string' ? [...stripBidiControls(w.name).trim()].slice(0,40).join('') : '';
-    if(!id || !/^[a-zA-Z0-9_\-]+$/.test(id) || !name || seen.has(id)) return;
+    // '__proto__'/'constructor'/'prototype' match the id regex but wallet ids are
+    // used as bracket-notation object keys all over (state.wallets[id], budgets[id],
+    // trackLinkMode[id]) — every current write is a primitive so nothing is
+    // exploitable today, but a future `someMap[id] = {...}` would become real
+    // prototype pollution. Cheap to foreclose at the gate.
+    if(!id || !/^[a-zA-Z0-9_\-]+$/.test(id) || id === '__proto__' || id === 'constructor' || id === 'prototype' || !name || seen.has(id)) return;
     seen.add(id);
     out.push({id, name, initial:0, track: !!w.track, pct: typeof w.pct === 'string' ? w.pct : (w.track ? 'تتبع' : '0%'), ...(w.crisisOnly ? {crisisOnly:true} : {})});
   });
@@ -1001,20 +1055,24 @@ function applyWalletDefs(clean){
   clean.forEach(w => WALLET_DEFS.push(w));
   // crisis_fund may be absent from wallet defs saved before v47.31 — always
   // ensure it exists, inserted before track wallets to preserve display order.
+  // UNLESS the user deliberately deleted it (tombstoned): re-inserting here made
+  // deleteWalletDef() silently self-defeating — the very call it used to remove
+  // the wallet (applyWalletDefs(filtered)) re-added it before returning, while
+  // the UI showed a "deleted" success toast.
   const cfIdx = WALLET_DEFS.findIndex(w => w.id === 'crisis_fund');
-  if(cfIdx === -1){
+  if(cfIdx === -1 && !deletedWalletDefIds['crisis_fund']){
     const firstTrack = WALLET_DEFS.findIndex(w => w.track);
     const pos = firstTrack === -1 ? WALLET_DEFS.length : firstTrack;
     WALLET_DEFS.splice(pos, 0, {id:'crisis_fund', name:'Merged Reserve', initial:0, track:false, crisisOnly:true, pct:'0%'});
-  } else if(!WALLET_DEFS[cfIdx].crisisOnly){
+  } else if(cfIdx !== -1 && !WALLET_DEFS[cfIdx].crisisOnly){
     WALLET_DEFS[cfIdx] = {...WALLET_DEFS[cfIdx], crisisOnly: true};
   }
   // "Reserve" was a default wallet, got folded into Core Expenses in v47.31, then
   // reinstated as a permanent default in v47.75 — always ensure it exists (same
-  // pattern as crisis_fund above) so an account created in that window gets it
-  // back too, not just fresh installs. _ensureReserveShare() (below) handles
-  // giving it back its 5% distribution share.
-  if(WALLET_DEFS.findIndex(w => w.id === 'reserve') === -1){
+  // pattern + same tombstone escape-hatch as crisis_fund above) so an account
+  // created in that window gets it back too, not just fresh installs.
+  // _ensureReserveShare() (below) handles giving it back its 5% distribution share.
+  if(WALLET_DEFS.findIndex(w => w.id === 'reserve') === -1 && !deletedWalletDefIds['reserve']){
     const givingIdx = WALLET_DEFS.findIndex(w => w.id === 'giving');
     const pos = givingIdx === -1 ? Math.max(0, cfIdx === -1 ? WALLET_DEFS.length : cfIdx) : givingIdx + 1;
     WALLET_DEFS.splice(pos, 0, {id:'reserve', name:'Reserve', initial:0, track:false, pct:'5%'});
@@ -1030,30 +1088,29 @@ function applyWalletDefs(clean){
 // openDistributionModal()/settings already handle a >100% total gracefully.
 function _ensureReserveShare(){
   if(!WALLET_DEFS.find(w => w.id === 'reserve' && !w.track)) return;
-  if(DISTRIBUTION.find(d => d.id === 'reserve')) return;
-  DISTRIBUTION = DISTRIBUTION.concat([{id:'reserve', pct:5}]);
+  const existing = DISTRIBUTION.find(d => d.id === 'reserve');
   const core = DISTRIBUTION.find(d => d.id === 'core');
+  if(existing){
+    // A reserve entry at 0% while Core still sits at the old v47.31 merged 55%
+    // is the exact orphaned-account signature (reserve's 5% was folded into
+    // Core back then; the entry itself survived at 0). A user who deliberately
+    // zeroed reserve AFTER v47.75 has core at 50 (or their own number), never
+    // this pair — so repairing only this combination can't clobber a choice.
+    if(existing.pct === 0 && core && core.pct === 55){ existing.pct = 5; core.pct = 50; }
+    return;
+  }
+  DISTRIBUTION = DISTRIBUTION.concat([{id:'reserve', pct:5}]);
   if(core && core.pct === 55) core.pct = 50;
 }
-// Custom wallets (added via Settings → إدارة المحافظ) are loaded synchronously
-// here, before SELECTABLE_WALLETS/CRISIS_WALLET_IDS-dependent code below runs,
-// so the very first render already reflects them. IndexedDB-side recovery (in
-// case localStorage was wiped) happens later in loadState(), same pattern as
-// the Drive client id / subscriptions recovery there.
 // Set when localStorage's walletDefs key exists but is corrupted/unusable —
 // loadState()'s IndexedDB-recovery check below only looked at "key absent",
 // so a present-but-corrupt blob used to silently skip recovery too (worse
 // than a missing key) and fall back to default wallets with zero warning.
+// (The synchronous custom-wallet-defs loader IIFE that sets this lives further
+// DOWN, after the state/SELECTABLE_WALLETS/selectedWallet declarations it
+// transitively depends on — see the comment there for the TDZ bug that forced
+// the move.)
 let _walletDefsLoadFailed = false;
-(function _loadCustomWalletDefsSync(){
-  const raw = localStorage.getItem(LS_PREFIX + 'walletDefs');
-  if(!raw) return;
-  try{
-    const clean = sanitizeWalletDefs(JSON.parse(raw));
-    if(clean) applyWalletDefs(clean);
-    else _walletDefsLoadFailed = true;
-  }catch(e){ _walletDefsLoadFailed = true; }
-})();
 
 // In crisis/alternative mode the budget wallets (wishlist, growth, joy, giving, …)
 // are hidden and replaced by the single crisis_fund wallet.
@@ -1142,6 +1199,38 @@ let selectedWallet = WALLET_DEFS[0].id;
 // from Core, and also move the linked tracked "Uber" wallet automatically). null =
 // none. See applyTxToBalance + addTx + trackLinkMode.
 let selectedTrackWallet = null;
+
+// Custom wallets (added via Settings → إدارة المحافظ) are loaded synchronously
+// here — at parse time, before any other module runs — so the very first render
+// already reflects them. MUST stay BELOW the state/SELECTABLE_WALLETS/
+// selectedWallet declarations: applyWalletDefs() ends in
+// recomputeSelectableWallets(), which reads all three, and calling it above
+// them (where this loader originally lived) hit their temporal dead zone —
+// every saved-defs boot threw, was caught as "corrupt", and got silently
+// re-served from IndexedDB by loadState()'s recovery, which could apply a
+// STALE snapshot (e.g. resurrecting a just-deleted wallet).
+// IndexedDB-side recovery (in case localStorage was wiped) still happens later
+// in loadState(), same pattern as the Drive client id / subscriptions recovery.
+(function _loadCustomWalletDefsSync(){
+  // Seed the wallet-def tombstones from the config blob FIRST — applyWalletDefs()
+  // consults deletedWalletDefIds to decide whether to re-insert the default
+  // 'reserve'/'crisis_fund' wallets, and loadState() (which normally loads the
+  // tombstones) only runs later, asynchronously. Without this seed, a default
+  // wallet the user deleted would resurrect at every boot before loadState ran.
+  try{
+    const cfg = JSON.parse(localStorage.getItem(LS_PREFIX + 'config') || 'null');
+    if(cfg && cfg.deletedWalletDefIds && typeof cfg.deletedWalletDefIds === 'object'){
+      _unionTombstoneMap(deletedWalletDefIds, cfg.deletedWalletDefIds);
+    }
+  }catch(e){}
+  const raw = localStorage.getItem(LS_PREFIX + 'walletDefs');
+  if(!raw) return;
+  try{
+    const clean = sanitizeWalletDefs(JSON.parse(raw));
+    if(clean) applyWalletDefs(clean);
+    else _walletDefsLoadFailed = true;
+  }catch(e){ _walletDefsLoadFailed = true; }
+})();
 let editingTxId = null;
 let editType = 'expense';
 let editWallet = WALLET_DEFS[0].id;
@@ -1163,39 +1252,19 @@ let budgets = {}; // walletId -> monthly budget limit (expenses)
 // never retroactively flip the effect of past entries.
 let trackLinkMode = {}; // walletId -> 'debit' | 'credit'
 let dismissedRecurring = new Set();
-// Tombstones for delete propagation in multi-device merge sync: {txId: deletedAtMs}.
-// Without these, a union merge would resurrect a transaction deleted on another
-// device. Pruned to the last 90 days so the set stays bounded.
-let deletedTxIds = {};
-// Same role for subscriptions and wallet definitions — mergeCloudData unions
-// both by id, so without tombstones a subscription/wallet deleted on device A
-// reappears from device B's copy on the very next sync, forever ping-ponging.
-let deletedSubIds = {};
-let deletedWalletDefIds = {};
-const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
-function pruneTombstones(){
-  const cutoff = Date.now() - TOMBSTONE_TTL_MS;
-  for(const id in deletedTxIds){ if(!(deletedTxIds[id] > cutoff)) delete deletedTxIds[id]; }
-  for(const id in deletedSubIds){ if(!(deletedSubIds[id] > cutoff)) delete deletedSubIds[id]; }
-  for(const id in deletedWalletDefIds){ if(!(deletedWalletDefIds[id] > cutoff)) delete deletedWalletDefIds[id]; }
-}
-// Union a {id: deletedAtMs} tombstone map from an external snapshot (cloud/IDB/
-// import) into a local one — newest stamp wins, non-numeric entries dropped.
-function _unionTombstoneMap(local, incoming){
-  if(!incoming || typeof incoming !== 'object') return local;
-  for(const id in incoming){
-    const t = incoming[id];
-    if(typeof t === 'number' && (!local[id] || t > local[id])) local[id] = t;
-  }
-  return local;
-}
+// (Tombstone maps — deletedTxIds/deletedSubIds/deletedWalletDefIds — are declared
+// further UP, before sanitizeWalletDefs/applyWalletDefs, because applyWalletDefs
+// consults deletedWalletDefIds and is already called at parse time by the
+// _loadCustomWalletDefsSync IIFE.)
 // The single "is this transaction well-formed" rule — used at every boundary
 // that ingests transactions from outside the app's own write paths (initial
-// load, cloud merge, import). Was defined twice, verbatim, in two different
-// closures (loadState and mergeCloudData); centralized so a future rule
-// change (e.g. adjusting the MAX_AMOUNT ceiling) can't be applied to only one.
+// load, cloud merge, import, cloud snapshot adoption). Was once re-implemented
+// per boundary with subtle drift (import required a string id, load/merge only
+// a truthy one); centralized so a future rule change (e.g. adjusting the
+// MAX_AMOUNT ceiling) can't be applied to only one entry point. Every id the
+// app has ever generated is a 'tx_...' string, so the string requirement is safe.
 function isValidTx(t){
-  return !!(t && t.id && (t.type === 'income' || t.type === 'expense') &&
+  return !!(t && typeof t.id === 'string' && t.id && (t.type === 'income' || t.type === 'expense') &&
     typeof t.ts === 'number' && isFinite(t.ts) && t.ts > 0 &&
     typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 && t.amount <= MAX_AMOUNT &&
     WALLET_DEFS.find(w => w.id === t.wallet));
@@ -1815,14 +1884,28 @@ async function loadState(){
   // Fall back to lastEdit only when dataEdit is absent (legacy migration path).
   try{ _lsDataEdit = parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0; }catch(e){}
   const _idb = await idbRestore(); // also opens the DB, setting _idbAvailable
+  const _idbTime = (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0;
+  // "IDB snapshot is strictly newer than every localStorage stamp" can only mean
+  // a localStorage save FAILED (quota full / locked down) while its paired
+  // idbBackup succeeded — every successful save writes the same ts to both.
+  // In that state a localStorage key can be present yet silently STALE, so
+  // "present" alone must not win: prefer the IDB copy for the small data too
+  // (balances/config/wallet defs/subscriptions below), otherwise the user's
+  // last edits quietly revert on reload despite the "saved to the backup
+  // copy" toast having promised otherwise.
+  const _idbFresher = _idbTime > Math.max(_lsDataEdit, _lsLastEdit);
   // Recover custom wallet definitions from IndexedDB if localStorage's copy was
   // wiped OR corrupted (_walletDefsLoadFailed) — same wipe-recovery pattern as
   // driveClientId/subscriptions below. Must happen before _validTx/balance-restore
   // loops run (just below) so a custom wallet's transactions and balance aren't
   // silently dropped as "unknown wallet".
-  if(_idb && Array.isArray(_idb.walletDefs) && (_walletDefsLoadFailed || !localStorage.getItem(LS_PREFIX + 'walletDefs'))){
+  if(_idb && Array.isArray(_idb.walletDefs) && (_walletDefsLoadFailed || _idbFresher || !localStorage.getItem(LS_PREFIX + 'walletDefs'))){
     const _cleanWD = sanitizeWalletDefs(_idb.walletDefs);
     if(_cleanWD){
+      // union the IDB tombstones BEFORE applyWalletDefs — with localStorage wiped,
+      // the config-blob seed at parse time found nothing, and applyWalletDefs
+      // would otherwise re-insert a default wallet the user deleted.
+      _unionTombstoneMap(deletedWalletDefIds, _idb.deletedWalletDefIds);
       applyWalletDefs(_cleanWD);
       WALLET_DEFS.forEach(w => { if(state.wallets[w.id] === undefined) state.wallets[w.id] = 0; });
       _restoreWalletBalances(_idb.wallets);
@@ -1834,7 +1917,6 @@ async function loadState(){
     // dropping the user's custom wallet setup with zero indication why.
     toast(t({ar:'⚠ تعذّرت قراءة بيانات المحافظ محليًا — تم الرجوع للمحافظ الافتراضية', en:'⚠ Could not read wallet data locally — fell back to default wallets'}), true);
   }
-  const _idbTime = (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0;
   let _lsTx = null;
   try{ const raw = localStorage.getItem(LS_PREFIX + 'transactions'); if(raw) _lsTx = JSON.parse(raw); }catch(e){}
   const _idbHasTx = _idb && Array.isArray(_idb.transactions);
@@ -1843,9 +1925,11 @@ async function loadState(){
   if(_idbHasTx && !_lsTxNewer){
     // IndexedDB snapshot is the source of truth
     state.transactions = _validTx(_idb.transactions);
-    // If localStorage was wiped (cleared storage), recover the small data too
-    if(!_lsHadBalances) _restoreWalletBalances(_idb.wallets);
-    if(!_lsHadConfig){
+    // Recover the small data too when localStorage was wiped — or when its keys
+    // are present but STALE (_idbFresher: the last ls save failed on quota while
+    // the IDB mirror succeeded; see the _idbFresher comment above).
+    if(!_lsHadBalances || _idbFresher) _restoreWalletBalances(_idb.wallets);
+    if(!_lsHadConfig || _idbFresher){
       if(typeof _idb.crisisMode === 'boolean') state.crisisMode = _idb.crisisMode;
       if(typeof _idb.autoDistribute === 'boolean') autoDistribute = _idb.autoDistribute;
       if(_idb.budgets && typeof _idb.budgets === 'object') budgets = sanitizeBudgets(_idb.budgets);
@@ -1926,7 +2010,7 @@ async function loadState(){
   const _di = document.getElementById('dateInput');
   if(_di) _di.value = todayISO();
   capDateInputsToToday();
-  loadSubs(_idb);
+  loadSubs(_idb, _idbFresher);
   // Rebuild the wallet dropdown to match the restored crisis-mode state — if the
   // app last closed in crisis mode, SELECTABLE_WALLETS must exclude the hidden wallets.
   recomputeSelectableWallets();
@@ -2003,21 +2087,43 @@ function mergeCloudData(cloud, cloudNewer){
   const localCount = state.transactions.length;
   const byId = new Map();
   state.transactions.forEach(t => { if(validTx(t) && !deletedTxIds[t.id]) byId.set(t.id, t); });
-  let removed = state.transactions.filter(t => deletedTxIds[t.id]).length; // local rows a remote delete removes
+  // Local rows a remote delete removes — keep the actual tx objects (not just a
+  // count) so their tracked-wallet effects can be REVERSED below; regular-wallet
+  // effects self-heal via reconcileBalances(), track wallets don't.
+  const removedTxs = state.transactions.filter(t => deletedTxIds[t.id]);
+  let removed = removedTxs.length;
   let added = 0;
+  const addedTxs = [];
+  const replacedTxs = []; // {before, after} pairs from editedAt-newer conflict wins
   (Array.isArray(cloud.transactions) ? cloud.transactions : []).forEach(t => {
     if(!validTx(t) || deletedTxIds[t.id]) return;
     const local = byId.get(t.id);
-    if(!local){ byId.set(t.id, t); added++; return; }
+    if(!local){ byId.set(t.id, t); added++; addedTxs.push(t); return; }
     if(typeof t.editedAt === 'number' && typeof local.editedAt === 'number' && t.editedAt > local.editedAt){
       // Preserve the local link if the incoming version lost it (e.g. older snapshot
       // from before distribution ran).  Without this guard a Drive sync arriving
       // seconds after runDistribution would strip the link, turning the income source
       // into a standalone tx whose delete later orphans the withdrawal+deposits.
-      byId.set(t.id, local.link && !t.link ? {...t, link: local.link} : t);
+      let winner = local.link && !t.link ? {...t, link: local.link} : t;
+      // Same guard for the tracked-wallet link: these fields are set at creation
+      // and never removed by an edit (saveEdit mutates in place), so an incoming
+      // copy lacking them is a stale snapshot, not a deliberate unlink — losing
+      // them would silently stop this expense from moving its tracked counter.
+      if(local.trackWallet && typeof local.trackSign === 'number' && winner.trackWallet === undefined){
+        winner = {...winner, trackWallet: local.trackWallet, trackSign: local.trackSign};
+      }
+      byId.set(t.id, winner);
+      replacedTxs.push({ before: local, after: winner });
     }
   });
   state.transactions = [...byId.values()];
+  // Converge tracked-wallet balances with the merged ledger deltas. Without this,
+  // an adjustment/track-linked tx from another device appeared in the list but
+  // this device's displayed Uber/Cards/Cash balance never moved (and a remote
+  // deletion of one never un-moved it) — permanent cross-device divergence.
+  removedTxs.forEach(t => _applyTrackEffects(t, -1));
+  addedTxs.forEach(t => _applyTrackEffects(t, +1));
+  replacedTxs.forEach(r => { _applyTrackEffects(r.before, -1); _applyTrackEffects(r.after, +1); });
   stripOrphanLinks(state.transactions);
   if(typeof stripOrphanedDistributionLegs === 'function'){
     const _now = Date.now();
@@ -2078,6 +2184,32 @@ function mergeCloudData(cloud, cloudNewer){
   _txMutationStamp++;
   prevSpendable = null;
   return { added, removed, hadLocal: localCount };
+}
+
+// Apply ONLY the tracked-wallet effects of a transaction to state.wallets —
+// the track-wallet subset of applyTxToBalance (app.logic.js). Used by
+// mergeCloudData: reconcileBalances() below rebuilds regular wallets from the
+// merged ledger but deliberately skips track wallets, so a tx merged in FROM
+// ANOTHER DEVICE (an adjustment on Uber/Cards/Cash, or a track-linked expense)
+// used to land in the transaction list without ever moving this device's
+// displayed track balance — the two devices never converged until a wholesale
+// snapshot adoption. sign: +1 to apply (tx merged in), -1 to reverse (tx
+// removed by a propagated deletion).
+function _applyTrackEffects(tx, sign){
+  if(!tx || !isFinite(tx.amount) || tx.amount <= 0) return;
+  const w = WALLET_DEFS.find(x => x.id === tx.wallet);
+  if(w && w.track){
+    const delta = (tx.type === 'expense' ? -tx.amount : tx.amount) * sign;
+    state.wallets[w.id] = round2((state.wallets[w.id] ?? 0) + delta);
+  }
+  // secondary link effect — same semantics as applyTxToBalance's trackSign math
+  if(tx.trackWallet && typeof tx.trackSign === 'number'){
+    const tw = WALLET_DEFS.find(x => x.id === tx.trackWallet && x.track);
+    if(tw){
+      const dir = (tx.type === 'expense' ? tx.trackSign : -tx.trackSign) * sign;
+      state.wallets[tw.id] = round2((state.wallets[tw.id] ?? 0) + dir * tx.amount);
+    }
+  }
 }
 
 // Recompute every (non-track) wallet balance purely from the transaction ledger
@@ -2178,7 +2310,16 @@ function _normalizeSub(x){
   x.billingDay = Math.min(31, Math.max(1, d));
   return x;
 }
-function loadSubs(idbSnapshot){
+function loadSubs(idbSnapshot, preferIdb){
+  // preferIdb: the IDB snapshot is strictly newer than every localStorage stamp
+  // (a quota-failed ls save — see loadState's _idbFresher), so a present-but-
+  // stale ls 'subs' key must not win over the successfully-mirrored IDB copy.
+  if(preferIdb && idbSnapshot && Array.isArray(idbSnapshot.subscriptions)){
+    subscriptions = idbSnapshot.subscriptions
+      .filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0)
+      .map(_normalizeSub);
+    return;
+  }
   try{
     const s = localStorage.getItem(LS_PREFIX + 'subs');
     if(s) subscriptions = JSON.parse(s)
@@ -2201,15 +2342,22 @@ function loadSubs(idbSnapshot){
 }
 async function saveSubs(){
   const ts = Date.now();
-  try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(subscriptions)); }catch(e){ toast(t({ar:'⚠ فشل حفظ الاشتراكات محليًا', en:'⚠ Failed to save subscriptions locally'}), true); }
-  stampDataEdit(ts);
+  // stamp dataEdit ONLY if the data write itself succeeded (same rule as
+  // saveBalances): loadState detects a quota-failed save by "IDB savedAt is
+  // newer than every localStorage stamp" — stamping here on failure would
+  // advance the ls stamp and mask exactly the condition it needs to see.
+  let lsOk = false;
+  try{ localStorage.setItem(LS_PREFIX + 'subs', JSON.stringify(subscriptions)); lsOk = true; }catch(e){ toast(t({ar:'⚠ فشل حفظ الاشتراكات محليًا', en:'⚠ Failed to save subscriptions locally'}), true); }
+  if(lsOk) stampDataEdit(ts);
   scheduleDriveSync();
   scheduleIdbBackup(ts);
 }
 async function saveWalletDefs(){
   const ts = Date.now();
-  try{ localStorage.setItem(LS_PREFIX + 'walletDefs', JSON.stringify(WALLET_DEFS)); }catch(e){ toast(t({ar:'⚠ فشل حفظ بيانات المحافظ محليًا', en:'⚠ Failed to save wallet data locally'}), true); }
-  stampDataEdit(ts);
+  // stamp-on-success-only: see saveSubs above
+  let lsOk = false;
+  try{ localStorage.setItem(LS_PREFIX + 'walletDefs', JSON.stringify(WALLET_DEFS)); lsOk = true; }catch(e){ toast(t({ar:'⚠ فشل حفظ بيانات المحافظ محليًا', en:'⚠ Failed to save wallet data locally'}), true); }
+  if(lsOk) stampDataEdit(ts);
   scheduleDriveSync();
   scheduleIdbBackup(ts);
 }
@@ -2285,8 +2433,13 @@ async function idbBackup(savedAt){
             const local = byId.get(t.id);
             if(!local){ byId.set(t.id, t); return; }
             if(typeof t.editedAt === 'number' && typeof local.editedAt === 'number' && t.editedAt > local.editedAt){
-              // Preserve link from local if the IDB snapshot lost it
-              byId.set(t.id, local.link && !t.link ? {...t, link: local.link} : t);
+              // Preserve link + tracked-wallet link from local if the IDB snapshot
+              // lost them (same stale-snapshot guard as mergeCloudData)
+              let winner = local.link && !t.link ? {...t, link: local.link} : t;
+              if(local.trackWallet && typeof local.trackSign === 'number' && winner.trackWallet === undefined){
+                winner = {...winner, trackWallet: local.trackWallet, trackSign: local.trackSign};
+              }
+              byId.set(t.id, winner);
             }
           });
           mergedTx = [...byId.values()];

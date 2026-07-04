@@ -1309,7 +1309,7 @@ function renderDistributionEditor(){
     row.className = 'dist-edit-row';
     row.innerHTML = `
       <span class="name">${escHtml(w ? w.name : d.id)}</span>
-      <input type="text" inputmode="decimal" value="${d.pct}" data-idx="${i}" autocomplete="off">
+      <input type="text" inputmode="decimal" value="${escHtml(String(d.pct))}" data-idx="${i}" autocomplete="off">
       <span class="pct-sign">%</span>
     `;
     row.querySelector('input').oninput = (e)=>{
@@ -1389,7 +1389,9 @@ async function saveDistribution(){
 
 function resetDistribution(){
   if(!confirm(t({ar:'استعادة النسب الافتراضية (50/10/10/10/10/5/5)؟', en:'Restore default ratios (50/10/10/10/10/5/5)?'}))) return;
-  DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  // filter against live WALLET_DEFS — a factory wallet the user deleted (e.g.
+  // 'reserve') must not come back as an orphaned share pointing at nothing
+  DISTRIBUTION = DEFAULT_DISTRIBUTION.filter(d => WALLET_DEFS.find(w => w.id === d.id && !w.track)).map(d=>({...d}));
   // keep custom regular wallets in the editor (DEFAULT only covers factory ones)
   const extra = WALLET_DEFS.filter(w => !w.track && !DISTRIBUTION.find(d => d.id === w.id)).map(w => ({id: w.id, pct: 0}));
   if(extra.length) DISTRIBUTION = DISTRIBUTION.concat(extra);

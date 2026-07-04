@@ -81,6 +81,23 @@ function loadApp() {
       // default WALLET_DEFS so tests can stage a scenario then assert.
       reconcileBalances, sumExpenses,
       state, WALLET_DEFS,
+      // migration/merge machinery — these decide whose money data survives a
+      // multi-device conflict and how default wallets migrate; regressions here
+      // corrupt balances silently, so they get direct unit coverage.
+      applyWalletDefs, _ensureReserveShare, mergeCloudData, _applyTrackEffects,
+      isValidTx,
+      // the tombstone maps are REASSIGNED by some code paths (loadState, adopt) —
+      // accessors keep the tests pointed at the live object, not a stale capture.
+      getDeletedWalletDefIds: () => deletedWalletDefIds,
+      setDeletedWalletDefIds: (v) => { deletedWalletDefIds = v; },
+      getDeletedTxIds: () => deletedTxIds,
+      setDeletedTxIds: (v) => { deletedTxIds = v; },
+      // DISTRIBUTION is reassigned (not mutated) by several code paths, so a
+      // static reference would go stale — expose getter/setter accessors instead.
+      getDistribution: () => DISTRIBUTION,
+      setDistribution: (v) => { DISTRIBUTION = v; },
+      getTransactions: () => state.transactions,
+      setTransactions: (v) => { state.transactions = v; },
     };`;
 
   // The app's top-level loadState() may reject against the stubs — that's

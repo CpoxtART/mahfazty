@@ -3,17 +3,23 @@
    Split out of app.logic.js. Export/import, the granular reset & repair
    tools (zero/clear/wipe/repair-balances), and the distribution/budget
    sanitizers used when ingesting an import or a Drive snapshot.
-   Loaded AFTER app.ui.js and BEFORE app.logic.js (which still owns
-   saveBalances/saveTx/render/openModal, all called here at runtime).
+   Loaded AFTER app.ui.js and BEFORE app.logic.js. Calls saveBalances/saveTx
+   (app.core.js), render (app.logic.js) and openModal (app.overlay.js) at
+   runtime only.
 ============================================================ */
 // Drop any distribution entries whose wallet id no longer exists (e.g. from an
 // imported/cloud backup). Falls back to defaults if nothing valid remains.
+// The fallback is filtered against live WALLET_DEFS too — a factory wallet the
+// user deleted (e.g. 'reserve') must not sneak back in as an orphaned share.
+function _defaultDistributionForCurrentWallets(){
+  return DEFAULT_DISTRIBUTION.filter(d => WALLET_DEFS.find(w => w.id === d.id && !w.track)).map(d=>({...d}));
+}
 function sanitizeDistribution(arr){
-  if(!Array.isArray(arr)) return DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  if(!Array.isArray(arr)) return _defaultDistributionForCurrentWallets();
   const cleaned = arr
     .filter(d => d && WALLET_DEFS.find(w=>w.id===d.id && !w.track))
     .map(d => ({...d, pct: Math.min(100, Math.max(0, isFinite(d.pct) ? d.pct : 0))}));
-  return cleaned.length ? cleaned : DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  return cleaned.length ? cleaned : _defaultDistributionForCurrentWallets();
 }
 function sanitizeBudgets(obj){
   const out = {};
@@ -195,7 +201,15 @@ async function applyImport(text){
   // by id (a custom wallet from the backup would otherwise look "unknown").
   if(Array.isArray(data.walletDefs)){
     const cleanWD = sanitizeWalletDefs(data.walletDefs);
-    if(cleanWD) applyWalletDefs(cleanWD);
+    if(cleanWD){
+      // union the backup's wallet-def tombstones FIRST — applyWalletDefs consults
+      // them before re-inserting the default 'reserve'/'crisis_fund' wallets, and
+      // a backup taken after the user deleted one carries the deletion here.
+      // (The full tombstone union further below is unaffected — this map union
+      // is idempotent, newest-stamp-wins.)
+      _unionTombstoneMap(deletedWalletDefIds, data.deletedWalletDefIds);
+      applyWalletDefs(cleanWD);
+    }
   }
 
   // data.wallets must be a plain id-keyed object — an array (or any other
@@ -229,13 +243,10 @@ async function applyImport(text){
     // doesn't get "claimed" by a malformed copy that's filtered out anyway —
     // otherwise a later, valid copy of the same id would be wrongly dropped
     const seenIds = new Set();
+    // isValidTx is the shared well-formedness rule (app.core.js) — import adds
+    // only the duplicate-id guard on top, plus the clamping in the map below.
     state.transactions = incoming.filter(tx =>
-      tx &&
-      typeof tx.id === 'string' && tx.id &&
-      typeof tx.ts === 'number' && isFinite(tx.ts) && tx.ts > 0 &&
-      typeof tx.amount === 'number' && isFinite(tx.amount) && tx.amount > 0 && tx.amount <= MAX_AMOUNT &&
-      (tx.type === 'income' || tx.type === 'expense') &&
-      WALLET_DEFS.find(w => w.id === tx.wallet) &&
+      isValidTx(tx) &&
       !seenIds.has(tx.id) && seenIds.add(tx.id)
     ).map(tx => ({
       ...tx,
@@ -646,7 +657,9 @@ async function wipeAll(){
   searchQuery = '';
   _txVisibleCount = 50;
   currentFilter = 'all';
-  DISTRIBUTION = DEFAULT_DISTRIBUTION.map(d=>({...d}));
+  // filter against live WALLET_DEFS — a factory wallet the user deleted (e.g.
+  // 'reserve') must not come back as an orphaned share pointing at nothing
+  DISTRIBUTION = DEFAULT_DISTRIBUTION.filter(d => WALLET_DEFS.find(w => w.id === d.id && !w.track)).map(d=>({...d}));
   // DEFAULT_DISTRIBUTION only lists the factory wallets — keep any custom regular
   // wallets (which survive a wipe) represented, else they'd silently drop out of
   // the distribution editor and never receive an auto-distribute share.
