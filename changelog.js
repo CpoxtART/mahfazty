@@ -22,6 +22,15 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.86',
+    date: '2026-07-04',
+    title: { ar: 'إصلاح: قائمة اختيار المحفظة تختفي باللمس وصف مقصوص', en: 'Fix: wallet picker vanishing on touch + clipped row' },
+    items: [
+      { ar: 'إصلاح (بلاغ مباشر): قائمة اختيار المحفظة المنبثقة (بالملاحظات السريعة ونموذج الإضافة والتعديل والتحويل) كانت تختفي فورًا بمجرد لمسها على الجوال — أي محاولة لتمرير قائمة المحافظ بالإصبع كانت تُحسب "تمريرًا للصفحة" فتُغلق القائمة قبل ما تتحرك. الآن التمرير داخل القائمة نفسها يعمل بسلاسة، بينما تمرير الصفحة خارجها ما زال يغلقها كما يجب (حتى لا تنفصل عن مكانها).', en: 'Fix (direct user report): the wallet-picker popup (in Quick Notes, add form, edit, and transfer) vanished the instant you touched it on mobile — any attempt to finger-scroll the wallet list was treated as "page scrolling" and closed the popup before it could move. Scrolling inside the list itself now works smoothly, while scrolling the page outside it still dismisses it as intended (so it never drifts away from its anchor).' },
+      { ar: 'إصلاح: نفس القائمة كانت تقص آخر صف ظاهر من المنتصف (نصف محفظة مرئي) لأن حدّ ارتفاعها الثابت لا يوافق ارتفاع الصفوف — الآن يُحسب الارتفاع ليعرض صفوفًا كاملة فقط مهما كان حجم الخط، وإذا كانت المحفظة المختارة أسفل حد الرؤية تُمرَّر القائمة إليها تلقائيًا عند الفتح.', en: 'Fix: the same popup clipped its last visible row mid-height (half a wallet showing) because its fixed height cap didn\'t align to row height — the height is now computed to show only whole rows at any font size, and if the selected wallet sits below the fold the list auto-scrolls to it on open.' },
+    ],
+  },
+  {
     version: 'v47.85',
     date: '2026-07-04',
     title: { ar: 'إصلاح: تعارض نادر بين رفع وسحب بيانات Drive', en: 'Fix: a rare race between Drive push and pull' },

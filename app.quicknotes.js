@@ -274,12 +274,37 @@ function openWalletPop(anchor, items, currentId, onPick){
   pop.style.width = Math.round(r.width) + 'px';
   pop.classList.add('open');
   pop.setAttribute('aria-hidden', 'false');
-  const popH = Math.min(pop.scrollHeight, 300);
+  // Clip to WHOLE rows: the CSS fallback cap (300px) usually lands mid-row,
+  // leaving the last visible option half-cut — looks broken and half-hides a
+  // row the user can't read. Measure a real row (heights vary with the user's
+  // font-size setting) and cap at the largest whole-row count that fits.
+  // Box-sizing is border-box app-wide, so the popup's own 2px of borders come
+  // out of max-height; each .opt's offsetHeight already includes its 1px
+  // divider (the borderless :last-child just leaves a 1px slack, invisible).
+  let maxH = 300;
+  const firstOpt = pop.querySelector('.opt');
+  if(firstOpt && firstOpt.offsetHeight > 0){
+    const rowH = firstOpt.offsetHeight;
+    const wholeRows = Math.max(1, Math.floor((300 - 2) / rowH));
+    if(items.length > wholeRows){
+      maxH = wholeRows * rowH + 2;
+      pop.style.maxHeight = maxH + 'px';
+    } else {
+      pop.style.maxHeight = ''; // fits fully — no cap needed
+    }
+  }
+  const popH = Math.min(pop.scrollHeight, maxH);
   const below = window.innerHeight - r.bottom;
   if(below >= popH + 8 || below >= r.top){ pop.style.top = Math.round(r.bottom + 4) + 'px'; pop.style.bottom = 'auto'; }
   else { pop.style.bottom = Math.round(window.innerHeight - r.top + 4) + 'px'; pop.style.top = 'auto'; }
   const sel = pop.querySelector('.opt[aria-selected="true"]') || pop.querySelector('.opt');
-  if(sel){ sel.tabIndex = 0; try{ sel.focus({preventScroll:true}); }catch(_){} }
+  if(sel){
+    sel.tabIndex = 0;
+    try{ sel.focus({preventScroll:true}); }catch(_){}
+    // a selected wallet below the whole-row cap would open out of sight — bring
+    // it into the popup's own scroll view (internal scrolls no longer dismiss)
+    try{ sel.scrollIntoView({block:'nearest'}); }catch(_){}
+  }
 }
 // dismiss on outside click / Escape / scroll / resize
 document.addEventListener('click', (e) => {
@@ -289,7 +314,17 @@ document.addEventListener('click', (e) => {
   }
 }, true);
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && _wpAnchor){ closeWalletPop(); e.stopPropagation(); } }, true);
-window.addEventListener('scroll', () => { if(_wpAnchor) closeWalletPop(); }, true);
+window.addEventListener('scroll', (e) => {
+  if(!_wpAnchor) return;
+  // Only OUTSIDE scrolls dismiss (the fixed-position popup would drift away from
+  // its anchor). A scroll INSIDE the popup's own option list — a finger swiping
+  // through a long wallet list on touch screens — fires this same capture-phase
+  // listener, and closing on it made the popup vanish at the first touch-move,
+  // making long lists impossible to scroll on mobile.
+  const pop = document.getElementById('walletPop');
+  if(pop && e.target instanceof Node && pop.contains(e.target)) return;
+  closeWalletPop();
+}, true);
 window.addEventListener('resize', () => { if(_wpAnchor) closeWalletPop(); });
 // Add-form tracking-wallet picker (opens the shared menu).
 function openTrackPicker(anchor){
