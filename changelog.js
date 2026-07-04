@@ -22,6 +22,15 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.80',
+    date: '2026-07-04',
+    title: { ar: 'إتمام توحيد قوائم اختيار المحفظة بالكامل', en: 'Completing the wallet-picker unification fully' },
+    items: [
+      { ar: 'إتمام: الجولة السابقة وحّدت منطق التنقل بلوحة المفاتيح بين قوائم اختيار المحفظة الأربع، لكن كل واحدة لسا تحتفظ بعنصرها الخاص في الصفحة. الآن الثلاث القوائم القديمة (نموذج الإضافة، نافذة التعديل، التحويل بين المحفظتين) انتقلت بالكامل لاستخدام نفس القائمة المنبثقة المشتركة التي كانت تُستخدم فقط في الملاحظات السريعة — بدل أربع تطبيقات منفصلة، صار تطبيق واحد يخدم الكل. تحقّقت من الموضع الصحيح والتنقل والإغلاق الصحيح في كل الحالات الأربع بفحوصات متصفح حقيقية قبل الشحن.', en: "Completion: last round unified the keyboard-navigation logic across the four wallet-picker dropdowns, but each still kept its own page element. The three older ones (add-form, edit modal, transfer between wallets) now fully use the same shared popup that was previously exclusive to Quick Notes — instead of four separate implementations, one implementation now serves all four. Verified correct positioning, navigation, and dismissal in all four contexts via real browser checks before shipping." },
+      { ar: 'صيانة: أُزيل الكود والـCSS الخاصين بالقوائم الأربع القديمة المستقلة (كانت أصبحت زائدة تمامًا)، بما فيها معالجة خاصة كانت موجودة في 3 أماكن مختلفة لإغلاق القائمة عند الرجوع للخلف أو إغلاق النافذة.', en: 'Maintenance: removed the now-fully-redundant code and CSS for the four old independent dropdowns, including special-case handling that existed in 3 different places for closing the dropdown on back-navigation or modal close.' },
+    ],
+  },
+  {
     version: 'v47.79',
     date: '2026-07-04',
     title: { ar: 'جولة إصلاحات 4: توحيد قوائم المحافظ، خط أنابيب المزامنة، وتحسين أداء العرض', en: 'Fix round 4: wallet-dropdown unification, sync pipeline sharing, and render-performance tuning' },

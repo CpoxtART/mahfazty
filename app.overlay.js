@@ -48,24 +48,14 @@ function _popOverlayHistory(){
 // Single source of truth for "what does back/Escape close right now", reused by
 // both the keydown handler and popstate so the priority order (dropdown → add
 // drawer → topmost modal) only lives in one place.
+// NOTE: the wallet-picker dropdown itself is NOT handled here (as of v47.80,
+// all four are the shared in-page popup, openWalletPop) — its own Escape/
+// click-outside/scroll/resize listeners in app.quicknotes.js run in the
+// CAPTURE phase and stopPropagation() when it's open, so this function's
+// caller (the bubble-phase keydown handler below) never even sees the event
+// while the popup is open. That's why the four legacy wrap/btn id pairs that
+// used to live here are gone — they'd never match anything anymore anyway.
 function _closeTopmostOverlay(){
-  const dropdowns = [
-    ['walletMenuWrap','walletSelectBtn'],
-    ['editWalletMenuWrap','editWalletBtn'],
-    ['transferFromMenuWrap','transferFromBtn'],
-    ['transferToMenuWrap','transferToBtn'],
-  ];
-  let closedDropdown = false;
-  dropdowns.forEach(([wrapId, btnId])=>{
-    const wrap = document.getElementById(wrapId);
-    if(wrap && wrap.classList.contains('open')){
-      wrap.classList.remove('open');
-      const btn = document.getElementById(btnId);
-      if(btn){ btn.classList.remove('open'); btn.setAttribute('aria-expanded','false'); btn.focus({preventScroll:true}); }
-      closedDropdown = true;
-    }
-  });
-  if(closedDropdown) return true;
   // Drive reconnect banner carries role="dialog" but uses a CSS class (.show) rather
   // than .modal-overlay.open — it needs its own Escape check.
   const dBanner = document.getElementById('driveBanner');
@@ -226,14 +216,16 @@ function closeModal(id){
   modal.classList.remove('open');
   // restore background scroll/aria-hidden only once no modal/drawer remains open
   if(!_anyOverlayOpen()){ unlockBodyScroll(); _setBackgroundHidden(false); }
+  // Closing a modal via the back button/backdrop bypasses the click-outside
+  // handler that would normally collapse an open wallet picker — since v47.80
+  // that's the shared popup (openWalletPop, app.quicknotes.js) for every
+  // picker (was per-modal editModal/transferModal-specific cleanup before).
+  if(typeof closeWalletPop === 'function') closeWalletPop();
   if(id === 'editModal'){
     editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id;
     _editingDistSource = false; _editingTransferLeg = false; // reset so the next openEdit() starts clean
-    // ensure wallet dropdown is fully closed so stale 'open' state can't persist across edits
-    const ewWrap = document.getElementById('editWalletMenuWrap');
-    const ewBtn  = document.getElementById('editWalletBtn');
-    if(ewWrap) ewWrap.classList.remove('open');
-    if(ewBtn){ ewBtn.classList.remove('open'); ewBtn.setAttribute('aria-expanded','false'); ewBtn.tabIndex = 0; ewBtn.removeAttribute('aria-disabled'); }
+    const ewBtn = document.getElementById('editWalletBtn');
+    if(ewBtn){ ewBtn.tabIndex = 0; ewBtn.removeAttribute('aria-disabled'); } // undo the transfer-leg lock, see openEdit()
   }
   if(id === 'distributeModal') pendingIncomeTx = null;
   // driveConflictModal dismissed via Escape/back/backdrop WITHOUT a choice —
@@ -249,20 +241,6 @@ function closeModal(id){
   if(id === 'settingsModal' && typeof _distDraft !== 'undefined') _distDraft = null; // discard unsaved dist edits
   if(id === 'walletDetailModal') detailWalletId = null;
   if(id === 'subModal') editingSubId = null;
-  if(id === 'transferModal'){
-    // Same stale-dropdown risk as editModal above: closing via the back button
-    // (no click event) bypasses the click-outside handler that normally closes
-    // these, so a left-open 'from'/'to' wallet dropdown would still show
-    // expanded the next time the modal opens.
-    ['transferFromMenuWrap','transferToMenuWrap'].forEach(wid => {
-      const w = document.getElementById(wid);
-      if(w) w.classList.remove('open');
-    });
-    ['transferFromBtn','transferToBtn'].forEach(bid => {
-      const b = document.getElementById(bid);
-      if(b){ b.classList.remove('open'); b.setAttribute('aria-expanded','false'); }
-    });
-  }
   // Only restore focus and pop overlay history when the modal was actually open —
   // calling closeModal() on an already-closed modal must not pop a focus entry that
   // belongs to a DIFFERENT modal currently open (corrupts multi-modal focus chain).
@@ -349,23 +327,10 @@ document.querySelectorAll('.modal-overlay .grabber').forEach(handle=>{
 // bug, just missed because this is the one dialog that isn't a generic modal.
 _wireGrabber(document.querySelector('#addDrawer .grabber'), document.getElementById('addDrawer'), () => false, closeAddDrawer);
 
-// Close custom dropdowns when clicking outside
-document.addEventListener('click', function(e){
-  [
-    ['walletSelectBtn',  'walletMenuWrap'],
-    ['editWalletBtn',    'editWalletMenuWrap'],
-    ['transferFromBtn',  'transferFromMenuWrap'],
-    ['transferToBtn',    'transferToMenuWrap'],
-  ].forEach(([btnId, wrapId])=>{
-    const btn  = document.getElementById(btnId);
-    const wrap = document.getElementById(wrapId);
-    if(btn && wrap && !btn.contains(e.target) && !wrap.contains(e.target)){
-      wrap.classList.remove('open');
-      btn.classList.remove('open');
-      btn.setAttribute('aria-expanded','false');
-    }
-  });
-});
+// The four legacy per-form wallet dropdowns this used to close on outside-click
+// (add-form, edit modal, transfer from/to) were migrated onto the shared
+// in-page popup in v47.80 — its own click-outside/Escape/scroll/resize
+// listeners (app.quicknotes.js) already handle dismissal for all of them.
 
 // Settings-stats rendering (updateSettingsStats + its date helpers) moved to
 // app.layout.js (v47.77) — it's Settings-tab content, not modal/focus-trap/

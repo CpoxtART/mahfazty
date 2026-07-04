@@ -818,78 +818,9 @@
     margin-bottom:12px;
   }
   .wallet-select-wrap .custom-select{ margin-bottom:0; }
-  .wallet-select-wrap .wallet-menu{
-    position:absolute;
-    top:100%;
-    right:0; left:0;
-    z-index:50;
-    box-shadow:var(--shadow);
-    /* This picker is position:absolute, so its height never affects page layout.
-       Reveal it with a GPU-composited transform+opacity instead of animating
-       max-height — the latter forces a layout recalc every frame and janked when
-       opened right after saving a transaction (main thread busy re-rendering the
-       list/chart). transform/opacity run on the compositor thread and stay smooth
-       regardless of main-thread load. */
-    max-height:340px;
-    margin-bottom:0;
-    opacity:0;
-    visibility:hidden;
-    pointer-events:none;
-    transform: translateY(-6px);
-    transform-origin: top center;
-    transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), visibility 0s linear var(--dur-fast);
-  }
-  .wallet-select-wrap .wallet-menu.open{
-    max-height:340px;
-    margin-bottom:0;
-    opacity:1;
-    visibility:visible;
-    pointer-events:auto;
-    transform: translateY(0);
-    transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
-  }
-
-  .wallet-menu{
-    background:var(--bg-elev);
-    border:1px solid transparent;
-    border-radius:var(--radius-sm);
-    margin-bottom:0;
-    max-height:0;
-    opacity:0;
-    overflow:hidden;
-    /* isolate the dropdown's reflow from the rest of the page so opening it
-       doesn't re-layout the whole form (was using grid 0fr→1fr which is
-       not GPU-composited and janked on mobile) */
-    contain:layout paint;
-    transition: max-height .22s var(--ease), margin-bottom .22s var(--ease), border-color .2s, opacity .16s var(--ease);
-  }
-  .wallet-menu.open{
-    max-height:280px;
-    margin-bottom:12px;
-    border-color: var(--line);
-    opacity:1;
-  }
-  .wallet-menu > div{overflow-y:auto; max-height:280px; min-height:0; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;}
-  .wallet-menu .opt{
-    padding:12px 14px;
-    font-size:var(--fs-base);
-    border-bottom:1px solid var(--line-soft);
-    cursor:pointer;
-    display:flex; justify-content:space-between; align-items:center;
-    transition: background .1s;
-  }
-  .wallet-menu .opt span.bal{color:var(--muted); font-size:var(--fs-sm); font-variant-numeric: tabular-nums; direction:ltr;}
-  .wallet-menu .opt:last-child{border-bottom:none;}
-  .wallet-menu .opt:active{background:var(--card2);}
-  .wallet-menu .opt.selected{
-    background:var(--gold-soft);
-    color:var(--gold);
-  }
-  /* was --gold-dim, which falls under WCAG AA's 4.5:1 against this row's
-     --gold-soft background in both themes (as low as 3.92:1 dark / 2.06:1
-     light) — --gold itself already passes here (it's the parent .selected
-     rule's own text color, just above) so reuse it instead of dimming. */
-  .wallet-menu .opt.selected span.bal{color:var(--gold);}
+  /* .wallet-menu (the four legacy per-form dropdowns' own in-flow popup) was
+     removed in v47.80 — all four now use the shared .wallet-pop popup
+     (openWalletPop, further below) instead of their own bespoke markup/CSS. */
 
   .row2{display:flex; gap:8px;}
   .row2 > div{flex:1;}
@@ -1770,24 +1701,11 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 .drawer-submit .btn-row{ margin-bottom:0; }
 .drawer-submit .btn-row button{ padding:14px; }
 
-/* Override wallet-select inside drawer to in-flow max-height
-   (position:absolute gets clipped by the drawer's overflow-y:auto) */
-.add-drawer .wallet-select-wrap .wallet-menu{
-  position:static !important;
-  transform:none !important;
-  box-shadow:var(--shadow);
-  opacity:0; visibility:hidden; pointer-events:none;
-  max-height:0 !important; overflow:hidden; margin-bottom:0;
-  transition: max-height .22s var(--ease), margin-bottom .22s var(--ease),
-              opacity .16s var(--ease), visibility 0s linear .22s;
-}
-.add-drawer .wallet-select-wrap .wallet-menu.open{
-  opacity:1 !important; visibility:visible !important; pointer-events:auto !important;
-  max-height:260px !important; margin-bottom:12px;
-  transition: max-height .22s var(--ease), margin-bottom .22s var(--ease),
-              opacity .16s var(--ease);
-}
-.add-drawer .wallet-select-wrap .wallet-menu > div{ max-height:260px; overflow-y:auto; overscroll-behavior:contain; }
+/* The drawer-specific .wallet-menu clipping override that used to live here
+   is gone as of v47.80 — the shared .wallet-pop popup (openWalletPop) is
+   appended directly to <body>, not nested inside the drawer's DOM subtree, so
+   the drawer's own overflow-y:auto (which clipped the old position:absolute-
+   inside-the-drawer dropdown) never applies to it in the first place. */
 
 /* ─── Subscriptions ─── */
 .subs-section-header{

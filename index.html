@@ -27,7 +27,7 @@
      the old SW bucket has never cached, so every file fetches fresh together —
      no mixed old/new set (the v47.74 "Identifier already declared" class);
      offline keeps serving the old index.html whose old ?v= URLs are all cached. -->
-<link rel="stylesheet" href="style.css?v=47.79">
+<link rel="stylesheet" href="style.css?v=47.80">
 </head>
 <body>
 <script>
@@ -282,7 +282,6 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
           <span id="walletSelectLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
           <span class="arrow">▾</span>
         </div>
-        <div class="wallet-menu" id="walletMenuWrap"><div id="walletMenu" role="listbox"></div></div>
       </div>
 
       <label id="trackLinkLbl" data-i18n="add.trackLinkLbl">🏦 محفظة التتبّع</label>
@@ -351,7 +350,6 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <span id="editWalletLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
-    <div class="wallet-menu" id="editWalletMenuWrap"><div id="editWalletMenu" role="listbox"></div></div>
     <label for="editDesc" data-i18n="add.desc">الوصف</label>
     <input type="text" id="editDesc" maxlength="120" placeholder="الوصف" data-i18n-ph="add.desc">
     <label for="editAmount" data-i18n="add.amount">المبلغ</label>
@@ -637,14 +635,12 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <span id="transferFromLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
-    <div class="wallet-menu" id="transferFromMenuWrap"><div id="transferFromMenu" role="listbox"></div></div>
 
     <label id="transferToLbl" data-i18n="xfer.to">إلى محفظة</label>
     <div class="custom-select" id="transferToBtn" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transferToLbl">
       <span id="transferToLabel" data-i18n="add.chooseWallet">اختر محفظة</span>
       <span class="arrow">▾</span>
     </div>
-    <div class="wallet-menu" id="transferToMenuWrap"><div id="transferToMenu" role="listbox"></div></div>
 
     <label for="transferAmount" data-i18n="add.amount">المبلغ</label>
     <input type="text" id="transferAmount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done">
@@ -1046,18 +1042,18 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <!-- ?v= on every script MUST match sw.js's CACHE version — see the style.css
      comment above for why (atomic per-release cache keys); enforced by
      tests/version.test.js. -->
-<script src="i18n.js?v=47.79"></script>
-<script src="changelog.js?v=47.79"></script>
-<script src="app.core.js?v=47.79"></script>
-<script src="app.ui.js?v=47.79"></script>
-<script src="app.voice.js?v=47.79"></script>
-<script src="app.layout.js?v=47.79"></script>
-<script src="app.charts.js?v=47.79"></script>
-<script src="app.drive.js?v=47.79"></script>
-<script src="app.quicknotes.js?v=47.79"></script>
-<script src="app.data.js?v=47.79"></script>
-<script src="app.engage.js?v=47.79"></script>
-<script src="app.pwa.js?v=47.79"></script>
-<script src="app.overlay.js?v=47.79"></script>
-<script src="app.logic.js?v=47.79"></script>
+<script src="i18n.js?v=47.80"></script>
+<script src="changelog.js?v=47.80"></script>
+<script src="app.core.js?v=47.80"></script>
+<script src="app.ui.js?v=47.80"></script>
+<script src="app.voice.js?v=47.80"></script>
+<script src="app.layout.js?v=47.80"></script>
+<script src="app.charts.js?v=47.80"></script>
+<script src="app.drive.js?v=47.80"></script>
+<script src="app.quicknotes.js?v=47.80"></script>
+<script src="app.data.js?v=47.80"></script>
+<script src="app.engage.js?v=47.80"></script>
+<script src="app.pwa.js?v=47.80"></script>
+<script src="app.overlay.js?v=47.80"></script>
+<script src="app.logic.js?v=47.80"></script>
 </body></html>

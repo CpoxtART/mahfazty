@@ -277,12 +277,11 @@ function renderWalletDefsEditor(){
 }
 
 // Refresh every cache/UI surface that reads wallet id/name/order, beyond the
-// main render() loop — the add-form / edit-modal wallet pickers memoize a
-// signature that doesn't include the name, so a pure rename wouldn't
-// otherwise show up until something else changed their selection.
+// main render() loop. (The add-form/edit-modal/transfer wallet pickers no
+// longer memoize a signature since v47.80 — their option list is only built
+// on actual popup open, via the shared openWalletPop — so there's nothing to
+// invalidate for them here anymore.)
 function refreshAfterWalletDefsChange(){
-  _walletSelectSig = '';
-  _editWalletSelectSig = '';
   _distDraft = null; // wallet structure changed — rebuild draft from updated DISTRIBUTION
   // A deleted wallet can never have transactions (deleteWalletDef enforces
   // that), so an active filter pointing at it would otherwise leave the tx
@@ -454,55 +453,29 @@ async function deleteWalletDefModal(){
 /* ============================================================
    WALLET SELECT (add form)
 ============================================================ */
-let _walletSelectSig = '';
+// v47.80: migrated onto the shared in-page wallet popup (openWalletPop,
+// app.quicknotes.js) — was a bespoke in-flow dropdown (#walletMenuWrap/
+// #walletMenu in index.html) with its own signature-gated rebuild. Now this
+// only needs to keep the closed-state label in sync; the option list is built
+// on demand when the popup actually opens (toggleWalletMenu below), so the
+// sig-cache that existed purely to avoid rebuilding a hidden DOM tree on every
+// render() call is gone — there's no longer a tree to rebuild until opened.
 function renderWalletSelect(){
-  const sig = selectedWallet + '|' + SELECTABLE_WALLETS.map(w => {
-    const v = (w.crisisOnly && state.crisisMode)
-      ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
-      : (state.wallets[w.id] ?? 0);
-    return w.id + ':' + v;
-  }).join(',');
-  if(sig === _walletSelectSig) return;
-  _walletSelectSig = sig;
-  const menu = document.getElementById('walletMenu');
-  menu.innerHTML = '';
-  SELECTABLE_WALLETS.forEach(w => {
-    const opt = document.createElement('div');
-    const isSel = w.id === selectedWallet;
-    opt.className = 'opt' + (isSel ? ' selected' : '');
-    opt.setAttribute('role','option');
-    opt.setAttribute('aria-selected', String(isSel));
-    // roving tabindex (see wireOptionArrowNav): only the selected/first option
-    // is Tab-reachable; Arrow/Home/End move within the list once focus is inside.
-    opt.tabIndex = isSel ? 0 : -1;
-    const val = (w.crisisOnly && state.crisisMode)
-      ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
-      : (state.wallets[w.id] ?? 0);
-    opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
-    opt.onclick = () => selectWallet(w.id);
-    opt.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); selectWallet(w.id); } };
-    menu.appendChild(opt);
-  });
-  // no option was selected (shouldn't normally happen) — fall back to the first
-  // one so the roving tabindex always has exactly one reachable entry
-  if(!menu.querySelector('.opt[tabindex="0"]')){ const first = menu.querySelector('.opt'); if(first) first.tabIndex = 0; }
-  wireOptionArrowNav(menu);
   const wDef = WALLET_DEFS.find(w => w.id === selectedWallet);
   document.getElementById('walletSelectLabel').textContent = wDef ? wDef.name : t({ar:'اختر محفظة', en:'Choose a wallet'});
 }
 function toggleWalletMenu(){
-  const wrap = document.getElementById('walletMenuWrap');
   const btn = document.getElementById('walletSelectBtn');
-  const isOpen = wrap.classList.toggle('open');
-  btn.classList.toggle('open', isOpen);
-  btn.setAttribute('aria-expanded', String(isOpen));
+  const items = SELECTABLE_WALLETS.map(w => {
+    const val = (w.crisisOnly && state.crisisMode)
+      ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
+      : (state.wallets[w.id] ?? 0);
+    return { id: w.id, name: w.name, bal: fmt(val) };
+  });
+  openWalletPop(btn, items, selectedWallet, (id) => selectWallet(id));
 }
 function selectWallet(id){
   selectedWallet = id;
-  const btn = document.getElementById('walletSelectBtn');
-  document.getElementById('walletMenuWrap').classList.remove('open');
-  btn.classList.remove('open');
-  btn.setAttribute('aria-expanded', 'false');
   renderWalletSelect();
 }
 
@@ -628,13 +601,11 @@ function closeAddDrawer(){
   document.getElementById('addDrawer').classList.remove('open');
   document.getElementById('addDrawerOverlay').classList.remove('open');
   if(!_anyOverlayOpen()){ unlockBodyScroll(); _setBackgroundHidden(false); }
-  // Closing via the back button skips the click-outside handler that normally
-  // collapses this dropdown, so it could otherwise show pre-expanded the next
-  // time the drawer opens (same fix as closeModal's editWalletMenuWrap cleanup).
-  const wWrap = document.getElementById('walletMenuWrap');
-  const wBtn = document.getElementById('walletSelectBtn');
-  if(wWrap) wWrap.classList.remove('open');
-  if(wBtn){ wBtn.classList.remove('open'); wBtn.setAttribute('aria-expanded','false'); }
+  // Closing via the back button skips the click-outside handler that would
+  // normally collapse an open wallet picker — since v47.80 that's the shared
+  // popup (openWalletPop, app.quicknotes.js), so just close it directly
+  // instead of resetting a specific dropdown's classes.
+  if(typeof closeWalletPop === 'function') closeWalletPop();
   // A pending voice recognition would otherwise keep listening in the background
   // and silently fill the (now hidden) desc/amount fields whenever it resolves.
   // Also explicitly clear the watchdog timer — on some browsers abort() never fires
@@ -934,44 +905,25 @@ async function deleteSubModal(){
 /* ============================================================
    WALLET SELECT (edit modal)
 ============================================================ */
-let _editWalletSelectSig = '';
+// only prepend the currently-edited wallet if it isn't already selectable
+// (e.g. a crisisOnly/hidden wallet) — track wallets now live in
+// SELECTABLE_WALLETS, so prepending unconditionally would list them twice.
+function _editWalletList(){
+  const currentDef = WALLET_DEFS.find(w => w.id === editWallet);
+  if(currentDef && !SELECTABLE_WALLETS.find(w => w.id === currentDef.id)) return [currentDef, ...SELECTABLE_WALLETS];
+  return SELECTABLE_WALLETS;
+}
+// v47.80: migrated onto the shared in-page wallet popup — see renderWalletSelect
+// above for the same reasoning (no sig-cache needed once the option list is
+// only built on actual popup open).
 function renderEditWalletSelect(){
-  let list = SELECTABLE_WALLETS;
-  const currentDef = WALLET_DEFS.find(w=>w.id===editWallet);
-  // only prepend the current wallet if it isn't already selectable (e.g. a
-  // crisisOnly/hidden wallet) — track wallets now live in SELECTABLE_WALLETS, so
-  // prepending unconditionally would list them twice.
-  if(currentDef && !SELECTABLE_WALLETS.find(w => w.id === currentDef.id)) list = [currentDef, ...SELECTABLE_WALLETS];
-  const sig = editWallet + '|' + list.map(w => w.id + ':' + (state.wallets[w.id]??0)).join(',');
-  if(sig === _editWalletSelectSig) return;
-  _editWalletSelectSig = sig;
-  const menu = document.getElementById('editWalletMenu');
-  menu.innerHTML = '';
-  list.forEach(w => {
-    const opt = document.createElement('div');
-    const isSel = w.id === editWallet;
-    opt.className = 'opt' + (isSel ? ' selected' : '');
-    opt.setAttribute('role','option');
-    opt.setAttribute('aria-selected', String(isSel));
-    opt.tabIndex = isSel ? 0 : -1; // roving tabindex, see wireOptionArrowNav
-    const val = state.wallets[w.id] ?? 0;
-    opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
-    const _pick = () => { editWallet = w.id; document.getElementById('editWalletMenuWrap').classList.remove('open'); const eb = document.getElementById('editWalletBtn'); eb.classList.remove('open'); eb.setAttribute('aria-expanded','false'); renderEditWalletSelect(); };
-    opt.onclick = _pick;
-    opt.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _pick(); } };
-    menu.appendChild(opt);
-  });
-  if(!menu.querySelector('.opt[tabindex="0"]')){ const first = menu.querySelector('.opt'); if(first) first.tabIndex = 0; }
-  wireOptionArrowNav(menu);
   const wDef = WALLET_DEFS.find(w => w.id === editWallet);
   document.getElementById('editWalletLabel').textContent = wDef ? wDef.name : t({ar:'اختر محفظة', en:'Choose a wallet'});
 }
 function toggleEditWalletMenu(){
-  const wrap = document.getElementById('editWalletMenuWrap');
   const btn = document.getElementById('editWalletBtn');
-  const isOpen = wrap.classList.toggle('open');
-  btn.classList.toggle('open', isOpen);
-  btn.setAttribute('aria-expanded', String(isOpen));
+  const items = _editWalletList().map(w => ({ id: w.id, name: w.name, bal: fmt(state.wallets[w.id] ?? 0) }));
+  openWalletPop(btn, items, editWallet, (id) => { editWallet = id; renderEditWalletSelect(); });
 }
 function setEditType(type){
   editType = type;
@@ -1109,46 +1061,24 @@ function openTransferFromDrawer(){
   }
 }
 
+// v47.80: migrated onto the shared in-page wallet popup — see renderWalletSelect
+// above for the same reasoning.
 function renderTransferMenus(){
   ['from','to'].forEach(dir=>{
-    const menu = document.getElementById('transfer'+(dir==='from'?'From':'To')+'Menu');
     const selected = dir==='from' ? transferFrom : transferTo;
-    menu.innerHTML = '';
-    SELECTABLE_WALLETS.forEach(w=>{
-      const opt = document.createElement('div');
-      const isSel = w.id===selected;
-      opt.className = 'opt' + (isSel ? ' selected' : '');
-      opt.setAttribute('role','option');
-      opt.setAttribute('aria-selected', String(isSel));
-      opt.tabIndex = isSel ? 0 : -1; // roving tabindex, see wireOptionArrowNav
-      const val = state.wallets[w.id] ?? 0;
-      opt.innerHTML = `<span>${escHtml(w.name)}</span><span class="bal">${fmt(val)}</span>`;
-      const _pick = () => {
-        if(dir==='from') transferFrom = w.id; else transferTo = w.id;
-        const k = dir==='from'?'From':'To';
-        document.getElementById('transfer'+k+'MenuWrap').classList.remove('open');
-        const tb = document.getElementById('transfer'+k+'Btn');
-        tb.classList.remove('open');
-        tb.setAttribute('aria-expanded','false');
-        renderTransferMenus();
-      };
-      opt.onclick = _pick;
-      opt.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); _pick(); } };
-      menu.appendChild(opt);
-    });
-    if(!menu.querySelector('.opt[tabindex="0"]')){ const first = menu.querySelector('.opt'); if(first) first.tabIndex = 0; }
-    wireOptionArrowNav(menu);
     const wDef = WALLET_DEFS.find(w=>w.id===selected);
     document.getElementById('transfer'+(dir==='from'?'From':'To')+'Label').textContent = wDef ? wDef.name : t({ar:'اختر محفظة', en:'Choose a wallet'});
   });
 }
 function toggleTransferMenu(dir){
   const key = dir==='from' ? 'From' : 'To';
-  const wrap = document.getElementById('transfer'+key+'MenuWrap');
   const btn = document.getElementById('transfer'+key+'Btn');
-  const isOpen = wrap.classList.toggle('open');
-  btn.classList.toggle('open', isOpen);
-  btn.setAttribute('aria-expanded', String(isOpen));
+  const selected = dir==='from' ? transferFrom : transferTo;
+  const items = SELECTABLE_WALLETS.map(w => ({ id: w.id, name: w.name, bal: fmt(state.wallets[w.id] ?? 0) }));
+  openWalletPop(btn, items, selected, (id) => {
+    if(dir==='from') transferFrom = id; else transferTo = id;
+    renderTransferMenus();
+  });
 }
 
 let _doTransferBusy = false;

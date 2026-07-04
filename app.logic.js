@@ -374,7 +374,7 @@ function openEdit(id){
   setEditType(tx.type);
   renderEditWalletSelect();
   renderEditCategoryGrid();
-  document.getElementById('editWalletMenuWrap').classList.remove('open');
+  if(typeof closeWalletPop === 'function') closeWalletPop(); // reset any stale wallet-picker state before showing this edit
   const _ewb = document.getElementById('editWalletBtn');
   _ewb.classList.remove('open');
   _ewb.setAttribute('aria-expanded','false');
