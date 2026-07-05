@@ -27,7 +27,7 @@ async function addTx(type){
   _setBtnSaving(_incBtn, true, t({ar:'⏳ جارٍ الحفظ...', en:'⏳ Saving...'}));
   try{
     const walletId = selectedWallet;
-    const desc = document.getElementById('descInput').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
+    const desc = truncateCodePoints(document.getElementById('descInput').value.trim(), 120); // cap length (voice/paste bypass maxlength)
     // round to cents at entry so the stored amount matches what fmt() displays —
     // otherwise sub-cent input (10.999) shows "11.00" but sums as 10.999 and drifts
     const amountVal = round2(parseAmount(document.getElementById('amountInput').value));
@@ -459,7 +459,7 @@ async function saveEdit(){
     }
   }
 
-  tx.desc = document.getElementById('editDesc').value.trim().slice(0,120); // cap length (voice/paste bypass maxlength)
+  tx.desc = truncateCodePoints(document.getElementById('editDesc').value.trim(), 120); // cap length (voice/paste bypass maxlength)
   tx.amount = newAmount;
   tx.wallet = editWallet;
   tx.editedAt = Date.now(); // lets mergeCloudData() resolve same-id conflicts by picking the newer edit instead of always favoring local

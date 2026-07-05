@@ -22,6 +22,18 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.88',
+    date: '2026-07-05',
+    title: { ar: 'تدقيق عميق جديد: 5 إصلاحات من زوايا لم تُفحص من قبل', en: 'Fresh deep audit: 5 fixes from previously-unexamined angles' },
+    items: [
+      { ar: 'إصلاح متوسط: عنصران منفصلان كانا يتحكمان بحركة زر Tab داخل النوافذ المنبثقة (app.overlay.js وapp.main.js) باختلاف طفيف في قائمة العناصر القابلة للتركيز — ما يعني رابطي "سياسة الخصوصية" و"شروط الاستخدام" بشاشة الإعدادات كانا غير قابلين للوصول بالضغط المتكرر على Tab للأمام (فقط بالعكس، Shift+Tab). أُزيل التكرار وبقي عنصر تحكم واحد صحيح.', en: 'Medium fix: two separate elements controlled Tab-key movement inside modals (app.overlay.js and app.main.js) with a slightly different idea of which elements are focusable — meaning the "Privacy Policy" and "Terms of Service" links in Settings were unreachable by repeatedly pressing Tab forward (only reachable via Shift+Tab backward). Removed the duplicate, keeping the one correct handler.' },
+      { ar: 'إصلاح متوسط: نادرًا جدًا — لو فشل حفظ الإعدادات محليًا بسبب امتلاء المساحة المخصصة للمتصفح في لحظة معينة (مثلًا عند إضافة محفظة جديدة)، وبعده مباشرة نجح حفظ آخر (الأرصدة)، كان يمكن أن يختفي التغيير الفاشل بصمت عند إعادة فتح التطبيق دون أي مؤشر إضافي. أُضيف مؤشر مستقل يضمن استرجاع النسخة الصحيحة من النسخة الاحتياطية في هذه الحالة تحديدًا.', en: "Medium fix: very rare — if saving settings locally failed because the browser's allotted storage happened to be full at that exact moment (e.g. while creating a new wallet), and a different save (balances) succeeded right after it, the failed change could silently vanish on the next app open with no further indication. Added an independent signal that guarantees recovery from the backup copy in this specific case." },
+      { ar: 'إصلاح متوسط: وصف معاملة أو اسم محفظة/اشتراك طويل جدًا (يحتوي رموزًا تعبيرية مركّبة من عدة أجزاء) كان يمكن أن يُقصّ بمنتصف الرمز بالضبط عند حد الطول المسموح، فيتحول لرمز غير صالح يظهر كمربع فارغ (�) بشكل دائم بعد أي تصدير أو مزامنة لاحقة. أُصلح ليقص عند حدود الأحرف الكاملة دائمًا، بلا استثناء.', en: 'Medium fix: a very long transaction description or wallet/subscription name (containing a multi-part emoji) could get cut exactly mid-symbol at the length limit, turning into an invalid character that permanently showed as a blank box (�) after any future export or sync. Fixed to always cut at complete-character boundaries.' },
+      { ar: 'إصلاح متوسط (تحسين تجربة): لون التخصيص "زمردي" كان قريبًا جدًا من اللون الدلالي الثابت للدخل/النجاح (الأخضر)، لدرجة يصعب معها على البعض (خصوصًا من لديهم عمى ألوان) التمييز بينهما بنظرة سريعة. عُدّل لونه ليكون أوضح وأميز، دون المساس بأي نظام آخر.', en: 'Medium fix (UX improvement): the "Emerald" accent color sat close enough to the fixed semantic income/success color (green) that some users — especially colorblind ones — could struggle to tell them apart at a glance. Adjusted to be clearly distinct, without touching any other system.' },
+      { ar: 'إصلاح خفيف: تباين خط فاصل خفيف تحت الرقم الرئيسي بالصفحة كان أقل وضوحًا قليلاً تحديدًا بوضع "أسود بحت"، مقارنة بالوضع الداكن العادي.', en: 'Low fix: a subtle divider line under the home screen\'s main number was slightly less visible specifically in "true black" mode, compared to the regular dark mode.' },
+    ],
+  },
+  {
     version: 'v47.87',
     date: '2026-07-05',
     title: { ar: 'إصلاح: قائمة اختيار المحفظة تنغلق فورًا داخل الملاحظات السريعة + أسماء طويلة مقصوصة', en: 'Fix: wallet picker closing instantly inside Quick Notes + long names clipped' },

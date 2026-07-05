@@ -221,23 +221,14 @@ document.addEventListener('keydown', e => {
   if(e.key === 'Escape'){
     _closeTopmostOverlay();
   }
-  if(e.key === 'Tab'){
-    const container = addDrawerOpen
-      ? document.getElementById('addDrawer')
-      : (()=>{ const m = [...document.querySelectorAll('.modal-overlay.open')]; return m.length ? m[m.length-1] : null; })();
-    if(container){
-      const focusable = [...container.querySelectorAll(
-        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )].filter(el => el.offsetParent !== null);
-      if(focusable.length === 0) return;
-      const first = focusable[0], last = focusable[focusable.length-1];
-      if(e.shiftKey){
-        if(document.activeElement === first){ e.preventDefault(); last.focus(); }
-      } else {
-        if(document.activeElement === last){ e.preventDefault(); first.focus(); }
-      }
-    }
-  }
+  // Tab/Shift+Tab focus trap: handled by app.overlay.js's own document-level
+  // keydown listener (_activeOverlayEl-scoped) — a second, near-identical trap
+  // used to live here too, but its focusable-element selector omitted [href]
+  // (unlike overlay.js's, which includes it), so the two disagreed on which
+  // element was "last" whenever a modal contained a link (e.g. Settings'
+  // Privacy/Terms links) — one handler's Tab-wrap fired while the other's
+  // didn't, making those links unreachable by forward Tab. Removed the
+  // duplicate here rather than reconcile two copies of the same logic.
 });
 
 initTheme();

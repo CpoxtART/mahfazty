@@ -368,7 +368,7 @@ async function saveWalletDefModal(){
   // cross-op write guard (see commitQuickNotes) — this writes balances/defs across awaits
   if(_opBusy()) return;
   const nameInput = document.getElementById('walletDefName');
-  const name = stripBidiControls(nameInput.value).trim().slice(0,40);
+  const name = truncateCodePoints(stripBidiControls(nameInput.value).trim(), 40);
   if(!name){ toast(t({ar:'⚠ أدخل اسم المحفظة', en:'⚠ Enter a wallet name'}), true); nameInput.focus(); return; }
   if(WALLET_DEFS.some(w => w.id !== editingWalletDefId && w.name.toLowerCase() === name.toLowerCase())){
     toast(t({ar:'⚠ يوجد محفظة بهذا الاسم بالفعل', en:'⚠ A wallet with this name already exists'}), true); nameInput.focus(); return;
@@ -858,7 +858,7 @@ async function saveSubModal(){
   const nameInput = document.getElementById('subName');
   const amountInput = document.getElementById('subAmount');
   const dayInput = document.getElementById('subBillingDay');
-  const name = nameInput.value.trim().slice(0,60);
+  const name = truncateCodePoints(nameInput.value.trim(), 60);
   const amount = round2(parseAmount(amountInput.value));
   const billingDay = parseInt(normalizeDigits(dayInput.value), 10); // normalize Arabic-Indic digits (numeric keyboards often default to them)
   const active = document.getElementById('subActive')?.checked !== false;

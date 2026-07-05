@@ -118,14 +118,20 @@
     --gold:#4338ca; --gold-dim:#8b8fe0; --gold-soft:#eceafc;
     --gold-btn:#4f46e5; --gold-btn-end:#3730a3; --on-gold:#ffffff;
   }
+  /* Hue nudged ~12° from a straight "emerald green" toward jade/teal (H148→H160)
+     — the original hue sat almost on top of --green (H140-141, the income/
+     success semantic color), so an emerald-accented active/focus element could
+     read as ambiguous against a nearby green amount at a glance. Contrast
+     ratios against every surface are unchanged (only hue shifted, not
+     saturation/lightness) — this is a hue-separation fix, not a redesign. */
   body.accent-emerald{
-    --gold:#6ecb9a; --gold-dim:#4a8f6e; --gold-soft:#112620;
-    --gold-btn:#54bd8a; --gold-btn-end:#2f8a63; --on-gold:#052016;
-    --accent-rgb:94,196,148;
+    --gold:#6ecbad; --gold-dim:#4a8f7c; --gold-soft:#112624;
+    --gold-btn:#54bd9f; --gold-btn-end:#2f8a75; --on-gold:#052016;
+    --accent-rgb:94,196,168;
   }
   body.light.accent-emerald{
-    --gold:#1f7a52; --gold-dim:#5cb18c; --gold-soft:#e3f3ea;
-    --gold-btn:#1f7a52; --gold-btn-end:#18653f; --on-gold:#ffffff;
+    --gold:#1f7a64; --gold-dim:#5cb19d; --gold-soft:#e3f3ed;
+    --gold-btn:#1f7a64; --gold-btn-end:#18654e; --on-gold:#ffffff;
   }
   body.accent-amethyst{
     --gold:#c0a3f0; --gold-dim:#8d6fc4; --gold-soft:#1f1830;
@@ -409,6 +415,12 @@
   .hero .meta-row .dot.r{background:var(--red);}
   body.light .hero .meta-row{ border-top-color:var(--line-soft); }
   body.light .hero .meta-row .item + .item{ border-inline-start-color:var(--line-soft); }
+  /* the hero's own gradient was re-tuned for true-black (line ~230), but this
+     separator was left at the default dark theme's alpha-white value — bump it
+     slightly so the divider stays as visible against the darker black-theme
+     background as it is against the (lighter) default dark theme's. */
+  body.theme-black .hero .meta-row{ border-top-color:rgba(255,255,255,.1); }
+  body.theme-black .hero .meta-row .item + .item{ border-inline-start-color:rgba(255,255,255,.1); }
   body.light .hero{
     background:linear-gradient(160deg, var(--card2) 0%, var(--card) 65%, var(--bg-elev) 100%);
   }

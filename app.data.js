@@ -227,7 +227,7 @@ async function applyImport(text){
       // corrupt backup file isn't bound by that input-side limit, and an unbounded
       // desc string would slip past escHtml() (it sanitizes, doesn't shorten) and
       // bloat every list render that includes this transaction.
-      desc: typeof tx.desc === 'string' ? tx.desc.slice(0,120) : tx.desc,
+      desc: typeof tx.desc === 'string' ? truncateCodePoints(tx.desc, 120) : tx.desc,
       // every other entry point (addTx, transfers) rounds to cents before storing —
       // a hand-edited or legacy backup file isn't bound by that, so an unrounded
       // amount would otherwise persist forever and re-export on every future backup

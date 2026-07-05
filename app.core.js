@@ -634,6 +634,17 @@ function liveFormatThousands(el){
 function stripBidiControls(str){
   return String(str||'').replace(/[\u200B-\u200F\u061C\u202A-\u202E\u2066-\u2069\uFEFF]/g,'');
 }
+// Plain str.slice(0,n) counts UTF-16 code UNITS, not characters \u2014 cutting a
+// description exactly mid-surrogate-pair (an emoji outside the BMP) or
+// mid-ZWJ-sequence leaves a lone surrogate. That's a valid JS string but not
+// valid Unicode, and silently becomes U+FFFD the next time it's UTF-8-encoded
+// (export, Drive sync) \u2014 permanently corrupting the description. The spread
+// operator iterates by code point instead, so a cut can only ever land between
+// complete characters (a multi-codepoint ZWJ emoji sequence can still be split
+// apart into its component emoji, but never mangled into an invalid one).
+function truncateCodePoints(str, maxLen){
+  return [...String(str||'')].slice(0, maxLen).join('');
+}
 function escHtml(str){
   return stripBidiControls(str)
     .replace(/&/g,'&amp;')
@@ -1025,6 +1036,13 @@ async function loadState(){
   // bumped lastEdit can't make a stale localStorage tx blob win over fresher IDB.
   // Fall back to lastEdit only when dataEdit is absent (legacy migration path).
   try{ _lsDataEdit = parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0; }catch(e){}
+  // Independent of the timestamp comparison below: set by saveConfig() when its
+  // OWN write fails but a DIFFERENT save called right after it (in the same
+  // composite operation, e.g. saveWalletDefModal) succeeds and re-stamps
+  // lastEdit/dataEdit to a fresh value — which would otherwise make the failed
+  // config save's staleness invisible to the timestamp check (see saveConfig).
+  let _lsConfigStale = false;
+  try{ _lsConfigStale = localStorage.getItem(LS_PREFIX + 'configStale') === '1'; }catch(e){}
   const _idb = await idbRestore(); // also opens the DB, setting _idbAvailable
   const _idbTime = (_idb && typeof _idb.savedAt === 'number' && isFinite(_idb.savedAt)) ? _idb.savedAt : 0;
   // "IDB snapshot is strictly newer than every localStorage stamp" can only mean
@@ -1069,9 +1087,11 @@ async function loadState(){
     state.transactions = _validTx(_idb.transactions);
     // Recover the small data too when localStorage was wiped — or when its keys
     // are present but STALE (_idbFresher: the last ls save failed on quota while
-    // the IDB mirror succeeded; see the _idbFresher comment above).
+    // the IDB mirror succeeded; see the _idbFresher comment above; _lsConfigStale:
+    // the same failure but with its staleness masked by a later save's fresh
+    // stamp — see saveConfig).
     if(!_lsHadBalances || _idbFresher) _restoreWalletBalances(_idb.wallets);
-    if(!_lsHadConfig || _idbFresher){
+    if(!_lsHadConfig || _idbFresher || _lsConfigStale){
       if(typeof _idb.crisisMode === 'boolean') state.crisisMode = _idb.crisisMode;
       if(typeof _idb.autoDistribute === 'boolean') autoDistribute = _idb.autoDistribute;
       if(_idb.budgets && typeof _idb.budgets === 'object') budgets = sanitizeBudgets(_idb.budgets);
@@ -1510,7 +1530,24 @@ async function saveConfig(){
     localStorage.setItem(LS_PREFIX + 'config', JSON.stringify({crisisMode: state.crisisMode, autoDistribute: autoDistribute, budgets: budgets, dismissedRecurring: Array.from(dismissedRecurring), distribution: DISTRIBUTION, deletedTxIds: deletedTxIds, deletedSubIds: deletedSubIds, deletedWalletDefIds: deletedWalletDefIds}));
     localStorage.setItem(LS_PREFIX + 'lastEdit', String(ts));
     ok = true;
-  }catch(e){ toast(t({ar:'⚠ فشل حفظ الإعدادات محليًا', en:'⚠ Failed to save settings locally'}), true); }
+    // Clears a staleness flag a PRIOR failed call may have set below — see there
+    // for why this can't just rely on the dataEdit/lastEdit timestamps alone.
+    try{ localStorage.removeItem(LS_PREFIX + 'configStale'); }catch(_){}
+  }catch(e){
+    toast(t({ar:'⚠ فشل حفظ الإعدادات محليًا', en:'⚠ Failed to save settings locally'}), true);
+    // A caller that chains saveConfig() into ANOTHER save right after it (e.g.
+    // saveWalletDefModal: saveWalletDefs -> saveConfig -> saveBalances) can mask
+    // this exact failure: saveBalances' OWN successful write stamps a FRESH
+    // lastEdit/dataEdit a few ms later, and idbBackup's debounce coalesces both
+    // calls into one write timestamped with that same fresh value — so on
+    // reload, localStorage's stale 'config' key and the IDB snapshot's savedAt
+    // end up EQUAL, and loadState's "IDB strictly newer" check (_idbFresher)
+    // can no longer tell config is stale, silently keeping the failed edit
+    // reverted forever. This flag is a second, independent signal loadState
+    // checks alongside that timestamp comparison, immune to being masked by an
+    // unrelated LATER save's stamp.
+    try{ localStorage.setItem(LS_PREFIX + 'configStale', '1'); }catch(_){}
+  }
   scheduleDriveSync();
   scheduleIdbBackup(ts);
   return ok;
