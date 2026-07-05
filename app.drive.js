@@ -391,7 +391,7 @@ function initGisClient(){
           if(mode === 'refresh'){ clearDriveToken(); refreshDriveSettingsUI(); setDriveIndicator('idle'); return; }
           if(mode === 'banner'){ _driveBannerEscalate = true; showDriveBanner(); return; }
           setDriveIndicator('error');
-          toast(t({ar:'⚠ فشل تسجيل الدخول بجوجل', en:'⚠ Google sign-in failed'}), true);
+          toast(t({ar:'⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', en:'⚠ Google sign-in failed, try again'}), true);
           refreshDriveSettingsUI();
           return;
         }

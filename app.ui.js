@@ -154,6 +154,16 @@ function renderWallets(){
     }
     grid.appendChild(div);
   });
+  // crisis_fund can hold its OWN independent balance beyond just merging the
+  // hidden budget wallets — a direct expense recorded against it (or a
+  // transfer in/out) while crisis mode is on writes straight to
+  // state.wallets.crisis_fund. In crisis mode that's already counted above
+  // (the merged crisis_fund row's own value includes it); in normal mode
+  // crisis_fund is excluded from `defs` entirely (crisisOnly), so without
+  // this its balance silently vanished from the total the instant crisis
+  // mode was switched off — the ledger stayed correct, but the displayed
+  // total quietly understated real resources by exactly that amount.
+  if(!state.crisisMode) spendable += (state.wallets.crisis_fund ?? 0);
 
   document.getElementById('walletCount').textContent = String(defs.length);
 
@@ -454,7 +464,9 @@ async function deleteWalletDef(id){
   }
 }
 async function deleteWalletDefModal(){
-  if(!editingWalletDefId) return;
+  // Same rare cross-tab-race gap as deleteFromEdit (app.logic.js) — a stale id
+  // here silently left the user unsure whether their Delete tap registered.
+  if(!editingWalletDefId){ closeModal('walletDefModal'); toast(t({ar:'⚠ المحفظة لم تعد موجودة', en:'⚠ The wallet no longer exists'}), true); return; }
   if(await deleteWalletDef(editingWalletDefId)) closeModal('walletDefModal');
 }
 
@@ -888,7 +900,10 @@ async function saveSubModal(){
   }
 }
 async function deleteSubModal(){
-  if(_saveSubBusy || !editingSubId) return;
+  if(_saveSubBusy) return; // double-tap guard — no feedback needed, matches every other busy-flag guard in the app
+  // Same rare cross-tab-race gap as deleteFromEdit (app.logic.js) — a stale id
+  // here silently left the user unsure whether their Delete tap registered.
+  if(!editingSubId){ closeModal('subModal'); toast(t({ar:'⚠ الاشتراك لم يعد موجودًا', en:'⚠ The subscription no longer exists'}), true); return; }
   // cross-op write guard (see commitQuickNotes)
   if(_opBusy()) return;
   if(!confirm(t({ar:'حذف هذا الاشتراك نهائياً؟', en:'Permanently delete this subscription?'}))) return;
@@ -1697,6 +1712,15 @@ function normalizeSearch(str){
     .replace(/ى/g, 'ي')                      // alef maqsura → ي
     .replace(/ة/g, 'ه')                      // teh marbuta → ه
     .replace(/[ؤئ]/g, 'ء')                   // hamza seats → ء
+    // Arabic-Indic/Persian digits → ASCII, so a description typed with a
+    // numeric keyboard defaulting to ٠-٩ (already known to happen — see
+    // normalizeDigits, app.core.js) still matches a search typed in Western
+    // digits and vice versa. Digit-only (not the full normalizeDigits, which
+    // also reinterprets commas as decimal/thousands separators — the right
+    // call for an amount field, not free-text search where a comma is just
+    // punctuation).
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
     .toLowerCase()
     .trim();
 }

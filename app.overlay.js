@@ -55,6 +55,19 @@ function _popOverlayHistory(){
 // caller (the bubble-phase keydown handler below) never even sees the event
 // while the popup is open. That's why the four legacy wrap/btn id pairs that
 // used to live here are gone — they'd never match anything anymore anyway.
+// welcomeModal's real close path is closeWelcome() (app.engage.js), which also
+// stamps the welcomeSeen flag — a plain closeModal() bypasses that, same risk
+// backdrop-tap protection (_protectedModals below) already guards against.
+// Escape and the hardware/gesture back button both used to call closeModal()
+// directly, so dismissing onboarding either way silently skipped the stamp —
+// the tour reappeared in full every session until the user happened to use
+// Skip/Start instead. Route every programmatic "close whatever's topmost"
+// path through this so any current or future modal needing special close
+// handling only has to be taught here once.
+function _closeOverlayById(id){
+  if(id === 'welcomeModal' && typeof closeWelcome === 'function') closeWelcome();
+  else closeModal(id);
+}
 function _closeTopmostOverlay(){
   // Drive reconnect banner carries role="dialog" but uses a CSS class (.show) rather
   // than .modal-overlay.open — it needs its own Escape check.
@@ -68,7 +81,7 @@ function _closeTopmostOverlay(){
   // visible-topmost overlay to close is a modal first, then the drawer.
   const open = [...document.querySelectorAll('.modal-overlay.open')];
   if(open.length){
-    closeModal(open[open.length-1].id);
+    _closeOverlayById(open[open.length-1].id);
     return true;
   }
   if(addDrawerOpen){
@@ -91,7 +104,7 @@ window.addEventListener('popstate', () => {
     // ordering as _closeTopmostOverlay; see the comment there)
     const open = [...document.querySelectorAll('.modal-overlay.open')];
     if(open.length){
-      closeModal(open[open.length-1].id);
+      _closeOverlayById(open[open.length-1].id);
     } else if(addDrawerOpen){
       closeAddDrawer();
     } else {

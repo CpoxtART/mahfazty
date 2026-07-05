@@ -22,6 +22,20 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.89',
+    date: '2026-07-05',
+    title: { ar: 'جولة تدقيق ثالثة: إصلاحان جوهريان + 5 إصلاحات إضافية', en: 'Third audit round: 2 major fixes + 5 more' },
+    items: [
+      { ar: 'إصلاح جوهري: الضغط على "رجوع" (سواء زر رجوع الجهاز أو مفتاح Esc) أثناء جولة الترحيب الأولى كان يغلقها دون تسجيل أنك شاهدتها — فتظهر لك من جديد كاملة (من الشريحة الأولى) في كل مرة تفتح فيها التطبيق، إلى أن تستخدم زر "تخطي" أو "ابدأ" بدلاً من ذلك. أُصلح ليُسجَّل ظهورها بشكل صحيح بكل الطرق.', en: 'Major fix: pressing Back (either the hardware/gesture back button or the Esc key) during the first-run welcome tour closed it without recording that you\'d seen it — so it reappeared in full (from slide one) every time you opened the app, until you happened to use Skip or Start instead. Fixed so it\'s correctly marked as seen no matter how it\'s dismissed.' },
+      { ar: 'إصلاح جوهري: عند تفعيل "الوضع البديل" ثم تسجيل مصروف مباشر من محفظة "الاحتياطي المدمج" ثم إيقاف الوضع البديل، كان رصيد ذلك المصروف يختفي تمامًا من الإجمالي المعروض (يعود فقط عند إعادة تفعيل الوضع البديل). لا بيانات ضاعت فعليًا — فقط الرقم الظاهر كان غير صحيح. أُصلح ليكون الإجمالي دقيقًا دائمًا بغض النظر عن حالة الوضع البديل.', en: 'Major fix: turning on Alternative Mode, recording a direct expense from the "Merged Reserve" wallet, then turning Alternative Mode back off made that expense\'s effect vanish entirely from the displayed total (it only came back once Alternative Mode was re-enabled). No data was actually lost — only the displayed number was wrong. Fixed so the total is always accurate regardless of the mode toggle.' },
+      { ar: 'إصلاح متوسط: التراجع عن الحذف كان يحتفظ بمعاملة واحدة محذوفة فقط — حذف معاملة ثم حذف أخرى خلال 5 ثوانٍ كان يفقد قدرة التراجع عن الأولى نهائيًا وبصمت. الآن يتراكم التراجع لكل ما حُذف ضمن نفس الفترة، بضغطة واحدة تستعيد الكل.', en: "Medium fix: Undo-delete only remembered one deleted item at a time — deleting a transaction, then deleting another within 5 seconds, silently and permanently lost the ability to undo the first one. Undo now accumulates everything deleted within that window, restoring it all with one tap." },
+      { ar: 'إصلاح متوسط: تأكيد التوزيع التلقائي للدخل كان أحيانًا يعرض رسالة "تم التوزيع بنجاح" رغم أن التوزيع فعليًا لم يحرّك أي مبلغ (حالة نادرة: كل النسب المُفعّلة تخص محفظة الدخل نفسها). لا تأثير مالي، لكن الرسالة كانت مضلِّلة. أُصلحت لتعكس ما حدث فعلًا.', en: 'Medium fix: confirming automatic income distribution sometimes showed a "distributed successfully" message even though nothing was actually moved (a rare case: every active percentage happened to belong to the income\'s own wallet). No financial impact, but the message was misleading. Fixed to reflect what actually happened.' },
+      { ar: 'إصلاح متوسط: 3 أزرار حذف (معاملة، محفظة، اشتراك) كانت — في حالة نادرة جدًا فقط (تغيّر البيانات من جهاز آخر أثناء فتح نافذة التعديل) — لا تفعل شيئًا ظاهرًا عند الضغط، دون أي رسالة توضح السبب. أُضيفت رسالة واضحة لهذه الحالة النادرة.', en: 'Medium fix: 3 delete buttons (transaction, wallet, subscription) could — only in a very rare case (data changing from another device while the edit modal was open) — silently do nothing when tapped, with no message explaining why. Added a clear message for this rare case.' },
+      { ar: 'إصلاح خفيف: البحث بالنص لم يكن يطابق الأرقام العربية (٠-٩) مع الأرقام اللاتينية للنص نفسه — الآن يطابقهما بلا فرق.', en: "Low fix: text search didn't match Arabic-Indic digits (٠-٩) against Western digits for the same text — now matches either way." },
+      { ar: 'إصلاح خفيف: توحيد صياغة رسالة خطأ تسجيل الدخول بجوجل في حالة نادرة كانت تظهر بصياغة مختلفة عن باقي الحالات المماثلة.', en: 'Low fix: unified the wording of one rare Google sign-in error message that previously read differently from the other, more common instances of the same failure.' },
+    ],
+  },
+  {
     version: 'v47.88',
     date: '2026-07-05',
     title: { ar: 'تدقيق عميق جديد: 5 إصلاحات من زوايا لم تُفحص من قبل', en: 'Fresh deep audit: 5 fixes from previously-unexamined angles' },

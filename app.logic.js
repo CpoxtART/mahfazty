@@ -188,7 +188,15 @@ function skipDistribution(){
 async function confirmDistribution(){
   saveAutoDistributePref();
   if(!pendingIncomeTx) { closeModal('distributeModal'); return; }
-  const hasActive = DISTRIBUTION.some(d => d && d.pct > 0 && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
+  // Must exclude the source wallet itself, matching openDistributionModal's
+  // activeEntries (line ~129) and runDistribution's own active filter (line
+  // ~238) — without the exclusion, a config where the ONLY active percentage
+  // is on the source wallet itself (e.g. 100% to Core, income landed in Core)
+  // passed this check while the modal's own preview correctly warned "no
+  // ratios set", and runDistribution then legitimately no-op'd (nothing valid
+  // to route the income to) — yet the code below still showed "✓ distributed"
+  // regardless, a false success message with no functional harm but wrong feedback.
+  const hasActive = DISTRIBUTION.some(d => d && d.pct > 0 && d.id !== pendingIncomeTx.wallet && WALLET_DEFS.find(x=>x.id===d.id && !x.track));
   if(!hasActive){
     toast(t({ar:'⚠ لا توجد نسب توزيع — اضبطها في الإعدادات أولاً', en:'⚠ No distribution ratios set — set them up in Settings first'}), true);
     return;
@@ -206,10 +214,19 @@ async function confirmDistribution(){
   const _btn = document.getElementById('confirmDistributionBtn');
   _setBtnSaving(_btn, true);
   try{
-    await runDistribution(live, live.amount);
+    // Second, independent guard (defense in depth alongside hasActive above):
+    // trust runDistribution's own report of whether it actually moved money,
+    // rather than assuming success — so this toast can never claim a
+    // distribution happened when runDistribution itself no-op'd for any
+    // reason (now or in a future change to its active-wallet filtering).
+    const distributed = await runDistribution(live, live.amount);
     closeModal('distributeModal');
     render();
-    toast(t({ar:'✓ تم توزيع الدخل على المحافظ', en:'✓ Income distributed across wallets'}));
+    if(distributed){
+      toast(t({ar:'✓ تم توزيع الدخل على المحافظ', en:'✓ Income distributed across wallets'}));
+    } else {
+      toast(t({ar:'⚠ لم يتم توزيع أي مبلغ — تحقق من نسب التوزيع بالإعدادات', en:'⚠ Nothing was distributed — check your distribution ratios in Settings'}), true);
+    }
   } finally {
     _opInFlight--;
     _setBtnSaving(_btn, false);
@@ -506,7 +523,11 @@ async function saveEdit(){
 }
 
 async function deleteFromEdit(){
-  if(!editingTxId) return;
+  // editingTxId can only be stale here if the transaction being edited was
+  // removed from underneath the open modal (e.g. a cross-tab sync/merge while
+  // the user had it open) — rare, but silently no-op'ing left the user unsure
+  // whether their tap on Delete even registered, with the modal still open.
+  if(!editingTxId){ closeModal('editModal'); toast(t({ar:'⚠ المعاملة لم تعد موجودة', en:'⚠ The transaction no longer exists'}), true); return; }
   try{
     await deleteTx(editingTxId);
   } finally {
@@ -601,11 +622,19 @@ async function deleteTx(id){
     await saveConfig(); // persist the new tombstones (they live in config)
     render();
 
-    _lastDeleted = removed;
+    // Accumulate rather than overwrite: deleting a SECOND (unrelated) transaction
+    // while the first one's 5s undo window is still open used to silently drop
+    // the first deletion's undo capability entirely (the new toast/timer just
+    // replaced it) — the deletions themselves stayed correct, but there was no
+    // way back for the first one, with no indication that recovery window had
+    // quietly closed early. Undo now restores every deletion still pending from
+    // this streak, in one tap, and the countdown restarts with each new delete.
+    _lastDeleted = _lastDeleted ? _lastDeleted.concat(removed) : removed;
+    const totalPending = _lastDeleted.length;
     clearTimeout(_undoTimer);
     _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
     haptic([12, 40, 12]); // double-tap pulse signals a destructive commit
-    toastWithUndo(removed.length > 1 ? t({ar:`🗑 تم حذف ${removed.length} حركات مرتبطة`, en:`🗑 Deleted ${removed.length} linked entries`}) : t({ar:'🗑 تم الحذف', en:'🗑 Deleted'}), undoDelete);
+    toastWithUndo(totalPending > 1 ? t({ar:`🗑 تم حذف ${totalPending} حركات مرتبطة`, en:`🗑 Deleted ${totalPending} linked entries`}) : t({ar:'🗑 تم الحذف', en:'🗑 Deleted'}), undoDelete);
   } finally {
     _opInFlight--;
   }
