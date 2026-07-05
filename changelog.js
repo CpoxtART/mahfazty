@@ -22,6 +22,20 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.90',
+    date: '2026-07-05',
+    title: { ar: 'جولة تدقيق رابعة: إصلاح عالي الخطورة بنظام الفئات + 7 تحسينات', en: 'Fourth audit round: high-severity category fix + 7 improvements' },
+    items: [
+      { ar: 'إصلاح عالي: معاملة بفئة قديمة/تالفة (من نسخة احتياطية قديمة أو استيراد معطوب) كانت تفتح نافذة التعديل بلا أي فئة محددة ظاهريًا وبدون تنبيه — والحفظ يعيد كتابة الفئة غير الصالحة كما هي للأبد، فتبقى النافذة معطوبة لهذه المعاملة بصمت. الآن تُصحَّح تلقائيًا إلى "أخرى" عند الفتح، مع حماية دقيقة تُبقي الفئات النظامية الداخلية (تحويل/تسوية) كما هي حتى لا تدخل بالتحليلات خطأً.', en: 'High fix: a transaction with a stale/corrupt category id (from an old backup or broken import) opened the edit form with no category visibly selected and no warning — and saving wrote the invalid id right back forever, leaving the form silently broken for that transaction. Now auto-corrected to "Other" on open, with a careful guard keeping internal system categories (transfer/adjustment) intact so they don\'t wrongly start counting in analytics.' },
+      { ar: 'إصلاح متوسط: زر "كرّر آخر عملية" مع معاملة قديمة بفئة لم تعد موجودة كان يترك النموذج على فئة سابقة عالقة من آخر استخدام — تعبئة مسبقة خاطئة بلا مؤشر. الآن يعود صراحةً إلى "أخرى".', en: 'Medium fix: "Repeat last transaction" with an old transaction whose category no longer exists left the form on a leftover category from its previous use — a silently wrong pre-fill. Now falls back explicitly to "Other".' },
+      { ar: 'إصلاح متوسط: شريحة بجولة الترحيب كانت تَعِد بميزة غير موجودة بصيغتها الموصوفة ("يقترح تتبّعها كاشتراك بنفسه") — صُحّح الوصف ليطابق السلوك الفعلي (يرصد الأنماط ويذكّرك بتسجيلها بضغطة).', en: 'Medium fix: an onboarding slide promised a feature that doesn\'t exist as described ("suggests tracking it as a subscription on its own") — reworded to match the real behavior (spots patterns and reminds you to log them in one tap).' },
+      { ar: 'إصلاح متوسط: اسم ملف التصدير كان بالتاريخ فقط — نسختان احتياطيتان بنفس اليوم تحملان اسمًا متطابقًا (خطر استبدال صامت على iOS، ولا سبيل لمعرفة الأحدث). أُضيفت الساعة والدقيقة للاسم.', en: 'Medium fix: the export filename carried only the date — two same-day backups had identical names (silent-overwrite risk on iOS, and no way to tell which is newer). Hour and minute now included.' },
+      { ar: 'إصلاح خفيف: فئتان قديمتان مختلفتان بالرسم الدائري كانتا تظهران كشريحتي "أخرى" منفصلتين متطابقتي الشكل — تُدمجان الآن بشريحة واحدة.', en: 'Low fix: two different stale category ids in the pie chart used to render as two separate, identical-looking "Other" slices — now merged into one.' },
+      { ar: 'إصلاح خفيف: فتح نافذة التحويل بوجود محفظة واحدة قابلة للصرف فقط كان يعرض شاشة مسدودة (نفس المحفظة بالطرفين وكل محاولة مرفوضة) — الآن رسالة واضحة توجّه لإضافة محفظة ثانية.', en: 'Low fix: opening the transfer modal with only one spendable wallet showed a dead-end screen (same wallet on both sides, every attempt rejected) — now a clear message directs you to add a second wallet.' },
+      { ar: 'إصلاح خفيف: مسار الاستيراد باللصق المباشر لم يكن عليه حد الحجم (10MB) الموجود على مسار استيراد الملف — وُحّد الحدّان.', en: 'Low fix: the paste-JSON import path lacked the 10MB size cap the file-import path enforces — both now hold the same line.' },
+    ],
+  },
+  {
     version: 'v47.89',
     date: '2026-07-05',
     title: { ar: 'جولة تدقيق ثالثة: إصلاحان جوهريان + 5 إصلاحات إضافية', en: 'Third audit round: 2 major fixes + 5 more' },

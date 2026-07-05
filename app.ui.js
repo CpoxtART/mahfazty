@@ -952,9 +952,18 @@ function setEditType(type){
   editType = type;
   document.getElementById('editTypeExp').classList.toggle('active', type==='expense');
   document.getElementById('editTypeInc').classList.toggle('active', type==='income');
-  // keep category compatible with the chosen type (mirrors the add form)
+  // keep category compatible with the chosen type (mirrors the add form).
+  // !cat too, not just wrong-type: an UNKNOWN id (removed category, corrupted
+  // import) used to short-circuit this reset — the grid then rendered with no
+  // chip selected and no hint why, and saving wrote the invalid id straight
+  // back, round-tripping forever with the edit form silently broken for it.
+  // System categories ('transfer'/'adjustment') are exempt: they're valid ids
+  // deliberately absent from CATEGORIES (no chip), and resetting them to
+  // 'other' here would UN-exclude the tx from analytics/pie/budget math
+  // (isSystemCategory) the moment its edit modal opened — openEdit calls this
+  // unconditionally — even if the user then saved without touching anything.
   const cat = CATEGORIES.find(c=>c.id===editCategory);
-  if(cat && !cat.types.includes(type)) editCategory = 'other';
+  if(!isSystemCategory({category: editCategory}) && (!cat || !cat.types.includes(type))) editCategory = 'other';
   renderEditCategoryGrid();
 }
 
@@ -993,9 +1002,10 @@ function setAddFormType(type){
   const incBtn = document.getElementById('addTypeInc');
   if(expBtn){ expBtn.classList.toggle('active', type==='expense'); }
   if(incBtn){ incBtn.classList.toggle('active', type==='income'); }
-  // if current category is incompatible with new type, reset to 'other'
+  // if current category is incompatible with new type — or is an UNKNOWN id
+  // entirely (see setEditType above for why !cat matters) — reset to 'other'
   const cat = CATEGORIES.find(c=>c.id===selectedCategory);
-  if(cat && !cat.types.includes(type)) selectedCategory = 'other';
+  if(!cat || !cat.types.includes(type)) selectedCategory = 'other';
   renderCategoryGrid();
 }
 
@@ -1060,10 +1070,17 @@ function normalizeCategory(cat){
 let transferFrom = null, transferTo = null;
 
 function openTransferModal(){
+  // A transfer needs two distinct spendable wallets. With fewer, the modal
+  // used to open with from===to pre-selected and every submit blocked by
+  // doTransfer's same-wallet guard — a dead-end screen with no explanation.
+  if(SELECTABLE_WALLETS.length < 2){
+    toast(t({ar:'⚠ التحويل يحتاج محفظتين قابلتين للصرف على الأقل — أضف محفظة من ⚙ الإعدادات ← المحافظ', en:'⚠ Transfers need at least two spendable wallets — add one from ⚙ Settings → Wallets'}), true);
+    return;
+  }
   // default to spendable wallets (the menus only list SELECTABLE_WALLETS), and
   // stay valid even if the wallet list is reordered or shrinks
   transferFrom = SELECTABLE_WALLETS[0].id;
-  transferTo = (SELECTABLE_WALLETS[1] || SELECTABLE_WALLETS[0]).id;
+  transferTo = SELECTABLE_WALLETS[1].id;
   renderTransferMenus();
   document.getElementById('transferAmount').value = '';
   document.getElementById('transferDate').value = todayISO();

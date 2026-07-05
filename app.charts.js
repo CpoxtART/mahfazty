@@ -42,7 +42,11 @@ function _computePieData(){
 
   const totals = {};
   filtered.forEach(tx => {
-    const cat = tx.category || 'other';
+    // normalizeCategory (app.ui.js), not the raw id: two DIFFERENT unknown ids
+    // (stale categories from an old backup) used to form two separate slices
+    // that then both resolved to the identical "Other" icon/color/name at
+    // render — visually duplicate wedges. Grouping normalized merges them.
+    const cat = normalizeCategory(tx.category);
     totals[cat] = (totals[cat]||0) + tx.amount;
   });
   const total = Object.values(totals).reduce((a,b)=>a+b,0);

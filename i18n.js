@@ -294,7 +294,7 @@ var I18N_STRINGS = {
   'onb.s5Title':      { ar: 'أدوات توفّر وقتك', en: 'Tools that save you time' },
   'onb.s5Li1':        { ar: '<b>🔍 بحث وفلاتر سريعة</b> — دوّر بمعاملاتك واطلع فلاتر يوم/أسبوع/شهر بضغطة.', en: '<b>🔍 Search & quick filters</b> — search your transactions and pull up day/week/month filters in a tap.' },
   'onb.s5Li2':        { ar: '<b>👈 سحب للحذف + تراجع</b> — احذف معاملة بسحبة، وارجع خطوة بثانية إذا غيّرت رأيك.', en: '<b>👈 Swipe to delete + undo</b> — delete a transaction with a swipe, and undo within a second if you change your mind.' },
-  'onb.s5Li3':        { ar: '<b>🤖 اكتشاف تلقائي للمصاريف المتكررة</b> — يقترح عليك تتبّعها كاشتراك بنفسه.', en: '<b>🤖 Automatic recurring-expense detection</b> — suggests tracking it as a subscription on its own.' },
+  'onb.s5Li3':        { ar: '<b>🤖 اكتشاف تلقائي للمصاريف المتكررة</b> — يرصد الأنماط ويذكّرك بتسجيلها بضغطة واحدة.', en: '<b>🤖 Automatic recurring-expense detection</b> — spots the patterns and reminds you to log them in one tap.' },
   'onb.s5Li4':        { ar: '<b>🔁 كرّر آخر عملية</b> — أعد إدخال مصروف معتاد بضغطة وحدة.', en: '<b>🔁 Repeat last transaction</b> — re-enter a usual expense in one tap.' },
   'onb.s5Li5':        { ar: '<b>📤 تقرير شهري جاهز</b> — شاركه أو نزّله بضغطة من 📊 التحليلات.', en: '<b>📤 Ready monthly report</b> — share or download it in a tap from 📊 Insights.' },
   'onb.s5Note':       { ar: '🎨 ورتّب التبويبات وحجم القوائم من ⚙ الإعدادات كما يحلو لك.', en: '🎨 Reorder the tabs and list sizes from ⚙ Settings however you like.' },

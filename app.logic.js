@@ -366,7 +366,14 @@ function openEdit(id){
   editingTxId = id;
   editType = tx.type;
   editWallet = tx.wallet;
-  editCategory = tx.category || 'other';
+  // normalizeCategory (not the raw id): an unknown/removed category id from an
+  // old backup or corrupted import would otherwise seed the edit form with an
+  // id no chip matches — nothing renders selected, and saving writes the
+  // invalid id straight back (setEditType's !cat reset now also guards this,
+  // but normalizing at the seed keeps the form truthful from the first paint).
+  // 'transfer' is a system category deliberately absent from CATEGORIES —
+  // transfer legs keep it as-is (their category controls are hidden below).
+  editCategory = (tx.category === 'transfer') ? 'transfer' : normalizeCategory(tx.category);
   // A transfer leg's type/category must stay fixed — flipping its type or
   // category would unbalance the two-leg transfer (money created/destroyed),
   // and only amount/wallet/desc are synced to the partner. Hide those controls.
@@ -558,8 +565,13 @@ function repeatLastTx(){
     renderWalletSelect();
   }
   setAddFormType(last.type);
+  // Always assign explicitly (ternary, not a guarded if): when last.category is
+  // an unknown/removed id, the old skip-assignment left selectedCategory at
+  // whatever the form held from its PREVIOUS use — a silently wrong pre-fill
+  // the user had no reason to double-check. lastCat.id (not last.category) so
+  // the (last.category||'other') lookup fallback resolves to a real id too.
   const lastCat = CATEGORIES.find(c=>c.id===(last.category||'other'));
-  if(lastCat && lastCat.types.includes(last.type)) selectedCategory = last.category || 'other';
+  selectedCategory = (lastCat && lastCat.types.includes(last.type)) ? lastCat.id : 'other';
   renderCategoryGrid();
   // carry the optional tracked-wallet link too, so repeating e.g. an Uber payment
   // re-links to the same tracked wallet without re-selecting it

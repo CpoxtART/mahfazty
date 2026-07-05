@@ -64,7 +64,14 @@ function exportData(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'wallet-backup-' + todayISO() + '.json';
+  // date AND time in the name: two exports on the same day used to produce
+  // byte-identical filenames — desktop browsers auto-suffix "(1)", but mobile
+  // save flows (e.g. iOS "Save to Files") may silently overwrite, and even
+  // suffixed copies give no way to tell which backup is newer without opening
+  // each one.
+  const _now = new Date();
+  const _hm = String(_now.getHours()).padStart(2,'0') + '-' + String(_now.getMinutes()).padStart(2,'0');
+  a.download = 'wallet-backup-' + todayISO() + '_' + _hm + '.json';
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -99,6 +106,14 @@ function importFromFile(event){
 function importFromTextarea(){
   const txt = document.getElementById('jsonArea').value.trim();
   if(!txt){ toast(t({ar:'⚠ الصق بيانات JSON أولاً', en:'⚠ Paste JSON data first'}), true); return; }
+  // same 10MB ceiling importFromFile enforces before reading — without it this
+  // was the one import path where an absurdly large payload went straight into
+  // a synchronous JSON.parse (impractical to paste by hand, but the two entry
+  // points should hold the same line)
+  if(txt.length > 10 * 1024 * 1024){
+    toast(t({ar:'⚠ البيانات كبيرة جدًا (الحد 10MB)', en:'⚠ Data too large (10MB limit)'}), true);
+    return;
+  }
   applyImport(txt);
 }
 
