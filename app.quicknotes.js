@@ -211,7 +211,7 @@ function updateQuickNotesBadge(){
    dropdown — the add-form tracking control and the two per-line pickers in
    quick-notes — opens the same elegant in-page list as the primary wallet.
 ============================================================ */
-let _wpAnchor = null, _wpOnPick = null;
+let _wpAnchor = null, _wpOnPick = null, _wpAnchorRectAtOpen = null;
 function _walletPopEl(){
   let pop = document.getElementById('walletPop');
   if(!pop){
@@ -234,7 +234,7 @@ function closeWalletPop(){
     // control that opened the popup, mirroring openModal/closeModal's focus-stack.
     try{ _wpAnchor.focus({preventScroll:true}); }catch(_){}
   }
-  _wpAnchor = null; _wpOnPick = null;
+  _wpAnchor = null; _wpOnPick = null; _wpAnchorRectAtOpen = null;
 }
 // items: [{id, name, bal?}]. onPick(id) fires on selection.
 function openWalletPop(anchor, items, currentId, onPick){
@@ -268,12 +268,30 @@ function openWalletPop(anchor, items, currentId, onPick){
   wireOptionArrowNav(pop);
   _wpAnchor = anchor; _wpOnPick = onPick;
   anchor.classList.add('open'); anchor.setAttribute('aria-expanded', 'true');
-  // fixed-position under the anchor (or above it if there's no room below)
+  // fixed-position under the anchor (or above it if there's no room below).
+  // Width: never NARROWER than the anchor (stays visually aligned under it),
+  // but allowed to grow wider to fit its content — some anchors are tight
+  // (e.g. a Quick Notes row's primary-wallet select shares its row with a
+  // type toggle, a track select, and a category icon) while option rows
+  // carry both a name AND a balance; locking width to the anchor squeezed
+  // longer names like "Core Expenses"/"Investments" into "... Expenses" /
+  // "...vestments" against the balance column. CSS's max-width caps how far
+  // it can grow (ellipsis remains the fallback only past that).
   const r = anchor.getBoundingClientRect();
+  _wpAnchorRectAtOpen = r;
   pop.style.left = Math.round(r.left) + 'px';
-  pop.style.width = Math.round(r.width) + 'px';
+  pop.style.minWidth = Math.round(r.width) + 'px';
+  pop.style.width = 'auto';
   pop.classList.add('open');
   pop.setAttribute('aria-hidden', 'false');
+  // Grown wider than the anchor, this could now overflow the viewport's right
+  // edge (or left, in a narrow RTL layout) — clamp back on-screen once its
+  // natural width is resolved (needs to be laid out first, hence .open above).
+  const popRectPreClamp = pop.getBoundingClientRect();
+  const margin = 8;
+  if(popRectPreClamp.right > window.innerWidth - margin){
+    pop.style.left = Math.max(margin, window.innerWidth - margin - popRectPreClamp.width) + 'px';
+  }
   // Clip to WHOLE rows: the CSS fallback cap (300px) usually lands mid-row,
   // leaving the last visible option half-cut — looks broken and half-hides a
   // row the user can't read. Measure a real row (heights vary with the user's
@@ -301,9 +319,17 @@ function openWalletPop(anchor, items, currentId, onPick){
   if(sel){
     sel.tabIndex = 0;
     try{ sel.focus({preventScroll:true}); }catch(_){}
-    // a selected wallet below the whole-row cap would open out of sight — bring
-    // it into the popup's own scroll view (internal scrolls no longer dismiss)
-    try{ sel.scrollIntoView({block:'nearest'}); }catch(_){}
+    // A selected wallet below the whole-row cap would open out of sight — bring
+    // it into view by setting pop.scrollTop DIRECTLY (confined to the popup's
+    // own box) instead of Element.scrollIntoView(). scrollIntoView walks up
+    // the ancestor chain for a scroll container and, for a position:fixed
+    // popup appended to <body>, can decide the nearest one is the WINDOW —
+    // firing a real window 'scroll' event that the outside-scroll-dismiss
+    // listener above then reacts to, closing the popup the instant it opens.
+    if(sel.offsetTop < pop.scrollTop) pop.scrollTop = sel.offsetTop;
+    else if(sel.offsetTop + sel.offsetHeight > pop.scrollTop + pop.clientHeight){
+      pop.scrollTop = sel.offsetTop + sel.offsetHeight - pop.clientHeight;
+    }
   }
 }
 // dismiss on outside click / Escape / scroll / resize
@@ -323,6 +349,20 @@ window.addEventListener('scroll', (e) => {
   // making long lists impossible to scroll on mobile.
   const pop = document.getElementById('walletPop');
   if(pop && e.target instanceof Node && pop.contains(e.target)) return;
+  // A scroll ELSEWHERE doesn't necessarily mean the ANCHOR moved — e.g. opening
+  // the popup inside a modal can itself trigger the browser's own scroll-anchoring
+  // (auto-adjusting an unrelated scrollable ancestor's position to compensate for
+  // a layout/content-height change), firing a real 'scroll' event on that container
+  // an instant after opening, with no user gesture involved. Reacting to that
+  // closed the popup the moment it opened. Only close if the anchor's on-screen
+  // position actually shifted since open — that's the real reason to dismiss
+  // (the fixed-position popup would otherwise drift away from it).
+  if(_wpAnchorRectAtOpen){
+    const now = _wpAnchor.getBoundingClientRect();
+    const moved = Math.abs(now.left - _wpAnchorRectAtOpen.left) > 2 ||
+                  Math.abs(now.top - _wpAnchorRectAtOpen.top) > 2;
+    if(!moved) return;
+  }
   closeWalletPop();
 }, true);
 window.addEventListener('resize', () => { if(_wpAnchor) closeWalletPop(); });

@@ -880,6 +880,10 @@
     background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-sm);
     box-shadow:var(--shadow-strong); max-height:300px; overflow-y:auto;
     -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+    /* Grows past a narrow anchor to fit long names + balances (see
+       openWalletPop, app.quicknotes.js) — capped so it can't outgrow small
+       screens; ellipsis (below) is the fallback only past this cap. */
+    max-width:min(320px, calc(100vw - 16px));
   }
   .wallet-pop.open{ display:block; animation:popIn var(--dur-fast) var(--ease); }
   @keyframes popIn{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }

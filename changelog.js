@@ -22,6 +22,15 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.87',
+    date: '2026-07-05',
+    title: { ar: 'إصلاح: قائمة اختيار المحفظة تنغلق فورًا داخل الملاحظات السريعة + أسماء طويلة مقصوصة', en: 'Fix: wallet picker closing instantly inside Quick Notes + long names clipped' },
+    items: [
+      { ar: 'إصلاح (بلاغ مباشر): القائمة المنبثقة لاختيار المحفظة كانت أحيانًا تُغلق فورًا لحظة فتحها من داخل الملاحظات السريعة، قبل حتى ما يقدر المستخدم يشوف الخيارات. السبب: فتح القائمة يغيّر تخطيط الصفحة، وبعض المتصفحات (كروم تحديدًا) تُصحّح موضع تمرير أي حاوية أخرى ظاهرة تلقائيًا للتعويض عن هذا التغيير — وهذا التصحيح التلقائي كان يُفسَّر خطأً كأنه "تمرير خارجي" فيغلق القائمة فورًا. الإصلاح: القائمة الآن تنغلق فقط إذا تحرّك مكان الزر الذي فتحها فعليًا على الشاشة (وهو السبب الحقيقي لإغلاقها أصلًا)، لا لمجرد حدوث أي تمرير في أي مكان.', en: 'Fix (direct user report): the wallet-picker popup sometimes closed the instant it opened from within Quick Notes, before the user could even see the options. Cause: opening the popup changes the page layout, and some browsers (Chromium in particular) automatically correct another visible container\'s scroll position to compensate — and that automatic correction was being misread as an "outside scroll," closing the popup immediately. Fix: the popup now only closes when the button that opened it actually moved on screen (the real reason it should close), not just because a scroll happened anywhere.' },
+      { ar: 'إصلاح (نفس البلاغ): أسماء المحافظ الطويلة (مثل "Core Expenses" أو "Investments") كانت تُقصّ في القائمة المنبثقة (تظهر كـ"... Expenses") لأن عرضها كان مثبّتًا على عرض الزر الصغير الذي فتحها، والذي غالبًا لا يتسع لاسم طويل + رقم الرصيد معًا. الآن تكبر القائمة تلقائيًا لتتسع للاسم الكامل عند الحاجة (بحد أقصى يراعي عرض الشاشة).', en: 'Fix (same report): long wallet names (like "Core Expenses" or "Investments") were clipped in the popup (showing as "... Expenses") because its width was pinned to the small button that opened it, which often can\'t fit a long name plus the balance together. The popup now grows automatically to fit the full name when needed (capped to stay within the screen).' },
+    ],
+  },
+  {
     version: 'v47.86',
     date: '2026-07-04',
     title: { ar: 'إصلاح: قائمة اختيار المحفظة تختفي باللمس وصف مقصوص', en: 'Fix: wallet picker vanishing on touch + clipped row' },
