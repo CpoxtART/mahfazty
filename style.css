@@ -806,6 +806,17 @@
   /* amount fields are type=text + inputmode (so Arabic-Indic digits reach the
      parser instead of being blanked by the number-input spec) — match both */
   .form input[type=number], .form input[inputmode=decimal], .form input[inputmode=numeric]{font-variant-numeric: tabular-nums;}
+  /* Unlike every DISPLAY-only money element (.hero .amount, .wallet .val, etc.
+     — see the direction:ltr block further down), the fields users actually
+     TYPE amounts/day-numbers into never got the same treatment: under the
+     default RTL (Arabic) document direction they inherit direction:rtl, so
+     typing e.g. "-25.50" has the minus sign/decimal point/caret movement
+     governed by the ambient RTL paragraph embedding instead of the explicit
+     LTR override every other numeric surface in the app already has.
+     Unscoped (not just `.form`) so it reaches every money/day input regardless
+     of which modal/drawer wraps it (add-drawer, edit/transfer/sub modals,
+     wallet-detail budget/sync fields, subscription billing day). */
+  input[inputmode=decimal], input[inputmode=numeric]{ direction:ltr; text-align:right; }
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
   input[type=number]{-moz-appearance:textfield;}
@@ -937,6 +948,11 @@
     border-bottom:1px solid var(--line-soft);
     display:flex; justify-content:space-between; align-items:center; gap:10px;
     transition: background .1s;
+    /* explicit floor matching .icon-btn/.cat-chip/.sub-edit's 44px baseline —
+       this shared popup backs every wallet picker in the app (primary/
+       tracking/quick-notes), so it's the highest-traffic list control that
+       was sitting just under that baseline on the default font size. */
+    min-height:44px; box-sizing:border-box;
   }
   .wallet-pop .opt:last-child{ border-bottom:none; }
   .wallet-pop .opt span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1033,6 +1049,7 @@
   }
 
   .wallet-filter-chip{
+    position:relative;
     display:none;
     align-items:center;
     gap:6px;
@@ -1048,6 +1065,11 @@
     font-weight:600;
     transition: opacity .2s, transform .2s var(--ease);
   }
+  /* invisible 44px-ish touch target without enlarging the visual chip (same
+     project pattern as .qn-type/.qn-row-del above) — the whole chip is the
+     tap target (it clears the filter), and its computed height alone sits
+     just under the 44px baseline the rest of the app's icon/chip controls use. */
+  .wallet-filter-chip::after{ content:''; position:absolute; inset:-6px; }
   .wallet-filter-chip.show{display:flex; animation: chipIn .25s var(--ease);}
   @keyframes chipIn{ from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);} }
 
@@ -1169,6 +1191,7 @@
   .rtx-wallet{
     color:var(--muted2);
     overflow:hidden; text-overflow:ellipsis; max-width:120px;
+    unicode-bidi:plaintext; /* same reasoning as .rtx-desc above — an English wallet name shouldn't be forced RTL by the enclosing container */
   }
   .rtx-dot{ color:var(--line); }
   .rtx-amt{
@@ -1962,7 +1985,9 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
    of looking detached/backwards on the wrong side. */
 html[dir="ltr"] .hero .amount,
 html[dir="ltr"] .wallet .val,
-html[dir="ltr"] .budget-label{
+html[dir="ltr"] .budget-label,
+html[dir="ltr"] input[inputmode=decimal],
+html[dir="ltr"] input[inputmode=numeric]{
   text-align:left;
 }
 html[dir="ltr"] .wallet .bar i{

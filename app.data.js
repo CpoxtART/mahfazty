@@ -197,6 +197,30 @@ async function applyImport(text){
   _importBusy = true;
   _txMutationStamp++; // wholesale data replacement — invalidate derived caches
   _opInFlight++; // block the cross-tab storage reload mid-import, same as other wholesale replacements
+  // Full rollback snapshot of every module-level variable this function is
+  // about to mutate. Without this, a throw partway through (e.g. a backup
+  // from a much older/newer app version whose shape trips something this
+  // code doesn't defend against) left `state` and friends half-overwritten
+  // with import data IN MEMORY — never persisted by this function (the
+  // save*() calls only run at the very end, after everything else
+  // succeeds), but a subsequent action before the next reload (e.g. adding
+  // a transaction) would save on top of that corruption and make it
+  // durable. The catch block below restores every one of these to undo
+  // exactly that.
+  const _rollback = {
+    wallets: {...state.wallets},
+    transactions: state.transactions,
+    crisisMode: state.crisisMode,
+    walletDefs: WALLET_DEFS.map(w => ({...w})),
+    budgets: {...budgets},
+    autoDistribute,
+    distribution: DISTRIBUTION.map(d => ({...d})),
+    dismissedRecurring: new Set(dismissedRecurring),
+    deletedTxIds: {...deletedTxIds},
+    deletedSubIds: {...deletedSubIds},
+    deletedWalletDefIds: {...deletedWalletDefIds},
+    subscriptions: subscriptions.map(s => ({...s})),
+  };
   try{
 
   // Snapshot what exists BEFORE the import so anything absent from the backup
@@ -362,6 +386,28 @@ async function applyImport(text){
   } else {
     toast(t({ar:'✓ تم الاستيراد بنجاح', en:'✓ Import successful'}));
   }
+  } catch(err){
+    // Restore every mutated variable to its pre-import snapshot — nothing was
+    // persisted yet (the save*() calls above only run once every step
+    // succeeds), so this fully undoes the in-memory corruption instead of
+    // leaving it for a later save to make permanent.
+    state.wallets = _rollback.wallets;
+    state.transactions = _rollback.transactions;
+    state.crisisMode = _rollback.crisisMode;
+    applyWalletDefs(_rollback.walletDefs);
+    budgets = _rollback.budgets;
+    autoDistribute = _rollback.autoDistribute;
+    DISTRIBUTION = _rollback.distribution;
+    dismissedRecurring = _rollback.dismissedRecurring;
+    deletedTxIds = _rollback.deletedTxIds;
+    deletedSubIds = _rollback.deletedSubIds;
+    deletedWalletDefIds = _rollback.deletedWalletDefIds;
+    subscriptions = _rollback.subscriptions;
+    _txMutationStamp++;
+    _runTxCommitInvalidators();
+    render(true);
+    console.error('applyImport failed, rolled back:', err);
+    toast(t({ar:'⚠ فشل الاستيراد ولم يتغيّر شيء — الملف قد يكون تالفًا أو من إصدار غير متوافق', en:'⚠ Import failed and nothing changed — the file may be corrupted or from an incompatible version'}), true);
   } finally {
     _opInFlight--;
     _importBusy = false;

@@ -27,7 +27,7 @@
      the old SW bucket has never cached, so every file fetches fresh together —
      no mixed old/new set (the v47.74 "Identifier already declared" class);
      offline keeps serving the old index.html whose old ?v= URLs are all cached. -->
-<link rel="stylesheet" href="style.css?v=48.3">
+<link rel="stylesheet" href="style.css?v=48.4">
 </head>
 <body>
 <script>
@@ -293,7 +293,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 
       <label for="descInput" data-i18n="add.desc">الوصف</label>
       <div class="voice-input-row">
-        <input type="text" id="descInput" maxlength="120" placeholder="مثال: عشاء، راتب، مواصلات..." data-i18n-ph="add.descPh">
+        <input type="text" id="descInput" maxlength="120" placeholder="مثال: عشاء، راتب، مواصلات..." data-i18n-ph="add.descPh" autocomplete="off">
         <button type="button" class="voice-btn" id="voiceBtn" title="إدخال صوتي" aria-label="إدخال صوتي" data-i18n-title="add.voice" data-i18n-aria="add.voice">🎤</button>
       </div>
 
@@ -303,7 +303,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <div class="row2">
         <div>
           <label for="amountInput" data-i18n="add.amount">المبلغ</label>
-          <input type="text" id="amountInput" placeholder="0" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+          <input type="text" id="amountInput" placeholder="0" inputmode="decimal" autocomplete="off" enterkeyhint="done" maxlength="20">
         </div>
         <div>
           <label for="dateInput" data-i18n="add.date">التاريخ</label>
@@ -351,9 +351,9 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <span class="arrow">▾</span>
     </div>
     <label for="editDesc" data-i18n="add.desc">الوصف</label>
-    <input type="text" id="editDesc" maxlength="120" placeholder="الوصف" data-i18n-ph="add.desc">
+    <input type="text" id="editDesc" maxlength="120" placeholder="الوصف" data-i18n-ph="add.desc" autocomplete="off">
     <label for="editAmount" data-i18n="add.amount">المبلغ</label>
-    <input type="text" id="editAmount" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+    <input type="text" id="editAmount" inputmode="decimal" autocomplete="off" enterkeyhint="done" maxlength="20">
     <label for="editDate" data-i18n="add.date">التاريخ</label>
     <input type="date" id="editDate">
     <div id="editCategorySection">
@@ -640,7 +640,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     </div>
 
     <label for="transferAmount" data-i18n="add.amount">المبلغ</label>
-    <input type="text" id="transferAmount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done">
+    <input type="text" id="transferAmount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done" maxlength="20">
     <label for="transferDate" data-i18n="add.date">التاريخ</label>
     <input type="date" id="transferDate">
     <div class="modal-actions">
@@ -693,7 +693,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div id="detailBudgetSetting">
       <label for="detailBudgetInput" data-i18n="detail.budgetLbl">الميزانية الشهرية (مصروفات)</label>
       <div class="row2">
-        <input type="text" id="detailBudgetInput" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)" autocomplete="off" data-i18n-ph="detail.budgetPh" enterkeyhint="done">
+        <input type="text" id="detailBudgetInput" inputmode="decimal" placeholder="بدون حد (0 = تعطيل)" autocomplete="off" data-i18n-ph="detail.budgetPh" enterkeyhint="done" maxlength="20">
         <button class="btn-secondary" id="btnSaveWalletBudget" data-i18n="common.save">حفظ</button>
       </div>
       <div class="hint hint--mt0" data-i18n="detail.budgetHint">عند الوصول إليها سيتلون شريط التقدم بالأحمر وتظهر علامة تحذير ⚠ على بطاقة المحفظة.</div>
@@ -701,7 +701,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div id="detailUpdateBalance">
       <label for="detailNewBalance" data-i18n="detail.syncLbl">مزامنة الرصيد الفعلي</label>
       <div class="row2">
-        <input type="text" id="detailNewBalance" inputmode="decimal" placeholder="الرصيد الجديد" autocomplete="off" data-i18n-ph="detail.syncPh" enterkeyhint="done">
+        <input type="text" id="detailNewBalance" inputmode="decimal" placeholder="الرصيد الجديد" autocomplete="off" data-i18n-ph="detail.syncPh" enterkeyhint="done" maxlength="20">
         <button class="btn-primary" id="updateTrackedBalanceBtn" data-i18n="detail.sync">مزامنة</button>
       </div>
       <div class="hint hint--mt0" data-i18n="detail.syncHint">هذه محفظة تتبع — أدخل رصيدك الفعلي الحالي (من تطبيق بنكك أو نقدًا) وسيتم تسجيل الفرق كمعاملة تلقائيًا.</div>
@@ -900,9 +900,9 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     <div class="grabber"></div>
     <h3 id="subModalTitle" data-i18n="sub.title">📆 اشتراك جديد</h3>
     <label for="subName" data-i18n="sub.name">اسم الاشتراك</label>
-    <input type="text" id="subName" maxlength="60" placeholder="مثال: نتفليكس، شاهد، Spotify..." data-i18n-ph="sub.namePh">
+    <input type="text" id="subName" maxlength="60" placeholder="مثال: نتفليكس، شاهد، Spotify..." data-i18n-ph="sub.namePh" autocomplete="off">
     <label for="subAmount" data-i18n="sub.amount">المبلغ الشهري</label>
-    <input type="text" id="subAmount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done">
+    <input type="text" id="subAmount" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done" maxlength="20">
     <label for="subBillingDay" data-i18n="sub.billingDay">يوم الاشتراك (1–31)</label>
     <input type="text" id="subBillingDay" maxlength="2" inputmode="numeric" placeholder="15" autocomplete="off" enterkeyhint="done">
     <label class="sub-active-lbl">
@@ -932,7 +932,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       </div>
     </div>
     <label for="walletDefName" data-i18n="wdef.name">اسم المحفظة</label>
-    <input type="text" id="walletDefName" maxlength="40" placeholder="مثال: تعليم، سفر..." data-i18n-ph="wdef.namePh">
+    <input type="text" id="walletDefName" maxlength="40" placeholder="مثال: تعليم، سفر..." data-i18n-ph="wdef.namePh" autocomplete="off">
     <div class="modal-actions modal-actions--sticky">
       <button class="btn-secondary" id="btnCancelWalletDef" data-i18n="common.cancel">إلغاء</button>
       <button class="btn-primary" id="btnSaveWalletDef" data-i18n="common.save">حفظ</button>
@@ -1050,19 +1050,19 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <!-- ?v= on every script MUST match sw.js's CACHE version — see the style.css
      comment above for why (atomic per-release cache keys); enforced by
      tests/version.test.js. -->
-<script src="i18n.js?v=48.3"></script>
-<script src="changelog.js?v=48.3"></script>
-<script src="app.core.js?v=48.3"></script>
-<script src="app.ui.js?v=48.3"></script>
-<script src="app.voice.js?v=48.3"></script>
-<script src="app.layout.js?v=48.3"></script>
-<script src="app.charts.js?v=48.3"></script>
-<script src="app.drive.js?v=48.3"></script>
-<script src="app.quicknotes.js?v=48.3"></script>
-<script src="app.data.js?v=48.3"></script>
-<script src="app.engage.js?v=48.3"></script>
-<script src="app.pwa.js?v=48.3"></script>
-<script src="app.overlay.js?v=48.3"></script>
-<script src="app.logic.js?v=48.3"></script>
-<script src="app.main.js?v=48.3"></script>
+<script src="i18n.js?v=48.4"></script>
+<script src="changelog.js?v=48.4"></script>
+<script src="app.core.js?v=48.4"></script>
+<script src="app.ui.js?v=48.4"></script>
+<script src="app.voice.js?v=48.4"></script>
+<script src="app.layout.js?v=48.4"></script>
+<script src="app.charts.js?v=48.4"></script>
+<script src="app.drive.js?v=48.4"></script>
+<script src="app.quicknotes.js?v=48.4"></script>
+<script src="app.data.js?v=48.4"></script>
+<script src="app.engage.js?v=48.4"></script>
+<script src="app.pwa.js?v=48.4"></script>
+<script src="app.overlay.js?v=48.4"></script>
+<script src="app.logic.js?v=48.4"></script>
+<script src="app.main.js?v=48.4"></script>
 </body></html>

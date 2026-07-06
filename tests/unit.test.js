@@ -77,6 +77,34 @@ test('groupThousandsDisplay — live-typing display matches what parseAmount() w
   assert.ok(Number.isNaN(app.parseAmount(ambiguous)), `expected NaN for ambiguous "${ambiguous}"`);
 });
 
+test('groupThousandsDisplay — long digit runs group correctly and complete in linear time', () => {
+  // Round-12/13-era bug: the original grouping regex (a backtracking lookahead,
+  // /\B(?=(\d{3})+(?!\d))/g) was quadratic in the digit count. Pasting a long
+  // digit string into any money field ran this on every 'input' event and
+  // could freeze the tab for several seconds. Fixed via a linear insertion
+  // loop plus a 32-char input cap (no legitimate amount needs more than
+  // MAX_AMOUNT's ~13 digits). This test locks in both the correctness of the
+  // replacement algorithm AND that it no longer scales quadratically.
+  assert.equal(app.groupThousandsDisplay('1'), '1');
+  assert.equal(app.groupThousandsDisplay('12'), '12');
+  assert.equal(app.groupThousandsDisplay('123'), '123');
+  assert.equal(app.groupThousandsDisplay('1234'), '1,234');
+  assert.equal(app.groupThousandsDisplay('1234567'), '1,234,567');
+  assert.equal(app.groupThousandsDisplay('999999999999'), '999,999,999,999');
+
+  // A pathologically long paste must be capped, not silently accepted whole —
+  // and must return near-instantly regardless of how long the input was.
+  const huge = '1'.repeat(100000);
+  const start = process.hrtime.bigint();
+  const result = app.groupThousandsDisplay(huge);
+  const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
+  assert.ok(elapsedMs < 200, `expected the 100k-digit paste to format in well under 200ms, took ${elapsedMs}ms`);
+  // capped to 32 raw characters before grouping — the digit count in the
+  // grouped result (commas aside) must never exceed that cap.
+  const digitsOnly = result.replace(/,/g, '');
+  assert.ok(digitsOnly.length <= 32, `expected capped output, got ${digitsOnly.length} digits`);
+});
+
 test('stripBidiControls — neutralises Trojan-Source style bidi chars', () => {
   assert.equal(app.stripBidiControls('a‮b'), 'ab'); // RLO override removed
   assert.equal(app.stripBidiControls('x‏y'), 'xy'); // RLM removed

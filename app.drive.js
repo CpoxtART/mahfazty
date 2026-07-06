@@ -612,6 +612,13 @@ function _handleDriveSyncError(e){
     toast(t({ar:'⚠ خطأ مؤقت في خوادم Drive — سيُعاد المحاولة تلقائيًا', en:'⚠ Temporary error on Drive servers — will retry automatically'}), true);
   } else if(!navigator.onLine){
     toast(t({ar:'⚠ لا يوجد اتصال بالإنترنت — سيتم الحفظ محليًا فقط', en:'⚠ No internet connection — saving locally only'}), true);
+  } else if(e instanceof SyntaxError){
+    // res.json() throwing a SyntaxError means the connection itself SUCCEEDED
+    // but the response body was truncated/malformed (e.g. network dropped
+    // mid-download) — the generic "could not connect" message below is
+    // actively wrong here (the connection worked) and doesn't hint that
+    // simply retrying could well fix a one-off truncation.
+    toast(t({ar:'⚠ استجابة غير مكتملة من Drive — سيُعاد المحاولة تلقائيًا', en:'⚠ Incomplete response from Drive — will retry automatically'}), true);
   } else {
     toast(t({ar:'⚠ تعذر الاتصال بـ Drive، سيُعاد المحاولة لاحقًا', en:'⚠ Could not connect to Drive, will retry later'}), true);
   }

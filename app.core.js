@@ -577,7 +577,14 @@ function parseAmount(str){
 const _toAsciiDigits = s => s.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
                               .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0));
 function _groupThousands(str){
-  let s = _toAsciiDigits(String(str == null ? '' : str));
+  // No legitimate amount needs more than MAX_AMOUNT's ~13 digits — this also
+  // caps a pathological paste (e.g. an accidentally-copied huge number/ID)
+  // before it reaches the regex work below, independent of the grouping-loop
+  // fix just below (belt and suspenders: even a linear-time pass over an
+  // absurdly long string is wasted work no real input would ever need).
+  let raw0 = String(str == null ? '' : str);
+  if(raw0.length > 32) raw0 = raw0.slice(0, 32);
+  let s = _toAsciiDigits(raw0);
   // Same decimal-vs-thousands-separator disambiguation normalizeDigits() uses
   // (see its comment) for parseAmount() — applied here too so a value shown
   // live can never disagree with what parseAmount() computes from it at save
@@ -606,8 +613,22 @@ function _groupThousands(str){
   const isNeg = intPart.startsWith('-');
   if(isNeg) intPart = intPart.slice(1);
   intPart = intPart.replace(/[^\d]/g, ''); // drop anything else that slipped through
-  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const grouped = _insertThousandsCommas(intPart);
   return (isNeg ? '-' : '') + grouped + decPart;
+}
+// A lookahead-based regex (`/\B(?=(\d{3})+(?!\d))/g`) re-scans the remaining
+// string from every match position with backtracking for the `+` — quadratic
+// in the digit count. Pasting a very long digit string (e.g. an accidentally
+// copied huge number) into any money field froze the tab for several seconds
+// on this single 'input' event before the length cap above existed. A plain
+// right-to-left insertion loop is linear and produces the identical result.
+function _insertThousandsCommas(intPart){
+  let out = '';
+  for(let i = 0; i < intPart.length; i++){
+    if(i > 0 && (intPart.length - i) % 3 === 0) out += ',';
+    out += intPart[i];
+  }
+  return out;
 }
 // One-shot grouping for a value being written into an input's HTML (not live
 // typing) — e.g. pre-filling the Quick Notes preview row from a parsed

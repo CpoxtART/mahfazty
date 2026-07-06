@@ -241,17 +241,25 @@ function exportMonthlyReport(){
     }
   });
 
+  // This is plain text (no CSS reaches it), unlike every on-screen amount
+  // element — which all explicitly force direction:ltr. Once shared into an
+  // RTL-locale context (WhatsApp/Notes on an Arabic phone), a bare number
+  // sitting among Arabic label/colon text has nothing pinning its direction;
+  // wrapping each amount in Unicode bidi isolate marks (U+2066 LRI…U+2069 PDI)
+  // keeps it an isolated LTR run so the label/colon/number order can't shift
+  // regardless of where the text ends up rendered.
+  const _iso = s => '⁦' + s + '⁩';
   const appName = t({ar:'محفظتيييي', en:'Mahfazty'});
   let report = `📊 ${t({ar:`تقرير ${appName} — ${monthName}`, en:`${appName} report — ${monthName}`})}\n`;
   report += `${'─'.repeat(28)}\n`;
-  report += `${t({ar:'الدخل', en:'Income'})}: ${fmt(totalIncome)}\n`;
-  report += `${t({ar:'المصروف', en:'Expense'})}: ${fmt(totalExpense)}\n`;
-  report += `${t({ar:'الصافي', en:'Net'})}: ${fmt(totalIncome-totalExpense)}\n\n`;
+  report += `${t({ar:'الدخل', en:'Income'})}: ${_iso(fmt(totalIncome))}\n`;
+  report += `${t({ar:'المصروف', en:'Expense'})}: ${_iso(fmt(totalExpense))}\n`;
+  report += `${t({ar:'الصافي', en:'Net'})}: ${_iso(fmt(totalIncome-totalExpense))}\n\n`;
 
   report += `${t({ar:'حسب الفئة', en:'By category'})}:\n`;
   Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).forEach(([catId,amt])=>{
     const cat = getCategory(catId);
-    report += `  ${cat.icon} ${cat.name}: ${fmt(amt)}\n`;
+    report += `  ${cat.icon} ${cat.name}: ${_iso(fmt(amt))}\n`;
   });
 
   report += `\n📱 ${appName} 🙂‍↔️`;

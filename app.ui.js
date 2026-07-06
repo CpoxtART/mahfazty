@@ -745,7 +745,28 @@ function renderRecentTx(){
   if(countEl) countEl.textContent = all.length ? all.length : '';
 
   if(all.length === 0){
-    list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات بعد — اضغط ＋ لإضافة أول معاملة', en:'No transactions yet — tap ＋ to add your first one'})}</div>`;
+    // Same fix renderTxList's empty state already has: distinguish "no
+    // transactions exist at all" from "a search/wallet/category filter
+    // narrowed the list to zero" — this tab's empty state used to show the
+    // "add your first transaction" message unconditionally even when the
+    // user had thousands of real transactions and just a filter/search with
+    // no matches, which reads as data loss rather than "no matches."
+    if(state.transactions.length === 0){
+      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات بعد — اضغط ＋ لإضافة أول معاملة', en:'No transactions yet — tap ＋ to add your first one'})}</div>`;
+    } else {
+      const reasons = [];
+      if(searchQuery) reasons.push(t({ar:'مطابقة لبحثك', en:'matching your search'}));
+      if(walletFilter){
+        const w = WALLET_DEFS.find(x => x.id === walletFilter);
+        if(w) reasons.push(t({ar:`في محفظة ${w.name}`, en:`in ${w.name}`}));
+      }
+      if(categoryFilter){
+        const cat = getCategory(categoryFilter);
+        reasons.push(t({ar:`في فئة ${cat.name}`, en:`in ${cat.name}`}));
+      }
+      if(!reasons.length) reasons.push(t({ar:'في هذه الفترة', en:'in this period'}));
+      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات ', en:'No transactions '})}${reasons.join(t({ar:' و', en:' and '}))}</div>`;
+    }
     return;
   }
 
@@ -1687,7 +1708,7 @@ function renderRecurring(){
     card.className = 'recurring-card';
     card.innerHTML = `
       <div class="title">🔁 ${escHtml(t({ar:'معاملة متكررة محتملة', en:'Potential recurring transaction'}))}</div>
-      <div class="desc">${cat.icon} "${escHtml(s.desc)}" — ${escHtml(t({ar:`تكررت ${s.count} مرات بمتوسط ${fmt(s.avg)}`, en:`Repeated ${s.count} times, averaging ${fmt(s.avg)}`}))} (${escHtml(wallet?wallet.name:'')})</div>
+      <div class="desc" dir="auto">${cat.icon} "${escHtml(s.desc)}" — ${escHtml(t({ar:`تكررت ${s.count} مرات بمتوسط ${fmt(s.avg)}`, en:`Repeated ${s.count} times, averaging ${fmt(s.avg)}`}))} (${escHtml(wallet?wallet.name:'')})</div>
       <div class="actions">
         <button class="btn-secondary" data-dismiss="${escHtml(s.key)}">${escHtml(t({ar:'تجاهل', en:'Dismiss'}))}</button>
         <button class="btn-primary" data-remind="${escHtml(s.key)}">⏰ ${escHtml(t({ar:'سجّلها الآن', en:'Record it now'}))}</button>
