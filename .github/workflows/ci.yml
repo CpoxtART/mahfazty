@@ -20,6 +20,17 @@ jobs:
       # node:test is built in and the unit tests have no dependencies, so no
       # install step is needed here — keeps this job near-instant.
       - run: node --test "tests/*.test.js"
+      # `node --test --experimental-test-coverage`'s own reporter can't see the
+      # app.*.js files — they run inside tests/sandbox.js's vm sandbox under one
+      # synthetic filename, not as real on-disk modules the reporter can map
+      # results back to. tests/coverage.js reconstructs the real per-file %
+      # from raw V8 coverage instead (see its header comment). This number
+      # covers ONLY the node:test unit-test path — the tests/e2e.spec.js
+      # Playwright suite below drives a real, separate browser process Node's
+      # coverage collection can't see, so it isn't included here. --min=30
+      # is a regression floor for the unit-test path specifically, not a claim
+      # about the app's overall test coverage.
+      - run: node tests/coverage.js --min=30
 
   typecheck:
     name: typecheck (tsc --noEmit)

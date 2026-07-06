@@ -46,6 +46,32 @@ const handler = {
 };
 function makeProxy() { return new Proxy(function () {}, handler); }
 
+// Builds the exact same concatenated string vm.runInContext below executes
+// (byte-for-byte — same header format, same '\n' join), but also records each
+// file's [start,end) character offset WITHIN that string. Coverage tooling
+// (tests/coverage.js) needs this: V8 reports executed ranges against the
+// bundle's single synthetic filename ('mahfazty-bundle.js'), not against the
+// real on-disk files, so mapping a covered offset back to "app.core.js line
+// 42" requires knowing exactly where each file's content starts and ends in
+// the bundle — which only this function (not a re-derived copy of it) can
+// guarantee stays in sync with what actually ran.
+function buildAppBundle(){
+  const parts = FILES.map((f) => ({
+    file: f,
+    header: `\n//==== ${f} ====\n`,
+    content: fs.readFileSync(path.join(ROOT, f), 'utf8'),
+  }));
+  let src = '';
+  const segments = [];
+  parts.forEach((p, i) => {
+    if(i > 0) src += '\n'; // matches the original .map(...).join('\n')
+    const start = src.length + p.header.length; // where the file's OWN content begins (after the header comment)
+    src += p.header + p.content;
+    segments.push({ file: p.file, start, end: src.length });
+  });
+  return { src, segments };
+}
+
 function loadApp() {
   const noop = () => 0;
   const ctx = {
@@ -64,9 +90,7 @@ function loadApp() {
   ctx.globalThis = ctx; ctx.self = ctx;
   vm.createContext(ctx);
 
-  let src = FILES
-    .map((f) => `\n//==== ${f} ====\n` + fs.readFileSync(path.join(ROOT, f), 'utf8'))
-    .join('\n');
+  let src = buildAppBundle().src;
   // Capture the pure helpers (they're function-declared, so lexically in scope
   // here) onto the context so the test file can reach them.
   src += `
@@ -127,4 +151,4 @@ function loadApp() {
   return ctx.__exports;
 }
 
-module.exports = { loadApp };
+module.exports = { loadApp, FILES, buildAppBundle };
