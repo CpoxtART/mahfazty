@@ -13,13 +13,18 @@ const app = loadApp();
 
 test('round2 — banker-safe money rounding', () => {
   // the whole reason round2 exists: 1.005*100 is 100.4999… in float, so a plain
-  // Math.round misrounds it down to 1.00. The Number.EPSILON nudge fixes that.
+  // Math.round misrounds it down to 1.00. The relative-epsilon nudge fixes that.
   assert.equal(app.round2(1.005), 1.01);
   assert.equal(app.round2(0.1 + 0.2), 0.3);
   assert.equal(app.round2(2.675), 2.68);
   assert.equal(app.round2(100), 100);
-  assert.equal(app.round2(-1.005), -1); // negative side rounds toward zero here
+  assert.equal(app.round2(-1.005), -1.01); // symmetric: same magnitude correction as +1.005
   assert.equal(app.round2(0), 0);
+  // A flat (additive, pre-scale) epsilon nudge is too small to survive once n
+  // has 6+ significant digits — these regression-test the fix that made the
+  // nudge scale with n itself instead.
+  assert.equal(app.round2(35.855), 35.86);
+  assert.equal(app.round2(1234567.005), 1234567.01);
 });
 
 test('fmt — display formatting', () => {

@@ -479,9 +479,19 @@ let _reloadOnControllerChange = false;
  */
 function round2(n){
   // Plain Math.round(n*100)/100 misrounds values like 1.005 → 1 (should be
-  // 1.01) because 1.005*100 is actually 100.49999... in binary float. The
-  // Number.EPSILON nudge corrects that without affecting any normal value.
-  return Math.round((n + Number.EPSILON) * 100) / 100;
+  // 1.01) because 1.005*100 is actually 100.49999... in binary float. A FLAT
+  // Number.EPSILON nudge (the previous fix here) only corrects that at small
+  // magnitudes — added before scaling by 100, it's proportionally too tiny to
+  // survive once n has 6+ significant digits (round2(1234567.005) still came
+  // out 1234567, same wrong answer as no fix at all). Multiplying the nudge
+  // INTO the scaled value instead (relative, not additive) keeps it
+  // proportionally significant at any realistic money magnitude. Rounding the
+  // absolute value first (then reapplying the sign) also makes this symmetric
+  // — the old additive nudge only ever pushed the scaled value in the
+  // positive direction, so -1.005 rounded to -1 while +1.005 correctly rounded
+  // to 1.01; money rounding should not depend on sign.
+  const sign = n < 0 ? -1 : 1;
+  return sign * Math.round(Math.abs(n) * 100 * (1 + Number.EPSILON)) / 100;
 }
 /**
  * Format a number as a 2-decimal display string with thousands separators.

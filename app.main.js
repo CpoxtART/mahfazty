@@ -447,6 +447,12 @@ document.addEventListener('visibilitychange', () => {
     _runRenderInvalidators(); // "today" may have rolled over while tab was hidden
     capDateInputsToToday();
     checkForSWUpdate(); // returning to the app is the prime moment to catch a new version
+    // The update banner's own 8s auto-apply timer (app.pwa.js) can't tell time
+    // passed while frozen — a mobile OS suspending the tab mid-countdown makes
+    // that setTimeout fire almost immediately on resume (its deadline already
+    // elapsed), reloading the page moments after the user looks back at the
+    // screen instead of the intended 8-second warning. Re-arm it fresh here.
+    if(_updateBannerShowing) _restartUpdateBannerTimer();
     // The background refresh timer (_scheduleTokenRefresh) is a setTimeout that mobile
     // OSes routinely freeze while the PWA is backgrounded, so a token can sit expired
     // for hours with the header indicator still showing "متصل ✓". Revalidate on resume

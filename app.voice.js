@@ -209,7 +209,13 @@ function startVoiceInput(){
   voiceRecognition.onend = cleanup;
   voiceRecognition.onerror = (e) => {
     cleanup();
-    if(e.error === 'not-allowed'){
+    if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+      // 'service-not-allowed' is a browser/OS/enterprise-policy block of the
+      // speech recognition SERVICE itself (distinct from the user denying the
+      // in-page mic permission prompt) — same actionable "allow microphone
+      // access" guidance applies either way, so it shouldn't fall into the
+      // generic "couldn't recognize speech" message below (which reads like
+      // the user just mumbled, not that access is blocked).
       toast(t({ar:'⚠ يجب السماح بالوصول للميكروفون', en:'⚠ Microphone access must be allowed'}), true);
     } else if(e.error !== 'aborted'){
       toast(t({ar:'⚠ تعذر التعرف على الصوت، حاول مرة أخرى', en:'⚠ Could not recognize speech, try again'}), true);

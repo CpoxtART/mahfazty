@@ -22,6 +22,17 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.95',
+    date: '2026-07-06',
+    title: { ar: 'جولة تدقيق سابعة: إصلاح دقة التقريب المالي + 3 تحسينات', en: 'Seventh audit round: money-rounding precision fix + 3 more' },
+    items: [
+      { ar: 'إصلاح متوسط: دالة التقريب المالي كانت تُصحّح خطأ التقريب الثنائي (مثل ١٫٠٠٥) بمقدار ثابت صغير جدًا لا يكفي مع أرقام أكبر (مثل ٣٥٫٨٥٥ أو المبالغ بالملايين) — فيرجع نفس نتيجة الخطأ القديم. كما كان التصحيح يعمل بجهة الأرقام الموجبة فقط، فتقريب مبلغ سالب مثل ‎-١٫٠٠٥ يختلف عن نظيره الموجب. أُصلح ليتناسب حجم التصحيح مع حجم الرقم ويعمل بالتساوي للموجب والسالب.', en: "Medium fix: the money-rounding helper corrected the classic binary-float misrounding (e.g. 1.005) with a fixed, tiny nudge that stopped being enough once the number got larger (e.g. 35.855, or amounts in the millions) — silently giving back the old wrong answer. The correction also only ever nudged in the positive direction, so a negative amount like -1.005 rounded differently than its positive counterpart. Now scales with the number's own size and rounds symmetrically for negative and positive." },
+      { ar: 'إصلاح متوسط: إذا كان بانر "تحديث متاح" ظاهرًا والتطبيق انتقل للخلفية (مثل تبديل تطبيقات على الجوال) لفترة، كان مؤقت "يحدث تلقائيًا بعد ٨ ثوانٍ" قد يطلق إعادة تحميل فجائية بعد لحظات من رجوعك للتطبيق، بدل إعطائك مهلة ٨ ثوانٍ كاملة. الآن يُعاد ضبط المؤقت من جديد فور رجوعك.', en: 'Medium fix: if the "update available" banner was showing and the app went to the background for a while (e.g. switching apps on mobile), the "auto-applies after 8 seconds" timer could fire an abrupt reload moments after you returned, instead of giving you a full fresh 8-second window. The timer now restarts cleanly the instant you come back.' },
+      { ar: 'إصلاح متوسط: قائمة المعاملات الفارغة كانت تذكر سبب عدم وجود نتائج (البحث أو الفترة الزمنية) لكن تتجاهل فلتر المحفظة أو الفئة النشط إذا كان هو السبب الفعلي — الآن تذكر كل الأسباب النشطة معًا.', en: 'Medium fix: the empty transactions message explained why nothing showed based on your search or time period, but ignored an active wallet or category filter even when that was the real reason — now it lists every active reason together.' },
+      { ar: 'إصلاح خفيف: خطأ "الخدمة الصوتية محظورة" (مختلف عن رفض إذن الميكروفون) كان يظهر برسالة عامة "تعذّر التعرف على الصوت" بدل الإرشاد الصحيح للسماح بالوصول للميكروفون.', en: 'Low fix: a "speech service blocked" error (distinct from denying the mic permission prompt) showed a generic "could not recognize speech" message instead of the correct microphone-access guidance.' },
+    ],
+  },
+  {
     version: 'v47.94',
     date: '2026-07-06',
     title: { ar: 'إصلاح عاجل: رسالة "التطبيق تالف" كانت تعلق على الشاشة رغم اكتمال التشغيل', en: 'Urgent fix: "app is corrupted" banner stayed stuck even after boot succeeded' },

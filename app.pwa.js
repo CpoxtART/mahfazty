@@ -85,7 +85,18 @@ function _revealUpdateBanner(el, attemptsLeft){
     return;
   }
   requestAnimationFrame(()=> requestAnimationFrame(()=> el.classList.add('show')));
-  // Auto-apply after 8 s if user doesn't interact — "يحدث من وحده"
+  _restartUpdateBannerTimer();
+}
+// Auto-apply after 8 s if the user doesn't interact — "يحدث من وحده". Split out
+// so a tab resuming from an OS/mobile-browser freeze can re-arm it (see the
+// visibilitychange handler in app.main.js): a frozen setTimeout doesn't count
+// down while suspended — it fires ASAP once thawed, since its original
+// deadline already elapsed. Without re-arming, a user who backgrounds the app
+// with the banner showing and returns 20 minutes later would get reloaded
+// abruptly a second or two after looking back at the screen, instead of the
+// intended 8-second warning window.
+function _restartUpdateBannerTimer(){
+  clearTimeout(_updateBannerTimer);
   _updateBannerTimer = setTimeout(() => applyUpdate(), 8000);
 }
 function showUpdateBanner(){

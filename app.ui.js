@@ -1873,7 +1873,23 @@ function renderTxList(){
       const impBtn = list.querySelector('.empty-import-json');
       if(impBtn) impBtn.onclick = () => openSettingsTab('data');
     } else {
-      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات', en:'No transactions'})}${searchQuery ? t({ar:' مطابقة لبحثك', en:' matching your search'}) : t({ar:' في هذه الفترة', en:' in this period'})}</div>`;
+      // Previously this only ever mentioned the search query OR the time
+      // period — a wallet/category filter narrowing the list to zero (with
+      // or without an active search) had no textual explanation, only the
+      // filter chip's own easy-to-miss label. List every active reason
+      // together so the message always matches what's actually filtering.
+      const reasons = [];
+      if(searchQuery) reasons.push(t({ar:'مطابقة لبحثك', en:'matching your search'}));
+      if(walletFilter){
+        const w = WALLET_DEFS.find(x => x.id === walletFilter);
+        if(w) reasons.push(t({ar:`في محفظة ${w.name}`, en:`in ${w.name}`}));
+      }
+      if(categoryFilter){
+        const cat = getCategory(categoryFilter);
+        reasons.push(t({ar:`في فئة ${cat.name}`, en:`in ${cat.name}`}));
+      }
+      if(!reasons.length) reasons.push(t({ar:'في هذه الفترة', en:'in this period'}));
+      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات ', en:'No transactions '})}${reasons.join(t({ar:' و', en:' and '}))}</div>`;
     }
     return;
   }
