@@ -9,6 +9,16 @@ function hideSplash(){
   clearTimeout(window._splashTimer); // cancel the 6s error watchdog — we loaded successfully
   const el = document.getElementById('splash');
   if(el) el.classList.add('hide');
+  // A slow-but-successful boot (cold IndexedDB open on a first-ever visit, a
+  // sluggish connection fetching the ~15 script files uncached, etc.) can let
+  // index.html's inline 6s watchdog already fire and stamp its "your uploaded
+  // file is likely corrupted — re-upload it" banner moments before loadState()
+  // actually resolves here. That banner is now stale (boot DID complete) but
+  // nothing ever removed it — a real user on a slow network would be stuck
+  // staring at a scary, actionable-sounding-but-impossible-for-them instruction
+  // permanently overlaying an app that's actually working fine. Clear it.
+  const fatal = document.getElementById('fatalErrorBox');
+  if(fatal) fatal.remove();
 }
 
 /* ============================================================

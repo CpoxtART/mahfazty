@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.94',
+    date: '2026-07-06',
+    title: { ar: 'إصلاح عاجل: رسالة "التطبيق تالف" كانت تعلق على الشاشة رغم اكتمال التشغيل', en: 'Urgent fix: "app is corrupted" banner stayed stuck even after boot succeeded' },
+    items: [
+      { ar: 'إصلاح عالٍ: على اتصال بطيء أو بأول تشغيل (فتح IndexedDB لأول مرة)، كانت مهلة الـ٦ ثوانٍ الاحترازية قد تنتهي وتُظهر تحذير "الملف المرفوع تالف، أعد رفعه" — وحتى لو اكتمل تشغيل التطبيق فعليًا بعد لحظات وأصبح يعمل بشكل طبيعي، كانت هذي الرسالة المخيفة تبقى عالقة على الشاشة للأبد بلا داعٍ. الآن تُزال تلقائيًا فور اكتمال التشغيل بنجاح.', en: 'High fix: on a slow connection or a first-ever load (opening IndexedDB for the first time), the precautionary 6-second watchdog could expire and show a "your uploaded file is corrupted, re-upload it" warning — and even though the app then finished booting normally moments later and worked fine, that scary message stayed permanently stuck on screen for no reason. It now clears itself automatically the instant boot actually succeeds.' },
+    ],
+  },
+  {
     version: 'v47.93',
     date: '2026-07-06',
     title: { ar: 'إصلاح: بانر التحديث كان يقاطع إعلان قارئ الشاشة لحفظ حديث', en: 'Fix: update banner was interrupting a recent save announcement' },
