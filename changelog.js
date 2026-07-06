@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.97',
+    date: '2026-07-06',
+    title: { ar: 'إصلاح: بانر التحديث كان يظهر فوق بانر تسجيل الدخول بجوجل درايف', en: 'Fix: the update banner was appearing over the Google Drive sign-in banner' },
+    items: [
+      { ar: 'إصلاح عالٍ: نفس مشكلة تضارب بانر التحديث مع الإشعارات (المُصلحة قبل قليل) كانت موجودة أيضًا مع بانر "الاتصال بجوجل درايف" — إذا ظهر بانر التحديث أثناء انتظار بانر تسجيل الدخول لردّك، كان يقاطع إعلانه لقارئ الشاشة وقد يظهر بصريًا فوقه بشاشة قصيرة. الآن كل بانر ينتظر انتهاء الآخر أولًا قبل الظهور، بكلا الاتجاهين.', en: 'High fix: the same update-banner-vs-notification clash (just fixed for the toast) also existed with the "connect Google Drive" banner — if the update banner appeared while the sign-in banner was waiting for your response, it interrupted its screen-reader announcement and could visually render over it on a short screen. Each banner now waits for the other to clear first, in both directions.' },
+    ],
+  },
+  {
     version: 'v47.96',
     date: '2026-07-06',
     title: { ar: 'إصلاح: التقرير "الشهري" كان يعرض أرصدة كل المحافظ الحالية، أبعد من نطاق الشهر', en: 'Fix: the "monthly" report was showing current wallet balances, beyond the month\'s scope' },

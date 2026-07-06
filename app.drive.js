@@ -179,9 +179,20 @@ function dismissDriveAutoSignInPrompt(){
    accounts.google.com/gsi/transfer and hang on a blank page. Re-auth needs a real
    tap, so even an "auto" user gets a frictionless one-tap banner on token expiry. */
 let _driveBannerPrevFocus = null; // saved focus element to restore when banner closes
-function showDriveBanner(){
+function showDriveBanner(retriesLeft){
   const b = document.getElementById('driveBanner');
   if(!b || b.classList.contains('show')) return;
+  // Mirror of app.pwa.js's _revealUpdateBanner deferral (that side already
+  // waits for THIS banner) — this direction covers the reverse ordering: the
+  // update banner reveals first, then something calls showDriveBanner() while
+  // it's still up. Without this, moving focus into "Yes, connect" (below)
+  // while the update banner's role="alert" is active would fight over the
+  // screen reader's attention exactly like the toast-vs-banner clash did.
+  const updateBannerEl = document.getElementById('updateBanner');
+  if(updateBannerEl && updateBannerEl.classList.contains('show') && (retriesLeft === undefined || retriesLeft > 0)){
+    setTimeout(() => showDriveBanner(retriesLeft === undefined ? 15 : retriesLeft - 1), 400);
+    return;
+  }
   const chk = document.getElementById('driveBannerAuto');
   if(chk) chk.checked = true; // default to "remember me"
   const yes = document.getElementById('btnDriveYes');

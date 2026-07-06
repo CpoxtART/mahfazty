@@ -64,23 +64,32 @@ let _updateBannerTimer = null;
 let _updateBannerShowing = false;
 // #updateBanner is role="alert" (assertive) — the moment it becomes visible, a
 // screen reader interrupts WHATEVER it's currently speaking, including an
-// in-progress #saveStatus toast announcement (aria-live="polite"). The banner
-// can be triggered at any time by a background SW check (15-min poll, or a
-// background download finishing) completely independent of what the user is
-// doing, so "just recorded a transaction, toast starts reading it aloud" and
-// "update banner reveals itself" racing each other is a real, not contrived,
-// scenario — the same class of bug as two toasts clobbering each other, just
-// across two different live regions instead of one. Defer the reveal (and its
-// own 8s auto-apply countdown, so the user still gets a full 8s once it's
-// actually shown) until any currently-visible toast's own window ends, with a
-// bounded number of rechecks so a stuck '.show' class can't defer this forever.
+// in-progress #saveStatus toast announcement (aria-live="polite") OR the
+// #driveBanner sign-in prompt's own dialog announcement (it moves focus into
+// itself on reveal — see showDriveBanner, app.drive.js — so a screen-reader
+// user could be sitting right inside it when this interrupts). The update
+// banner can be triggered at any time by a background SW check (15-min poll,
+// or a background download finishing) completely independent of what the
+// user is doing, so it revealing itself while ANOTHER banner/toast is
+// already up is a real, not contrived, scenario — the same class of bug
+// whichever of the two it races. #updateBanner is also top-anchored with a
+// HIGHER z-index than the bottom-anchored #driveBanner, so on a short
+// viewport (landscape, or the on-screen keyboard shrinking visible height)
+// it would visually render on top of / cover the still-open sign-in prompt
+// instead of merely competing for the screen reader's attention. Defer the
+// reveal (and its own 8s auto-apply countdown, so the user still gets a full
+// 8s once it's actually shown) until any currently-visible toast or the
+// drive banner's own window ends, with a bounded number of rechecks so a
+// stuck '.show' class can't defer this forever.
 function _revealUpdateBanner(el, attemptsLeft){
   // Dismissed elsewhere (e.g. the multi-tab teardown in the controllerchange
   // handler below) while this deferred reveal was still pending — abort quietly
   // instead of reviving a banner that was just correctly torn down.
   if(!_updateBannerShowing) return;
   const toastEl = document.getElementById('saveStatus');
-  if(toastEl && toastEl.classList.contains('show') && attemptsLeft > 0){
+  const driveBannerEl = document.getElementById('driveBanner');
+  const blocked = (toastEl && toastEl.classList.contains('show')) || (driveBannerEl && driveBannerEl.classList.contains('show'));
+  if(blocked && attemptsLeft > 0){
     setTimeout(() => _revealUpdateBanner(el, attemptsLeft - 1), 400);
     return;
   }
