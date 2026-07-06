@@ -10,7 +10,12 @@
   #splash.hide{opacity:0; visibility:hidden; pointer-events:none;}
   #splash .logo{
     width:64px; height:64px; border-radius:var(--radius-lg);
-    background:linear-gradient(150deg, #dcb674, #b88c46);
+    /* was a literal copy of the DEFAULT accent's --gold-btn/--gold-btn-end —
+       the body.accent-* class is already applied before #splash ever renders
+       (see index.html), so referencing the variables directly here just
+       picks up whichever accent the user actually chose instead of always
+       showing gold on every cold launch regardless of their pick. */
+    background:linear-gradient(150deg, var(--gold-btn), var(--gold-btn-end));
     display:flex; align-items:center; justify-content:center;
     font-size:30px;
     animation: splashPulse 1.4s ease-in-out infinite;
@@ -19,7 +24,7 @@
   #splash .name{font-family:'Amiri','Georgia',serif; font-size:var(--fs-5xl); color:var(--text); letter-spacing:.5px;}
   #splash .dots{display:flex; gap:6px;}
   #splash .dots span{
-    width:6px; height:6px; border-radius:50%; background:#dcb674; opacity:.3;
+    width:6px; height:6px; border-radius:50%; background:var(--gold-btn); opacity:.3;
     animation: dotBlink 1.2s ease-in-out infinite;
   }
   #splash .dots span:nth-child(2){animation-delay:var(--dur-fast);}
@@ -323,7 +328,15 @@
     min-width:15px; height:15px; padding:0 3px;
     display:flex; align-items:center; justify-content:center;
     font-size:var(--fs-3xs); font-weight:800; line-height:1;
-    border-radius:var(--radius-pill); color:#fff;
+    border-radius:var(--radius-pill);
+    /* Literal white here fails contrast against --green/--blue/--muted's
+       DARK-theme values (light pastel tones meant as text-on-dark, ~2-3:1
+       against white) — --on-red already carries exactly the right per-theme
+       text color for this same pastel-badge-background problem (dark text in
+       dark/black themes, white in light theme), and the same two colors also
+       clear 4.5:1+ against green/blue/muted's values in both themes, so it's
+       reused here rather than adding 3 near-duplicate variables. */
+    color:var(--on-red);
   }
   /* disconnected → invite a tap (gold "tap me" look) */
   .drive-ind--idle{ background:var(--gold-soft); border-color:var(--gold-dim); }
@@ -1502,7 +1515,7 @@
     flex-shrink:0; width:34px; height:34px; display:flex; align-items:center; justify-content:center;
     border-radius:50%; background:var(--card2); color:var(--muted2); font-size:var(--fs-lg);
   }
-  .reset-item--warn{ border-color:rgba(199,165,99,.32); }
+  .reset-item--warn{ border-color:rgba(var(--accent-rgb),.32); }
   .reset-item--warn .reset-item-title{ color:var(--gold); }
   .reset-item--warn .reset-item-ic{ background:var(--gold-soft); color:var(--gold); }
   .reset-item--warn:hover{ border-color:var(--gold-dim); background:var(--gold-soft); }

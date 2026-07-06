@@ -101,6 +101,10 @@ function setLang(lang){
   try{ if(typeof refreshDriveSettingsUI === 'function') refreshDriveSettingsUI(); }catch(e){}
   try{ if(typeof renderCategoryGrid === 'function') renderCategoryGrid(); }catch(e){}
   try{ if(typeof renderEditCategoryGrid === 'function') renderEditCategoryGrid(); }catch(e){}
+  // An active wallet/category filter chip's label is only built inside its own
+  // toggle function (app.ui.js), not part of render()'s normal cycle — refresh
+  // it here so it doesn't stay stuck in whichever language it was toggled on in.
+  try{ if(typeof refreshFilterChipLabels === 'function') refreshFilterChipLabels(); }catch(e){}
   // installed-PWA manifest bakes in name/dir/lang at build time — refresh it so
   // the home-screen name and text direction follow the newly chosen language.
   try{ if(typeof applyManifest === 'function') applyManifest(document.body.classList.contains('light')); }catch(e){}

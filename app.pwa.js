@@ -70,17 +70,20 @@ let _updateBannerShowing = false;
 // user could be sitting right inside it when this interrupts). The update
 // banner can be triggered at any time by a background SW check (15-min poll,
 // or a background download finishing) completely independent of what the
-// user is doing, so it revealing itself while ANOTHER banner/toast is
+// user is doing, so it revealing itself while ANOTHER banner/toast/modal is
 // already up is a real, not contrived, scenario — the same class of bug
-// whichever of the two it races. #updateBanner is also top-anchored with a
-// HIGHER z-index than the bottom-anchored #driveBanner, so on a short
-// viewport (landscape, or the on-screen keyboard shrinking visible height)
-// it would visually render on top of / cover the still-open sign-in prompt
-// instead of merely competing for the screen reader's attention. Defer the
-// reveal (and its own 8s auto-apply countdown, so the user still gets a full
-// 8s once it's actually shown) until any currently-visible toast or the
-// drive banner's own window ends, with a bounded number of rechecks so a
-// stuck '.show' class can't defer this forever.
+// whichever of the three it races (a background SW-check racing a modal that
+// auto-opens at boot, e.g. the daily review, 400ms after launch is an
+// ordinary occurrence, not an edge case). #updateBanner is also top-anchored
+// with a HIGHER z-index (1500) than every modal-overlay (1000) and the
+// bottom-anchored #driveBanner (1200), so on a short viewport (landscape, or
+// the on-screen keyboard shrinking visible height) it would visually render
+// on top of / cover whichever of those is still open, not just compete for
+// the screen reader's attention. Defer the reveal (and its own 8s
+// auto-apply countdown, so the user still gets a full 8s once it's actually
+// shown) until any currently-visible toast, the drive banner, or any open
+// modal's own window ends, with a bounded number of rechecks so a stuck
+// '.show'/'.open' class can't defer this forever.
 function _revealUpdateBanner(el, attemptsLeft){
   // Dismissed elsewhere (e.g. the multi-tab teardown in the controllerchange
   // handler below) while this deferred reveal was still pending — abort quietly
@@ -88,7 +91,13 @@ function _revealUpdateBanner(el, attemptsLeft){
   if(!_updateBannerShowing) return;
   const toastEl = document.getElementById('saveStatus');
   const driveBannerEl = document.getElementById('driveBanner');
-  const blocked = (toastEl && toastEl.classList.contains('show')) || (driveBannerEl && driveBannerEl.classList.contains('show'));
+  // Any open modal (welcome tour, daily review, changelog, settings, …) is the
+  // same class of clash — openModal() moves focus into it, and this banner's
+  // z-index (1500) sits above every modal-overlay (1000), so revealing while
+  // one is open would both fight the modal's focus and visually render on top
+  // of it, not just compete for screen-reader attention.
+  const openModalEl = document.querySelector('.modal-overlay.open');
+  const blocked = (toastEl && toastEl.classList.contains('show')) || (driveBannerEl && driveBannerEl.classList.contains('show')) || openModalEl;
   if(blocked && attemptsLeft > 0){
     setTimeout(() => _revealUpdateBanner(el, attemptsLeft - 1), 400);
     return;

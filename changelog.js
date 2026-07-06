@@ -22,6 +22,19 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.98',
+    date: '2026-07-06',
+    title: { ar: 'جولة تدقيق ثامنة: نسخة احتياطية عند تعارض المزامنة + 5 إصلاحات', en: 'Eighth audit round: backup on sync conflict + 5 more' },
+    items: [
+      { ar: 'إصلاح عالٍ: عند تعارض بيانات جوجل درايف واختيارك أي نسخة (المحلية أو Drive)، كانت النسخة المرفوضة تُحذف نهائيًا بضغطة واحدة بلا أي نسخة احتياطية — لو أخطأت الاختيار، تفقد بياناتك للأبد. الآن يُنزَّل ملف احتياطي يحتوي كلتا النسختين تلقائيًا قبل تطبيق قرارك.', en: "High fix: resolving a Google Drive data conflict (choosing local vs. cloud) permanently deleted the rejected copy with a single tap and no backup — the wrong choice meant that data was gone for good. A backup file containing BOTH copies now downloads automatically before your choice is applied." },
+      { ar: 'إصلاح عالٍ: بانر التحديث لم يكن يتحقق أبدًا من وجود نافذة منبثقة مفتوحة (جولة الترحيب، المراجعة اليومية، سجل التحديثات) قبل الظهور — قد يقاطع تركيزها ويظهر بصريًا فوقها.', en: "High fix: the update banner never checked for an open modal (welcome tour, daily review, changelog) before revealing itself — it could steal focus from it and visually render on top of it." },
+      { ar: 'إصلاح متوسط: بانر "الاتصال بجوجل درايف" لم يكن يتحقق من وجود إشعار حفظ ظاهر قبل سرقة التركيز منه.', en: "Medium fix: the Google Drive connect banner didn't check for a currently-visible save toast before stealing focus from it." },
+      { ar: 'إصلاح متوسط: اختيار "استخدام نسخة Drive" أو رفض نسخة Drive الفاشل بالرفع كانا يتركان مؤشر المزامنة عالقًا على "جارٍ المزامنة" للأبد، أو يعرضان رسالة "تم الرفع بنجاح" حتى لو فشل الرفع فعليًا.', en: 'Medium fix: choosing "use the Drive version," or a failed upload when rejecting the Drive version, both left the sync indicator stuck spinning forever, or showed a false "uploaded successfully" message even when the upload actually failed.' },
+      { ar: 'إصلاح متوسط: تسمية شريحة فلترة المحفظة/الفئة النشطة كانت تبقى بلغتها القديمة بعد تبديل لغة التطبيق حتى تُلغى وتُعاد.', en: "Medium fix: an active wallet/category filter chip's label stayed in whichever language it was set in after switching the app's language, until toggled off and back on." },
+      { ar: 'إصلاح خفيف: أيقونة حالة مزامنة Drive (✓/!/⨯) بالوضع الداكن كانت بتباين لون ضعيف جدًا (رمز أبيض على خلفية فاتحة) يصعب قراءته. كما كان شعار شاشة البداية يظهر دائمًا بالذهبي الافتراضي بدل لون التمييز المختار، ولون حدود بطاقة تنبيه واحدة بالإعدادات لا يتبع لون التمييز.', en: 'Low fix: the Drive sync status icon (✓/!/⨯) had very weak contrast in dark mode (a white glyph on a light background) that was hard to read. Also, the splash screen always showed the default gold instead of the chosen accent color, and one settings warning card\'s border color didn\'t follow the accent color.' },
+    ],
+  },
+  {
     version: 'v47.97',
     date: '2026-07-06',
     title: { ar: 'إصلاح: بانر التحديث كان يظهر فوق بانر تسجيل الدخول بجوجل درايف', en: 'Fix: the update banner was appearing over the Google Drive sign-in banner' },

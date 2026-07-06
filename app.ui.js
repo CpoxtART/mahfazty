@@ -194,13 +194,28 @@ function renderWallets(){
   _crisisEl.setAttribute('aria-checked', String(state.crisisMode)); // keep SR state in sync on load, not just on tap
 }
 
+// Rebuilds the active wallet/category filter chip LABELS in place (leaves
+// which filter is active, and whether its chip is shown, untouched) — shared
+// by the filter-toggle functions below and by setLang() (i18n.js), since a
+// language switch previously left an already-active chip's translated prefix
+// ("فلترة حسب:"/"Filtered by:") stuck in whichever language it was built in
+// until the user toggled the filter off and back on.
+function refreshFilterChipLabels(){
+  if(walletFilter){
+    const w = WALLET_DEFS.find(x=>x.id===walletFilter);
+    if(w) document.getElementById('walletFilterLabel').textContent = t({ar:'فلترة حسب: ', en:'Filtered by: '}) + w.name;
+  }
+  if(categoryFilter){
+    const cat = getCategory(categoryFilter);
+    document.getElementById('categoryFilterLabel').textContent = t({ar:'الفئة: ', en:'Category: '}) + cat.icon + ' ' + cat.name;
+  }
+}
 function setWalletFilter(id){
   walletFilter = (walletFilter === id) ? null : id;
   _txVisibleCount = 50;
   const chip = document.getElementById('walletFilterChip');
   if(walletFilter){
-    const w = WALLET_DEFS.find(x=>x.id===walletFilter);
-    if(w) document.getElementById('walletFilterLabel').textContent = t({ar:'فلترة حسب: ', en:'Filtered by: '}) + w.name;
+    refreshFilterChipLabels();
     chip.classList.add('show');
   } else {
     chip.classList.remove('show');
@@ -229,8 +244,7 @@ function toggleCategoryFilter(catId){
   _txVisibleCount = 50;
   const chip = document.getElementById('categoryFilterChip');
   if(categoryFilter){
-    const cat = getCategory(categoryFilter);
-    document.getElementById('categoryFilterLabel').textContent = t({ar:'الفئة: ', en:'Category: '}) + cat.icon + ' ' + cat.name;
+    refreshFilterChipLabels();
     chip.classList.add('show');
   } else {
     chip.classList.remove('show');

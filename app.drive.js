@@ -183,13 +183,19 @@ function showDriveBanner(retriesLeft){
   const b = document.getElementById('driveBanner');
   if(!b || b.classList.contains('show')) return;
   // Mirror of app.pwa.js's _revealUpdateBanner deferral (that side already
-  // waits for THIS banner) — this direction covers the reverse ordering: the
-  // update banner reveals first, then something calls showDriveBanner() while
-  // it's still up. Without this, moving focus into "Yes, connect" (below)
-  // while the update banner's role="alert" is active would fight over the
-  // screen reader's attention exactly like the toast-vs-banner clash did.
+  // waits for THIS banner) — this covers the reverse ordering: the update
+  // banner, a toast, or a modal (e.g. the daily-review modal, which can
+  // auto-open around the same boot moment maybePromptDriveConnect() runs —
+  // see the visibilitychange handler in app.main.js) is already up when this
+  // is called. Without this, moving focus into "Yes, connect" (below) would
+  // fight over the screen reader's attention / yank focus off whatever the
+  // user was just looking at, exactly like the toast-vs-update-banner clash.
   const updateBannerEl = document.getElementById('updateBanner');
-  if(updateBannerEl && updateBannerEl.classList.contains('show') && (retriesLeft === undefined || retriesLeft > 0)){
+  const toastEl = document.getElementById('saveStatus');
+  const openModalEl = document.querySelector('.modal-overlay.open');
+  const blocked = (updateBannerEl && updateBannerEl.classList.contains('show')) ||
+    (toastEl && toastEl.classList.contains('show')) || openModalEl;
+  if(blocked && (retriesLeft === undefined || retriesLeft > 0)){
     setTimeout(() => showDriveBanner(retriesLeft === undefined ? 15 : retriesLeft - 1), 400);
     return;
   }
@@ -936,6 +942,30 @@ async function driveSyncFromCloud(isInitial, interactive){
   }
 }
 
+// Whichever side loses this decision is gone from the app with a single tap
+// and no undo — unlike every other destructive action here (delete tx, wipe
+// data), there was no recovery path at all if the user picked the wrong one.
+// Downloads BOTH copies (local + cloud) as one JSON file before either
+// resolution proceeds, mirroring exportData()'s own blob-download mechanism —
+// so a wrong choice is still recoverable from the downloaded file, without
+// needing a whole in-app "restore a past conflict" UI.
+function _downloadConflictBackup(local, cloud){
+  try{
+    const json = JSON.stringify({ savedAt: new Date().toISOString(), local, cloud }, null, 2);
+    const blob = new Blob([json], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const _now = new Date();
+    const _hm = String(_now.getHours()).padStart(2,'0') + '-' + String(_now.getMinutes()).padStart(2,'0');
+    a.download = 'wallet-conflict-backup-' + todayISO() + '_' + _hm + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return true;
+  }catch(_){ return false; }
+}
 async function resolveConflict(useCloud){
   // Adopting the cloud copy permanently overwrites whatever's on this device —
   // unlike every other destructive action in the app (delete tx, wipe data),
@@ -950,9 +980,17 @@ async function resolveConflict(useCloud){
   _pendingDriveCloud = null;
   closeModal('driveConflictModal');
   if(!cloud) return;
+  const backedUp = _downloadConflictBackup(_buildSyncPayload(), cloud);
   if(useCloud){
     await adoptCloudSnapshot(cloud);
-    toast(t({ar:'☁️ تم استخدام نسخة Drive', en:'☁️ Used the Drive version'}));
+    // driveSyncFromCloud set the indicator to 'syncing' right before opening
+    // this modal (see its call site) — neither this path nor adoptCloudSnapshot
+    // itself ever cleared it, so the header icon was left spinning forever
+    // (only 'idle'/'error' states are even tappable again per setDriveIndicator).
+    setDriveIndicator('ok');
+    toast(backedUp
+      ? t({ar:'☁️ تم استخدام نسخة Drive (نُزّلت نسخة احتياطية من الحالتين احتياطًا)', en:"☁️ Used the Drive version (a backup of both copies was downloaded, just in case)"})
+      : t({ar:'☁️ تم استخدام نسخة Drive', en:'☁️ Used the Drive version'}));
   } else {
     // The user explicitly rejected the cloud copy — mark it as "already seen"
     // BEFORE pushing, or driveSyncToCloud()'s pre-push reconciliation
@@ -960,8 +998,16 @@ async function resolveConflict(useCloud){
     // cloud transactions back into local and uploads a hybrid instead of the
     // "local version" the modal promised.
     _driveLastSyncedEditedAt = (typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0) ? cloud.dataEditedAt : 0;
-    await driveSyncToCloud();
-    toast(t({ar:'☁️ تم رفع نسختك المحلية إلى Drive', en:'☁️ Uploaded your local version to Drive'}));
+    const pushed = await driveSyncToCloud();
+    setDriveIndicator(pushed ? 'ok' : 'error');
+    // driveSyncToCloud() already shows its own failure toast (_handleDriveSyncError)
+    // on a rejected push — showing this unconditional "uploaded" success right
+    // after it would directly contradict what the user just read.
+    if(pushed){
+      toast(backedUp
+        ? t({ar:'☁️ تم رفع نسختك المحلية إلى Drive (نُزّلت نسخة احتياطية من الحالتين احتياطًا)', en:'☁️ Uploaded your local version to Drive (a backup of both copies was downloaded, just in case)'})
+        : t({ar:'☁️ تم رفع نسختك المحلية إلى Drive', en:'☁️ Uploaded your local version to Drive'}));
+    }
   }
 }
 
