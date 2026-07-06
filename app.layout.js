@@ -13,10 +13,17 @@ function switchTab(tab){
   // bottom-nav convention: each tab opens at its top — without this, scrolling
   // deep into Transactions then tapping 📊 lands mid-way down Analytics.
   if(tab !== currentTab) window.scrollTo({top:0});
+  // a keyboard user mid-navigation inside the CURRENT panel (e.g. Enter on a
+  // wallet card, which calls switchTab programmatically) would otherwise be
+  // silently blurred to <body> once that panel gets display:none below — only
+  // clicking a bottom-nav button (which keeps focus on itself) was ever safe.
+  const _prevPanel = document.querySelector('.tab-panel.active');
+  const _focusStranded = !!(_prevPanel && document.activeElement && _prevPanel.contains(document.activeElement) && document.activeElement !== document.body);
   currentTab = tab;
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('tab' + _capTab(tab));
   if(panel) panel.classList.add('active');
+  if(_focusStranded && panel) panel.focus({preventScroll:true});
   tabOrder.forEach(k => {
     const btn = document.getElementById('nav' + _capTab(k));
     if(btn){

@@ -82,10 +82,16 @@ function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel){
   // across screen readers (emoji verbalization varies by AT/platform).
   if(btnAriaLabel) btn.setAttribute('aria-label', btnAriaLabel);
   btn.style.cssText = 'background:var(--gold-btn); color:var(--on-gold); border:none; border-radius:var(--radius-pill); padding:5px 13px; font-size:var(--fs-sm); font-weight:700; margin-inline-end:8px; cursor:pointer;';
-  btn.onclick = () => {
+  // #saveStatus.show only toggles opacity/transform (no display:none), so the
+  // button stays genuinely focusable-but-invisible after dismissal unless we
+  // remove it from the DOM here — otherwise a keyboard/AT user tabbing past it
+  // lands on an orphaned, silent focus target with no visible affordance.
+  const dismiss = () => {
+    if(el.contains(document.activeElement)) document.activeElement.blur();
     el.classList.remove('show');
-    fn();
+    el.innerHTML = '';
   };
+  btn.onclick = () => { dismiss(); fn(); };
   el.appendChild(span);
   el.appendChild(btn);
   el.style.borderColor = 'var(--line)';
@@ -94,7 +100,7 @@ function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel){
   clearTimeout(window._saveTimeout);
   const dur = critical ? 7000 : 5000;
   if(critical) _criticalToastUntil = Date.now() + dur;
-  window._saveTimeout = setTimeout(()=> { el.classList.remove('show'); _runQueuedToastIfAny(); }, dur);
+  window._saveTimeout = setTimeout(()=> { dismiss(); _runQueuedToastIfAny(); }, dur);
 }
 
 /* Cheap signature of everything that affects visual output.

@@ -774,7 +774,7 @@ function applyTheme(theme){
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', isLight ? '#f4f2ed' : (isBlack ? '#0b0b0d' : '#15171c'));
   // keep the installed PWA splash/chrome color in sync with the chosen theme
-  if(typeof applyManifest === 'function') applyManifest(isLight);
+  if(typeof applyManifest === 'function') applyManifest(isLight, isBlack);
   // day/night each keep their own accent — re-resolve for the bucket we just
   // switched into, and refresh the swatch selection if Settings is open.
   if(typeof applyAccent === 'function') applyAccent();

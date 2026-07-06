@@ -44,6 +44,14 @@ function monthlyExpenseForWallet(walletId){
 
 function renderWallets(){
   const grid = document.getElementById('walletsGrid');
+  // a keyboard user tabbed to a wallet card (or its nested .pct button) before
+  // this rebuild would otherwise silently lose focus to <body> — remember which
+  // wallet had it (and whether it was the card or its .pct sub-button) so it can
+  // be reattached to the rebuilt card below.
+  const _focusedEl = grid.contains(document.activeElement) ? document.activeElement : null;
+  const _focusedCard = _focusedEl ? _focusedEl.closest('.wallet') : null;
+  const _focusedWalletId = _focusedCard ? _focusedCard.dataset.walletId : null;
+  const _focusedWasPct = !!(_focusedCard && _focusedEl.classList.contains('pct'));
   grid.innerHTML = '';
   let spendable = 0;
   // Track wallets' badge shows their share of ALL money across every wallet
@@ -91,6 +99,7 @@ function renderWallets(){
     div.setAttribute('role','button');
     div.setAttribute('tabindex','0');
     div.setAttribute('aria-pressed', String(walletFilter===w.id));
+    div.dataset.walletId = w.id;
     const pctWidth = w.track ? 100 : Math.min(100, Math.max(2, (val/barMax)*100));
 
     let budgetHtml = '';
@@ -154,6 +163,11 @@ function renderWallets(){
     }
     grid.appendChild(div);
   });
+  if(_focusedWalletId){
+    const card = grid.querySelector(`[data-wallet-id="${CSS.escape(_focusedWalletId)}"]`);
+    const target = card ? (_focusedWasPct ? card.querySelector('.pct') : card) : null;
+    if(target) target.focus({preventScroll:true});
+  }
   // crisis_fund can hold its OWN independent balance beyond just merging the
   // hidden budget wallets — a direct expense recorded against it (or a
   // transfer in/out) while crisis mode is on writes straight to
@@ -702,6 +716,8 @@ function updateHeroStats(){
 function renderRecentTx(){
   const list = document.getElementById('recentTxList');
   if(!list) return;
+  // see renderTxList's matching comment — same focus-loss risk, same fix
+  const _focusTxId = (list.contains(document.activeElement) && document.activeElement.dataset.txid) ? document.activeElement.dataset.txid : null;
   list.innerHTML = '';
   // Full chronological log of transactions (newest first), grouped by day.
   // getFilteredTx() applies walletFilter, categoryFilter and searchQuery so
@@ -767,6 +783,7 @@ function renderRecentTx(){
     // those (stripBidiControls) without the unneeded HTML-entity escaping.
     row.setAttribute('aria-label',
       `${t(tx.type==='expense'?{ar:'مصروف',en:'Expense'}:{ar:'دخل',en:'Income'})} ${fmt(tx.amount)}${t({ar:'،',en:','})} ${stripBidiControls(tx.desc) || (wallet?wallet.name:'')}${t({ar:'،',en:','})} ${cat.name}${t({ar:'،',en:','})} ${timeStr}`);
+    row.dataset.txid = tx.id;
     row.innerHTML = `
       <div class="rtx-badge" style="background:${cat.color}22; color:${cat.color};">${cat.icon}</div>
       <div class="rtx-body">
@@ -779,6 +796,10 @@ function renderRecentTx(){
     card.appendChild(row);
   });
   list.appendChild(frag); // single DOM attach for the whole grouped list
+  if(_focusTxId){
+    const again = list.querySelector(`[data-txid="${CSS.escape(_focusTxId)}"]`);
+    if(again) again.focus({preventScroll:true});
+  }
 
   // Paginate so a long history stays fast — reveal one more page (recentTxLimit) per tap
   if(all.length > _recentVisibleCount){
@@ -816,6 +837,9 @@ function renderSubscriptions(){
   const list = document.getElementById('subsList');
   const totalEl = document.getElementById('subsTotal');
   if(!list||!totalEl) return;
+  // see renderWallets' matching comment — same focus-loss risk on rebuild
+  const _focusedSubCard = list.contains(document.activeElement) ? document.activeElement.closest('.sub-card') : null;
+  const _focusedSubId = _focusedSubCard ? _focusedSubCard.dataset.subId : null;
 
   if(subscriptions.length===0){
     totalEl.innerHTML = '';
@@ -835,6 +859,7 @@ function renderSubscriptions(){
   subscriptions.forEach(s => {
     const card = document.createElement('div');
     card.className = 'sub-card'+(s.active===false?' inactive':'');
+    card.dataset.subId = s.id;
     const dayNote = (s.billingDay && s.billingDay > _subsLastDayThisMonth)
       ? t({ar:` (هذا الشهر: ${_subsLastDayThisMonth})`, en:` (this month: ${_subsLastDayThisMonth})`})
       : '';
@@ -848,6 +873,10 @@ function renderSubscriptions(){
     card.querySelector('.sub-edit').onclick = () => openSubModal(s.id);
     list.appendChild(card);
   });
+  if(_focusedSubId){
+    const btn = list.querySelector(`[data-sub-id="${CSS.escape(_focusedSubId)}"] .sub-edit`);
+    if(btn) btn.focus({preventScroll:true});
+  }
 }
 function openSubModal(id){
   editingSubId = id;
@@ -1807,6 +1836,11 @@ function getFilteredTx(){
 function renderTxList(){
   const list = document.getElementById('txList');
   list.setAttribute('role','list');
+  // a keyboard/screen-reader user tabbed to a row before this rebuild (e.g. a
+  // background Drive-sync merge, or deleting a DIFFERENT row) would otherwise
+  // silently lose focus to <body> since innerHTML='' below detaches every row —
+  // remember which transaction had it so it can be reattached to its rebuilt row.
+  const _focusTxId = (list.contains(document.activeElement) && document.activeElement.dataset.txid) ? document.activeElement.dataset.txid : null;
   if(list._cancelSwipe) list._cancelSwipe(); // abort any in-progress swipe before its row is wiped
   list.innerHTML = '';
   // getFilteredTx() is already cached AND sorted newest-first — use it directly
@@ -1915,6 +1949,10 @@ function renderTxList(){
     _frag.appendChild(wrap);
   });
   list.appendChild(_frag); // single live-DOM append for the whole batch
+  if(_focusTxId){
+    const again = list.querySelector(`[data-txid="${CSS.escape(_focusTxId)}"]`);
+    if(again) again.focus({preventScroll:true});
+  }
 
   // One set of delegated touch listeners on the list container (bound once),
   // instead of 4 listeners per row that accumulated on every re-render.
@@ -2024,7 +2062,7 @@ function bindSwipeDelegation(list){
       node.style.transform = 'translateX(-100%)';
       node.style.opacity = '0';
       node._swipeDeleting = true;
-      setTimeout(()=> deleteTx(id), 220);
+      setTimeout(()=> deleteTx(id), 260); // fires just after the .25s transition above settles, not 30ms before it
     } else {
       node.style.transform = 'translateX(0)';
       node.style.opacity = ''; // restore if a previous swipe started fading it

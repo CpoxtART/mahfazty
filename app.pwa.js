@@ -6,11 +6,12 @@
    Loaded AFTER app.ui.js and BEFORE app.main.js. Calls flushIdbBackup
    (app.core.js) and driveSyncToCloud (app.drive.js) at runtime only.
 ============================================================ */
-function _buildManifestBlob(isLight){
-  // must match the dark-mode value used by applyTheme()'s <meta name="theme-color">
-  // (app.core.js) and the inline pre-paint script in index.html — otherwise the
-  // installed PWA's OS chrome/splash color drifts from what the in-app UI shows.
-  const themeColor = isLight ? '#f4f2ed' : '#15171c';
+function _buildManifestBlob(isLight, isBlack){
+  // must match applyTheme()'s <meta name="theme-color"> (app.core.js) exactly,
+  // INCLUDING the matte-black variant — collapsing black into the same value as
+  // regular dark here left the installed splash/OS-chrome color subtly wrong
+  // for that theme specifically.
+  const themeColor = isLight ? '#f4f2ed' : (isBlack ? '#0b0b0d' : '#15171c');
   const scopeUrl = new URL('.', location.href).pathname;
   const lang = _currentLang();
   const appName = t({ar:'محفظتيييي', en:'Mahfazty'});
@@ -48,11 +49,11 @@ function _buildManifestBlob(isLight){
 let _manifestBlobUrl = null; // tracked separately from the link's href so a revoke
 // can't be skipped by a failed/never-applied previous toggle (getAttribute() would
 // silently miss that case and leak the blob for the rest of the session).
-function applyManifest(isLight){
+function applyManifest(isLight, isBlack){
   try{
     const link = document.getElementById('manifestLink');
     if(!link) return;
-    const next = URL.createObjectURL(_buildManifestBlob(isLight));
+    const next = URL.createObjectURL(_buildManifestBlob(isLight, isBlack));
     link.setAttribute('href', next);
     if(_manifestBlobUrl) URL.revokeObjectURL(_manifestBlobUrl);
     _manifestBlobUrl = next;
@@ -247,7 +248,7 @@ async function _checkSWDriftAtBoot(){
 }
 
 function setupPWA(){
-  applyManifest(document.body.classList.contains('light'));
+  applyManifest(document.body.classList.contains('light'), document.body.classList.contains('theme-black'));
 
   if(!('serviceWorker' in navigator)) return;
 
@@ -296,6 +297,14 @@ function setupPWA(){
         // indefinitely (the 15-min poll can't help — the new SW is already
         // "current", so no waiting worker ever appears). Re-run the drift
         // check to funnel into the normal banner → applyUpdate flow.
+        // If THIS tab was already showing its own update banner, it referenced
+        // the worker that just activated globally — that worker is no longer
+        // "waiting", so leaving the banner up would let a click on its Update
+        // button hang for ~3s (posting SKIP_WAITING to an already-active worker,
+        // no new controllerchange to react to, only the applyUpdate() fallback
+        // timer eventually reloading). Tear it down now; _checkSWDriftAtBoot()
+        // below will raise a fresh banner if a genuinely new update is waiting.
+        if(_updateBannerShowing) dismissUpdate();
         _checkSWDriftAtBoot();
       }
     });

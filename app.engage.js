@@ -200,7 +200,15 @@ function buildDailyReviewContent(){
 /* ============================================================
    MONTHLY REPORT EXPORT (text-based, share or download)
 ============================================================ */
+let _exportReportBusy = false;
 function exportMonthlyReport(){
+  // Without this guard, a second tap while navigator.share()'s sheet is still
+  // open rejects with InvalidStateError (not AbortError, so it isn't caught by
+  // the AbortError check below) and falls through to _copyReportToClipboard —
+  // silently showing a "copied" toast while the first tap's share sheet is
+  // still on screen, contradicting what the user just saw.
+  if(_exportReportBusy) return;
+  _exportReportBusy = true;
   const now = new Date();
   const monthName = now.toLocaleDateString(_dateLocale(), {month:'long', year:'numeric', numberingSystem:'latn'});
   const [start, end] = monthRange(0);
@@ -242,7 +250,11 @@ function exportMonthlyReport(){
 
   const shareData = { title: t({ar:`تقرير ${appName} — ${monthName}`, en:`${appName} report — ${monthName}`}), text: report };
   if(navigator.share && (!navigator.canShare || navigator.canShare(shareData))){
-    navigator.share(shareData).catch(e=>{
+    // _exportReportBusy stays true for as long as the native share sheet is
+    // open (only cleared once its promise settles) so a second tap while it's
+    // still on screen is ignored instead of racing it — see guard comment above.
+    navigator.share(shareData).then(()=>{ _exportReportBusy = false; }).catch(e=>{
+      _exportReportBusy = false;
       // AbortError = user dismissed the native share sheet without picking a
       // target app — that's normal, frequent, expected behavior, not a failure,
       // so don't fall back to clipboard copy (which would show a confusing
@@ -252,6 +264,7 @@ function exportMonthlyReport(){
     });
   } else {
     _copyReportToClipboard(report);
+    _exportReportBusy = false;
   }
 }
 

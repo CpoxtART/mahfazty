@@ -27,7 +27,7 @@
      the old SW bucket has never cached, so every file fetches fresh together —
      no mixed old/new set (the v47.74 "Identifier already declared" class);
      offline keeps serving the old index.html whose old ?v= URLs are all cached. -->
-<link rel="stylesheet" href="style.css?v=47.90">
+<link rel="stylesheet" href="style.css?v=47.91">
 </head>
 <body>
 <script>
@@ -81,7 +81,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 </header>
 
 <!-- ===== TAB 1: HOME ===== -->
-<div class="tab-panel active" id="tabHome">
+<div class="tab-panel active" id="tabHome" tabindex="-1">
 
   <div class="ui-sec" data-sec="balance">
     <div class="hero">
@@ -130,13 +130,13 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 </div>
 
 <!-- ===== TAB: TRANSACTIONS (full log) ===== -->
-<div class="tab-panel" id="tabTransactions">
+<div class="tab-panel" id="tabTransactions" tabindex="-1">
   <div class="section-title"><span data-i18n="sec.txLog">سجل المعاملات</span> <span class="count" id="txLogCount"></span></div>
   <div class="tx-list" id="recentTxList" role="list"></div>
 </div>
 
 <!-- ===== TAB 2: ANALYTICS ===== -->
-<div class="tab-panel" id="tabAnalytics">
+<div class="tab-panel" id="tabAnalytics" tabindex="-1">
 
   <div class="ui-sec" data-sec="stats">
     <div class="section-title" data-i18n="sec.monthStats">📊 تحليلات الشهر</div>
@@ -172,7 +172,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 </div>
 
 <!-- ===== TAB 3: REPORTS ===== -->
-<div class="tab-panel" id="tabReports">
+<div class="tab-panel" id="tabReports" tabindex="-1">
 
   <div class="wallet-filter-chip" id="walletFilterChip" role="button" tabindex="0" aria-label="إلغاء تصفية المحفظة" data-i18n-aria="flt.clearWallet">
     <span id="walletFilterLabel"></span>
@@ -1050,19 +1050,19 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <!-- ?v= on every script MUST match sw.js's CACHE version — see the style.css
      comment above for why (atomic per-release cache keys); enforced by
      tests/version.test.js. -->
-<script src="i18n.js?v=47.90"></script>
-<script src="changelog.js?v=47.90"></script>
-<script src="app.core.js?v=47.90"></script>
-<script src="app.ui.js?v=47.90"></script>
-<script src="app.voice.js?v=47.90"></script>
-<script src="app.layout.js?v=47.90"></script>
-<script src="app.charts.js?v=47.90"></script>
-<script src="app.drive.js?v=47.90"></script>
-<script src="app.quicknotes.js?v=47.90"></script>
-<script src="app.data.js?v=47.90"></script>
-<script src="app.engage.js?v=47.90"></script>
-<script src="app.pwa.js?v=47.90"></script>
-<script src="app.overlay.js?v=47.90"></script>
-<script src="app.logic.js?v=47.90"></script>
-<script src="app.main.js?v=47.90"></script>
+<script src="i18n.js?v=47.91"></script>
+<script src="changelog.js?v=47.91"></script>
+<script src="app.core.js?v=47.91"></script>
+<script src="app.ui.js?v=47.91"></script>
+<script src="app.voice.js?v=47.91"></script>
+<script src="app.layout.js?v=47.91"></script>
+<script src="app.charts.js?v=47.91"></script>
+<script src="app.drive.js?v=47.91"></script>
+<script src="app.quicknotes.js?v=47.91"></script>
+<script src="app.data.js?v=47.91"></script>
+<script src="app.engage.js?v=47.91"></script>
+<script src="app.pwa.js?v=47.91"></script>
+<script src="app.overlay.js?v=47.91"></script>
+<script src="app.logic.js?v=47.91"></script>
+<script src="app.main.js?v=47.91"></script>
 </body></html>

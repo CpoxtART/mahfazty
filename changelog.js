@@ -22,6 +22,20 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.91',
+    date: '2026-07-06',
+    title: { ar: 'جولة تدقيق خامسة: إصلاحان عاليان بإدارة التركيز + 5 إصلاحات إضافية', en: 'Fifth audit round: 2 high-severity focus-management fixes + 5 more' },
+    items: [
+      { ar: 'إصلاح عالٍ: التنقل بلوحة المفاتيح بين المحافظ أو المعاملات كان يفقد التركيز تمامًا (يعود لبداية الصفحة) عند أي إعادة رسم للقائمة — سواء بحذف عنصر آخر أو بمزامنة تصل بالخلفية من جهاز ثانٍ. الآن يُحفظ التركيز على نفس العنصر المنطقي بعد إعادة البناء.', en: 'High fix: keyboard navigation through wallet cards or transaction rows was silently dropping focus back to the top of the page on any list re-render — whether from deleting a different item or a background sync arriving from another device. Focus is now reattached to the same logical item after the rebuild.' },
+      { ar: 'إصلاح عالٍ: التنقل ببرنامج قراءة الشاشة أو بلوحة المفاتيح إلى تبويب آخر (مثل الضغط على Enter بمحفظة لفتح تبويب المعاملات) كان يترك التركيز عالقًا بلا أي عنصر محدد. الآن ينتقل التركيز صراحةً لبداية التبويب الجديد.', en: 'High fix: switching to another tab via keyboard/screen-reader navigation (e.g. pressing Enter on a wallet card, which opens the Reports tab) left focus stranded with nothing selected. Focus now explicitly moves into the new tab.' },
+      { ar: 'إصلاح متوسط: زر "تراجع" بإشعارات الحفظ كان يبقى قابلاً للتركيز عليه (بلا أي مؤشر مرئي) حتى بعد اختفاء الإشعار — فخ تركيز صامت لمستخدمي لوحة المفاتيح. الآن يُزال تمامًا عند الإغلاق.', en: 'Medium fix: the toast "Undo" button stayed focusable (with zero visible indicator) even after the toast itself disappeared — a silent focus trap for keyboard users. Now fully removed on dismissal.' },
+      { ar: 'إصلاح متوسط: الضغط مرتين متتاليتين بسرعة على تصدير تقرير الشهر (بوجود مشاركة النظام) كان يظهر رسالة "تم النسخ للحافظة" بينما نافذة المشاركة الأولى ما زالت مفتوحة على الشاشة — تناقض مربك. أُضيف حاجز يمنع الاستدعاء الثاني حتى تنتهي الأولى.', en: 'Medium fix: tapping the monthly-report export twice in quick succession (on devices with native share) showed a "copied to clipboard" message while the first share sheet was still open on screen — a confusing contradiction. A guard now blocks the second call until the first settles.' },
+      { ar: 'إصلاح خفيف-متوسط: بوجود تبويبين مفتوحين، تحديث أحدهما كان يترك بانر التحديث بالتبويب الآخر معطلاً بصريًا لنحو 3 ثوانٍ قبل أن يُعيد التحميل من تلقاء نفسه دون أي تفسير. الآن يُغلق البانر القديم فورًا بدل تعليقه.', en: 'Low-medium fix: with two tabs open, updating one left the other tab\'s update banner visually stuck for ~3 seconds before self-reloading with no explanation. The stale banner is now torn down immediately instead of hanging.' },
+      { ar: 'إصلاح خفيف: لون شاشة البداية (splash) المثبّتة كان مطابقًا للوضع الداكن العادي حتى بالسمة السوداء الخالصة — صُحّح ليطابق فعليًا.', en: 'Low fix: the installed app\'s splash-screen color matched regular dark mode even under the pure-black theme — now matches exactly.' },
+      { ar: 'إصلاح خفيف: حذف معاملة بالسحب كان يحذفها قبل انتهاء حركة الانزلاق البصرية بجزء من الثانية (يقطعها)، وحاشية إضافة معاملة كانت حركة خلفيتها وصفحتها تنتهيان بتوقيت مختلف قليلاً — وُحّد التوقيت بكلتا الحالتين.', en: "Low fix: swipe-to-delete removed a transaction a fraction of a second before its own slide-out animation finished (visibly truncating it), and the add-transaction sheet's backdrop and panel animations ended at slightly different times — both now share one consistent timing." },
+    ],
+  },
+  {
     version: 'v47.90',
     date: '2026-07-05',
     title: { ar: 'جولة تدقيق رابعة: إصلاح عالي الخطورة بنظام الفئات + 7 تحسينات', en: 'Fourth audit round: high-severity category fix + 7 improvements' },
