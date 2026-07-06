@@ -761,8 +761,13 @@ function renderRecentTx(){
   const frag = document.createDocumentFragment();
   // Hoisted per-render — Intl formatter CONSTRUCTION (not formatting) is the
   // costly part, and this used to build a fresh one per row.
-  const _timeFmt = new Intl.DateTimeFormat(_dateLocale(), {hour:'2-digit', minute:'2-digit', numberingSystem:'latn'});
-  const _dayLabelFmt = new Intl.DateTimeFormat(_dateLocale(), {weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
+  // calendar:'gregory' pinned explicitly — without it, a device whose OS-level
+  // calendar preference is set to Hijri/Umm-al-Qura can make Intl silently
+  // render Hijri month/day names here even though every date computation in
+  // the app (todayISO, monthRange, billing-day matching) is Gregorian/epoch-
+  // based, producing a label that doesn't match what was actually computed.
+  const _timeFmt = new Intl.DateTimeFormat(_dateLocale(), {hour:'2-digit', minute:'2-digit', numberingSystem:'latn', calendar:'gregory'});
+  const _dayLabelFmt = new Intl.DateTimeFormat(_dateLocale(), {weekday:'long', day:'numeric', month:'long', numberingSystem:'latn', calendar:'gregory'});
 
   visible.forEach(tx => {
     const wallet = WALLET_DEFS.find(w=>w.id===tx.wallet);
@@ -800,7 +805,7 @@ function renderRecentTx(){
       `${t(tx.type==='expense'?{ar:'مصروف',en:'Expense'}:{ar:'دخل',en:'Income'})} ${fmt(tx.amount)}${t({ar:'،',en:','})} ${stripBidiControls(tx.desc) || (wallet?wallet.name:'')}${t({ar:'،',en:','})} ${cat.name}${t({ar:'،',en:','})} ${timeStr}`);
     row.dataset.txid = tx.id;
     row.innerHTML = `
-      <div class="rtx-badge" style="background:${cat.color}22; color:${cat.color};">${cat.icon}</div>
+      <div class="rtx-badge" style="background:${escHtml(cat.color)}22; color:${escHtml(cat.color)};">${cat.icon}</div>
       <div class="rtx-body">
         <div class="rtx-desc">${escHtml(tx.desc||(wallet?wallet.name:''))}</div>
         <div class="rtx-sub"><span class="rtx-wallet">${escHtml(wallet?wallet.name:'')}</span><span class="rtx-dot">·</span>${timeStr}${_trackLinkTag(tx)}</div>
@@ -1487,8 +1492,8 @@ function openWalletDetail(walletId){
       div.style.cursor = 'pointer';
       div.innerHTML = `
         <div class="info">
-          <div class="desc" dir="auto"><span class="ctag" style="background:${cat.color}22;">${cat.icon}</span> ${escHtml(tx.desc || cat.name)}</div>
-          <div class="meta">${date.toLocaleDateString(_dateLocale(),{day:'numeric',month:'short',numberingSystem:'latn'})}</div>
+          <div class="desc" dir="auto"><span class="ctag" style="background:${escHtml(cat.color)}22;">${cat.icon}</span> ${escHtml(tx.desc || cat.name)}</div>
+          <div class="meta">${date.toLocaleDateString(_dateLocale(),{day:'numeric',month:'short',numberingSystem:'latn',calendar:'gregory'})}</div>
         </div>
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
       `;
@@ -1919,9 +1924,10 @@ function renderTxList(){
   // live append forced a reflow per row — the same fix renderRecentTx already
   // got in v47.38, which this list never received).
   const _frag = document.createDocumentFragment();
-  const _timeFmt = new Intl.DateTimeFormat(_dateLocale(), {hour:'2-digit', minute:'2-digit', numberingSystem:'latn'});
-  const _ariaDateFmt = new Intl.DateTimeFormat(_dateLocale(), {day:'numeric', month:'long', numberingSystem:'latn'});
-  const _dayLabelFmt = new Intl.DateTimeFormat(_dateLocale(), {weekday:'long', day:'numeric', month:'long', numberingSystem:'latn'});
+  // calendar:'gregory' pinned explicitly — see the identical note in renderRecentTx above.
+  const _timeFmt = new Intl.DateTimeFormat(_dateLocale(), {hour:'2-digit', minute:'2-digit', numberingSystem:'latn', calendar:'gregory'});
+  const _ariaDateFmt = new Intl.DateTimeFormat(_dateLocale(), {day:'numeric', month:'long', numberingSystem:'latn', calendar:'gregory'});
+  const _dayLabelFmt = new Intl.DateTimeFormat(_dateLocale(), {weekday:'long', day:'numeric', month:'long', numberingSystem:'latn', calendar:'gregory'});
   const _todayKey = new Date().toDateString();
   const _yest = new Date(); _yest.setDate(_yest.getDate()-1); // calendar day (not 24h) — DST-safe
   const _yestKey = _yest.toDateString();
@@ -1954,7 +1960,7 @@ function renderTxList(){
     div.innerHTML = `
       <div class="info">
         <div class="desc" dir="auto">${escHtml(tx.desc || (wallet ? wallet.name : ''))}</div>
-        <div class="meta"><span class="ctag" style="background:${cat.color}22;">${cat.icon}</span><span class="wtag">${escHtml(wallet ? wallet.name : '')}</span> ${timeStr}${_trackLinkTag(tx)}</div>
+        <div class="meta"><span class="ctag" style="background:${escHtml(cat.color)}22;">${cat.icon}</span><span class="wtag">${escHtml(wallet ? wallet.name : '')}</span> ${timeStr}${_trackLinkTag(tx)}</div>
       </div>
       <div class="right">
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>

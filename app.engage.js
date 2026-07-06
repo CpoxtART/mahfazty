@@ -220,7 +220,10 @@ function exportMonthlyReport(){
   if(_exportReportBusy) return;
   _exportReportBusy = true;
   const now = new Date();
-  const monthName = now.toLocaleDateString(_dateLocale(), {month:'long', year:'numeric', numberingSystem:'latn'});
+  // calendar:'gregory' pinned explicitly — a device set to a Hijri/Umm-al-Qura
+  // OS calendar could otherwise make this report title show a different month
+  // than the Gregorian one monthRange() below actually totals.
+  const monthName = now.toLocaleDateString(_dateLocale(), {month:'long', year:'numeric', numberingSystem:'latn', calendar:'gregory'});
   const [start, end] = monthRange(0);
 
   let totalIncome=0, totalExpense=0;

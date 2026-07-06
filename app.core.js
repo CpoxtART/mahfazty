@@ -1011,6 +1011,19 @@ function capDateInputsToToday(){
    STORAGE
 ============================================================ */
 async function loadState(){
+  // Guards this function's own multi-await body the same way every other
+  // wholesale-state-replacing mutator does (_opInFlight++/finally--): without
+  // it, the cross-tab storage listener's pre-call check (_trySync, app.main.js)
+  // only confirms nothing was ALREADY in flight before calling loadState() —
+  // it does nothing to stop a NEW operation (e.g. tapping "Add Expense")
+  // started in THIS tab while loadState() itself is still mid-flight across
+  // its own idbRestore()/idbBackup() awaits. That operation would see
+  // _opInFlight === 0 the whole time, write into `state` mid-reset, and then
+  // have its work silently erased the instant loadState() resumes and
+  // unconditionally overwrites state.transactions again from the (now-stale)
+  // snapshot it read before the write happened — with no error, no undo.
+  _opInFlight++;
+  try{
   state.wallets = {};
   WALLET_DEFS.forEach(w => state.wallets[w.id] = 0);
   state.transactions = [];
@@ -1210,6 +1223,7 @@ async function loadState(){
   // app last closed in crisis mode, SELECTABLE_WALLETS must exclude the hidden wallets.
   recomputeSelectableWallets();
   render(true);
+  } finally { _opInFlight--; }
 }
 
 // Multi-device union merge: combine local + cloud transactions/subscriptions by id
@@ -1642,6 +1656,13 @@ function _normalizeSub(x){
   let d = parseInt(x.billingDay, 10);
   if(!isFinite(d)) d = 1;
   x.billingDay = Math.min(31, Math.max(1, d));
+  // Same treatment sanitizeWalletDefs already gives wallet names — this field
+  // reached every render site only escHtml()'d (safe from injection), but
+  // unlike wallet names it had no length cap or hidden-bidi-control stripping
+  // at the data layer, so an oversized or invisible-character-laden name from
+  // an import/cloud-merge could persist indefinitely (subName's own input has
+  // maxlength=60, so this only bites data arriving from outside the form).
+  if(typeof x.name === 'string') x.name = [...stripBidiControls(x.name).trim()].slice(0,60).join('');
   return x;
 }
 function loadSubs(idbSnapshot, preferIdb){

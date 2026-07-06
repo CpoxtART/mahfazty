@@ -480,6 +480,14 @@ document.addEventListener('visibilitychange', () => {
     // same reasoning for the coalesced IndexedDB write — a backgrounded/discarded
     // tab must not lose the most recent save waiting on the 400ms debounce
     flushIdbBackup();
+    // Same reasoning closeAddDrawer() already applies when the drawer is
+    // explicitly closed: a pending voice recognition left running would keep
+    // listening in the background and can land a stale transcript into the
+    // (possibly now-irrelevant) form fields on return. Its own 12s watchdog
+    // (_voiceTimer, app.voice.js) is an ordinary setTimeout that mobile OSes
+    // routinely freeze while backgrounded, so it can't be relied on to catch
+    // this — abort explicitly here instead of waiting for it.
+    if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} voiceRecognition = null; }
   }
 });
 
@@ -492,6 +500,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => {
   if(driveSyncTimer){ clearTimeout(driveSyncTimer); driveSyncTimer = null; if(driveAccessToken){ try{ driveSyncToCloud(); }catch(_){} } }
   flushIdbBackup();
+  if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} voiceRecognition = null; }
 });
 
 // Without this, going offline left the header showing whatever it last said

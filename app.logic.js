@@ -201,6 +201,13 @@ function skipDistribution(){
 }
 
 async function confirmDistribution(){
+  // Every other multi-await money mutator refuses to start while another is
+  // mid-flight (see _opBusy) — this one was missing that guard entirely. Not
+  // a demonstrated data-loss path today (the distribution modal stays open
+  // for this function's whole duration, and the one other wholesale-replace
+  // path already waits for it to close), but a defense-in-depth gap that a
+  // future change to either of those conditions could silently reopen.
+  if(_opBusy()) return;
   saveAutoDistributePref();
   if(!pendingIncomeTx) { closeModal('distributeModal'); return; }
   // Must exclude the source wallet itself, matching openDistributionModal's
