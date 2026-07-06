@@ -97,6 +97,7 @@ function renderPieChart(){
 
   if(data.filteredLen === 0 || !(data.total > 0)){
     wrap.innerHTML = `<div class="empty" style="flex:1;"><span class="ic">🍰</span>${t({ar:'أول مصروف يظهر هنا موزّعاً حسب الفئة', en:'Your first expense will appear here broken down by category'})}</div>`;
+    delete wrap.dataset.pieSig;
     return;
   }
   const { total, entries, pctMap, prevTotals } = data;
@@ -104,36 +105,52 @@ function renderPieChart(){
   const containerW = document.getElementById('pieContent')?.parentElement?.clientWidth || 320;
   const size = Math.min(120, Math.max(80, Math.round(containerW * 0.3)));
   const r = Math.round(size * 0.46), cx = size/2, cy = size/2;
-  let html = `<canvas id="pieCanvas" width="${size}" height="${size}" style="width:${size}px;height:${size}px;" role="img" aria-label="${escHtml(t({ar:'مخطط دائري لتوزيع المصروفات حسب الفئة', en:'Pie chart of expenses by category'}))}"></canvas>`;
-  html += '<div class="pie-legend">';
-  entries.forEach(([catId, amt]) => {
-    const cat = getCategory(catId);
-    const pct = pctMap[catId] ?? Math.round(amt/total*100);
-    let cmpHtml = '';
-    if(prevTotals){
-      const prevAmt = prevTotals[catId] || 0;
-      if(prevAmt > 0){
-        const diff = ((amt-prevAmt)/prevAmt*100);
-        const up = diff > 0;
-        if(Math.abs(diff) >= 1){
-          cmpHtml = `<span class="cat-cmp ${up?'up':'down'}">${up?'▲':'▼'}${Math.abs(diff).toFixed(0)}%</span>`;
+
+  // Rebuilding the legend+canvas subtree via innerHTML on EVERY call — even a
+  // pure resize or tab-switch-back with the underlying totals unchanged —
+  // tore down and recreated the <canvas> itself (losing nothing, since it's
+  // redrawn anyway, but still a wasted DOM churn) plus every legend row's
+  // click/keydown bindings, on every single resize-debounce tick. Only rebuild
+  // the DOM when the data actually changed (new sig) or the canvas isn't
+  // there yet; a resize with the same data just resizes+redraws the existing
+  // canvas below.
+  let canvas = document.getElementById('pieCanvas');
+  if(!canvas || wrap.dataset.pieSig !== _pieChartSig){
+    let html = `<canvas id="pieCanvas" width="${size}" height="${size}" style="width:${size}px;height:${size}px;" role="img" aria-label="${escHtml(t({ar:'مخطط دائري لتوزيع المصروفات حسب الفئة', en:'Pie chart of expenses by category'}))}"></canvas>`;
+    html += '<div class="pie-legend">';
+    entries.forEach(([catId, amt]) => {
+      const cat = getCategory(catId);
+      const pct = pctMap[catId] ?? Math.round(amt/total*100);
+      let cmpHtml = '';
+      if(prevTotals){
+        const prevAmt = prevTotals[catId] || 0;
+        if(prevAmt > 0){
+          const diff = ((amt-prevAmt)/prevAmt*100);
+          const up = diff > 0;
+          if(Math.abs(diff) >= 1){
+            cmpHtml = `<span class="cat-cmp ${up?'up':'down'}">${up?'▲':'▼'}${Math.abs(diff).toFixed(0)}%</span>`;
+          }
+        } else if(amt > 0){
+          cmpHtml = `<span class="cat-cmp up">${escHtml(t({ar:'جديد', en:'New'}))}</span>`;
         }
-      } else if(amt > 0){
-        cmpHtml = `<span class="cat-cmp up">${escHtml(t({ar:'جديد', en:'New'}))}</span>`;
       }
-    }
-    html += `<div class="row cat-row" data-cat="${escHtml(catId)}" role="button" tabindex="0" aria-label="${escHtml(t({ar:`تصفية حسب ${cat.name}`, en:`Filter by ${cat.name}`}))}"><span class="sw" style="background:${escHtml(cat.color)}"></span><span class="name">${escHtml(cat.icon)} ${escHtml(cat.name)}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
-  });
-  html += '</div>';
-  wrap.innerHTML = html;
-  wrap.querySelectorAll('.cat-row').forEach(row=>{
-    row.style.cursor = 'pointer';
-    row.onclick = () => toggleCategoryFilter(row.dataset.cat);
-    row.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleCategoryFilter(row.dataset.cat); } };
-  });
+      html += `<div class="row cat-row" data-cat="${escHtml(catId)}" role="button" tabindex="0" aria-label="${escHtml(t({ar:`تصفية حسب ${cat.name}`, en:`Filter by ${cat.name}`}))}"><span class="sw" style="background:${escHtml(cat.color)}"></span><span class="name">${escHtml(cat.icon)} ${escHtml(cat.name)}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
+    });
+    html += '</div>';
+    wrap.innerHTML = html;
+    wrap.dataset.pieSig = _pieChartSig;
+    wrap.querySelectorAll('.cat-row').forEach(row=>{
+      row.style.cursor = 'pointer';
+      row.onclick = () => toggleCategoryFilter(row.dataset.cat);
+      row.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleCategoryFilter(row.dataset.cat); } };
+    });
+    canvas = document.getElementById('pieCanvas');
+  } else {
+    canvas.style.width = size+'px';
+    canvas.style.height = size+'px';
+  }
 
   // draw pie
-  const canvas = document.getElementById('pieCanvas');
   const dpr = window.devicePixelRatio || 1;
   canvas.width = size*dpr; canvas.height = size*dpr;
   const ctx = canvas.getContext('2d');

@@ -22,6 +22,15 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.2',
+    date: '2026-07-06',
+    title: { ar: 'إصلاحات أداء وسلامة إضافية: نسخ احتياطي للحافظة عند فشلها + تقليل رسم بياني غير ضروري', en: 'Additional performance & robustness fixes: clipboard-copy fallback + wasted chart redraws' },
+    items: [
+      { ar: 'إصلاح خفيف: نسخ التقرير الشهري للحافظة (المسار الاحتياطي عند عدم توفر/فشل المشاركة الأصلية) كان يعتمد فقط على navigator.clipboard.writeText، وهي قد ترفض تحديدًا بمتصفح Safari/iOS بسبب فقدان "لمسة المستخدم" داخل معالج .catch غير المتزامن — رغم أن نسخًا فعليًا كان ممكنًا بطريقة أخرى. الآن تُجرَّب طريقة احتياطية إضافية (execCommand) قبل اللجوء لتنزيل ملف، فلا تظهر رسالة "تم التنزيل" حين كان بالإمكان فعليًا نسخ التقرير مباشرة.', en: "Low fix: the monthly-report clipboard-copy fallback (used when native sharing is unavailable or fails) relied solely on navigator.clipboard.writeText, which can specifically reject on iOS Safari due to losing the \"user gesture\" inside an async .catch() handler — even though a copy could still have worked another way. A second fallback (execCommand) is now tried before resorting to a file download, so users no longer see a \"downloaded\" message when the report could actually just be copied directly." },
+      { ar: 'إصلاح خفيف (أداء): مؤقّت تغيير حجم النافذة كان يعيد رسم كلا الرسمين البيانيين (الدائري وخط الرصيد) دائمًا بغض النظر عن أيّ تبويب ظاهر فعليًا — يهدر مسحًا كاملاً لكل المعاملات على رسم بياني بتبويب غير مرئي أصلاً. كما كان الرسم الدائري يهدم شجرة DOM بالكامل (القائمة الجانبية + الكانفاس نفسه) عبر innerHTML على كل استدعاء حتى عندما لا تتغيّر البيانات إطلاقًا (كتغيير الحجم فقط). كلاهما الآن يعيدان الرسم فقط للتبويب الظاهر فعليًا، ولا يُعاد بناء شجرة DOM للرسم الدائري إلا عند تغيّر البيانات فعليًا.', en: "Low fix (performance): the resize-debounce timer always redrew both charts (pie + balance line) regardless of which tab was actually visible — wasting a full transaction re-scan on a chart the user wasn't even looking at. The pie chart also tore down its entire DOM subtree (legend + the canvas itself) via innerHTML on every single call, even when the underlying data hadn't changed at all (e.g. a pure resize). Both now only redraw the currently-visible tab's chart, and the pie chart's DOM is only rebuilt when the data actually changed." },
+    ],
+  },
+  {
     version: 'v48.1',
     date: '2026-07-06',
     title: { ar: 'جولة تدقيق حادية عشرة: إصلاح فقدان التركيز بمحرر تبويبات الترتيب + منع تحديد النص العرضي باللمس + ظهور زر الحفظ دائمًا', en: 'Eleventh audit round: layout-editor tab focus fix + prevent accidental long-press text selection + always-visible save button' },

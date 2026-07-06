@@ -156,7 +156,13 @@ function render(force){
 }
 
 let _resizeTimer;
-window.addEventListener('resize', ()=> { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(()=>{ renderChart(); renderPieChart(); }, 150); });
+// Only redraw the chart belonging to whichever tab is actually on screen —
+// unconditionally redrawing both on every resize wasted a full canvas
+// re-scan+draw for a hidden tab's chart the user isn't even looking at.
+window.addEventListener('resize', ()=> { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(()=>{
+  if(currentTab === 'reports') renderChart();
+  if(currentTab === 'analytics') renderPieChart();
+}, 150); });
 
 renderWalletSelect();
 renderEditWalletSelect();

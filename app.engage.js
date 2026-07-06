@@ -277,7 +277,36 @@ function _copyReportToClipboard(report){
   if(navigator.clipboard){
     navigator.clipboard.writeText(report).then(()=>{
       toast(t({ar:'✓ تم نسخ التقرير للحافظة', en:'✓ Report copied to clipboard'}));
-    }).catch(()=> _downloadReport(report));
+    }).catch(()=> _legacyCopyOrDownload(report));
+  } else {
+    _legacyCopyOrDownload(report);
+  }
+}
+
+// navigator.clipboard.writeText() can reject here on iOS Safari specifically
+// because this runs inside an async .catch() handler (a share-sheet dismissal
+// or the async clipboard call itself) — by then Safari may have already
+// invalidated the "user gesture" transient activation clipboard writes
+// require, independent of whether a copy could otherwise have worked.
+// document.execCommand('copy') is synchronous and doesn't share that
+// gesture-tracking quirk, so retry through it before giving up to a
+// downloaded-file fallback — without this, a user could see a confusing
+// "downloaded" toast for a report that actually never even needed downloading.
+function _legacyCopyOrDownload(report){
+  let copied = false;
+  try{
+    const ta = document.createElement('textarea');
+    ta.value = report;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    copied = document.execCommand('copy');
+    ta.remove();
+  }catch(_){}
+  if(copied){
+    toast(t({ar:'✓ تم نسخ التقرير للحافظة', en:'✓ Report copied to clipboard'}));
   } else {
     _downloadReport(report);
   }
