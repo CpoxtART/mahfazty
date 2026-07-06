@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.93',
+    date: '2026-07-06',
+    title: { ar: 'إصلاح: بانر التحديث كان يقاطع إعلان قارئ الشاشة لحفظ حديث', en: 'Fix: update banner was interrupting a recent save announcement' },
+    items: [
+      { ar: 'إصلاح عالٍ: بانر "تحديث جديد متاح" (يظهر تلقائيًا بالخلفية بأي لحظة) كان يقاطع فورًا إعلان قارئ الشاشة لإشعار حفظ لسا يُقرأ (مثل "✓ تم تسجيل الدخل") — نفس فئة الخطأ المُصلحة قبل قليل بين إشعارين متتاليين، لكن هنا بين عنصرين مختلفين. الآن يتأجل ظهور البانر حتى ينتهي أي إشعار ظاهر حاليًا.', en: 'High fix: the "new update available" banner (which can appear automatically in the background at any moment) immediately cut off a screen reader still reading a recent save toast (e.g. "✓ Income recorded") — the same class of bug just fixed between two back-to-back toasts, but here across two different elements. The banner\'s reveal now waits for any currently-visible toast to finish first.' },
+    ],
+  },
+  {
     version: 'v47.92',
     date: '2026-07-06',
     title: { ar: 'جولة تدقيق سادسة: ثغرة كامنة بترقية قاعدة البيانات + 4 إصلاحات', en: 'Sixth audit round: latent database-upgrade bug + 4 more' },

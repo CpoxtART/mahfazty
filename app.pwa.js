@@ -62,6 +62,32 @@ function applyManifest(isLight, isBlack){
 /* ─── PWA Update Banner ─── */
 let _updateBannerTimer = null;
 let _updateBannerShowing = false;
+// #updateBanner is role="alert" (assertive) — the moment it becomes visible, a
+// screen reader interrupts WHATEVER it's currently speaking, including an
+// in-progress #saveStatus toast announcement (aria-live="polite"). The banner
+// can be triggered at any time by a background SW check (15-min poll, or a
+// background download finishing) completely independent of what the user is
+// doing, so "just recorded a transaction, toast starts reading it aloud" and
+// "update banner reveals itself" racing each other is a real, not contrived,
+// scenario — the same class of bug as two toasts clobbering each other, just
+// across two different live regions instead of one. Defer the reveal (and its
+// own 8s auto-apply countdown, so the user still gets a full 8s once it's
+// actually shown) until any currently-visible toast's own window ends, with a
+// bounded number of rechecks so a stuck '.show' class can't defer this forever.
+function _revealUpdateBanner(el, attemptsLeft){
+  // Dismissed elsewhere (e.g. the multi-tab teardown in the controllerchange
+  // handler below) while this deferred reveal was still pending — abort quietly
+  // instead of reviving a banner that was just correctly torn down.
+  if(!_updateBannerShowing) return;
+  const toastEl = document.getElementById('saveStatus');
+  if(toastEl && toastEl.classList.contains('show') && attemptsLeft > 0){
+    setTimeout(() => _revealUpdateBanner(el, attemptsLeft - 1), 400);
+    return;
+  }
+  requestAnimationFrame(()=> requestAnimationFrame(()=> el.classList.add('show')));
+  // Auto-apply after 8 s if user doesn't interact — "يحدث من وحده"
+  _updateBannerTimer = setTimeout(() => applyUpdate(), 8000);
+}
 function showUpdateBanner(){
   const el = document.getElementById('updateBanner');
   if(!el || _updateBannerShowing) return;
@@ -70,9 +96,7 @@ function showUpdateBanner(){
   const nowBtn   = document.getElementById('btnUpdateNow');
   if(laterBtn) laterBtn.onclick = dismissUpdate;
   if(nowBtn)   nowBtn.onclick   = applyUpdate;
-  requestAnimationFrame(()=> requestAnimationFrame(()=> el.classList.add('show')));
-  // Auto-apply after 8 s if user doesn't interact — "يحدث من وحده"
-  _updateBannerTimer = setTimeout(() => applyUpdate(), 8000);
+  _revealUpdateBanner(el, 15); // ~6s max wait (15 × 400ms) before showing anyway
 }
 function dismissUpdate(){
   clearTimeout(_updateBannerTimer); _updateBannerTimer = null;
