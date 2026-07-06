@@ -391,6 +391,37 @@ function wireOptionArrowNav(container){
     if(next){ opts.forEach(o => { o.tabIndex = -1; }); next.tabIndex = 0; try{ next.focus({preventScroll:true}); }catch(_){} }
   });
 }
+// Every settings-area tab strip (#settTabs, #themeModeTabs, #langTabs, and the
+// layout editor's own .le-tabs) already carries role="tablist"/"tab" — but
+// none had the ARIA "tabs" pattern's expected Left/Right-arrow-key navigation,
+// only generic Tab-through. Left/Right MOVES focus AND activates the newly-
+// focused tab (automatic activation, the standard tabs-pattern behavior —
+// unlike wireOptionArrowNav above, which is manual-activation for a listbox).
+// RTL-aware, since every one of these strips renders under the app's default
+// RTL (Arabic) direction. Idempotent per container instance (same guard
+// pattern as wireOptionArrowNav) — harmless to call again on a container
+// that's rebuilt fresh via innerHTML on every render (a new node each time
+// simply gets wired again, since the old node's listener went with it).
+function wireTabArrowNav(container){
+  if(!container || container._tabArrowNavWired) return;
+  container._tabArrowNavWired = true;
+  container.addEventListener('keydown', (e) => {
+    if(e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+    const tabs = [...container.querySelectorAll('[role="tab"]')];
+    const idx = tabs.indexOf(document.activeElement);
+    if(idx === -1) return;
+    e.preventDefault();
+    const rtl = getComputedStyle(container).direction === 'rtl';
+    let next;
+    if(e.key === 'Home') next = tabs[0];
+    else if(e.key === 'End') next = tabs[tabs.length - 1];
+    else {
+      const forward = (e.key === 'ArrowRight') !== rtl; // ArrowRight moves forward in LTR, backward in RTL
+      next = forward ? tabs[(idx + 1) % tabs.length] : tabs[(idx - 1 + tabs.length) % tabs.length];
+    }
+    if(next){ try{ next.focus({preventScroll:true}); }catch(_){} next.click(); }
+  });
+}
 // A "system" category is one that isn't real spending/income — inter-wallet
 // transfers and manual balance adjustments both move money without it having
 // actually been earned or spent, so every income/expense summary (analytics,
@@ -1370,8 +1401,14 @@ function mergeCloudData(cloud, cloudNewer){
     const doomed = [];
     WALLET_DEFS.forEach(w => {
       if(!deletedWalletDefIds[w.id]) return;
+      // Mirrors deleteWalletDef()'s interactive guard (app.ui.js), which also
+      // checks trackWallet — this merge-time check used to miss that, so a
+      // wallet still referenced only as another transaction's SECONDARY
+      // tracked-wallet link (trackLinkMode) could get silently stripped from
+      // WALLET_DEFS here even though a real transaction still points at it,
+      // permanently and silently dropping that track-link.
       const hasData = w.id === 'core' || Math.abs(state.wallets[w.id] || 0) > 0 ||
-        state.transactions.some(t => t.wallet === w.id);
+        state.transactions.some(t => t.wallet === w.id || t.trackWallet === w.id);
       // tombstoned but still holding data → legitimately alive on this device;
       // clear the local tombstone so it stops being treated as pending-delete.
       if(hasData) delete deletedWalletDefIds[w.id];

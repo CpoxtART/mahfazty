@@ -189,6 +189,24 @@ function openDistributionModal(amount){
         wrap.appendChild(note);
       }
     }
+    // Auto-distribution never checks crisis mode — it routes into whatever
+    // DISTRIBUTION says regardless. The grand total stays correct (the
+    // Merged Reserve card sums crisis-hidden balances back in), but a
+    // crisis-hidden wallet's OWN card/total is invisible while crisis mode is
+    // on, so silently landing money there with no indication reads as the
+    // income having vanished. Surface it here rather than changing the
+    // actual routing (which risks its own new edge cases around
+    // renormalizing percentages).
+    if(state.crisisMode){
+      const hiddenIds = new Set(crisisWalletIds());
+      if(activeEntries.some(d => hiddenIds.has(d.id))){
+        const note = document.createElement('div');
+        note.className = 'hint';
+        note.style.cssText = 'margin-top:8px; font-size:var(--fs-sm);';
+        note.textContent = `ℹ ${t({ar:'وضع الأزمة مفعّل — بعض هذه المحافظ مخفية حاليًا من القائمة والإجماليات الفردية، لكن المبلغ سيُودَع بها فعليًا', en:"Crisis Mode is on — some of these wallets are currently hidden from the list and individual totals, but the amount will still be deposited into them"})}`;
+        wrap.appendChild(note);
+      }
+    }
   }
   document.getElementById('autoDistributeCheck').checked = autoDistribute;
   openModal('distributeModal');

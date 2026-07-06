@@ -325,7 +325,18 @@ function renderWalletDefsEditor(){
 // on actual popup open, via the shared openWalletPop — so there's nothing to
 // invalidate for them here anymore.)
 function refreshAfterWalletDefsChange(){
-  _distDraft = null; // wallet structure changed — rebuild draft from updated DISTRIBUTION
+  // Preserve any UNSAVED distribution-% edits (keyed by wallet id, not array
+  // index — a reorder below is expected to shuffle indices) across this
+  // wallet-structure change, instead of unconditionally discarding them.
+  // Every caller of this function (moveWalletDef, deleteWalletDef,
+  // saveWalletDefModal) lives in the exact same Settings→Wallets panel as the
+  // distribution editor, so no navigation away is even needed to hit this:
+  // start editing a %, then reorder/rename/delete ANY wallet, and the inputs
+  // used to silently snap back to the last-SAVED values with no warning — a
+  // real risk of then tapping "Save ratios" believing the in-progress edit
+  // was still staged, and persisting the stale numbers instead.
+  const _pendingDistEdits = _distDraft ? new Map(_distDraft.map(d => [d.id, d.pct])) : null;
+  _distDraft = null; // still rebuilt fresh below — ids/order may have changed
   // A deleted wallet can never have transactions (deleteWalletDef enforces
   // that), so an active filter pointing at it would otherwise leave the tx
   // list permanently empty with a stale filter chip the user has no obvious
@@ -343,7 +354,7 @@ function refreshAfterWalletDefsChange(){
   renderWalletSelect();
   renderEditWalletSelect();
   renderTrackLinkPicker();
-  renderDistributionEditor();
+  renderDistributionEditor(_pendingDistEdits);
   renderTxList();
   renderChart();
   renderPieChart();
@@ -1363,9 +1374,18 @@ async function saveWalletBudget(){
 // the user taps Save. Cleared on settings close/cancel so edits don't leak.
 let _distDraft = null;
 
-function renderDistributionEditor(){
-  // Create a fresh draft snapshot if none exists (first open or after cancel/save)
-  if(!_distDraft) _distDraft = DISTRIBUTION.map(d=>({...d}));
+// preserveEdits: optional Map<walletId, pct> of in-progress unsaved edits to
+// re-apply onto a freshly-built draft — used by refreshAfterWalletDefsChange()
+// so a wallet add/rename/reorder/delete (which must still discard and rebuild
+// the draft, since ids/order may have changed) doesn't silently drop whatever
+// the user was mid-typing.
+function renderDistributionEditor(preserveEdits){
+  // Create a fresh draft snapshot if none exists (first open, after cancel/
+  // save, or after a wallet-structure change invalidated the previous draft)
+  if(!_distDraft){
+    _distDraft = DISTRIBUTION.map(d=>({...d}));
+    if(preserveEdits) _distDraft.forEach(d => { if(preserveEdits.has(d.id)) d.pct = preserveEdits.get(d.id); });
+  }
   const wrap = document.getElementById('distributionEditor');
   wrap.innerHTML = '';
   _distDraft.forEach((d,i)=>{
@@ -1681,6 +1701,17 @@ function detectRecurring(){
       return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
     }));
     if(months.size < 2) return;
+    // "Crossed a calendar-month boundary" alone doesn't mean "recurred
+    // monthly" — two coincidentally similar same-desc/same-wallet expenses
+    // just ~minutes apart (e.g. Jan 31 23:50 and Feb 1 00:10) land in two
+    // distinct "YYYY-MM" buckets and used to pass this check as "recurring."
+    // Require every consecutive pair to be at least ~3 weeks apart — short
+    // of a genuine monthly cadence, long enough to rule out same-day/
+    // adjacent-day coincidences straddling a month-end.
+    const sortedByTs = txs.slice().sort((a,b) => a.ts - b.ts);
+    const MIN_RECURRING_GAP_MS = 20 * 86400000;
+    const hasMinGap = sortedByTs.every((t,i) => i === 0 || (t.ts - sortedByTs[i-1].ts) >= MIN_RECURRING_GAP_MS);
+    if(!hasMinGap) return;
     if(dismissedRecurring.has(key)) return;
 
     const amounts = txs.map(t=>t.amount);

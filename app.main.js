@@ -340,6 +340,11 @@ function _bindEvents(){
   document.querySelectorAll('[data-sett-tab]').forEach(el=>on(el,'click',()=>switchSettingsTab(el.dataset.settTab)));
   document.querySelectorAll('[data-theme-mode]').forEach(el=>on(el,'click',()=>setThemeMode(el.dataset.themeMode)));
   document.querySelectorAll('[data-lang]').forEach(el=>on(el,'click',()=>setLang(el.dataset.lang)));
+  // these three tab strips are static (never rebuilt via innerHTML), so a
+  // single boot-time wiring covers their whole lifetime — the layout editor's
+  // own .le-tabs strip is rebuilt every render and gets wired at that point
+  // instead (see renderLayoutEditor, app.layout.js).
+  [$('settTabs'), $('themeModeTabs'), $('langTabs')].forEach(wireTabArrowNav);
   on($('btnResetLayout'),'click',resetLayout);
   on($('btnNewWallet'),'click',()=>openWalletDefModal(null));
   on($('btnSaveDistribution'),'click',saveDistribution);

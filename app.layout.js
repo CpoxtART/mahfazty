@@ -291,6 +291,7 @@ function renderLayoutEditor(){
   host.querySelectorAll('.le-tab[data-let]').forEach(b => {
     b.onclick = () => switchLayoutEditorTab(b.dataset.let);
   });
+  wireTabArrowNav(host.querySelector('.le-tabs'));
   const limitSel = host.querySelector('.recent-limit-select');
   if(limitSel) limitSel.onchange = () => setRecentTxLimit(parseInt(limitSel.value, 10));
 }
