@@ -22,6 +22,19 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.99',
+    date: '2026-07-06',
+    title: { ar: 'جولة تدقيق تاسعة: تراجع عن تعديل المعاملات + نسخ احتياطية قبل الاستبدال', en: 'Ninth audit round: undo transaction edits + backups before overwrites' },
+    items: [
+      { ar: 'إصلاح عالٍ: تعديل معاملة (تغيير المبلغ/المحفظة/الفئة) لم يكن له أي طريقة تراجع إطلاقًا — على عكس الحذف (تراجع خلال 5 ثوانٍ)، خطأ بسيط بالتعديل كان يُصحَّح للأبد بضغطة "حفظ" واحدة بلا أي رجعة. الآن يظهر خيار "تراجع ↩️" بعد كل تعديل يعيد المعاملة (والرصيد) لحالتها قبل التعديل.', en: 'High fix: editing a transaction (changing its amount/wallet/category) had no undo path at all — unlike delete (5s undo), a mistaken edit was permanently locked in with a single "Save" tap and no way back. A "Undo ↩️" option now appears after every edit, restoring the transaction (and balances) to exactly how they were before.' },
+      { ar: 'إصلاح عالٍ: استيراد نسخة احتياطية يستبدل كل البيانات الحالية بلا أي نسخة احتياطية عنها — نفس الثغرة المُصلحة قبل قليل لتعارض Google Drive، لكن هنا لم تكن مُصلحة بعد. كذلك حذف كل البيانات (بالإعدادات) كان بلا نسخة احتياطية رغم كونه أخطر إجراء بالتطبيق. الآن يُنزَّل نسخة احتياطية تلقائيًا قبل كلا الإجراءين.', en: "High fix: importing a backup file overwrote all current data with no backup of it — the exact same gap just fixed for the Google Drive conflict flow, but not yet applied here. Likewise, wiping all data (in Settings) had no backup despite being the single most destructive action in the app. Both now auto-download a backup before proceeding." },
+      { ar: 'إصلاح متوسط: آلية تأجيل ظهور البانرات (بعضها فوق بعض) كانت قد "تستسلم" بعد ~6 ثوانٍ وتُظهر بانرين معًا رغم استمرار سبب التأجيل (مثل نافذة المراجعة اليومية التي تبقى مفتوحة بلا مؤقت إغلاق). الآن مهلة أحد البانرين أطول بوضوح من الآخر فلا يتصادمان.', en: "Medium fix: the mechanism that defers banners from appearing on top of each other could \"give up\" after ~6s and show two banners together anyway while the original blocker (e.g. the daily-review modal, which has no auto-dismiss) was still open. One banner's wait is now deliberately much longer than the other's so they no longer land together." },
+      { ar: 'إصلاح متوسط: شريحة ترحيب كانت تقول إن البيانات لا تُرفع لأي خادم إطلاقًا، بينما شريحة أخرى بنفس الجولة تصف مزامنة Google Drive الاختيارية — تناقض مباشر. صُححت لتوضّح أن البيانات محلية إلا إذا فعّلت المزامنة بنفسك.', en: "Medium fix: one welcome-tour slide claimed data is never uploaded to any server, while another slide in the same tour describes optional Google Drive sync — a direct contradiction. Reworded to clarify data stays local unless you turn sync on yourself." },
+      { ar: 'إصلاح خفيف: شريحة ترحيب تشير لـ\"زر لغة\" غير موجود بأعلى الصفحة (تبديل اللغة فعليًا من الإعدادات)، وأخرى تذكر نافذة تراجع الحذف كـ\"ثانية واحدة\" بدل 5 ثوانٍ فعليًا، وثالثة تصف التحويل بأنه يسجَّل بـ\"أي وقت\" رغم عدم وجود اختيار للوقت.', en: 'Low fix: one welcome-tour slide referenced a non-existent top-bar "language button" (language is actually switched from Settings), another described the delete-undo window as "a second" instead of the real 5 seconds, and a third described transfers as logged with "any time" despite no time picker existing.' },
+      { ar: 'إصلاح خفيف: اهتزاز لمسي خفيف أُضيف لعمليات حفظ ناجحة كانت بلا أي إحساس لمسي (تعديل معاملة، حفظ محفظة، حفظ اشتراك، تحويل بين محافظ) — توحيدًا مع باقي عمليات الحفظ الناجحة بالتطبيق.', en: 'Low fix: added a light haptic pulse to successful save actions that had none (editing a transaction, saving a wallet, saving a subscription, transferring between wallets) — matching every other successful save elsewhere in the app.' },
+    ],
+  },
+  {
     version: 'v47.98',
     date: '2026-07-06',
     title: { ar: 'جولة تدقيق ثامنة: نسخة احتياطية عند تعارض المزامنة + 5 إصلاحات', en: 'Eighth audit round: backup on sync conflict + 5 more' },

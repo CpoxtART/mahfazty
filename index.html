@@ -27,7 +27,7 @@
      the old SW bucket has never cached, so every file fetches fresh together —
      no mixed old/new set (the v47.74 "Identifier already declared" class);
      offline keeps serving the old index.html whose old ?v= URLs are all cached. -->
-<link rel="stylesheet" href="style.css?v=47.98">
+<link rel="stylesheet" href="style.css?v=47.99">
 </head>
 <body>
 <script>
@@ -753,7 +753,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <div class="onb-ic">💰</div>
         <h3 id="welcomeTitle" class="onb-title" data-i18n="onb.s1Title">أهلاً بك في محفظتيييي</h3>
         <p class="onb-body" data-i18n="onb.s1Body">مدير ميزانيتك الشخصي — يقسّم دخلك تلقائيًا على محافظ مدروسة، ويتتبّع كل ريال يدخل ويطلع.</p>
-        <p class="onb-note" data-i18n="onb.s1Note">🔒 بياناتك تبقى على جهازك بالكامل، ولا تُرفع لأي خادم.</p>
+        <p class="onb-note" data-i18n="onb.s1Note">🔒 بياناتك تبقى على جهازك بالكامل، ولا تُرفع لأي خادم إلا إذا فعّلت مزامنة Google Drive الاختيارية بحسابك أنت.</p>
       </div>
 
       <!-- Slide 2: auto-distribution (core magic) -->
@@ -779,7 +779,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <h3 class="onb-title" data-i18n="onb.s3Title">اعرف وين تروح فلوسك</h3>
         <ul class="onb-list">
           <li data-i18n-html="onb.s3Li1"><b>🏷️ فئات ورسوم بيانية</b> — توزيع مصروفك وحركة رصيدك بصريًّا.</li>
-          <li data-i18n-html="onb.s3Li2"><b>🔁 تحويل بين المحافظ</b> — وتسجيل بأي تاريخ ووقت.</li>
+          <li data-i18n-html="onb.s3Li2"><b>🔁 تحويل بين المحافظ</b> — وتسجيل بأي تاريخ تختاره.</li>
           <li data-i18n-html="onb.s3Li3"><b>🎯 ميزانيات شهرية</b> — لكل محفظة، مع تنبيه عند الاقتراب.</li>
           <li data-i18n-html="onb.s3Li4"><b>📆 الاشتراكات</b> — تابِع تكاليفك المتكررة وتذكيراتها.</li>
         </ul>
@@ -804,7 +804,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <h3 class="onb-title" data-i18n="onb.s5Title">أدوات توفّر وقتك</h3>
         <ul class="onb-list">
           <li data-i18n-html="onb.s5Li1"><b>🔍 بحث وفلاتر سريعة</b> — دوّر بمعاملاتك واطلع فلاتر يوم/أسبوع/شهر بضغطة.</li>
-          <li data-i18n-html="onb.s5Li2"><b>👈 سحب للحذف + تراجع</b> — احذف معاملة بسحبة، وارجع خطوة بثانية إذا غيّرت رأيك.</li>
+          <li data-i18n-html="onb.s5Li2"><b>👈 سحب للحذف + تراجع</b> — احذف معاملة بسحبة، وارجع خطوة خلال ٥ ثوانٍ إذا غيّرت رأيك.</li>
           <li data-i18n-html="onb.s5Li3"><b>🤖 اكتشاف تلقائي للمصاريف المتكررة</b> — يرصد الأنماط ويذكّرك بتسجيلها بضغطة واحدة.</li>
           <li data-i18n-html="onb.s5Li4"><b>🔁 كرّر آخر عملية</b> — أعد إدخال مصروف معتاد بضغطة وحدة.</li>
           <li data-i18n-html="onb.s5Li5"><b>📤 تقرير شهري جاهز</b> — شاركه أو نزّله بضغطة من 📊 التحليلات.</li>
@@ -843,7 +843,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
         <div class="onb-ic">🎨</div>
         <h3 class="onb-title" data-i18n="onb.s7Title">خصّصها على ذوقك</h3>
         <ul class="onb-list">
-          <li data-i18n-html="onb.s7Li1"><b>🌐 لغتان: عربي/English</b> — بدّلها بضغطة من زر اللغة بالأعلى.</li>
+          <li data-i18n-html="onb.s7Li1"><b>🌐 لغتان: عربي/English</b> — بدّلها من ⚙ الإعدادات.</li>
           <li data-i18n-html="onb.s7Li2"><b>🌗 المظهر</b> — فاتح أو داكن أو أسود أو تلقائي حسب جهازك.</li>
           <li data-i18n-html="onb.s7Li3"><b>🎨 لون التطبيق</b> — اختر لونك المفضّل من ⚙ الإعدادات ← المظهر.</li>
           <li data-i18n-html="onb.s7Li4"><b>☀️ مراجعة يومية</b> — ملخّص سريع لحركة أمسك وما يستحقّ انتباهك.</li>
@@ -1050,19 +1050,19 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <!-- ?v= on every script MUST match sw.js's CACHE version — see the style.css
      comment above for why (atomic per-release cache keys); enforced by
      tests/version.test.js. -->
-<script src="i18n.js?v=47.98"></script>
-<script src="changelog.js?v=47.98"></script>
-<script src="app.core.js?v=47.98"></script>
-<script src="app.ui.js?v=47.98"></script>
-<script src="app.voice.js?v=47.98"></script>
-<script src="app.layout.js?v=47.98"></script>
-<script src="app.charts.js?v=47.98"></script>
-<script src="app.drive.js?v=47.98"></script>
-<script src="app.quicknotes.js?v=47.98"></script>
-<script src="app.data.js?v=47.98"></script>
-<script src="app.engage.js?v=47.98"></script>
-<script src="app.pwa.js?v=47.98"></script>
-<script src="app.overlay.js?v=47.98"></script>
-<script src="app.logic.js?v=47.98"></script>
-<script src="app.main.js?v=47.98"></script>
+<script src="i18n.js?v=47.99"></script>
+<script src="changelog.js?v=47.99"></script>
+<script src="app.core.js?v=47.99"></script>
+<script src="app.ui.js?v=47.99"></script>
+<script src="app.voice.js?v=47.99"></script>
+<script src="app.layout.js?v=47.99"></script>
+<script src="app.charts.js?v=47.99"></script>
+<script src="app.drive.js?v=47.99"></script>
+<script src="app.quicknotes.js?v=47.99"></script>
+<script src="app.data.js?v=47.99"></script>
+<script src="app.engage.js?v=47.99"></script>
+<script src="app.pwa.js?v=47.99"></script>
+<script src="app.overlay.js?v=47.99"></script>
+<script src="app.logic.js?v=47.99"></script>
+<script src="app.main.js?v=47.99"></script>
 </body></html>

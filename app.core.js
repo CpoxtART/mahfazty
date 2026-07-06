@@ -1456,6 +1456,30 @@ function _buildSyncPayload(){
   };
 }
 
+// Shared safety-net for any flow that's about to WHOLESALE REPLACE the user's
+// current data (Drive conflict resolution, backup import) with no other undo
+// path — downloads a JSON file containing both the about-to-be-replaced
+// current data and the incoming replacement, mirroring exportData()'s own
+// blob-download mechanism, so a wrong choice/bad file is still recoverable
+// from the downloaded file without needing a whole in-app "restore" UI.
+function _downloadDataBackup(current, incoming, filenamePrefix){
+  try{
+    const json = JSON.stringify({ savedAt: new Date().toISOString(), current, incoming }, null, 2);
+    const blob = new Blob([json], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const _now = new Date();
+    const _hm = String(_now.getHours()).padStart(2,'0') + '-' + String(_now.getMinutes()).padStart(2,'0');
+    a.download = filenamePrefix + '-' + todayISO() + '_' + _hm + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return true;
+  }catch(_){ return false; }
+}
+
 // Recompute every (non-track) wallet balance purely from the transaction ledger
 // (model: balance = 0 + Σ ledger; an expense subtracts, income/adjustment adds).
 // Source of truth is the ledger, so this self-heals any drift between the stored

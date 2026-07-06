@@ -441,6 +441,7 @@ async function saveWalletDefModal(){
     }
     refreshAfterWalletDefsChange();
     closeModal('walletDefModal');
+    haptic(15); // matches addTx's success pulse — this commits a wallet just as concretely
     toast(t({ar:'✓ تم الحفظ', en:'✓ Saved'}));
   } finally {
     _saveWalletDefBusy = false;
@@ -936,6 +937,7 @@ async function saveSubModal(){
     await saveSubs();
     renderSubscriptions();
     closeModal('subModal');
+    haptic(15);
     toast(t({ar:'✓ تم حفظ الاشتراك', en:'✓ Subscription saved'}));
   } finally {
     _saveSubBusy = false;
@@ -1224,6 +1226,7 @@ async function doTransfer(){
     await saveBalances();
     closeModal('transferModal');
     render();
+    haptic(15);
     if(_trackGoingNegative){
       toast(t({ar:`⚠ تم التحويل، لكن رصيد "${fromName}" أصبح سالباً`, en:`⚠ Transfer completed, but "${fromName}" balance is now negative`}), true);
     } else {

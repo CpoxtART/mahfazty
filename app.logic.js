@@ -463,6 +463,22 @@ async function saveEdit(){
   // pointerEvents:none lock set in openEdit(), so enforce it here too.
   if(_editingTransferLeg) editWallet = tx.wallet;
 
+  // Snapshot BEFORE any mutation, for the undo toast below — unlike delete,
+  // saving an edit had no recovery path at all: a fat-fingered amount or a
+  // wrong wallet pick overwrote the original permanently the instant "Save"
+  // was tapped. Shallow-clone is enough: applyTxToBalance always re-reads
+  // tx.wallet/amount/type/trackWallet/trackSign fresh, so reversing the
+  // CURRENT (post-edit) effect, restoring these fields via Object.assign, then
+  // re-applying with the restored values correctly undoes the edit's balance
+  // impact even when the wallet itself changed.
+  const _prevTxSnapshot = {...tx};
+  let _partnerForUndo = null;
+  if(tx.link && tx.category === 'transfer'){
+    const _partners = state.transactions.filter(t => t.link === tx.link && t.id !== tx.id && t.category === 'transfer');
+    if(_partners.length === 1) _partnerForUndo = _partners[0];
+  }
+  const _prevPartnerSnapshot = _partnerForUndo ? {..._partnerForUndo} : null;
+
   // reverse old effect
   applyTxToBalance(tx, -1);
 
@@ -531,11 +547,41 @@ async function saveEdit(){
   await saveTx();
   closeModal('editModal');
   render(true); // force: desc/date-only edits don't change the render signature
-  toast(t({ar:'✓ تم التحديث', en:'✓ Updated'}));
+  haptic(15);
+  toastWithAction(t({ar:'✓ تم التحديث', en:'✓ Updated'}), t({ar:'تراجع ↩️', en:'Undo ↩️'}), () => undoEdit(tx.id, _prevTxSnapshot, _prevPartnerSnapshot), false, t({ar:'تراجع عن التعديل', en:'Undo edit'}));
   } finally {
     _saveEditBusy = false;
     _opInFlight--;
     _setBtnSaving(_saveBtn, false);
+  }
+}
+
+// Reverts a saveEdit() by restoring the pre-edit snapshot(s) taken there —
+// same reverse-current/restore-fields/reapply-restored ordering saveEdit
+// itself relies on, so it correctly reverses the balance impact even when
+// the edit moved the transaction to a different wallet.
+async function undoEdit(txId, prevTx, prevPartner){
+  const tx = state.transactions.find(t => t.id === txId);
+  if(!tx){ toast(t({ar:'⚠ تعذّر التراجع — المعاملة لم تعد موجودة', en:'⚠ Could not undo — the transaction no longer exists'}), true); return; }
+  _opInFlight++;
+  _txMutationStamp++;
+  try{
+    applyTxToBalance(tx, -1);
+    let partner = null;
+    if(prevPartner){
+      partner = state.transactions.find(t => t.id === prevPartner.id);
+      if(partner) applyTxToBalance(partner, -1);
+    }
+    Object.assign(tx, prevTx);
+    if(partner) Object.assign(partner, prevPartner);
+    applyTxToBalance(tx, +1);
+    if(partner) applyTxToBalance(partner, +1);
+    await saveBalances();
+    await saveTx();
+    render(true);
+    toast(t({ar:'↩️ تم التراجع عن التعديل', en:'↩️ Edit undone'}));
+  } finally {
+    _opInFlight--;
   }
 }
 

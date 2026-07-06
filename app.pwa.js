@@ -98,6 +98,11 @@ function _revealUpdateBanner(el, attemptsLeft){
   // of it, not just compete for screen-reader attention.
   const openModalEl = document.querySelector('.modal-overlay.open');
   const blocked = (toastEl && toastEl.classList.contains('show')) || (driveBannerEl && driveBannerEl.classList.contains('show')) || openModalEl;
+  // This side deliberately keeps the SHORTER (~6s) give-up cap; showDriveBanner
+  // (app.drive.js) keeps a much longer one specifically so the two independent
+  // "give up and show anyway" fallbacks don't land within ~500ms of each other
+  // over a long-lived blocker like the daily-review modal (no auto-dismiss) —
+  // this one "wins" the race and the drive banner waits it out instead.
   if(blocked && attemptsLeft > 0){
     setTimeout(() => _revealUpdateBanner(el, attemptsLeft - 1), 400);
     return;

@@ -188,6 +188,12 @@ async function applyImport(text){
     toast(t({ar:'⚠ ملف غير صحيح — لا يحتوي على wallets أو transactions', en:'⚠ Invalid file — missing wallets or transactions'}), true); return;
   }
   if(!confirm(t({ar:'سيتم استبدال كل البيانات الحالية. متابعة؟', en:'This will replace all current data. Continue?'}))) return;
+  // Same "wholesale replace with a single tap and no recovery path" gap the
+  // Drive-conflict flow had — a wrong/old backup file picked by mistake used
+  // to permanently discard whatever was on the device with nothing to undo.
+  // Download a backup of the CURRENT data (plus what's about to replace it)
+  // before proceeding, mirroring _downloadDataBackup's other call site.
+  _downloadDataBackup(_buildSyncPayload(), data, 'wallet-pre-import-backup');
   _importBusy = true;
   _txMutationStamp++; // wholesale data replacement — invalidate derived caches
   _opInFlight++; // block the cross-tab storage reload mid-import, same as other wholesale replacements
@@ -607,6 +613,11 @@ async function wipeAll(){
   if(answer === null) return; // cancelled
   if(answer.trim() !== _deleteWord){ toast(t({ar:'أُلغي الحذف — لم تُكتب كلمة التأكيد بشكل صحيح', en:'Deletion cancelled — confirmation word was not typed correctly'})); return; }
   if(_opBusy()) return;
+  // The typed-word confirmation above already defeats reflex double-taps, but
+  // this is still the single most destructive action in the app — download a
+  // backup of everything before it's gone, same safety net as the Drive-conflict
+  // and import-overwrite flows.
+  _downloadDataBackup(_buildSyncPayload(), null, 'wallet-pre-wipe-backup');
   _txMutationStamp++; // wholesale wipe — invalidate derived caches
   _opInFlight++; // block the cross-tab storage reload mid-wipe across the multi-await sequence below
   try{

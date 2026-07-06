@@ -195,8 +195,19 @@ function showDriveBanner(retriesLeft){
   const openModalEl = document.querySelector('.modal-overlay.open');
   const blocked = (updateBannerEl && updateBannerEl.classList.contains('show')) ||
     (toastEl && toastEl.classList.contains('show')) || openModalEl;
+  // A symmetric ~6s cap on both sides let their two independent "give up and
+  // show anyway" fallbacks fire within ~500ms of each other whenever a
+  // long-lived blocker (e.g. the daily-review modal, which has no auto-dismiss
+  // timer) outlasted BOTH — defeating the whole point by stacking the two
+  // banners together right on top of it. This side's cap is deliberately much
+  // longer than the update banner's (~6s reveal + its own 8s auto-apply
+  // countdown, so it resolves — shown-and-actioned or dismissed — within
+  // ~14s of appearing): by the time THIS banner gives up, the update banner
+  // has almost certainly already cleared, so only one banner ever "wins" the
+  // give-up race instead of both landing together.
+  const MAX_RETRIES = 40; // ~16s
   if(blocked && (retriesLeft === undefined || retriesLeft > 0)){
-    setTimeout(() => showDriveBanner(retriesLeft === undefined ? 15 : retriesLeft - 1), 400);
+    setTimeout(() => showDriveBanner(retriesLeft === undefined ? MAX_RETRIES : retriesLeft - 1), 400);
     return;
   }
   const chk = document.getElementById('driveBannerAuto');
@@ -942,30 +953,6 @@ async function driveSyncFromCloud(isInitial, interactive){
   }
 }
 
-// Whichever side loses this decision is gone from the app with a single tap
-// and no undo — unlike every other destructive action here (delete tx, wipe
-// data), there was no recovery path at all if the user picked the wrong one.
-// Downloads BOTH copies (local + cloud) as one JSON file before either
-// resolution proceeds, mirroring exportData()'s own blob-download mechanism —
-// so a wrong choice is still recoverable from the downloaded file, without
-// needing a whole in-app "restore a past conflict" UI.
-function _downloadConflictBackup(local, cloud){
-  try{
-    const json = JSON.stringify({ savedAt: new Date().toISOString(), local, cloud }, null, 2);
-    const blob = new Blob([json], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const _now = new Date();
-    const _hm = String(_now.getHours()).padStart(2,'0') + '-' + String(_now.getMinutes()).padStart(2,'0');
-    a.download = 'wallet-conflict-backup-' + todayISO() + '_' + _hm + '.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    return true;
-  }catch(_){ return false; }
-}
 async function resolveConflict(useCloud){
   // Adopting the cloud copy permanently overwrites whatever's on this device —
   // unlike every other destructive action in the app (delete tx, wipe data),
@@ -980,7 +967,7 @@ async function resolveConflict(useCloud){
   _pendingDriveCloud = null;
   closeModal('driveConflictModal');
   if(!cloud) return;
-  const backedUp = _downloadConflictBackup(_buildSyncPayload(), cloud);
+  const backedUp = _downloadDataBackup(_buildSyncPayload(), cloud, 'wallet-conflict-backup');
   if(useCloud){
     await adoptCloudSnapshot(cloud);
     // driveSyncFromCloud set the indicator to 'syncing' right before opening
