@@ -396,7 +396,15 @@
     font-variant-numeric: tabular-nums;
     position:relative;
     transition: color .3s;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    /* This is the single most important number in the app — an ellipsis here
+       would SILENTLY HIDE real digits of the user's balance with no way to
+       reveal them (no title/tooltip). At larger OS/browser text-size settings
+       (a distinct accessibility path from pinch-zoom, which scales the
+       container along with the text and rarely overflows) a long balance
+       could exceed this card's width; wrapping to a second line is a much
+       safer failure mode than truncating a money value.
+    */
+    overflow-wrap:break-word;
   }
   .hero .amount.flash{animation:flashNum .5s var(--ease);}
   @keyframes flashNum{
@@ -668,7 +676,10 @@
      (blue value, blue bar, the "تتبع · غير محتسب" tag). */
   /* invisibly extend the ⓘ tap target to ~44px without enlarging the visible pill */
   .wallet .pct::after{content:''; position:absolute; inset:-14px -10px;}
-  .wallet .val{font-size:var(--money-lg); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; text-align:right; transition: color .25s; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  /* overflow-wrap, not ellipsis — same reasoning as .hero .amount above: a
+     money value silently truncated at larger OS/browser text sizes hides
+     real digits with no way to reveal them; wrapping is the safe failure mode. */
+  .wallet .val{font-size:var(--money-lg); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; text-align:right; transition: color .25s; overflow-wrap:break-word;}
   .track-tag{display:inline-block; margin-top:7px; font-size:var(--fs-2xs); font-weight:600; color:var(--blue); background:var(--blue-soft); border-radius:var(--radius-xs); padding:2px 7px; letter-spacing:.2px;}
   .wallet.track .val{color:var(--blue);}
   .wallet.neg-val .val{color:var(--red);}
@@ -706,7 +717,7 @@
     padding:14px;
   }
   .analytics-card .l{font-size:var(--fs-xs); color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; font-weight:600;}
-  .analytics-card .v{font-size:var(--money-sm); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .analytics-card .v{font-size:var(--money-sm); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow-wrap:break-word;}
   /* mixes Arabic words with an embedded number ("بمعدل 45.20 / يوم") — plaintext
      bidi isolates the digit run correctly without forcing the whole line ltr
      (which would reverse the surrounding Arabic word order) */
@@ -972,7 +983,7 @@
     padding:14px; text-align:center;
   }
   .detail-stat .l{font-size:var(--fs-2xs); color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; font-weight:600;}
-  .detail-stat .v{font-size:var(--money-sm); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .detail-stat .v{font-size:var(--money-sm); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow-wrap:break-word;}
   .detail-tx-list{display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto; overscroll-behavior:contain;}
 
   /* distribution breakdown */
@@ -1085,7 +1096,7 @@
   }
   .summary-card:active{transform:scale(.97);}
   .summary-card .l{font-size:var(--fs-xs); color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; font-weight:600;}
-  .summary-card .v{font-size:var(--money-sm); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .summary-card .v{font-size:var(--money-sm); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow-wrap:break-word;}
   .summary-card.in .v{color:var(--green);}
   .summary-card.out .v{color:var(--red);}
   .summary-card.net .v{color:var(--gold);}

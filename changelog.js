@@ -22,6 +22,18 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48',
+    date: '2026-07-06',
+    title: { ar: 'جولة تدقيق عاشرة: إصلاح خطأ لصق مبلغ صامت + دمج ميزانيات بين الأجهزة + حماية الأرقام من القصّ', en: 'Tenth audit round: silent paste-parsing fix + cross-device budget merge + number-truncation safety' },
+    items: [
+      { ar: 'إصلاح عالٍ: لصق مبلغ بصيغة أوروبية مثل "1.234,56" أو "1 234,56" (نسخ من جدول بيانات) كان يُحوَّل بصمت لرقم خاطئ تمامًا (أكبر أو أصغر بمئات أو آلاف المرات) بدل رفضه أو تفسيره بشكل صحيح. الآن يُفسَّر الشكل الواضح بشكل صحيح، والشكل الملتبس يُرفض بوضوح بدل حفظ رقم خاطئ.', en: 'High fix: pasting a European-formatted amount like "1.234,56" or "1 234,56" (copied from a spreadsheet) got silently converted into a completely wrong number (hundreds or thousands of times too big or too small) instead of being rejected or interpreted correctly. The unambiguous form is now parsed correctly, and the ambiguous form is now clearly rejected instead of silently saving a wrong number.' },
+      { ar: 'إصلاح عالٍ: عند مزامنة جهازين مستخدَمين بلا اتصال بشكل مستقل، كانت الميزانيات المحددة لكل محفظة (وليست معاملات) تُستبدَل بالكامل حسب أحدث جهاز — فلو حدّد جهاز أ حد ميزانية لمحفظة ولم يلمسه جهاز ب إطلاقًا، كان يختفي بصمت لو جهاز ب زامن لاحقًا. الآن تُدمَج الحدود المستقلة من كلا الجهازين معًا، ولا يُستبدَل إلا ما تعارض فعليًا على نفس المحفظة.', en: "High fix: when two devices were used offline independently then synced, per-wallet budget caps got wholesale-replaced by whichever device synced most recently — so if device A capped one wallet and device B never touched it, that cap could silently vanish once device B synced. Independent caps from both devices now merge together; only a genuine same-wallet conflict falls back to the newer side winning." },
+      { ar: 'إصلاح عالٍ: مبلغ الرصيد الرئيسي (وقيم أخرى بالمحافظ والتحليلات) كان قد يُقتطع بعلامة "..." عند تكبير حجم الخط من إعدادات النظام/المتصفح، مخفيًا أرقامًا حقيقية من رصيدك بلا أي طريقة لرؤيتها. الآن يلتف لسطر ثانٍ بدل إخفاء أي رقم.', en: "High fix: the main balance amount (and other values on wallet cards/analytics) could get ellipsis-truncated at larger OS/browser text sizes, hiding real digits of the balance with no way to see them. Now wraps to a second line instead of hiding any digit." },
+      { ar: 'إصلاح متوسط: تحريك عنصر بمحرر ترتيب التبويبات/الأقسام كان يفقد التركيز من لوحة المفاتيح بعد كل نقلة واحدة (يضطر المستخدم لإعادة التنقل من أول القائمة كل مرة)، وبلا أي إعلان يؤكد نجاح النقلة أو موضعها الجديد. الآن يبقى التركيز على نفس العنصر ويظهر إشعار بموضعه الجديد.', en: 'Medium fix: moving an item in the tab/section reorder editor lost keyboard focus after every single move (forcing the user to re-navigate from the top of the list each time), with no announcement confirming the move or its new position. Focus now stays on the same item, and a toast confirms its new position.' },
+      { ar: 'إصلاح خفيف: وصف المعاملة لم يكن يُنظَّف من أحرف تحكّم الاتجاه (bidi) المخفية عند الحفظ (فقط عند العرض) — قد تبقى بالبيانات المخزّنة/المُصدَّرة دون أن تظهر مطلقًا.', en: "Low fix: a transaction's description wasn't cleaned of hidden bidi-control characters at save time (only at display time) — they could linger in stored/exported data without ever visibly appearing." },
+    ],
+  },
+  {
     version: 'v47.99',
     date: '2026-07-06',
     title: { ar: 'جولة تدقيق تاسعة: تراجع عن تعديل المعاملات + نسخ احتياطية قبل الاستبدال', en: 'Ninth audit round: undo transaction edits + backups before overwrites' },

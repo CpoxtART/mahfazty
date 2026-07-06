@@ -577,7 +577,29 @@ function parseAmount(str){
 const _toAsciiDigits = s => s.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
                               .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0));
 function _groupThousands(str){
-  let raw = _toAsciiDigits(String(str == null ? '' : str)).replace(/[,٬]/g, ''); // drop existing grouping
+  let s = _toAsciiDigits(String(str == null ? '' : str));
+  // Same decimal-vs-thousands-separator disambiguation normalizeDigits() uses
+  // (see its comment) for parseAmount() — applied here too so a value shown
+  // live can never disagree with what parseAmount() computes from it at save
+  // time. Without this, a PASTED foreign-formatted number like "1.234,56" or
+  // "1 234,56" (comma = the actual decimal point in both) had its comma
+  // treated as a bare thousands separator and stripped outright below,
+  // silently producing a value off by ~100-1000x with no error at all — a
+  // paste delivers the whole string in one 'input' event, unlike typing,
+  // where this heuristic can't be reached the same way.
+  s = s.replace(/,(\d{1,2})$/, '.$1');
+  // If that conversion leaves MORE than one decimal-point-like character
+  // (e.g. "1.234,56" → "1.234.56", where the "." was actually a thousands
+  // separator), the input is genuinely ambiguous — don't guess which one is
+  // "the" decimal point. Only strip grouping separators and leave every "."
+  // as-is; parseAmount()'s own two-dots-is-invalid check then correctly
+  // rejects it at save time instead of this function silently collapsing
+  // them into one clean-looking but wrong number.
+  if((s.match(/[.٫]/g) || []).length > 1){
+    const _neg = s.trim().startsWith('-');
+    return (_neg ? '-' : '') + s.replace(/^-/, '').replace(/[,٬\s]/g, '');
+  }
+  let raw = s.replace(/[,٬]/g, ''); // drop existing grouping
   const decIdx = raw.search(/[.٫]/);
   let intPart = decIdx === -1 ? raw : raw.slice(0, decIdx);
   const decPart = decIdx === -1 ? '' : '.' + raw.slice(decIdx + 1).replace(/[^\d]/g, '');
@@ -1343,9 +1365,36 @@ function mergeCloudData(cloud, cloudNewer){
   if(cloudNewer){
     if(typeof cloud.crisisMode === 'boolean') state.crisisMode = cloud.crisisMode;
     if(typeof cloud.autoDistribute === 'boolean') autoDistribute = cloud.autoDistribute;
-    if(cloud.budgets && typeof cloud.budgets === 'object') budgets = sanitizeBudgets(cloud.budgets);
-    if(cloud.distribution && Array.isArray(cloud.distribution)) DISTRIBUTION = sanitizeDistribution(cloud.distribution);
     if(cloud.uiPrefs && typeof applyUiPrefs === 'function') applyUiPrefs(cloud.uiPrefs);
+  }
+  // budgets: unlike the scalar settings above, this is a SPARSE per-wallet map
+  // (a wallet with no cap set has no key at all, see sanitizeBudgets) — a
+  // wholesale "cloudNewer wins" swap silently discarded a real edit on this
+  // device whenever the OTHER device happened to sync more recently overall,
+  // even if that device never touched the wallet this one just set a cap on.
+  // Union by key instead; only a genuine same-wallet collision (both sides
+  // set a cap on the SAME wallet) falls back to the same cloudNewer tie-break
+  // used for the single-valued settings above — no worse than before for a
+  // true conflict, but no longer destructive for the common non-overlapping
+  // case (this repro: device A caps Wallet X, device B independently caps
+  // Wallet Y — both survive now instead of one silently vanishing).
+  if(cloud.budgets && typeof cloud.budgets === 'object'){
+    const cloudBudgets = sanitizeBudgets(cloud.budgets);
+    const mergedBudgets = {...budgets};
+    for(const id in cloudBudgets){
+      if(!(id in mergedBudgets) || cloudNewer) mergedBudgets[id] = cloudBudgets[id];
+    }
+    budgets = mergedBudgets;
+  }
+  // distribution: NOT sparse (every non-track wallet always has an entry, see
+  // sanitizeDistribution) — a per-key union can't distinguish "this device's
+  // edit" from "this device's untouched copy of the other device's old value"
+  // the way it can for budgets above, since both sides list every id either
+  // way. A real per-entry merge would need per-key edit timestamps this
+  // schema doesn't carry; left as the existing cloudNewer-wins-wholesale
+  // behavior rather than risk a fragile heuristic in distribution math.
+  if(cloudNewer && cloud.distribution && Array.isArray(cloud.distribution)){
+    DISTRIBUTION = sanitizeDistribution(cloud.distribution);
   }
   // dismissedRecurring: union both sides (a dismissal on either device sticks)
   if(Array.isArray(cloud.dismissedRecurring)) cloud.dismissedRecurring.forEach(k => dismissedRecurring.add(k));

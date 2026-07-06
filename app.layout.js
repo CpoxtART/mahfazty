@@ -335,6 +335,30 @@ function moveLayout(scope, key, dir){
   scheduleDriveSync();
   if(scope === 'tab') renderBottomNav(); else applySectionOrder();
   renderLayoutEditor();
+  // renderLayoutEditor() just tore down and rebuilt every button in this
+  // group (a fresh host.innerHTML write) — without restoring focus, a
+  // keyboard user had to re-Tab from the very top of the modal to reposition
+  // the SAME item again after every single-step move, and had no
+  // announcement confirming the move even happened or where it landed.
+  let itemLabel = key;
+  if(scope === 'tab'){
+    itemLabel = t('nav.'+key);
+  } else if(scope.startsWith('sec:')){
+    const tabKey = scope.split(':')[1];
+    const def = SECTION_DEFS[tabKey] && SECTION_DEFS[tabKey].find(s=>s.key===key);
+    if(def) itemLabel = t(def.label);
+  }
+  const newIdx = arr.indexOf(key);
+  toast(t({ar:`${itemLabel} — الموضع ${newIdx+1} من ${arr.length}`, en:`${itemLabel} — position ${newIdx+1} of ${arr.length}`}));
+  const host = document.getElementById('layoutEditor');
+  if(host){
+    // prefer the SAME direction button (so repeated taps keep working); if the
+    // item now sits at that edge (button disabled), fall back to whichever of
+    // its two move buttons is still enabled instead of leaving focus nowhere.
+    let btn = host.querySelector(`button[data-mv-scope="${scope}"][data-mv-key="${key}"][data-mv="${dir}"]`);
+    if(!btn || btn.disabled) btn = host.querySelector(`button[data-mv-scope="${scope}"][data-mv-key="${key}"]:not([disabled])`);
+    if(btn) try{ btn.focus({preventScroll:true}); }catch(_){}
+  }
 }
 function resetLayout(){
   tabOrder = DEFAULT_TAB_ORDER.slice();

@@ -27,7 +27,12 @@ async function addTx(type){
   _setBtnSaving(_incBtn, true, t({ar:'⏳ جارٍ الحفظ...', en:'⏳ Saving...'}));
   try{
     const walletId = selectedWallet;
-    const desc = truncateCodePoints(document.getElementById('descInput').value.trim(), 120); // cap length (voice/paste bypass maxlength)
+    // stripBidiControls: a pasted description could carry raw bidi-override
+    // chars — wallet/subscription names already sanitize these at save (see
+    // saveWalletDefModal), but this field only ever got them stripped at
+    // RENDER time (escHtml calls stripBidiControls internally) — the raw
+    // control chars stayed in the stored/exported data indefinitely.
+    const desc = truncateCodePoints(stripBidiControls(document.getElementById('descInput').value.trim()), 120); // cap length (voice/paste bypass maxlength)
     // round to cents at entry so the stored amount matches what fmt() displays —
     // otherwise sub-cent input (10.999) shows "11.00" but sums as 10.999 and drifts
     const amountVal = round2(parseAmount(document.getElementById('amountInput').value));
@@ -509,7 +514,7 @@ async function saveEdit(){
     }
   }
 
-  tx.desc = truncateCodePoints(document.getElementById('editDesc').value.trim(), 120); // cap length (voice/paste bypass maxlength)
+  tx.desc = truncateCodePoints(stripBidiControls(document.getElementById('editDesc').value.trim()), 120); // cap length (voice/paste bypass maxlength)
   tx.amount = newAmount;
   tx.wallet = editWallet;
   tx.editedAt = Date.now(); // lets mergeCloudData() resolve same-id conflicts by picking the newer edit instead of always favoring local

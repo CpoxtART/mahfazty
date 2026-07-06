@@ -55,6 +55,28 @@ test('parseAmount — robust money parsing rejects junk', () => {
   assert.ok(Number.isNaN(app.parseAmount('1e15')));     // beyond the trillion ceiling
 });
 
+test('groupThousandsDisplay — live-typing display matches what parseAmount() would save', () => {
+  // Normal cases: display grouping must round-trip through parseAmount() unchanged.
+  assert.equal(app.groupThousandsDisplay('1000'), '1,000');
+  assert.equal(app.groupThousandsDisplay('1000.5'), '1,000.5');
+  assert.equal(app.groupThousandsDisplay('-1234.5'), '-1,234.5');
+  assert.equal(app.groupThousandsDisplay('$1,234.56'), '1,234.56'); // currency symbol stripped
+  assert.equal(app.groupThousandsDisplay('1,5'), '1.5'); // trailing comma+1 digit = decimal, matches normalizeDigits
+  // A pasted space-thousands/comma-decimal number ("1 234,56" = 1234.56 in
+  // European convention) used to have its comma treated as a bare thousands
+  // separator and silently stripped, producing 123456 (100x too large) with
+  // no error — now correctly recognized as a decimal comma.
+  assert.equal(app.groupThousandsDisplay('1 234,56'), '1,234.56');
+  assert.equal(app.parseAmount(app.groupThousandsDisplay('1 234,56')), 1234.56);
+  // A pasted dot-thousands/comma-decimal number ("1.234,56") is genuinely
+  // ambiguous once regrouped (the dot looks like it could be a real decimal
+  // point too) — rather than guessing and silently producing a wrong value,
+  // this must resolve to something parseAmount() itself rejects (NaN), so the
+  // user gets a "enter a valid amount" error instead of a silently wrong save.
+  const ambiguous = app.groupThousandsDisplay('1.234,56');
+  assert.ok(Number.isNaN(app.parseAmount(ambiguous)), `expected NaN for ambiguous "${ambiguous}"`);
+});
+
 test('stripBidiControls — neutralises Trojan-Source style bidi chars', () => {
   assert.equal(app.stripBidiControls('a‮b'), 'ab'); // RLO override removed
   assert.equal(app.stripBidiControls('x‏y'), 'xy'); // RLM removed

@@ -96,7 +96,7 @@ function loadApp() {
   src += `
     globalThis.__exports = {
       // pure helpers
-      round2, fmt, arPlural, normalizeDigits, parseAmount,
+      round2, fmt, arPlural, normalizeDigits, parseAmount, groupThousandsDisplay,
       escHtml, stripBidiControls, monthRange,
       // import/data-integrity sanitizers (arg-based, pure)
       sanitizeDistribution, sanitizeBudgets, sanitizeWalletDefs,
@@ -126,6 +126,10 @@ function loadApp() {
       // static reference would go stale — expose getter/setter accessors instead.
       getDistribution: () => DISTRIBUTION,
       setDistribution: (v) => { DISTRIBUTION = v; },
+      // budgets is likewise reassigned (not mutated in place) by mergeCloudData's
+      // per-key union — same accessor pattern.
+      getBudgets: () => budgets,
+      setBudgets: (v) => { budgets = v; },
       getTransactions: () => state.transactions,
       setTransactions: (v) => { state.transactions = v; },
       // pie-chart compute (largest-remainder % rounding) — currentFilter and

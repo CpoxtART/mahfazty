@@ -217,6 +217,27 @@ test('mergeCloudData — regular wallets always reconcile from the merged ledger
   assert.strictEqual(app.state.wallets.core, 60, 'balance = 0 + Σledger, stale value healed');
 });
 
+test('mergeCloudData — budgets: non-overlapping per-wallet caps from both devices both survive', () => {
+  // Device A (this one) capped 'core'; device B capped 'wishlist' independently
+  // and happens to be the "newer" side overall — neither device ever touched
+  // the OTHER wallet's cap, so both must survive a sync, not just one.
+  stage({ defs: FACTORY_DEFS, dist: [] });
+  app.setBudgets({ core: 500 });
+  app.mergeCloudData({ transactions: [], budgets: { wishlist: 200 } }, true); // cloudNewer=true
+  // spread into a test-realm object — deepStrictEqual compares prototypes, and
+  // the sandbox's Object constructor is a different realm's (see the matching
+  // note on the tx-id array comparison above)
+  assert.deepStrictEqual({...app.getBudgets()}, { core: 500, wishlist: 200 },
+    'local-only cap (core) and cloud-only cap (wishlist) both preserved');
+});
+
+test('mergeCloudData — budgets: a genuine same-wallet collision falls back to cloudNewer', () => {
+  stage({ defs: FACTORY_DEFS, dist: [] });
+  app.setBudgets({ core: 500 });
+  app.mergeCloudData({ transactions: [], budgets: { core: 300 } }, true); // cloud is newer AND collides on 'core'
+  assert.strictEqual(app.getBudgets().core, 300, 'cloudNewer wins the true collision, same as before');
+});
+
 test('isValidTx — shared rule rejects malformed txs at every boundary', () => {
   stage({ defs: FACTORY_DEFS, dist: [] });
   assert.ok(app.isValidTx(TX('tx_ok')));
