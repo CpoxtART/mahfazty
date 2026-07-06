@@ -4,7 +4,7 @@
   "private": true,
   "description": "Tooling for Mahfazty — the app itself ships as plain static files with NO build step. This package.json exists only for the test suite.",
   "scripts": {
-    "test:unit": "node --test \"tests/*.test.js\"",
+    "test:unit": "node --test tests/*.test.js",
     "test:e2e": "playwright test",
     "test": "npm run test:unit",
     "coverage": "node tests/coverage.js --min=30",

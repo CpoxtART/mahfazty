@@ -19,7 +19,11 @@ jobs:
           node-version: 20
       # node:test is built in and the unit tests have no dependencies, so no
       # install step is needed here — keeps this job near-instant.
-      - run: node --test "tests/*.test.js"
+      # Unquoted so bash expands the glob into explicit filenames before Node
+      # ever sees them — Node 20.20.2's test runner doesn't resolve a literal
+      # quoted glob string itself (silently "Could not find ..." with 0 tests
+      # run, exit 1), so this must not be quoted despite how it reads.
+      - run: node --test tests/*.test.js
       # `node --test --experimental-test-coverage`'s own reporter can't see the
       # app.*.js files — they run inside tests/sandbox.js's vm sandbox under one
       # synthetic filename, not as real on-disk modules the reporter can map

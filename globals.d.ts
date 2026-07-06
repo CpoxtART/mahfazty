@@ -16,8 +16,13 @@ interface Element {
   style: CSSStyleDeclaration;
   hidden: boolean | string;
   offsetParent: Element | null;
+  offsetTop: number;
+  offsetHeight: number;
+  tabIndex: number;
   onclick: ((e: any) => any) | null;
   onkeydown: ((e: any) => any) | null;
+  onchange: ((e: any) => any) | null;
+  oninput: ((e: any) => any) | null;
   focus(options?: any): void;
   blur(): void;
   click(): void;

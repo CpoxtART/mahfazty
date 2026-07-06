@@ -4,6 +4,7 @@
 ============================================================ */
 const LS_PREFIX = 'walletTracker_';
 
+/** @type {{id:string, name:string, initial:number, track:boolean, pct?:string, crisisOnly?:boolean}[]} */
 const WALLET_DEFS = [
   {id:'core',        name:'Core Expenses',       initial:0, track:false, pct:'50%'},
   {id:'wishlist',    name:'Wishlist',            initial:0, track:false, pct:'10%'},

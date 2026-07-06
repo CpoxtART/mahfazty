@@ -10,7 +10,7 @@ Pure financial/format/parse helpers (`round2`, `fmt`, `parseAmount`, `escHtml`,
 `npm install` required.
 
 ```bash
-node --test "tests/*.test.js"     # or: npm run test:unit
+node --test tests/*.test.js     # or: npm run test:unit
 ```
 
 `sandbox.js` loads the real production source into a Node `vm` with no-op browser
