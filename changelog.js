@@ -22,6 +22,16 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.1',
+    date: '2026-07-06',
+    title: { ar: 'جولة تدقيق حادية عشرة: إصلاح فقدان التركيز بمحرر تبويبات الترتيب + منع تحديد النص العرضي باللمس + ظهور زر الحفظ دائمًا', en: 'Eleventh audit round: layout-editor tab focus fix + prevent accidental long-press text selection + always-visible save button' },
+    items: [
+      { ar: 'إصلاح متوسط: التبديل بين تبويبات محرر الترتيب (🗂 التبويبات / 🏠 الرئيسي / 📊 تحليلات...) كان يفقد التركيز من لوحة المفاتيح بعد كل نقرة (نفس خلل النقل بين العناصر المُصلَح بالجولة السابقة، لكن بقي في هذا الزر الشقيق تحديدًا)، وشريط التبويبات لم يكن له أي دلالة وصولية (ARIA) إطلاقًا خلافًا لبقية شرائط التبويبات بالإعدادات. الآن يبقى التركيز على نفس الزر ويحمل الشريط والأزرار سمات role/aria-selected الصحيحة.', en: "Medium fix: switching between layout-editor tabs (🗂 Tabs / 🏠 Home / 📊 Analytics...) lost keyboard focus after every click — the same root cause fixed for item-reordering in the previous round, but left unfixed in this sibling button — and the tab strip had no ARIA semantics at all, unlike every other settings tab strip. Focus now stays on the same button, and the strip/buttons carry proper role/aria-selected attributes." },
+      { ar: 'إصلاح خفيف-متوسط: لمسة طويلة أو غير مؤكدة على بطاقة محفظة، شريحة تصنيف، أو أيقونة إجراء بالرأس (⚙/⇅/☀️/🔄) كانت قد تُفعّل تحديد نص أو قائمة نسخ/مشاركة أصلية بالمتصفح بدل تنفيذ الإجراء المقصود — نفس الحماية المطبّقة سابقًا على صفوف المعاملات، مُعمَّمة الآن على هذه العناصر الثلاثة أيضًا.', en: 'Low-medium fix: a slow or uncertain tap on a wallet card, category chip, or header icon button (⚙/⇅/☀️/🔄) could trigger native text-selection or a copy/share callout instead of the intended action — the same protection already applied to transaction rows, now extended to these three element types as well.' },
+      { ar: 'إصلاح متوسط: زر "حفظ" بنافذتي الاشتراك وتعريف المحفظة كان قد يختفي أسفل حافة الشاشة على ارتفاع صغير (مثل ظهور لوحة المفاتيح) بلا أي إشارة سوى شريط تمرير رفيع أصلي. الآن يبقى صف حفظ/إلغاء مثبتًا بأسفل النافذة دائمًا (بينما يبقى صف الحذف بمكانه الطبيعي، إذ يُعد إبقاءه بعيدًا خلف تمرير متعمّد حماية إضافية من نقر عرضي على إجراء حذف).', en: "Medium fix: the Save button in the subscription and wallet-definition dialogs could disappear below a short viewport (e.g. keyboard open), with only a thin native scrollbar hinting more content existed. The Save/Cancel row now stays pinned to the bottom of the dialog at all times (the separate delete row deliberately stays in normal flow — requiring a scroll to reach it is an extra guard against an accidental destructive tap)." },
+    ],
+  },
+  {
     version: 'v48',
     date: '2026-07-06',
     title: { ar: 'جولة تدقيق عاشرة: إصلاح خطأ لصق مبلغ صامت + دمج ميزانيات بين الأجهزة + حماية الأرقام من القصّ', en: 'Tenth audit round: silent paste-parsing fix + cross-device budget merge + number-truncation safety' },

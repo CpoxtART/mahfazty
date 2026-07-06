@@ -27,7 +27,7 @@
      the old SW bucket has never cached, so every file fetches fresh together —
      no mixed old/new set (the v47.74 "Identifier already declared" class);
      offline keeps serving the old index.html whose old ?v= URLs are all cached. -->
-<link rel="stylesheet" href="style.css?v=48">
+<link rel="stylesheet" href="style.css?v=48.1">
 </head>
 <body>
 <script>
@@ -909,7 +909,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
       <input type="checkbox" id="subActive" checked>
       <span data-i18n="sub.active">الاشتراك فعّال</span>
     </label>
-    <div class="modal-actions">
+    <div class="modal-actions modal-actions--sticky">
       <button class="btn-secondary" id="btnCloseSubModal" data-i18n="common.cancel">إلغاء</button>
       <button class="btn-primary" id="btnSaveSubModal" data-i18n="common.save">حفظ</button>
     </div>
@@ -933,7 +933,7 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
     </div>
     <label for="walletDefName" data-i18n="wdef.name">اسم المحفظة</label>
     <input type="text" id="walletDefName" maxlength="40" placeholder="مثال: تعليم، سفر..." data-i18n-ph="wdef.namePh">
-    <div class="modal-actions">
+    <div class="modal-actions modal-actions--sticky">
       <button class="btn-secondary" id="btnCancelWalletDef" data-i18n="common.cancel">إلغاء</button>
       <button class="btn-primary" id="btnSaveWalletDef" data-i18n="common.save">حفظ</button>
     </div>
@@ -1050,19 +1050,19 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <!-- ?v= on every script MUST match sw.js's CACHE version — see the style.css
      comment above for why (atomic per-release cache keys); enforced by
      tests/version.test.js. -->
-<script src="i18n.js?v=48"></script>
-<script src="changelog.js?v=48"></script>
-<script src="app.core.js?v=48"></script>
-<script src="app.ui.js?v=48"></script>
-<script src="app.voice.js?v=48"></script>
-<script src="app.layout.js?v=48"></script>
-<script src="app.charts.js?v=48"></script>
-<script src="app.drive.js?v=48"></script>
-<script src="app.quicknotes.js?v=48"></script>
-<script src="app.data.js?v=48"></script>
-<script src="app.engage.js?v=48"></script>
-<script src="app.pwa.js?v=48"></script>
-<script src="app.overlay.js?v=48"></script>
-<script src="app.logic.js?v=48"></script>
-<script src="app.main.js?v=48"></script>
+<script src="i18n.js?v=48.1"></script>
+<script src="changelog.js?v=48.1"></script>
+<script src="app.core.js?v=48.1"></script>
+<script src="app.ui.js?v=48.1"></script>
+<script src="app.voice.js?v=48.1"></script>
+<script src="app.layout.js?v=48.1"></script>
+<script src="app.charts.js?v=48.1"></script>
+<script src="app.drive.js?v=48.1"></script>
+<script src="app.quicknotes.js?v=48.1"></script>
+<script src="app.data.js?v=48.1"></script>
+<script src="app.engage.js?v=48.1"></script>
+<script src="app.pwa.js?v=48.1"></script>
+<script src="app.overlay.js?v=48.1"></script>
+<script src="app.logic.js?v=48.1"></script>
+<script src="app.main.js?v=48.1"></script>
 </body></html>

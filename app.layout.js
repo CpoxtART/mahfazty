@@ -241,12 +241,19 @@ function renderLayoutEditor(){
       </div>
     </div>`;
 
-  // Build the segmented tab strip
+  // Build the segmented tab strip — role="tablist"/"tab"/aria-selected mirror
+  // the outer Settings tab strip (#settTabs) and its siblings (#themeModeTabs,
+  // #langTabs), which already carry these; this inner strip previously had
+  // only a visual `.active` class with no ARIA tab semantics at all, so a
+  // screen-reader user got no "tab 2 of 4, selected" announcement when
+  // switching panels the way every other tab widget in the app provides.
   const tabs = LAYOUT_EDITOR_TABS.map(td => {
     const lbl = t(td.label);
-    return `<button class="le-tab${_layoutEditorTab===td.id?' active':''}" data-let="${td.id}" aria-label="${lbl}">${td.icon} <span>${lbl}</span></button>`;
+    const on = _layoutEditorTab===td.id;
+    return `<button class="le-tab${on?' active':''}" role="tab" aria-selected="${on}" aria-controls="layoutEditorPanel" data-let="${td.id}" aria-label="${lbl}">${td.icon} <span>${lbl}</span></button>`;
   }).join('');
-  let html = `<div class="le-tabs">${tabs}</div>`;
+  let html = `<div class="le-tabs" role="tablist">${tabs}</div>`;
+  html += '<div id="layoutEditorPanel" role="tabpanel">';
 
   // Build the active panel
   if(_layoutEditorTab === 'tab'){
@@ -274,6 +281,7 @@ function renderLayoutEditor(){
       </div>
     </div>`;
   }
+  html += '</div>';
 
   host.innerHTML = html;
   // property-bound (CSP blocks onclick=/onchange= attributes in generated markup)
@@ -290,6 +298,15 @@ function renderLayoutEditor(){
 function switchLayoutEditorTab(id){
   _layoutEditorTab = id;
   renderLayoutEditor();
+  // renderLayoutEditor() just tore down and rebuilt the ENTIRE #layoutEditor
+  // host, including the tab strip itself — the button that was just clicked
+  // or Enter/Space-activated no longer exists as the same DOM node, so
+  // without this a keyboard user's focus silently fell to <body> on every
+  // inner-tab switch (the same bug class moveLayout() was fixed for; this
+  // sibling function shares the same root cause and had been missed).
+  const host = document.getElementById('layoutEditor');
+  const btn = host && host.querySelector(`.le-tab[data-let="${id}"]`);
+  if(btn) try{ btn.focus({preventScroll:true}); }catch(_){}
 }
 
 /* ============================================================

@@ -307,6 +307,8 @@
     font-size:var(--fs-3xl); line-height:1;
     cursor:pointer; touch-action:manipulation;
     transition:transform var(--dur-fast) var(--ease), background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast), box-shadow var(--dur-fast);
+    /* header glyph buttons (⚙/⇅/☀️/🔄) are actions, not selectable text */
+    user-select:none; -webkit-touch-callout:none;
   }
   .icon-btn:active{transform:scale(.95);}
   .icon-btn:hover{color:var(--text); border-color:var(--line-soft); background:var(--card2);}
@@ -632,6 +634,11 @@
     transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
     position:relative;
     overflow:hidden;
+    /* same reasoning as .tx below — this is a tap-to-filter target, not
+       selectable text; without this a long-press (common while deciding
+       whether to tap) triggers iOS's native Copy/Look Up callout bubble or
+       Android's text-selection handles over the card instead of just filtering. */
+    user-select:none; -webkit-touch-callout:none;
   }
   .wallet:hover{border-color:var(--line-soft); background:var(--card2);}
   .wallet:active{transform:scale(.97);}
@@ -889,6 +896,8 @@
     padding:8px 4px; min-height:44px; background:var(--bg-elev); border:1px solid var(--line);
     border-radius:var(--radius-sm); color:var(--muted); font-size:var(--fs-2xs); font-weight:600;
     cursor:pointer; transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+    /* tap-to-select target, same reasoning as .wallet above */
+    user-select:none; -webkit-touch-callout:none;
   }
   .cat-chip:hover{border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold);}
   .cat-chip:active{transform:scale(.97);}
@@ -1303,6 +1312,19 @@
      packed settings sub-section — vs the default 14px gap meant to separate a
      modal's final action row from a looser block of unrelated content above */
   .modal-actions--tight{margin-top:8px;}
+  /* subModal/walletDefModal can overflow a short viewport (e.g. keyboard open),
+     pushing the primary Save/Cancel row below the fold with only a thin native
+     scrollbar hinting more exists. Pin JUST this row to the bottom of .modal's
+     own scroll container (same pattern as .drawer-submit below) — deliberately
+     NOT applied to the sibling delete-row .modal-actions in those same modals,
+     since two rows both stuck to bottom:0 would overlap; leaving delete in
+     normal flow also means reaching it takes a deliberate scroll, which is a
+     reasonable guard against accidental destructive taps. */
+  .modal-actions--sticky{
+    position:sticky; bottom:0; z-index:1; background:var(--bg-elev);
+    padding-top:10px; padding-bottom:calc(env(safe-area-inset-bottom) + 2px);
+    border-top:1px solid var(--line-soft);
+  }
   .btn-primary{background:var(--gold-btn); color:var(--on-gold);}
   .btn-primary:active{filter:brightness(.9);}
   .btn-secondary{background:var(--bg-elev); color:var(--text); border:var(--bd) solid var(--line);}
