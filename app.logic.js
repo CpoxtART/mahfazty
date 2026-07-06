@@ -93,7 +93,15 @@ async function addTx(type){
     }
     closeAddDrawer();
     haptic(15); // brief confirm pulse on a successful entry
-    toast(type==='expense' ? t({ar:'✓ تم تسجيل المصروف', en:'✓ Expense recorded'}) : t({ar:'✓ تم تسجيل الدخل', en:'✓ Income recorded'}));
+    // When auto-distribution is about to follow immediately below, its own
+    // toast fires only a tick later — close enough to clobber this toast's
+    // #saveStatus aria-live text before a screen reader finishes reading it.
+    // Skip this one here (not dropped) and fold it into that single combined
+    // toast instead, so exactly one announcement covers both outcomes.
+    const _willAutoDistribute = _distributable && autoDistribute;
+    if(!_willAutoDistribute){
+      toast(type==='expense' ? t({ar:'✓ تم تسجيل المصروف', en:'✓ Expense recorded'}) : t({ar:'✓ تم تسجيل الدخل', en:'✓ Income recorded'}));
+    }
 
     // auto-distribution flow for income (budget-wallet income only)
     if(_distributable && autoDistribute){
@@ -101,7 +109,9 @@ async function addTx(type){
       // single render after distribution completes — skips an intermediate render
       // that would paint the income-only state before the distribution legs exist
       render();
-      if(_distributed) toast(t({ar:'🔄 تم توزيع الدخل تلقائيًا', en:'🔄 Income auto-distributed'}));
+      toast(_distributed
+        ? t({ar:'✓ تم تسجيل الدخل وتوزيعه تلقائيًا', en:'✓ Income recorded and auto-distributed'})
+        : t({ar:'✓ تم تسجيل الدخل', en:'✓ Income recorded'}));
     } else {
       render(); // expenses, track-wallet income, and manual-distribution incomes render once right here
       if(_distributable){

@@ -1631,8 +1631,14 @@ function idbOpen(){
   _idbOpenPromise = new Promise((resolve, reject)=>{
     if(!('indexedDB' in window)){ reject('no idb'); return; }
     const req = indexedDB.open('walletTrackerDB', 1);
+    // Guarded so a FUTURE version bump (e.g. to add a second store) doesn't
+    // re-run this against a DB that already has 'backup' — an unconditional
+    // createObjectStore() throws DOMException on a store that already exists,
+    // which aborts the versionchange transaction and permanently breaks IDB
+    // for that user on every subsequent open (idbOpen rejects forever, silently
+    // downgrading them to the bounded localStorage-only fallback).
     req.onupgradeneeded = () => {
-      req.result.createObjectStore('backup');
+      if(!req.result.objectStoreNames.contains('backup')) req.result.createObjectStore('backup');
     };
     req.onsuccess = () => { _idbInstance = req.result; _idbAvailable = true; resolve(_idbInstance); };
     req.onerror   = () => reject(req.error);

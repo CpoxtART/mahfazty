@@ -117,7 +117,7 @@ function renderWallets(){
       budgetHtml = `
         <div class="budget-row">
           <div class="bar" style="margin-top:6px;" role="img" aria-label="${escHtml(budgetStatus)}"><i style="transform:scaleX(${ratio.toFixed(4)}); background:${color};"></i></div>
-          <div class="budget-label" style="color:${over?'var(--red)':'var(--muted)'}">${fmt(spent)} / ${fmt(budget)}${over?' ⚠':''}</div>
+          <div class="budget-label" style="color:${over?'var(--red)':(ratio>0.8?'var(--gold)':'var(--muted)')}">${fmt(spent)} / ${fmt(budget)}${over?' ⚠':(ratio>0.8?' ⏳':'')}</div>
         </div>`;
     }
 
@@ -2044,7 +2044,17 @@ function bindSwipeDelegation(list){
     const dy = e.touches[0].clientY - startY;
     if(!swipeMode){
       if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10){ swipeMode = true; }
-      else if(Math.abs(dy) > 10){ dragging = false; return; }
+      else if(Math.abs(dy) > 10){
+        // Yielding to native vertical scroll — touchend's finish() takes the
+        // `!dragging` early-return below and never reaches the style cleanup
+        // further down, so restore touchstart's inline styles here or they'd
+        // stick on this row (transition:none blocks any future transition on
+        // it, willChange keeps a compositor layer allocated) until the next
+        // full list re-render.
+        el.style.transition = ''; el.style.willChange = '';
+        dragging = false; el = null;
+        return;
+      }
       else return;
     }
     e.preventDefault(); // stop pull-to-refresh and scroll during confirmed horizontal swipe

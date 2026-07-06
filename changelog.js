@@ -22,6 +22,18 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.92',
+    date: '2026-07-06',
+    title: { ar: 'جولة تدقيق سادسة: ثغرة كامنة بترقية قاعدة البيانات + 4 إصلاحات', en: 'Sixth audit round: latent database-upgrade bug + 4 more' },
+    items: [
+      { ar: 'إصلاح احترازي عالٍ: أي ترقية مستقبلية لقاعدة بيانات IndexedDB المحلية كانت ستفشل بصمت وبشكل دائم لكل من يملك نسخة قديمة (النسخ الاحتياطي المحلي يتحول لوضع محدود بلا أي تنبيه) — أُصلح قبل أن يتأثر أي مستخدم فعليًا.', en: "Preemptive high fix: any future upgrade to the local IndexedDB schema would have permanently and silently failed for every existing installed user (the local backup path degrades to a bounded fallback with zero warning) — fixed before any user was ever actually affected." },
+      { ar: 'إصلاح عالٍ: حالة "الاقتراب من حد الميزانية" كانت تُعرض بلون الشريط فقط (ذهبي مقابل أخضر) — لا يميّزها مستخدم يعاني عمى الألوان عن حالة "ضمن الميزانية". أُضيف رمز ⏳ ظاهر بجانب الرقم.', en: 'High fix: the "near budget limit" status was conveyed by bar color alone (gold vs green) — indistinguishable for a colorblind user from "on budget". A visible ⏳ icon now appears alongside the number.' },
+      { ar: 'إصلاح عالٍ: تسجيل دخل مع التوزيع التلقائي مفعّل كان يُطلق إشعارين متتاليين بسرعة يتداخلان ويقطعان إعلان قارئ الشاشة — دُمجا بإشعار واحد يغطي الحالتين.', en: 'High fix: recording income with auto-distribute on fired two rapid back-to-back toasts that clobbered each other mid-announcement for screen-reader users — combined into a single toast covering both outcomes.' },
+      { ar: 'إصلاح خفيف: ضغطتان متتاليتان سريعتان على تسجيل الدخول بجوجل كانتا قد تفتحان نافذتي مصادقة متنافستين — أُضيف حاجز يمنع الطلب الثاني حتى ينتهي الأول.', en: 'Low fix: two rapid taps on Google sign-in could open two competing auth popups — a guard now blocks the second request until the first settles.' },
+      { ar: 'إصلاح خفيف: سحب قطري (مزيج عمودي/أفقي) على معاملة يتنازل بشكل صحيح للتمرير العمودي، لكنه كان يترك أنماطًا مؤقتة عالقة على الصف حتى إعادة الرسم التالية — تُنظّف الآن فورًا.', en: "Low fix: a diagonal (mixed vertical/horizontal) swipe on a transaction correctly yielded to vertical scroll, but left temporary styling stuck on that row until the next re-render — now cleaned up immediately." },
+    ],
+  },
+  {
     version: 'v47.91',
     date: '2026-07-06',
     title: { ar: 'جولة تدقيق خامسة: إصلاحان عاليان بإدارة التركيز + 5 إصلاحات إضافية', en: 'Fifth audit round: 2 high-severity focus-management fixes + 5 more' },

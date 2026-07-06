@@ -420,6 +420,10 @@ function initGisClient(){
 // Interactive sign-in — shows the Google account picker. Used for the first
 // connection and as the fallback when a silent grant needs real interaction.
 function driveSignIn(){
+  // _driveSilentMode is non-null for the whole lifetime of an in-flight token
+  // request (cleared only once the callback fires) — reused here as a busy
+  // guard so a rapid double-tap can't open a second competing OAuth popup.
+  if(_driveSilentMode) return;
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast(t({ar:'⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', en:'⚠ Could not initialize Google, try refreshing the page'}), true); return; }
   _driveSilentMode = 'signin'; // explicit user-initiated sign-in from Settings — the ONLY path allowed to show the conflict-resolution modal
@@ -450,6 +454,8 @@ function driveSignIn(){
 // token straight away (no account-chooser screen), while still using the same reliable
 // popup/redirect path that's proven not to hang on mobile (unlike prompt:'' below).
 function driveReconnectInteractive(){
+  // see driveSignIn's matching guard comment
+  if(_driveSilentMode) return;
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast(t({ar:'⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', en:'⚠ Could not initialize Google, try refreshing the page'}), true); return; }
   _driveSilentMode = 'reconnect'; // automatic banner reconnect — resolve via the silent union merge, never the conflict modal
