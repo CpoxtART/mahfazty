@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v47.96',
+    date: '2026-07-06',
+    title: { ar: 'إصلاح: التقرير "الشهري" كان يعرض أرصدة كل المحافظ الحالية، أبعد من نطاق الشهر', en: 'Fix: the "monthly" report was showing current wallet balances, beyond the month\'s scope' },
+    items: [
+      { ar: 'إصلاح متوسط: مشاركة/تصدير تقرير الشهر كان يتضمن قسم "أرصدة المحافظ" — وهي أرقام لحظة التصدير الحالية، وليست خاصة بذلك الشهر. مشاركة تقرير "شهري" مع شخص آخر كانت تكشف بذلك إجمالي ثروتك بكل المحافظ، أبعد مما يوحي به اسم التقرير. أُزيل هذا القسم — التقرير الآن يقتصر على دخل/مصروف/صافي الشهر والتوزيع حسب الفئة فقط.', en: 'Medium fix: sharing/exporting the monthly report included a "wallet balances" section — figures as of the moment you exported, not scoped to that month at all. Sharing a "monthly" report with someone else disclosed your total net worth across every wallet, beyond what the report\'s name implies. This section is now removed — the report covers only the month\'s income/expense/net and its category breakdown.' },
+    ],
+  },
+  {
     version: 'v47.95',
     date: '2026-07-06',
     title: { ar: 'جولة تدقيق سابعة: إصلاح دقة التقريب المالي + 3 تحسينات', en: 'Seventh audit round: money-rounding precision fix + 3 more' },

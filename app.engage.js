@@ -251,11 +251,6 @@ function exportMonthlyReport(){
     report += `  ${cat.icon} ${cat.name}: ${fmt(amt)}\n`;
   });
 
-  report += `\n${t({ar:'أرصدة المحافظ', en:'Wallet balances'})}:\n`;
-  WALLET_DEFS.forEach(w=>{
-    report += `  ${w.track?'🏦':'👛'} ${w.name}: ${fmt(state.wallets[w.id] ?? 0)}\n`;
-  });
-
   report += `\n📱 ${appName} 🙂‍↔️`;
 
   const shareData = { title: t({ar:`تقرير ${appName} — ${monthName}`, en:`${appName} report — ${monthName}`}), text: report };
