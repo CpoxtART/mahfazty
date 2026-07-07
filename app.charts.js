@@ -77,7 +77,13 @@ function _computePieData(){
         if(tx.type!=='expense' || isSystemCategory(tx)) return;
         if(tx.ts < prevStart || tx.ts >= prevEnd) return;
         if(walletFilter && tx.wallet !== walletFilter) return;
-        const cat = tx.category || 'other';
+        // normalizeCategory here too, matching the current-month totals above
+        // — without it, a prior month's transactions with a different unknown/
+        // legacy category id than the literal 'other' never counted toward
+        // this month's merged "Other" wedge's comparison, producing an
+        // incorrect/misleadingly large ▲ or "New" badge on that wedge even
+        // though nothing had actually changed month over month.
+        const cat = normalizeCategory(tx.category);
         prevTotals[cat] = (prevTotals[cat]||0) + tx.amount;
       });
     }

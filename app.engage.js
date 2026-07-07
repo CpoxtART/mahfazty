@@ -236,7 +236,13 @@ function exportMonthlyReport(){
     if(tx.type==='income') totalIncome = round2(totalIncome + tx.amount);
     else {
       totalExpense = round2(totalExpense + tx.amount);
-      const c = tx.category || 'other';
+      // normalizeCategory (not the raw id) — otherwise two DIFFERENT unknown/
+      // legacy category ids (e.g. from an old app version) each get their own
+      // bucket here, then both resolve to the identical "✨ Other" name at
+      // render time below, showing as two separate "Other: ..." lines in the
+      // report instead of one merged line. Same fix _computePieData() already
+      // has (app.charts.js); this was a second site with the same gap.
+      const c = normalizeCategory(tx.category);
       catTotals[c] = round2((catTotals[c]||0) + tx.amount);
     }
   });

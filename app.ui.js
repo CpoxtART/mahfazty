@@ -1885,7 +1885,13 @@ function getFilteredTx(){
   _filteredTxCache = state.transactions
     .filter(tx => inRange(tx.ts, _now))
     .filter(tx => !walletFilter || tx.wallet === walletFilter)
-    .filter(tx => !categoryFilter || (tx.category||'other') === categoryFilter)
+    // normalizeCategory — categoryFilter is set from the pie chart's NORMALIZED
+    // wedge id (app.charts.js toggleCategoryFilter call), so a transaction
+    // whose raw stored id is an unrecognized legacy value (displayed as
+    // "Other" everywhere via getCategory's fallback, and counted in the
+    // Other wedge's total) was previously excluded here — tapping the Other
+    // wedge under-filtered relative to what the wedge's own total represented.
+    .filter(tx => !categoryFilter || normalizeCategory(tx.category) === categoryFilter)
     .filter(tx => {
       if(!searchQuery) return true;
       const wallet = WALLET_DEFS.find(w=>w.id===tx.wallet);

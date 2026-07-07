@@ -31,19 +31,31 @@ function _runQueuedToastIfAny(){
     q.fn(...q.args);
   }
 }
+// Tracks whichever action-toast (delete/edit undo) is CURRENTLY on screen, so
+// a second, different action-toast that's about to replace it can chain back
+// to it afterward instead of silently discarding it — see toastWithAction's
+// supersede handling below. deleteTx already merges repeated DELETES into one
+// combined undo via _lastDeleted; this covers the general cross-type case
+// (edit then edit, edit then delete, delete then edit, all within a few
+// seconds of each other).
+let _pendingAction = null; // {label, actionLabel, fn, ariaLabel, expiresAt}
+let _supersededAction = null; // one level of "the action this just replaced"
 function toast(msg, isError){
   if(Date.now() < _criticalToastUntil){ _queuedToast = {fn: toast, args:[msg, isError]}; return; }
-  // A new notification means the user moved on — clear the undo timer so the
-  // new toast is always visible (previously non-error toasts were silently
-  // dropped for 5s after a delete, so "تم تسجيل المصروف" could vanish).
-  // Note: we do NOT null _lastDeleted here so undo can still work if the user
-  // taps the undo button in a toastWithUndo that appears after this toast.
-  // We DO reschedule the expiry (not just clear it) — otherwise _lastDeleted
-  // would stay armed forever once interrupted, letting a much later undo
-  // resurrect a transaction long after the 5s window the toast implied.
-  if(_lastDeleted){
-    clearTimeout(_undoTimer);
-    _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
+  // A pending delete/edit undo is still live and displayed (or, per the
+  // _lastDeleted comment history, still validly armed) — overwriting the
+  // element here would silently kill the only on-screen way to invoke it,
+  // even though the code just below proves it's still meant to be valid.
+  // Queue this routine message instead: it plays once the action-toast's own
+  // timeout naturally dismisses (toastWithAction's dismiss+_runQueuedToastIfAny)
+  // or the user taps its button, rather than clobbering it immediately.
+  if(_lastDeleted || (_pendingAction && _pendingAction.expiresAt > Date.now())){
+    if(_lastDeleted){
+      clearTimeout(_undoTimer);
+      _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
+    }
+    _queuedToast = {fn: toast, args:[msg, isError]};
+    return;
   }
   const el = document.getElementById('saveStatus');
   // Errors must interrupt a screen reader (assertive); routine confirmations
@@ -67,8 +79,20 @@ function toastWithUndo(msg, undoFn){
 // critical=true marks a severe, rare warning (e.g. local persistence totally failed)
 // that must not be silently overwritten by/lost a race with a routine toast that
 // fires moments later from an in-flight optimistic save flow — see _criticalToastUntil.
-function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel){
+// _isReplay is internal-only (set when re-showing a superseded action) — skips
+// re-stashing it as its own superseded entry.
+function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel, _isReplay){
   if(!critical && Date.now() < _criticalToastUntil){ _queuedToast = {fn: toastWithAction, args:[msg, actionLabel, fn, critical, btnAriaLabel]}; return; }
+  // A DIFFERENT, still-unresolved action-toast is about to be replaced by this
+  // one (e.g. editing transaction A, then editing/deleting transaction B
+  // before A's undo was tapped or timed out) — stash it so tapping (or
+  // naturally timing out) THIS new toast can chain back to offering A's undo
+  // next, instead of it silently vanishing the instant this toast appears.
+  // One level deep only (bounded scope: a rapid streak of 3+ only preserves
+  // the immediately-previous one, not a full history).
+  if(!critical && !_isReplay && _pendingAction && _pendingAction.expiresAt > Date.now()){
+    _supersededAction = _pendingAction;
+  }
   const el = document.getElementById('saveStatus');
   // critical warnings (e.g. data-loss) interrupt the screen reader; routine
   // action toasts (undo) stay polite. See the matching note in toast().
@@ -91,7 +115,22 @@ function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel){
     el.classList.remove('show');
     el.innerHTML = '';
   };
-  btn.onclick = () => { dismiss(); fn(); };
+  // After resolving (tapped OR naturally timed out), offer any action this
+  // one superseded — a rapid edit/delete streak can still be walked back one
+  // tap at a time instead of every-but-the-last one silently disappearing.
+  // Returns true if it displayed something, so the natural-timeout path below
+  // can skip _runQueuedToastIfAny() rather than immediately overwriting this
+  // higher-priority (time-sensitive) undo offer with a routine queued message.
+  const _offerSuperseded = () => {
+    if(!critical && _pendingAction === thisAction) _pendingAction = null;
+    if(_supersededAction && _supersededAction.expiresAt > Date.now()){
+      const prev = _supersededAction; _supersededAction = null;
+      toastWithAction(prev.label, prev.actionLabel, prev.fn, false, prev.ariaLabel, true);
+      return true;
+    }
+    return false;
+  };
+  btn.onclick = () => { dismiss(); fn(); _offerSuperseded(); };
   el.appendChild(span);
   el.appendChild(btn);
   el.style.borderColor = 'var(--line)';
@@ -100,7 +139,9 @@ function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel){
   clearTimeout(window._saveTimeout);
   const dur = critical ? 7000 : 5000;
   if(critical) _criticalToastUntil = Date.now() + dur;
-  window._saveTimeout = setTimeout(()=> { dismiss(); _runQueuedToastIfAny(); }, dur);
+  const thisAction = critical ? null : { label: msg, actionLabel, fn, ariaLabel: btnAriaLabel, expiresAt: Date.now() + dur };
+  if(!critical) _pendingAction = thisAction;
+  window._saveTimeout = setTimeout(()=> { dismiss(); if(!_offerSuperseded()) _runQueuedToastIfAny(); }, dur);
 }
 
 /* Cheap signature of everything that affects visual output.

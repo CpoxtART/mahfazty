@@ -98,7 +98,7 @@ function parseArabicNumber(text){
   // "لم يتم العثور على رقم". Per-token normalization keeps the digit/separator
   // handling without destroying the word boundaries.
   const tokens = String(text == null ? '' : text).split(/\s+/).map(normalizeDigits);
-  const values = [];            // ordered numeric values pulled from digits AND words
+  const hits = [];               // {value, idx} — idx = LAST token index this value consumed
   let sawAny = false;
   for(let i = 0; i < tokens.length; i++){
     let raw = tokens[i];
@@ -106,7 +106,7 @@ function parseArabicNumber(text){
     // a token may be a digit group, possibly stuck to a scale word ("5آلاف")
     if(/^\d/.test(raw)){
       const dm = raw.match(/\d+(\.\d+)?/);
-      if(dm){ values.push(parseFloat(dm[0])); sawAny = true; raw = raw.slice(dm[0].length); }
+      if(dm){ hits.push({value: parseFloat(dm[0]), idx: i}); sawAny = true; raw = raw.slice(dm[0].length); }
       if(!raw) continue;
     }
     const clean = raw.replace(/[^ء-ي]/g,'');
@@ -115,13 +115,13 @@ function parseArabicNumber(text){
       // word, or "عشر" (10) claims the second token and the pair reads as 10
       const _next = i + 1 < tokens.length ? String(tokens[i+1]).replace(/[^ء-ي]/g,'') : '';
       if(_next && VOICE_NUMBER_WORDS[clean + ' ' + _next] !== undefined){
-        values.push(VOICE_NUMBER_WORDS[clean + ' ' + _next]); sawAny = true; i++; continue;
+        hits.push({value: VOICE_NUMBER_WORDS[clean + ' ' + _next], idx: i+1}); sawAny = true; i++; continue;
       }
-      if(VOICE_NUMBER_WORDS[clean] !== undefined){ values.push(VOICE_NUMBER_WORDS[clean]); sawAny = true; continue; }
+      if(VOICE_NUMBER_WORDS[clean] !== undefined){ hits.push({value: VOICE_NUMBER_WORDS[clean], idx: i}); sawAny = true; continue; }
       // strip a leading connective و ("وعشرين" → "عشرين") and retry — but only when
       // the remainder is itself a number word, so real words like "واحد" stay intact
       if(clean.length > 2 && clean[0] === 'و' && VOICE_NUMBER_WORDS[clean.slice(1)] !== undefined){
-        values.push(VOICE_NUMBER_WORDS[clean.slice(1)]); sawAny = true; continue;
+        hits.push({value: VOICE_NUMBER_WORDS[clean.slice(1)], idx: i}); sawAny = true; continue;
       }
     }
     // English words — a separate pass (not merged with the Arabic one above)
@@ -129,11 +129,30 @@ function parseArabicNumber(text){
     // token can only ever match one script.
     const cleanEn = raw.replace(/[^a-zA-Z]/g,'').toLowerCase();
     if(cleanEn && VOICE_NUMBER_WORDS_EN[cleanEn] !== undefined){
-      values.push(VOICE_NUMBER_WORDS_EN[cleanEn]); sawAny = true;
+      hits.push({value: VOICE_NUMBER_WORDS_EN[cleanEn], idx: i}); sawAny = true;
     }
   }
   if(!sawAny) return null;
-  const result = _combineNumberValues(values);
+  // Group hits into RUNS of STRICTLY ADJACENT number mentions (zero tokens
+  // between them) — this is what lets a genuine multi-word number like
+  // "one hundred fifty" or "مية وخمسين" (the و is fused onto the following
+  // token, "وخمسين", not a separate word — so these are already adjacent)
+  // combine correctly via _combineNumberValues' scale semantics. A run BREAKS
+  // the moment ANY other word separates two number mentions (e.g. "20 on
+  // coffee and 30 on lunch" / "20 على قهوة و30 على غداء" — two DIFFERENT
+  // purchases, not one combined amount): those two numbers used to get
+  // silently summed into a single wrong-but-perfectly-plausible total with no
+  // indication anything was off. Voice input targets ONE transaction, so only
+  // the FIRST run is used — a later, clearly-separate number mention is
+  // ignored rather than folded in.
+  const runs = [];
+  let run = [];
+  for(let k = 0; k < hits.length; k++){
+    if(run.length && hits[k].idx !== run[run.length-1].idx + 1){ runs.push(run); run = []; }
+    run.push(hits[k]);
+  }
+  if(run.length) runs.push(run);
+  const result = _combineNumberValues(runs[0].map(h => h.value));
   return isFinite(result) ? result : null;
 }
 

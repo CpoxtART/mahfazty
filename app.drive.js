@@ -192,9 +192,12 @@ function showDriveBanner(retriesLeft){
   // user was just looking at, exactly like the toast-vs-update-banner clash.
   const updateBannerEl = document.getElementById('updateBanner');
   const toastEl = document.getElementById('saveStatus');
-  const openModalEl = document.querySelector('.modal-overlay.open');
+  // _anyOverlayOpen() (not just the bare .modal-overlay.open query) so the
+  // add-transaction drawer counts too — it's a DIFFERENT class (.add-drawer)
+  // this check used to miss, letting this banner reveal directly over the
+  // drawer's sticky Save button and intercept taps meant for it.
   const blocked = (updateBannerEl && updateBannerEl.classList.contains('show')) ||
-    (toastEl && toastEl.classList.contains('show')) || openModalEl;
+    (toastEl && toastEl.classList.contains('show')) || _anyOverlayOpen();
   // A symmetric ~6s cap on both sides let their two independent "give up and
   // show anyway" fallbacks fire within ~500ms of each other whenever a
   // long-lived blocker (e.g. the daily-review modal, which has no auto-dismiss

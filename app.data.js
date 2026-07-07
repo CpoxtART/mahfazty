@@ -33,6 +33,11 @@ function sanitizeBudgets(obj){
 }
 function exportData(){
   const payload = {
+    // Schema marker — no import-time migration logic reads this YET, but a
+    // future schema change needs SOME way to tell an old-format backup from a
+    // new one besides ad hoc key-presence guessing. Bump only on an actual
+    // breaking shape change, not every release.
+    backupSchema: 1,
     // shared with driveSyncToCloud (app.drive.js) — see _buildSyncPayload (app.core.js)
     ..._buildSyncPayload(),
     // export-only extras: carry theme/accent/lang so a restore on another device
@@ -43,6 +48,13 @@ function exportData(){
     // Drive sync never carries these — each device keeps its own appearance/
     // language/draft, so they're added here rather than in the shared builder.
     theme: _currentThemeMode(),
+    // Which of dark/black the THEME MODE resolves to while in 'auto' or 'dark'
+    // mode — a SEPARATE localStorage key from theme itself. Without exporting
+    // it, a user who picked matte-black explicitly then switched to 'auto'
+    // (theme='auto', darkVariant='black' still set locally) would have it
+    // silently reset to plain dark on a restore, since setThemeMode('auto')
+    // never touches darkVariant.
+    darkVariant: _darkVariant(),
     accent: _currentAccent('day'),
     accentDark: _currentAccent('night'),
     lang: _currentLang(),
@@ -345,6 +357,12 @@ async function applyImport(text){
   pendingIncomeTx = null;
   detailWalletId = null;
   // restore appearance + data-edit time if the backup carried them (lossless round-trip)
+  // Restore BEFORE setThemeMode below, so if theme is 'auto'/'dark' it
+  // immediately resolves using the just-restored variant instead of whatever
+  // this device's own prior (or default) darkVariant happened to be.
+  if(data.darkVariant === 'dark' || data.darkVariant === 'black'){
+    try{ localStorage.setItem(LS_PREFIX + 'darkVariant', data.darkVariant); }catch(_){ }
+  }
   if(data.theme === 'light' || data.theme === 'dark' || data.theme === 'black' || data.theme === 'auto'){
     try{ setThemeMode(data.theme); }catch(_){ }
   }

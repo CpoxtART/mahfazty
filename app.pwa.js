@@ -95,9 +95,13 @@ function _revealUpdateBanner(el, attemptsLeft){
   // same class of clash — openModal() moves focus into it, and this banner's
   // z-index (1500) sits above every modal-overlay (1000), so revealing while
   // one is open would both fight the modal's focus and visually render on top
-  // of it, not just compete for screen-reader attention.
-  const openModalEl = document.querySelector('.modal-overlay.open');
-  const blocked = (toastEl && toastEl.classList.contains('show')) || (driveBannerEl && driveBannerEl.classList.contains('show')) || openModalEl;
+  // of it, not just compete for screen-reader attention. _anyOverlayOpen()
+  // (not just the bare .modal-overlay.open query) so the add-transaction
+  // drawer counts too — it's a DIFFERENT class (.add-drawer, z-index 901)
+  // that this check used to miss entirely, letting the banner (z-index 1500)
+  // reveal directly over the drawer's sticky Save button and intercept taps
+  // meant for it.
+  const blocked = (toastEl && toastEl.classList.contains('show')) || (driveBannerEl && driveBannerEl.classList.contains('show')) || _anyOverlayOpen();
   // This side deliberately keeps the SHORTER (~6s) give-up cap; showDriveBanner
   // (app.drive.js) keeps a much longer one specifically so the two independent
   // "give up and show anyway" fallbacks don't land within ~500ms of each other

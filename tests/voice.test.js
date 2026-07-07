@@ -32,6 +32,23 @@ test('parseArabicNumber — digits still work regardless of language (unchanged)
   assert.equal(app.parseArabicNumber('paid 75 dollars for lunch'), 75);
 });
 
+test('parseArabicNumber — two unrelated numbers in one phrase are NOT silently summed (round 15 fix)', () => {
+  // Before this fix, EVERY numeric mention anywhere in the transcript was
+  // flattened into one list and combined — "20 on coffee and 30 on lunch"
+  // silently became 50 (an entirely plausible-looking but wrong amount) with
+  // no indication anything was off. Only genuinely adjacent number tokens
+  // (a real multi-word number, e.g. "one hundred fifty") should combine;
+  // two numbers separated by real words describing different things must
+  // NOT merge — the first one wins, matching voice input's one-transaction-
+  // per-utterance model.
+  assert.equal(app.parseArabicNumber('صرفت 20 على قهوة و 30 على غداء'), 20);
+  assert.equal(app.parseArabicNumber('spent 20 on coffee and 30 on lunch'), 20);
+  assert.equal(app.parseArabicNumber('عشرين قهوة ثلاثين غداء'), 20);
+  // Adjacent multi-word numbers must still combine correctly (regression guard).
+  assert.equal(app.parseArabicNumber('one hundred fifty'), 150);
+  assert.equal(app.parseArabicNumber('مية وخمسين'), 150);
+});
+
 test('guessCategoryShared — bilingual keyword matching with orthographic folding', () => {
   assert.equal(app.guessCategoryShared('قهوه في المقهى'), 'food'); // "قهوه" without teh-marbuta
   assert.equal(app.guessCategoryShared('coffee at the cafe'), 'food');
