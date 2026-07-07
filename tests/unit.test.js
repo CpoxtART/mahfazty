@@ -166,3 +166,26 @@ test('cache-invalidation registry — invalidateOnTxCommit/invalidateOnRender ru
   assert.equal(txCommitCalls, 2, 'invalidators run again on every subsequent trigger, not just once');
   assert.equal(renderCalls, 2);
 });
+
+test('_fmtCompact — collapses -0/near-zero noise, has a trillion tier (round 16 fixes)', () => {
+  // A running-balance sum accumulated via repeated +=/-= can drift to a tiny
+  // negative epsilon for a value that's mathematically exactly zero — fmt()
+  // already guards against this; _fmtCompact() (used for the pie-chart total
+  // label and the line-chart Y-axis) had no guard of its own and could show
+  // a literal "-0" for an axis endpoint that's really just zero.
+  assert.equal(app._fmtCompact(-0, true), '0');
+  assert.equal(app._fmtCompact(-1.42e-14, true), '0');
+  assert.equal(app._fmtCompact(-0.001, true), '0');
+  // real negative values must still show the sign
+  assert.equal(app._fmtCompact(-1500, true), '-1.5K');
+  // K/M/B/T tier boundaries, incl. the new trillion tier — MAX_AMOUNT (1e12)
+  // is reachable as a ledger-wide SUM even though no single transaction can
+  // exceed it, so a total just under/at/over 999.5B must not silently
+  // overflow into an oversized "1000B"/"1500B" string.
+  assert.equal(app._fmtCompact(999499, false), '999.5K');
+  assert.equal(app._fmtCompact(999500, false), '1M');
+  assert.equal(app._fmtCompact(999500000, false), '1B');
+  assert.equal(app._fmtCompact(999500000000, false), '1T');
+  assert.equal(app._fmtCompact(1e12, false), '1T');
+  assert.equal(app._fmtCompact(1.5e12, false), '1.5T');
+});

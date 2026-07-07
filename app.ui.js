@@ -1500,7 +1500,18 @@ function openWalletDetail(walletId){
   if(w.track){
     updateWrap.style.display = 'block';
     budgetWrap.style.display = 'none';
-    document.getElementById('detailNewBalance').value = (currentVal || 0).toFixed(2);
+    // fmt() (not a bare .toFixed(2)) — currentVal is a running balance
+    // accumulated via repeated +=/-= across transactions, so floating-point
+    // drift can leave a wallet that's mathematically at exactly zero at a
+    // tiny negative epsilon (e.g. -1.42e-14). `currentVal || 0` only catches
+    // an EXACT 0 (an epsilon value is still truthy), and .toFixed(2) doesn't
+    // collapse near-zero negatives the way fmt() already does — so this
+    // field could show "-0.00" for a wallet the user believes is at zero,
+    // implying a negative balance that doesn't exist. fmt() is comma-grouped
+    // like every other editable amount field's pre-fill in this app
+    // (editAmount/subAmount via groupThousandsDisplay), and parseAmount()
+    // already strips commas on save.
+    document.getElementById('detailNewBalance').value = fmt(currentVal);
     _updateTrackModeToggleUI(walletId); // sync the "linked expense → ينقص/يزيد" toggle
   } else {
     updateWrap.style.display = 'none';
@@ -1577,6 +1588,20 @@ function sumExpenses(start, end, categoryId, wFilter){
   });
   return round2(total); // collapse float-accumulation residue before it feeds projections
 }
+// Largest single expense in [start,end) — used by the month-end spending
+// projection below to exclude a front-loaded one-time cost (e.g. rent paid
+// day 1) from the linear daily-rate estimate, so it isn't implicitly
+// multiplied across the whole month.
+function maxSingleExpense(start, end, wFilter){
+  let max = 0;
+  state.transactions.forEach(tx=>{
+    if(tx.type!=='expense' || isSystemCategory(tx)) return;
+    if(tx.ts < start || tx.ts >= end) return;
+    if(wFilter && tx.wallet !== wFilter) return;
+    if(tx.amount > max) max = tx.amount;
+  });
+  return round2(max);
+}
 
 let _analyticsCache = null;
 let _analyticsSig = '';
@@ -1598,11 +1623,16 @@ function renderAnalytics(){
   // (see the identical reasoning on getFilteredTx's sig, app.ui.js).
   const aSig = state.transactions.length + '|' + (state.transactions[state.transactions.length-1]?.id||'') + '|' + curStart + '|' + (walletFilter||'') + '|' + _txMutationStamp;
   if(aSig !== _analyticsSig || !_analyticsCache){
-    _analyticsCache = { cur: sumExpenses(curStart, curEnd, null, walletFilter), prev: sumExpenses(prevStart, prevEnd, null, walletFilter) };
+    _analyticsCache = {
+      cur: sumExpenses(curStart, curEnd, null, walletFilter),
+      prev: sumExpenses(prevStart, prevEnd, null, walletFilter),
+      curMax: maxSingleExpense(curStart, curEnd, walletFilter)
+    };
     _analyticsSig = aSig;
   }
   const curTotal = _analyticsCache.cur;
   const prevTotal = _analyticsCache.prev;
+  const curMaxExpense = _analyticsCache.curMax;
 
   const now = new Date();
   const dayOfMonth = now.getDate();
@@ -1618,6 +1648,14 @@ function renderAnalytics(){
     const pct = Math.abs(diff/prevSameDay*100).toFixed(0);
     const up = diff > 0;
     cmpHtml = `<div class="sub ${up?'up':'down'}">${up?'▲':'▼'} ${pct}${t({ar:'% عن نفس الفترة من الشهر الماضي', en:'% vs same period last month'})}</div>`;
+  } else if(prevTotal > 0){
+    // prevTotal has real data — the guard above only skipped the comparison
+    // because it's day 1 with nothing spent yet today (prorating "day 1 of
+    // last month" against zero would be a meaningless ~0% either way). The
+    // old copy here claimed "no data for last month" regardless of which
+    // condition actually failed, which was simply false whenever prevTotal
+    // was non-zero — a look-again-tomorrow message is accurate for both.
+    cmpHtml = `<div class="sub">${t({ar:'ستظهر المقارنة بعد أول مصروف هذا الشهر', en:'Check back after your first expense this month'})}</div>`;
   } else {
     cmpHtml = `<div class="sub">${t({ar:'لا توجد بيانات للشهر الماضي', en:'No data for last month'})}</div>`;
   }
@@ -1629,8 +1667,18 @@ function renderAnalytics(){
     </div>`;
   let projHtml;
   if(dayOfMonth >= 3 && curTotal > 0){
-    const dailyRate = curTotal / dayOfMonth;
-    const projected = dailyRate * daysInMonth;
+    // Exclude the single largest expense this month from the daily-rate
+    // calculation, then add it back as a flat one-time amount, instead of a
+    // naive curTotal/dayOfMonth*daysInMonth linear rate — a front-loaded
+    // one-time cost (e.g. rent paid day 1) otherwise inflates the daily rate
+    // and gets implicitly MULTIPLIED across the whole month, projecting a
+    // total several times the realistic figure (e.g. 3000 rent + ~50/day
+    // read as a ~14,600 month, when the honest number is closer to 4,500).
+    // Standard "isolate the known one-time cost" heuristic — day-to-day
+    // spending still projects linearly; the one big outlier doesn't.
+    const recurringTotal = round2(curTotal - curMaxExpense);
+    const dailyRate = recurringTotal / dayOfMonth;
+    const projected = round2(dailyRate * daysInMonth + curMaxExpense);
     projHtml = `
       <div class="analytics-card">
         <div class="l">${t({ar:'المتوقع نهاية الشهر', en:'Expected by month end'})}</div>

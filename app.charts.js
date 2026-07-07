@@ -13,8 +13,19 @@
 // signed=true keeps a leading "-" for negative values (the line chart's Y-axis
 // can go negative; the pie chart's total never does).
 function _fmtCompact(n, signed){
+  // Collapse -0 and sub-noise negatives (same threshold as fmt()'s own
+  // guard, app.core.js) — a running-balance sum can drift to a tiny negative
+  // epsilon like -1e-14 for a value that's mathematically exactly zero, and
+  // this formatter had no guard of its own, so the line-chart Y-axis could
+  // show a literal "-0" for an axis endpoint that's really just zero.
+  if(Object.is(n, -0) || (n < 0 && n > -0.005)) n = 0;
   const abs = Math.abs(n);
   const s = (signed && n < 0) ? '-' : '';
+  // Trillion tier — MAX_AMOUNT is 1e12, and a ledger summing many valid
+  // transactions can legitimately exceed 999.5B without any single amount
+  // being invalid; without this tier such a total printed as an oversized
+  // "1000B"/"1500B" instead of "1T"/"1.5T".
+  if(abs >= 999.5e9) return s + (abs/1e12).toFixed(1).replace(/\.0$/,'') + 'T';
   if(abs >= 999.5e6) return s + (abs/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
   if(abs >= 999.5e3) return s + (abs/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
   if(abs >= 1e3) return s + (abs/1e3).toFixed(1).replace(/\.0$/,'') + 'K';

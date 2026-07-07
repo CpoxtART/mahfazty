@@ -81,7 +81,16 @@ function _closeTopmostOverlay(){
   // visible-topmost overlay to close is a modal first, then the drawer.
   const open = [...document.querySelectorAll('.modal-overlay.open')];
   if(open.length){
-    _closeOverlayById(open[open.length-1].id);
+    const topId = open[open.length-1].id;
+    // driveConflictModal has NO cancel path by design (see the comment on
+    // _protectedModals) — the backdrop-tap listener already respects that,
+    // but Escape called _closeOverlayById() unconditionally, silently
+    // dismissing it with the conflict still unresolved (only the harmless
+    // "the next silent auto-sync figures it out later" fallback covered
+    // this gap). No-op here instead: Escape doesn't dismiss it, matching
+    // backdrop-tap's existing behavior — the user must tap a real button.
+    if(topId === 'driveConflictModal') return true;
+    _closeOverlayById(topId);
     return true;
   }
   if(addDrawerOpen){
@@ -281,6 +290,13 @@ function closeModal(id){
 // Modals that hold unsaved form input must NOT close on an accidental
 // backdrop tap (common on mobile) — only their explicit buttons close them.
 const _protectedModals = new Set(['editModal','transferModal','distributeModal','walletDetailModal','quickNotesModal',
+  // walletDefModal (add/rename a wallet) and subModal (add/edit a
+  // subscription) hold exactly the same kind of unsaved typed input as the
+  // others here (name/type, or name/amount/billing day) but were missing
+  // from this set — a backdrop tap or Escape while typing a new wallet/
+  // subscription name silently discarded it with no confirmation, unlike
+  // every sibling modal with the same risk profile.
+  'walletDefModal', 'subModal',
   // driveConflictModal has no cancel path — the user MUST pick a side via
   // resolveConflict(); a backdrop tap dismissing it silently would leave the
   // conflict unresolved with no indication the sync never completed.

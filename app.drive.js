@@ -948,6 +948,26 @@ async function driveSyncFromCloud(isInitial, interactive){
     };
     const cloudCount = (cloud.transactions || []).length;
     const localCount = state.transactions.length;
+    // A user who simply signs out and back in on the SAME device (driveSignOut
+    // only clears the token — local data and driveFileId are untouched) with
+    // ZERO actual changes on either side used to still hit this "choose a
+    // side" prompt, since the checks above only gate on both sides having ANY
+    // data, not on whether they've actually DIVERGED. If the two copies have
+    // the same transaction count AND the same data-edit timestamp, treat them
+    // as the same state and merge silently (a genuine no-op here) instead of
+    // forcing an uninformed, unnecessary decision — this still correctly
+    // falls through to the real conflict prompt below for the rare
+    // same-count-different-content coincidence, since the union merge below
+    // only SKIPS the modal, it doesn't skip reconciling the data.
+    if(cloudCount === localCount && cloudTime === localTime){
+      const { added, removed } = await _mergeCloudIntoLocal(cloud, false);
+      await driveSyncToCloud(true);
+      if(added || removed){
+        toast(t({ar:`☁️ تمت المزامنة — ${added ? `أُضيف ${added} ` : ''}${removed ? `حُذف ${removed} ` : ''}من جهاز آخر`, en:`☁️ Synced — ${added ? `${added} added ` : ''}${removed ? `${removed} deleted ` : ''}from another device`}));
+      }
+      setDriveIndicator('ok');
+      return;
+    }
     const newer = cloudTime > localTime ? 'cloud' : (localTime > cloudTime ? 'local' : '');
     const tag = side => newer === side ? ` <b style="color:var(--green)">(${t({ar:'الأحدث', en:'newer'})})</b>` : '';
     const opCount = n => t({ar:arPlural(n, 'عملية', 'عمليتين', 'عمليات'), en:`${n} ${n===1?'operation':'operations'}`});
@@ -995,6 +1015,33 @@ async function resolveConflict(useCloud){
     // cloud transactions back into local and uploads a hybrid instead of the
     // "local version" the modal promised.
     _driveLastSyncedEditedAt = (typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0) ? cloud.dataEditedAt : 0;
+    // Besides protecting THIS device's own next push (the stamp above), the
+    // rejection must be durable against a THIRD device that already
+    // union-merged these same cloud rows into its own local state earlier —
+    // its next routine, silent auto-sync would otherwise pull this device's
+    // freshly-pushed "local wins" copy, non-interactively union-merge its own
+    // cached copy of the rejected rows right back in (mergeCloudData has no
+    // way to know they were just explicitly rejected here), and re-upload
+    // them — silently resurrecting exactly what the user just chose to
+    // discard. Tombstone everything present in the rejected cloud snapshot
+    // but absent from local — same reasoning applyImport's own
+    // tombstone-everything-not-in-the-backup step already uses — so a later
+    // device's union merge sees the tombstones and excludes them too.
+    const _now = Date.now();
+    if(Array.isArray(cloud.transactions)){
+      const localTxIds = new Set(state.transactions.map(tx => tx.id));
+      cloud.transactions.forEach(tx => { if(tx && tx.id && !localTxIds.has(tx.id)) deletedTxIds[tx.id] = _now; });
+    }
+    if(Array.isArray(cloud.subscriptions)){
+      const localSubIds = new Set(subscriptions.map(s => s.id));
+      cloud.subscriptions.forEach(s => { if(s && s.id && !localSubIds.has(s.id)) deletedSubIds[s.id] = _now; });
+    }
+    if(Array.isArray(cloud.walletDefs)){
+      const localWalletIds = new Set(WALLET_DEFS.map(w => w.id));
+      cloud.walletDefs.forEach(w => { if(w && w.id && !localWalletIds.has(w.id)) deletedWalletDefIds[w.id] = _now; });
+    }
+    pruneTombstones();
+    await saveConfig(); // persist the new tombstones locally before pushing (they live in config)
     const pushed = await driveSyncToCloud();
     setDriveIndicator(pushed ? 'ok' : 'error');
     // driveSyncToCloud() already shows its own failure toast (_handleDriveSyncError)

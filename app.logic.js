@@ -426,11 +426,23 @@ function openEdit(id){
   // at the stale amount, desyncing the source tx from the money actually
   // distributed. Lock the amount field for this case; desc/date/category/type
   // remain editable since they don't affect balances.
-  _editingDistSource = !!(tx.link && tx.category !== 'transfer' &&
+  // A distribution's own withdrawal/deposit LEGS (tx._distributionLeg) are
+  // ALSO amount-locked here, for a different reason than the source tx above:
+  // they're marked category==='transfer' just like a simple 2-leg transfer,
+  // so saveEdit()'s "sync the one partner" logic below only fires correctly
+  // when the distribution has EXACTLY one deposit target (and even then it
+  // desyncs from the untouched source income amount); with 2+ targets the
+  // sync is skipped entirely and editing one leg's amount silently created or
+  // destroyed money with zero error. Locking here (matching deleteTx's own
+  // "can't delete a lone distribution leg" protection) closes both cases.
+  _editingDistSource = !!tx._distributionLeg || !!(tx.link && tx.category !== 'transfer' &&
     state.transactions.filter(t => t.link === tx.link && t.id !== tx.id).length >= 1);
   document.getElementById('editTypeToggle').style.display = _editingTransferLeg ? 'none' : '';
   document.getElementById('editCategorySection').style.display = _editingTransferLeg ? 'none' : '';
-  document.getElementById('editTransferHint').style.display = _editingTransferLeg ? 'block' : 'none';
+  // The generic "both sides update together" transfer hint is actively WRONG
+  // for a distribution leg (2+ legs don't pairwise-sync) — show the
+  // distribution-specific amount-locked hint instead whenever it applies.
+  document.getElementById('editTransferHint').style.display = (_editingTransferLeg && !_editingDistSource) ? 'block' : 'none';
   document.getElementById('editDistSourceHint').style.display = _editingDistSource ? 'block' : 'none';
   const _eAmt = document.getElementById('editAmount');
   _eAmt.disabled = _editingDistSource;

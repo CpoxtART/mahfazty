@@ -97,7 +97,7 @@ function loadApp() {
     globalThis.__exports = {
       // pure helpers
       round2, fmt, arPlural, normalizeDigits, parseAmount, groupThousandsDisplay,
-      escHtml, stripBidiControls, monthRange,
+      escHtml, stripBidiControls, monthRange, _fmtCompact,
       // import/data-integrity sanitizers (arg-based, pure)
       sanitizeDistribution, sanitizeBudgets, sanitizeWalletDefs,
       sanitizeOrder, sanitizeTrackLinkMode, buildTxTs, parseArabicNumber,
