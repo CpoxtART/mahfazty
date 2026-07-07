@@ -414,18 +414,22 @@ async function applyImport(text){
   await saveWalletDefs();
   closeModal('settingsModal'); // import/export now lives inside the settings data tab
   render(true);
-  if(_droppedTx > 0){
-    toast(t({ar:`✓ تم الاستيراد — لكن تم تجاهل ${arPlural(_droppedTx, 'معاملة غير صالحة', 'معاملتين غير صالحتين', 'معاملات غير صالحة', 'معاملة واحدة غير صالحة')} (محفظة مجهولة أو بيانات تالفة)`, en:`✓ Import complete — but ${_droppedTx} invalid ${_droppedTx===1?'transaction was':'transactions were'} skipped (unknown wallet or corrupt data)`}), true);
-  } else {
-    toast(t({ar:'✓ تم الاستيراد بنجاح', en:'✓ Import successful'}));
-  }
-  // Unlike the Drive-conflict flow's identical use of this helper, this call site
-  // (and wipeAll's) used to discard the return value — so the one safety net
-  // protecting a user from an accidental/wrong import could silently fail to
-  // download with zero indication, right before their old data was replaced.
+  // Unlike the Drive-conflict flow's identical use of _downloadDataBackup, this
+  // call site (and wipeAll's) used to discard the return value — so the one
+  // safety net protecting a user from an accidental/wrong import could
+  // silently fail to download with zero indication, right before their old
+  // data was replaced. Folded into the SAME toast() call as the success/
+  // dropped-tx message (not a second toast() right after) — toast() has no
+  // "critical" concept of its own (only toastWithAction does, via
+  // _criticalToastUntil), so two back-to-back plain toast() calls in the same
+  // tick just silently overwrite each other before either ever paints.
+  let _importMsg = _droppedTx > 0
+    ? t({ar:`✓ تم الاستيراد — لكن تم تجاهل ${arPlural(_droppedTx, 'معاملة غير صالحة', 'معاملتين غير صالحتين', 'معاملات غير صالحة', 'معاملة واحدة غير صالحة')} (محفظة مجهولة أو بيانات تالفة)`, en:`✓ Import complete — but ${_droppedTx} invalid ${_droppedTx===1?'transaction was':'transactions were'} skipped (unknown wallet or corrupt data)`})
+    : t({ar:'✓ تم الاستيراد بنجاح', en:'✓ Import successful'});
   if(!_backedUp){
-    toast(t({ar:'⚠ تعذّر تنزيل نسخة احتياطية قبل الاستيراد', en:"⚠ Couldn't download a backup before importing"}), true);
+    _importMsg += ' ' + t({ar:'⚠ لكن تعذّر تنزيل نسخة احتياطية قبل الاستيراد', en:"— ⚠ but couldn't download a backup beforehand"});
   }
+  toast(_importMsg, _droppedTx > 0 || !_backedUp);
   } catch(err){
     // Restore every mutated variable to its pre-import snapshot — nothing was
     // persisted yet (the save*() calls above only run once every step
@@ -765,12 +769,14 @@ async function wipeAll(){
   // yet previously had no haptic feedback at all (a routine subscription
   // save vibrated; wiping every wallet/transaction didn't).
   haptic([12, 40, 12]);
-  toast(t({ar:'🗑 تم حذف كل البيانات', en:'🗑 All data deleted'}));
-  // Same gap applyImport's identical call site had — the safety backup
-  // downloaded right before this irreversible wipe could silently fail
-  // with zero indication.
+  // Same gap applyImport's identical call site had (and the same single-toast
+  // fix — see its comment) — the safety backup downloaded right before this
+  // irreversible wipe could silently fail with zero indication, and a second
+  // back-to-back toast() call would have silently clobbered this one anyway.
+  let _wipeMsg = t({ar:'🗑 تم حذف كل البيانات', en:'🗑 All data deleted'});
   if(!_backedUp){
-    toast(t({ar:'⚠ تعذّر تنزيل نسخة احتياطية قبل الحذف', en:"⚠ Couldn't download a backup before wiping"}), true);
+    _wipeMsg += ' ' + t({ar:'⚠ لكن تعذّر تنزيل نسخة احتياطية قبل الحذف', en:"— ⚠ but couldn't download a backup beforehand"});
   }
+  toast(_wipeMsg, !_backedUp);
   } finally { _opInFlight--; }
 }

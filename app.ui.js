@@ -230,7 +230,9 @@ function setWalletFilter(id){
 function clearWalletFilter(){
   walletFilter = null;
   _txVisibleCount = 50;
-  document.getElementById('walletFilterChip').classList.remove('show');
+  const _wfChip = document.getElementById('walletFilterChip');
+  _reclaimFocusFromChip(_wfChip);
+  _wfChip.classList.remove('show');
   renderWallets();
   if(currentTab === 'transactions') renderRecentTx();
   renderTxList();
@@ -247,6 +249,7 @@ function toggleCategoryFilter(catId){
     refreshFilterChipLabels();
     chip.classList.add('show');
   } else {
+    _reclaimFocusFromChip(chip);
     chip.classList.remove('show');
   }
   // Direct DOM update, not a renderPieChart() rebuild — that call below is
@@ -751,8 +754,39 @@ function updateHeroStats(){
   const he = document.getElementById('heroExpense');
   if(hi) hi.textContent = fmt(_heroStatsCache.mIncome);
   if(he) he.textContent = fmt(_heroStatsCache.mExpense);
+  // Announce the hero numbers to screen readers — the visible elements
+  // themselves carry no aria-live (totalSpendable is rewritten on every
+  // animateNumber() frame, which would spam an announcement per frame).
+  // render() (app.main.js) always calls renderWallets() right before this, so
+  // prevSpendable already holds the FINAL total, not an in-flight frame.
+  // Only touch the live region's text when the summary actually changed, so
+  // an unrelated re-render (theme toggle, tab switch) doesn't re-announce
+  // the same numbers.
+  const liveEl = document.getElementById('heroLiveRegion');
+  if(liveEl){
+    const summary = t({
+      ar: `إجمالي المتاح للصرف ${fmt(prevSpendable ?? 0)}، دخل الشهر ${fmt(_heroStatsCache.mIncome)}، مصروف الشهر ${fmt(_heroStatsCache.mExpense)}`,
+      en: `Available to spend ${fmt(prevSpendable ?? 0)}, this month's income ${fmt(_heroStatsCache.mIncome)}, this month's expense ${fmt(_heroStatsCache.mExpense)}`,
+    });
+    if(liveEl.textContent !== summary) liveEl.textContent = summary;
+  }
 }
 
+// Called right before hiding a filter chip (walletFilterChip/categoryFilterChip/
+// txFilterChip) that might currently hold focus — a keyboard user who just
+// activated it via Enter/Space is the focused element the instant its OWN
+// .show class (display:none → flex) gets removed, and browsers drop focus to
+// <body> when the focused element leaves layout. That stranded the next Tab
+// press back at the top of the whole document instead of continuing near the
+// list the chip was filtering. Tab panels already carry tabindex="-1" for
+// exactly this kind of programmatic focus target (same pattern used for list
+// rebuilds elsewhere in this file).
+function _reclaimFocusFromChip(chipEl){
+  if(chipEl && document.activeElement === chipEl){
+    const panel = document.querySelector('.tab-panel.active');
+    if(panel) try{ panel.focus({preventScroll:true}); }catch(_){}
+  }
+}
 // Shared between renderRecentTx's empty-state message and its "filtered"
 // chip — one human-readable reason per active search/wallet/category filter.
 // The time-range filter is deliberately excluded: renderRecentTx() always
@@ -780,6 +814,7 @@ function _updateTxFilterChip(){
       t({ar:'مُفلتَر: ', en:'Filtered: '}) + reasons.join(t({ar:' و', en:' and '}));
     chip.classList.add('show');
   } else {
+    _reclaimFocusFromChip(chip);
     chip.classList.remove('show');
   }
 }

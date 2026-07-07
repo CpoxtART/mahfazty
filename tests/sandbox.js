@@ -146,6 +146,7 @@ function loadApp() {
       buildDailyReviewContent,
       getSubscriptions: () => subscriptions,
       setSubscriptions: (v) => { subscriptions = v; },
+      _normalizeSub,
     };`;
 
   // The app's top-level loadState() may reject against the stubs — that's

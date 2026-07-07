@@ -442,11 +442,26 @@ function openEdit(id){
   // "can't delete a lone distribution leg" protection) closes both cases.
   _editingDistSource = !!tx._distributionLeg || !!(tx.link && tx.category !== 'transfer' &&
     state.transactions.filter(t => t.link === tx.link && t.id !== tx.id).length >= 1);
-  document.getElementById('editTypeToggle').style.display = _editingTransferLeg ? 'none' : '';
-  document.getElementById('editCategorySection').style.display = _editingTransferLeg ? 'none' : '';
+  // updateTrackedBalance() is the only legitimate way to move a track wallet's
+  // balance directly, via a category:'adjustment' entry deliberately excluded
+  // from every isSystemCategory-gated analytics/budget total. Recategorizing
+  // it away from 'adjustment' here while the wallet stays a track wallet
+  // (SELECTABLE_WALLETS/addTx's own design never lets a NEW transaction target
+  // a track wallet as its primary — see recomputeSelectableWallets' comment)
+  // silently turned it into a "real" transaction on a track wallet, which then
+  // (a) polluted analytics directly and (b) could be suggested by
+  // detectRecurring and re-logged via "Record it now"/repeatLastTx, creating
+  // FURTHER track-wallet-primary transactions with no self-heal path, since
+  // reconcileBalances/repairBalancesFromLedger both skip track wallets.
+  _editingTrackAdjustment = tx.category === 'adjustment' && isTrackWallet(tx.wallet);
+  const _catLocked = _editingTransferLeg || _editingTrackAdjustment;
+  document.getElementById('editTypeToggle').style.display = _catLocked ? 'none' : '';
+  document.getElementById('editCategorySection').style.display = _catLocked ? 'none' : '';
   // The generic "both sides update together" transfer hint is actively WRONG
-  // for a distribution leg (2+ legs don't pairwise-sync) — show the
-  // distribution-specific amount-locked hint instead whenever it applies.
+  // for a distribution leg (2+ legs don't pairwise-sync) or a track-wallet
+  // adjustment (no "other side" at all) — show the distribution-specific
+  // amount-locked hint instead whenever it applies, and hide the transfer hint
+  // entirely for a track adjustment (it isn't a transfer).
   document.getElementById('editTransferHint').style.display = (_editingTransferLeg && !_editingDistSource) ? 'block' : 'none';
   document.getElementById('editDistSourceHint').style.display = _editingDistSource ? 'block' : 'none';
   const _eAmt = document.getElementById('editAmount');
@@ -459,13 +474,15 @@ function openEdit(id){
   const _ewb = document.getElementById('editWalletBtn');
   _ewb.classList.remove('open');
   _ewb.setAttribute('aria-expanded','false');
-  // Lock the wallet on a transfer leg: changing it would credit/debit a wallet
-  // different from the partner leg and silently desync the pair's balances.
-  _ewb.style.pointerEvents = _editingTransferLeg ? 'none' : '';
-  _ewb.style.opacity = _editingTransferLeg ? '.55' : '';
+  // Lock the wallet on a transfer leg (changing it would desync the partner
+  // leg's balance) or a track-wallet adjustment (moving it off the track
+  // wallet while the category stays locked to 'adjustment' would leave a
+  // confusing "adjustment" entry sitting on a normal wallet for no reason).
+  _ewb.style.pointerEvents = _catLocked ? 'none' : '';
+  _ewb.style.opacity = _catLocked ? '.55' : '';
   // Also lock via tabIndex/aria so keyboard navigation can't bypass the CSS-only lock
-  _ewb.tabIndex = _editingTransferLeg ? -1 : 0;
-  _ewb.setAttribute('aria-disabled', String(!!_editingTransferLeg));
+  _ewb.tabIndex = _catLocked ? -1 : 0;
+  _ewb.setAttribute('aria-disabled', String(_catLocked));
   document.getElementById('editDesc').value = tx.desc || '';
   document.getElementById('editAmount').value = groupThousandsDisplay((Number(tx.amount) || 0).toFixed(2)); // match the 2-decimal display used everywhere else
   const d = new Date(tx.ts);
@@ -506,9 +523,10 @@ async function saveEdit(){
     toast(t({ar:'⚠ محفظة غير صالحة', en:'⚠ Invalid wallet'}), true);
     return;
   }
-  // Transfer leg wallet cannot change — keyboard navigation can bypass the CSS
-  // pointerEvents:none lock set in openEdit(), so enforce it here too.
-  if(_editingTransferLeg) editWallet = tx.wallet;
+  // Transfer leg / track-wallet adjustment wallet cannot change — keyboard
+  // navigation can bypass the CSS pointerEvents:none lock set in openEdit(),
+  // so enforce it here too.
+  if(_editingTransferLeg || _editingTrackAdjustment) editWallet = tx.wallet;
 
   // Snapshot BEFORE any mutation, for the undo toast below — unlike delete,
   // saving an edit had no recovery path at all: a fat-fingered amount or a
@@ -561,8 +579,10 @@ async function saveEdit(){
   tx.wallet = editWallet;
   tx.editedAt = Date.now(); // lets mergeCloudData() resolve same-id conflicts by picking the newer edit instead of always favoring local
   // transfer legs keep their original type/category (locked in the UI) so the
-  // two-leg balance stays consistent; only non-transfer txs adopt the new values
-  if(!_editingTransferLeg){
+  // two-leg balance stays consistent; a track-wallet adjustment keeps its
+  // 'adjustment' category so it stays excluded from analytics/budgets forever
+  // (see openEdit's comment) — only a normal tx adopts the new values.
+  if(!_editingTransferLeg && !_editingTrackAdjustment){
     tx.type = editType;
     // Defense in depth: the category grid already excludes 'transfer' for a
     // distributed-income source (see renderEditCategoryGrid) since that value

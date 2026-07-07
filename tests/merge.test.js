@@ -312,3 +312,20 @@ test('_ingestWalletBalances — rejects a value beyond MAX_AMOUNT from a corrupt
   app._ingestWalletBalances({ wallets: { core: 1e250 } });
   assert.strictEqual(app.state.wallets.core, 0, 'out-of-range value rejected, wallet zeroed not corrupted');
 });
+
+test('_normalizeSub — clamps a subscription amount beyond MAX_AMOUNT from a corrupt/tampered snapshot', () => {
+  // Every caller (loadSubs' three branches, applyImport, adoptCloudSnapshot,
+  // mergeCloudData) already filters to isFinite(x.amount) && x.amount > 0
+  // before mapping through this — none of them capped the UPPER bound, unlike
+  // every other numeric-ingestion path (isValidTx/sanitizeBudgets/parseAmount/
+  // _ingestWalletBalances). An unbounded subscription amount fed unguarded
+  // sums (renderSubscriptions' monthlyTotal, buildDailyReviewContent's
+  // due-today/missed-while-away totals) with no cap at all.
+  const sub = app._normalizeSub({ id: 'sub_x', name: 'Huge', amount: 1e250, billingDay: 5 });
+  assert.strictEqual(sub.amount, 1e12, 'clamped to MAX_AMOUNT, not left unbounded');
+});
+
+test('_normalizeSub — leaves an ordinary amount untouched', () => {
+  const sub = app._normalizeSub({ id: 'sub_y', name: 'Netflix', amount: 49.99, billingDay: 20 });
+  assert.strictEqual(sub.amount, 49.99);
+});

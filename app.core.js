@@ -319,6 +319,13 @@ let editType = 'expense';
 let editWallet = WALLET_DEFS[0].id;
 let _editingTransferLeg = false; // when true, type/category are locked (transfer)
 let _editingDistSource = false; // when true, amount is locked (already-distributed income source)
+// when true, type/category are locked (track-wallet balance adjustment) — see
+// openEdit's comment for why recategorizing this away from 'adjustment' while
+// the wallet stays a track wallet is dangerous (isSystemCategory-gated
+// analytics/budget totals would silently start counting a track-only entry,
+// with no self-heal path since reconcileBalances/repairBalancesFromLedger
+// both skip track wallets).
+let _editingTrackAdjustment = false;
 let searchQuery = '';
 let prevSpendable = null;
 let selectedCategory = 'other';
@@ -1739,6 +1746,15 @@ function _normalizeSub(x){
   let d = parseInt(x.billingDay, 10);
   if(!isFinite(d)) d = 1;
   x.billingDay = Math.min(31, Math.max(1, d));
+  // Same MAX_AMOUNT ceiling every other numeric-ingestion path enforces
+  // (isValidTx, sanitizeBudgets, parseAmount, _ingestWalletBalances) — every
+  // caller of this function already filters to isFinite(x.amount) && x.amount
+  // > 0 before mapping through it, but none of them cap the UPPER bound. A
+  // corrupted/tampered backup or cloud snapshot's subscription amount could
+  // otherwise feed unguarded sums (renderSubscriptions' monthlyTotal,
+  // buildDailyReviewContent's due-today/missed-while-away totals) with no cap
+  // at all — clamped here, once, for every ingestion path at once.
+  if(isFinite(x.amount)) x.amount = Math.min(x.amount, MAX_AMOUNT);
   // Same treatment sanitizeWalletDefs already gives wallet names — this field
   // reached every render site only escHtml()'d (safe from injection), but
   // unlike wallet names it had no length cap or hidden-bidi-control stripping

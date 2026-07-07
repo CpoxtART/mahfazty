@@ -245,9 +245,9 @@ function closeModal(id){
   if(typeof closeWalletPop === 'function') closeWalletPop();
   if(id === 'editModal'){
     editingTxId = null; editCategory = 'other'; editType = 'expense'; editWallet = WALLET_DEFS[0].id;
-    _editingDistSource = false; _editingTransferLeg = false; // reset so the next openEdit() starts clean
+    _editingDistSource = false; _editingTransferLeg = false; _editingTrackAdjustment = false; // reset so the next openEdit() starts clean
     const ewBtn = document.getElementById('editWalletBtn');
-    if(ewBtn){ ewBtn.tabIndex = 0; ewBtn.removeAttribute('aria-disabled'); } // undo the transfer-leg lock, see openEdit()
+    if(ewBtn){ ewBtn.tabIndex = 0; ewBtn.removeAttribute('aria-disabled'); } // undo the transfer-leg/track-adjustment lock, see openEdit()
   }
   if(id === 'distributeModal') pendingIncomeTx = null;
   // driveConflictModal dismissed via Escape/back/backdrop WITHOUT a choice —

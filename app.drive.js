@@ -40,12 +40,37 @@ let _driveSilentMode = null;
 // page reload. Generous timeout since a real popup-based flow can
 // legitimately take a while (user picking an account, etc.).
 let _driveSilentModeTimer = null;
+// Monotonic generation counter. error_callback is genuinely per-call (GIS lets
+// each requestAccessToken() override it), so it can capture its own gen from
+// _setDriveSilentMode's return value — without this, a request that hung past
+// its own 20s watchdog (clearing _driveSilentMode and letting a NEW request
+// start) could still have its error_callback fire late, read _driveSilentMode
+// as whatever mode the NEW request just set, and unconditionally clear it —
+// silently stripping the new request's watchdog protection and busy-guard,
+// reintroducing the exact "permanently wedged reconnect" failure the watchdog
+// exists to prevent, just now triggered by overlap between two requests
+// instead of one hang. (GIS's success `callback`, unlike error_callback, is
+// fixed once at initTokenClient() time and isn't re-specifiable per call, so
+// it has no reliable way to self-identify its own generation — this is a
+// genuine constraint of the GIS API, not something app code can close; its
+// existing "mode read as null falls through to the safe silent-merge path"
+// behavior is an acceptable fallback for that residual case.)
+let _driveSilentModeGen = 0;
 function _setDriveSilentMode(mode){
   _driveSilentMode = mode;
+  const gen = ++_driveSilentModeGen;
   clearTimeout(_driveSilentModeTimer);
-  if(mode) _driveSilentModeTimer = setTimeout(() => { _driveSilentMode = null; }, 20000);
+  if(mode) _driveSilentModeTimer = setTimeout(() => {
+    if(_driveSilentModeGen === gen) _driveSilentMode = null;
+  }, 20000);
+  return gen;
 }
-function _clearDriveSilentMode(){
+// gen omitted: unconditional clear from a caller that KNOWS it's current (e.g.
+// driveSignOut). Passed explicitly by an error_callback that captured it from
+// _setDriveSilentMode's return value — skips clearing if a newer request has
+// since started, so a late-firing stale callback can't clobber it.
+function _clearDriveSilentMode(gen){
+  if(gen !== undefined && gen !== _driveSilentModeGen) return;
   _driveSilentMode = null;
   clearTimeout(_driveSilentModeTimer);
 }
@@ -210,12 +235,18 @@ function showDriveBanner(retriesLeft){
   // user was just looking at, exactly like the toast-vs-update-banner clash.
   const updateBannerEl = document.getElementById('updateBanner');
   const toastEl = document.getElementById('saveStatus');
+  const iosInstallBannerEl = document.getElementById('iosInstallBanner');
   // _anyOverlayOpen() (not just the bare .modal-overlay.open query) so the
   // add-transaction drawer counts too — it's a DIFFERENT class (.add-drawer)
   // this check used to miss, letting this banner reveal directly over the
   // drawer's sticky Save button and intercept taps meant for it.
+  // #iosInstallBanner shares this exact fixed position/z-index — without this
+  // check, both could show at once (maybeShowIosInstallHint checks THIS
+  // banner but this side never checked back), stacking one on top of the
+  // other and silently absorbing taps meant for whichever painted underneath.
   const blocked = (updateBannerEl && updateBannerEl.classList.contains('show')) ||
-    (toastEl && toastEl.classList.contains('show')) || _anyOverlayOpen();
+    (toastEl && toastEl.classList.contains('show')) ||
+    (iosInstallBannerEl && iosInstallBannerEl.classList.contains('show')) || _anyOverlayOpen();
   // A symmetric ~6s cap on both sides let their two independent "give up and
   // show anyway" fallbacks fire within ~500ms of each other whenever a
   // long-lived blocker (e.g. the daily-review modal, which has no auto-dismiss
@@ -475,14 +506,19 @@ function driveSignIn(){
   if(_driveSilentMode) return;
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast(t({ar:'⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', en:'⚠ Could not initialize Google, try refreshing the page'}), true); return; }
-  _setDriveSilentMode('signin'); // explicit user-initiated sign-in from Settings — the ONLY path allowed to show the conflict-resolution modal
+  const _gen = _setDriveSilentMode('signin'); // explicit user-initiated sign-in from Settings — the ONLY path allowed to show the conflict-resolution modal
   try{
     gisTokenClient.requestAccessToken({
       prompt: 'select_account',
       // surface popup-level failures (blocked / closed / can't return) instead of
       // leaving the user staring at a blank google sign-in page with no feedback
       error_callback: (err) => {
-        _clearDriveSilentMode();
+        // A late error_callback for a request already superseded by a newer
+        // one (e.g. this one hung past the watchdog, and the user retried)
+        // must not show a stale failure toast or touch the newer request's
+        // state — same reasoning as driveRequestSilent's guard below.
+        if(_driveSilentModeGen !== _gen) return;
+        _clearDriveSilentMode(_gen);
         setDriveIndicator('error');
         const t = (err && err.type) || '';
         if(t === 'popup_failed_to_open'){
@@ -507,11 +543,13 @@ function driveReconnectInteractive(){
   if(_driveSilentMode) return;
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast(t({ar:'⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', en:'⚠ Could not initialize Google, try refreshing the page'}), true); return; }
-  _setDriveSilentMode('reconnect'); // automatic banner reconnect — resolve via the silent union merge, never the conflict modal
+  const _gen = _setDriveSilentMode('reconnect'); // automatic banner reconnect — resolve via the silent union merge, never the conflict modal
   try{
     gisTokenClient.requestAccessToken({
       error_callback: (err) => {
-        _clearDriveSilentMode();
+        // See driveSignIn's matching guard comment.
+        if(_driveSilentModeGen !== _gen) return;
+        _clearDriveSilentMode(_gen);
         setDriveIndicator('error');
         const t = (err && err.type) || '';
         if(t === 'popup_failed_to_open'){
@@ -541,19 +579,24 @@ function driveRequestSilent(mode){
   if(_driveSilentMode) return false;
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient) return false;
-  _setDriveSilentMode(mode);
+  const _gen = _setDriveSilentMode(mode);
   try{
     gisTokenClient.requestAccessToken({
       prompt: '',
       error_callback: () => {
-        const m = _driveSilentMode; _clearDriveSilentMode();
+        // Read mode BEFORE clearing, and only proceed with recovery if this
+        // call is still the current generation — a stale/late error_callback
+        // for an already-superseded request must not act on (or clear) a
+        // newer request's state.
+        if(_driveSilentModeGen !== _gen) return;
+        const m = _driveSilentMode; _clearDriveSilentMode(_gen);
         if(m === 'launch'){ showDriveBanner(); }
         else if(m === 'banner'){ _driveBannerEscalate = true; showDriveBanner(); }
         else if(m === 'refresh'){ clearDriveToken(); refreshDriveSettingsUI(); setDriveIndicator('idle'); }
       }
     });
     return true;
-  }catch(e){ _clearDriveSilentMode(); return false; }
+  }catch(e){ _clearDriveSilentMode(_gen); return false; }
 }
 
 // Desktop auto-sign-in users: reconnect silently on app open — no banner, no tap,
