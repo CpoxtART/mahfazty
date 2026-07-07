@@ -147,6 +147,17 @@ test('mergeCloudData — union adds cloud-only txs and honors tombstones from bo
   assert.strictEqual(res.removed, 1);
 });
 
+test('mergeCloudData — clamps an overlong cloud-only desc, same as applyImport/adoptCloudSnapshot', () => {
+  // isValidTx checks well-formedness, not length — unlike the other two
+  // wholesale-adoption entry points, this incremental-sync path used to let
+  // an oversized/tampered desc field ride into state.transactions unclamped.
+  stage({ defs: FACTORY_DEFS, dist: [] });
+  const longDesc = 'x'.repeat(500);
+  app.mergeCloudData({ transactions: [TX('tx_long', { desc: longDesc })] }, false);
+  const tx = app.getTransactions().find(t => t.id === 'tx_long');
+  assert.ok(tx.desc.length <= 120, 'desc clamped to the same 120-codepoint cap as the other adoption paths');
+});
+
 test('mergeCloudData — newer editedAt wins, local link survives a stale-copy overwrite', () => {
   // the link needs a live partner in the ledger — stripOrphanLinks (correctly)
   // clears a link no other transaction shares
@@ -289,4 +300,15 @@ test('_ingestWalletBalances — rejects NaN/Infinity values from a corrupt snaps
   app._ingestWalletBalances({ wallets: { core: 'not-a-number', wishlist: Infinity } });
   assert.strictEqual(app.state.wallets.core, 0, 'invalid value rejected, wallet zeroed not corrupted');
   assert.strictEqual(app.state.wallets.wishlist, 0);
+});
+
+test('_ingestWalletBalances — rejects a value beyond MAX_AMOUNT from a corrupt/tampered snapshot', () => {
+  // isFinite alone (the pre-v48.10 check) passes anything up to ~1.8e308 — every
+  // sibling numeric-ingestion path (isValidTx, sanitizeBudgets, parseAmount)
+  // caps to MAX_AMOUNT, this one didn't. An unbounded balance surviving here
+  // can later overflow to Infinity in a sum, which JSON.stringify serializes
+  // as null, silently dropping the balance on the next load.
+  stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 42 } });
+  app._ingestWalletBalances({ wallets: { core: 1e250 } });
+  assert.strictEqual(app.state.wallets.core, 0, 'out-of-range value rejected, wallet zeroed not corrupted');
 });

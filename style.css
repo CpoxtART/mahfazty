@@ -844,6 +844,11 @@
     align-items:center;
     cursor:pointer;
     transition: border-color var(--dur-fast);
+    /* real <button>s get this from the global button{} rule below — these are
+       role="button" divs (wallet/category dropdown triggers), so without this
+       a quick correction-tap right after a mis-tap risks Safari reading the
+       pair as a double-tap-zoom gesture instead of two independent taps. */
+    touch-action:manipulation;
   }
   .custom-select.open{border-color:var(--gold); box-shadow:var(--focus-ring);}
   .custom-select .arrow{color:var(--muted); transition:transform .2s var(--ease); font-size:var(--fs-xs);}
@@ -909,6 +914,10 @@
     cursor:pointer; transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
     /* tap-to-select target, same reasoning as .wallet above */
     user-select:none; -webkit-touch-callout:none;
+    /* the app's tightest-packed tap grid (3 columns, 6px gaps) — without this,
+       a mis-tap immediately corrected with a tap on the adjacent chip is the
+       exact spacing/timing Safari's double-tap-zoom heuristic looks for. */
+    touch-action:manipulation;
   }
   .cat-chip:hover{border-color:var(--gold-dim); background:var(--gold-soft); color:var(--gold);}
   .cat-chip:active{transform:scale(.97);}
@@ -953,6 +962,10 @@
        tracking/quick-notes), so it's the highest-traffic list control that
        was sitting just under that baseline on the default font size. */
     min-height:44px; box-sizing:border-box;
+    /* the shared popup behind every wallet picker in the app — same
+       double-tap-zoom risk as .cat-chip/.custom-select above on a fast
+       re-tap of an adjacent row. */
+    touch-action:manipulation;
   }
   .wallet-pop .opt:last-child{ border-bottom:none; }
   .wallet-pop .opt span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1064,6 +1077,7 @@
     cursor:pointer;
     font-weight:600;
     transition: opacity .2s, transform .2s var(--ease);
+    touch-action:manipulation;
   }
   /* invisible 44px-ish touch target without enlarging the visual chip (same
      project pattern as .qn-type/.qn-row-del above) — the whole chip is the

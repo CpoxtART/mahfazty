@@ -831,6 +831,18 @@ async function driveSyncToCloud(isTrailingPushFromPull){
 // import/Drive/conflict paths can't drift apart). Clears balances first so wallets
 // omitted from the snapshot don't keep stale values.
 async function adoptCloudSnapshot(cloud){
+  // Wait for any in-flight local mutation / open modal / open add-drawer to
+  // clear first — the same guard _mergeCloudIntoLocal uses for the identical
+  // "wholesale state replacement across awaits" hazard. Without it, a
+  // conflict-resolution "use Drive" tap or the empty-local auto-adopt path
+  // (driveSyncFromCloud) landing while e.g. a Quick Notes commit is still
+  // mid-flight (its own _opInFlight raised across a loop of awaited
+  // distribution steps) could replace state.transactions out from under it,
+  // corrupting balances with no error and no undo. Capped so a stuck modal
+  // can't stall adoption forever.
+  for(let waited=0; waited<10000 && (document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0); waited+=250){
+    await new Promise(r => setTimeout(r, 250));
+  }
   _opInFlight++; // wholesale state replacement across awaits — block cross-tab reload race
   try{
   // wallet defs first — wholesale snapshot replace, same as applyImport(), so the
@@ -1052,6 +1064,16 @@ async function resolveConflict(useCloud){
       ? t({ar:'☁️ تم استخدام نسخة Drive (نُزّلت نسخة احتياطية من الحالتين احتياطًا)', en:"☁️ Used the Drive version (a backup of both copies was downloaded, just in case)"})
       : t({ar:'☁️ تم استخدام نسخة Drive', en:'☁️ Used the Drive version'}));
   } else {
+    // Unlike the useCloud branch (guarded inside adoptCloudSnapshot itself),
+    // this branch mutates deletedTxIds/deletedSubIds/deletedWalletDefIds
+    // directly across several awaits — wait for any other in-flight mutation
+    // to clear first so e.g. a concurrent deleteTx isn't racing the same
+    // tombstone maps this is about to write into. Capped, same as elsewhere.
+    for(let waited=0; waited<10000 && _opInFlight > 0; waited+=250){
+      await new Promise(r => setTimeout(r, 250));
+    }
+    _opInFlight++;
+    try{
     // The user explicitly rejected the cloud copy — mark it as "already seen"
     // BEFORE pushing, or driveSyncToCloud()'s pre-push reconciliation
     // (remoteEdited !== _driveLastSyncedEditedAt) union-merges the rejected
@@ -1085,6 +1107,10 @@ async function resolveConflict(useCloud){
     }
     pruneTombstones();
     await saveConfig(); // persist the new tombstones locally before pushing (they live in config)
+    } finally { _opInFlight--; }
+    // Released before the network push below — driveSyncToCloud() can itself
+    // trigger _mergeCloudIntoLocal (which waits on _opInFlight===0), and the
+    // local tombstone mutation above is already complete and persisted by here.
     const pushed = await driveSyncToCloud();
     setDriveIndicator(pushed ? 'ok' : 'error');
     // Same reasoning as the useCloud branch above — rejecting the cloud copy

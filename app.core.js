@@ -1358,6 +1358,11 @@ function mergeCloudData(cloud, cloudNewer){
   const replacedTxs = []; // {before, after} pairs from editedAt-newer conflict wins
   (Array.isArray(cloud.transactions) ? cloud.transactions : []).forEach(t => {
     if(!validTx(t) || deletedTxIds[t.id]) return;
+    // Same overlong-desc clamp applyImport/adoptCloudSnapshot already apply to
+    // every other wholesale-adoption entry point — isValidTx checks well-formedness,
+    // not length, so without this an incremental sync (unlike those two) let a
+    // tampered/oversized desc field ride into state.transactions unclamped.
+    if(typeof t.desc === 'string' && t.desc.length > 120) t = {...t, desc: truncateCodePoints(t.desc, 120)};
     const local = byId.get(t.id);
     if(!local){ byId.set(t.id, t); added++; addedTxs.push(t); return; }
     if(typeof t.editedAt === 'number' && typeof local.editedAt === 'number' && t.editedAt > local.editedAt){
@@ -1544,7 +1549,12 @@ function _ingestWalletBalances(snapshot){
   WALLET_DEFS.forEach(w => {
     if(snapshot.wallets[w.id] !== undefined){
       const v = parseFloat(snapshot.wallets[w.id]);
-      if(isFinite(v)) state.wallets[w.id] = round2(v); // reject NaN/Infinity from a corrupt snapshot
+      // same MAX_AMOUNT ceiling isValidTx/sanitizeBudgets/parseAmount all enforce —
+      // without it a corrupt/tampered snapshot's unbounded value survives the
+      // isFinite check, then can overflow to Infinity in later sums, which
+      // JSON.stringify serializes as null and silently drops the balance on
+      // the next load with no toast and no tombstone.
+      if(isFinite(v) && Math.abs(v) <= MAX_AMOUNT) state.wallets[w.id] = round2(v);
     }
   });
 }
