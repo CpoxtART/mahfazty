@@ -171,10 +171,11 @@ var I18N_STRINGS = {
   'flt.month':        { ar: 'الشهر', en: 'Month' },
   'flt.year':         { ar: 'السنة', en: 'Year' },
   'flt.all':          { ar: 'الكل', en: 'All' },
-  'search.ph':        { ar: 'ابحث في المعاملات...', en: 'Search transactions…' },
+  'search.ph':        { ar: 'ابحث بالوصف أو المحفظة أو الفئة...', en: 'Search by description, wallet, or category…' },
   'search.clear':     { ar: 'مسح البحث', en: 'Clear search' },
   'flt.clearWallet':  { ar: 'إلغاء تصفية المحفظة', en: 'Clear wallet filter' },
   'flt.clearCategory':{ ar: 'إلغاء تصفية الفئة', en: 'Clear category filter' },
+  'flt.clearAll':     { ar: 'إلغاء كل الفلاتر', en: 'Clear all filters' },
 
   // ── summary cards ──
   'sum.income':       { ar: 'دخل', en: 'Income' },

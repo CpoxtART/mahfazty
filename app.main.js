@@ -351,6 +351,14 @@ function _bindEvents(){
   document.querySelectorAll('[data-f]').forEach(el=>on(el,'click',()=>setFilter(el.dataset.f)));
   on($('searchInput'),'input',onSearchInput);
   on($('btnClearSearch'),'click',clearSearch);
+  // enterkeyhint="search" promised a "search" action key on mobile keyboards
+  // but nothing ever handled Enter here — live filtering already applies on
+  // every keystroke via the debounce above, so all Enter needs to do is
+  // dismiss the keyboard (matching what a real search-submit would feel like).
+  on($('searchInput'),'keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); } });
+
+  // Transactions tab
+  act($('txFilterChip'),()=>clearAllTxFilters());
 
   // Add drawer
   on($('addDrawerOverlay'),'click',closeAddDrawer);

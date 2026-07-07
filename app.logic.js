@@ -263,6 +263,11 @@ async function confirmDistribution(){
     closeModal('distributeModal');
     render();
     if(distributed){
+      // addTx's auto-distribute branch and commitQuickNotes both already
+      // haptic(15) at their own top level for this same logical outcome
+      // ("income distributed") — this manual-confirm entry point was the
+      // one path reaching it with no haptic at all.
+      haptic(15);
       toast(t({ar:'✓ تم توزيع الدخل على المحافظ', en:'✓ Income distributed across wallets'}));
     } else {
       toast(t({ar:'⚠ لم يتم توزيع أي مبلغ — تحقق من نسب التوزيع بالإعدادات', en:'⚠ Nothing was distributed — check your distribution ratios in Settings'}), true);

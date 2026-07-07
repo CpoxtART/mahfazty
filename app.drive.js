@@ -1005,6 +1005,10 @@ async function resolveConflict(useCloud){
     // itself ever cleared it, so the header icon was left spinning forever
     // (only 'idle'/'error' states are even tappable again per setDriveIndicator).
     setDriveIndicator('ok');
+    // Same distinctive double-pulse deleteTx uses to signal a destructive
+    // commit — the code's own comment above calls this action as destructive
+    // as "delete tx, wipe data," yet it had no haptic feedback at all before.
+    haptic([12, 40, 12]);
     toast(backedUp
       ? t({ar:'☁️ تم استخدام نسخة Drive (نُزّلت نسخة احتياطية من الحالتين احتياطًا)', en:"☁️ Used the Drive version (a backup of both copies was downloaded, just in case)"})
       : t({ar:'☁️ تم استخدام نسخة Drive', en:'☁️ Used the Drive version'}));
@@ -1044,6 +1048,9 @@ async function resolveConflict(useCloud){
     await saveConfig(); // persist the new tombstones locally before pushing (they live in config)
     const pushed = await driveSyncToCloud();
     setDriveIndicator(pushed ? 'ok' : 'error');
+    // Same reasoning as the useCloud branch above — rejecting the cloud copy
+    // is just as destructive to whatever was on Drive.
+    haptic([12, 40, 12]);
     // driveSyncToCloud() already shows its own failure toast (_handleDriveSyncError)
     // on a rejected push — showing this unconditional "uploaded" success right
     // after it would directly contradict what the user just read.

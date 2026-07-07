@@ -632,7 +632,20 @@ async function commitQuickNotes(){
       // budget-wallet income distributes; track-wallet income stays put (see addTx)
       if(tx.type === 'income' && tx.category !== 'transfer' && !isTrackWallet(tx.wallet)) incomeTxs.push(tx);
     });
-    if(_reassigned){ toast(t({ar:`ℹ️ ${_reassigned} سطر حُوّل للمحفظة الافتراضية (تغيّرت المحافظ في مكان آخر)`, en:`ℹ️ ${_reassigned} line(s) moved to the default wallet (wallets changed elsewhere)`}), true); }
+    // Rows that never became a transaction (missing/unparseable amount) were
+    // silently excluded from `committable` above — the preview DOES mark them
+    // invalid before this point, but nothing here told the user any were
+    // actually dropped, and the draft/textarea get wiped unconditionally
+    // right after regardless, permanently discarding that raw line the
+    // moment a user who skimmed past a red row taps Confirm. Report the
+    // count explicitly, same pattern as the existing _reassigned notice.
+    const _skipped = _qnPreview.length - committable.length;
+    if(_reassigned || _skipped){
+      const parts = [];
+      if(_skipped) parts.push(t({ar:`${arPlural(_skipped, 'سطر تُجوهل', 'سطران تُجوهلا', 'أسطر تُجوهلت', 'سطر واحد تُجوهل')} (بلا سعر صالح)`, en:`${_skipped} line${_skipped===1?'':'s'} skipped (no valid price)`}));
+      if(_reassigned) parts.push(t({ar:`${_reassigned} حُوّل للمحفظة الافتراضية`, en:`${_reassigned} moved to the default wallet`}));
+      toast('⚠ ' + parts.join(' · '), true);
+    }
     await saveBalances();
     await saveTx();
     // Auto-distribute income legs only when the user already enabled it — bulk

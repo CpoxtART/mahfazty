@@ -314,7 +314,15 @@ async function applyImport(text){
   // Orphan-stripping may have removed transactions that the backup's stored balances
   // still included — recompute from the surviving transaction list to stay consistent.
   reconcileBalances();
-  if(typeof data.crisisMode === 'boolean') state.crisisMode = data.crisisMode;
+  // Explicit default (not "leave the current session's value alone") when
+  // absent — a backup from before crisis mode existed (or a hand-trimmed
+  // JSON missing the key) otherwise left whatever mode this device was
+  // ALREADY in before the import untouched, contradicting the confirm()
+  // dialog's own promise that importing "replaces all current data": a user
+  // currently in crisis mode who imports such a backup would stay stuck in
+  // it, with normal budget wallets hidden and crisis_fund shown in their
+  // place, even though the restored backup has no opinion on the mode at all.
+  state.crisisMode = (typeof data.crisisMode === 'boolean') ? data.crisisMode : false;
   if(data.budgets && typeof data.budgets === 'object') budgets = sanitizeBudgets(data.budgets);
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
   if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
@@ -738,6 +746,11 @@ async function wipeAll(){
   closeModal('settingsModal');
   render();
   if(typeof renderTrackLinkPicker === 'function') renderTrackLinkPicker();
+  // Same distinctive double-pulse deleteTx uses to "signal a destructive
+  // commit" — this is the single most destructive action in the whole app,
+  // yet previously had no haptic feedback at all (a routine subscription
+  // save vibrated; wiping every wallet/transaction didn't).
+  haptic([12, 40, 12]);
   toast(t({ar:'🗑 تم حذف كل البيانات', en:'🗑 All data deleted'}));
   } finally { _opInFlight--; }
 }

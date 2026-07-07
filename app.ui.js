@@ -496,6 +496,10 @@ async function deleteWalletDef(id){
     await saveBalances();
     if(editingWalletDefId === id) editingWalletDefId = null;
     refreshAfterWalletDefsChange();
+    // Same distinctive double-pulse deleteTx uses to signal a destructive
+    // commit — this was one of two irreversible deletions in the app with no
+    // haptic at all (a routine wallet SAVE vibrated; deleting one didn't).
+    haptic([12, 40, 12]);
     toast(t({ar:'🗑 تم حذف المحفظة', en:'🗑 Wallet deleted'}));
     return true;
   } finally {
@@ -739,6 +743,44 @@ function updateHeroStats(){
   if(he) he.textContent = fmt(_heroStatsCache.mExpense);
 }
 
+// Shared between renderRecentTx's empty-state message and its "filtered"
+// chip — one human-readable reason per active search/wallet/category
+// filter (NOT the time-range filter, which has its own separate UI).
+function _activeTxFilterReasons(){
+  const reasons = [];
+  if(searchQuery) reasons.push(t({ar:'مطابقة لبحثك', en:'matching your search'}));
+  if(walletFilter){
+    const w = WALLET_DEFS.find(x => x.id === walletFilter);
+    if(w) reasons.push(t({ar:`في محفظة ${w.name}`, en:`in ${w.name}`}));
+  }
+  if(categoryFilter){
+    const cat = getCategory(categoryFilter);
+    reasons.push(t({ar:`في فئة ${cat.name}`, en:`in ${cat.name}`}));
+  }
+  return reasons;
+}
+function _updateTxFilterChip(){
+  const chip = document.getElementById('txFilterChip');
+  if(!chip) return;
+  const reasons = _activeTxFilterReasons();
+  if(reasons.length){
+    document.getElementById('txFilterLabel').textContent =
+      t({ar:'مُفلتَر: ', en:'Filtered: '}) + reasons.join(t({ar:' و', en:' and '}));
+    chip.classList.add('show');
+  } else {
+    chip.classList.remove('show');
+  }
+}
+// Clears every filter that can silently narrow this tab's list (search,
+// wallet, category) in one tap — reuses each filter's own clear function so
+// their individual chip/DOM/cache upkeep stays correct rather than
+// duplicating it here.
+function clearAllTxFilters(){
+  if(searchQuery) clearSearch();
+  if(walletFilter) clearWalletFilter();
+  if(categoryFilter) toggleCategoryFilter(categoryFilter);
+}
+
 function renderRecentTx(){
   const list = document.getElementById('recentTxList');
   if(!list) return;
@@ -754,6 +796,14 @@ function renderRecentTx(){
 
   const countEl = document.getElementById('txLogCount');
   if(countEl) countEl.textContent = all.length ? all.length : '';
+  // This tab has NO search box / wallet-or-category filter chip of its own —
+  // those live only in the Reports tab — so a filter set from over there
+  // used to silently narrow this list with zero indication why whenever the
+  // result wasn't EMPTY (the empty-state message above already explained a
+  // zero-result case; a merely-reduced list gave no clue at all). Surface an
+  // always-visible "filtered" chip here too, whenever any of the three is
+  // active, with a tap-to-clear-all affordance.
+  _updateTxFilterChip();
 
   if(all.length === 0){
     // Same fix renderTxList's empty state already has: distinguish "no
@@ -765,16 +815,7 @@ function renderRecentTx(){
     if(state.transactions.length === 0){
       list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات بعد — اضغط ＋ لإضافة أول معاملة', en:'No transactions yet — tap ＋ to add your first one'})}</div>`;
     } else {
-      const reasons = [];
-      if(searchQuery) reasons.push(t({ar:'مطابقة لبحثك', en:'matching your search'}));
-      if(walletFilter){
-        const w = WALLET_DEFS.find(x => x.id === walletFilter);
-        if(w) reasons.push(t({ar:`في محفظة ${w.name}`, en:`in ${w.name}`}));
-      }
-      if(categoryFilter){
-        const cat = getCategory(categoryFilter);
-        reasons.push(t({ar:`في فئة ${cat.name}`, en:`in ${cat.name}`}));
-      }
+      const reasons = _activeTxFilterReasons();
       if(!reasons.length) reasons.push(t({ar:'في هذه الفترة', en:'in this period'}));
       list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات ', en:'No transactions '})}${reasons.join(t({ar:' و', en:' and '}))}</div>`;
     }
@@ -1000,6 +1041,10 @@ async function deleteSubModal(){
     await saveConfig(); // tombstones live in config
     renderSubscriptions();
     closeModal('subModal');
+    // Same distinctive double-pulse deleteTx uses to signal a destructive
+    // commit — was missing here (a routine subscription SAVE vibrated;
+    // deleting one didn't).
+    haptic([12, 40, 12]);
     toast(t({ar:'🗑 تم حذف الاشتراك', en:'🗑 Subscription deleted'}));
   } finally {
     _saveSubBusy = false;
@@ -1352,6 +1397,9 @@ async function saveWalletBudget(){
       delete budgets[detailWalletId];
       await saveConfig();
       renderWallets();
+      // matches every other successful save elsewhere (saveWalletDef/saveSub/
+      // saveEdit/doTransfer all haptic(15) on success) — this one had none.
+      haptic(15);
       toast(t({ar:'✓ تم حذف الميزانية', en:'✓ Budget removed'}));
       return;
     }
@@ -1363,6 +1411,7 @@ async function saveWalletBudget(){
     budgets[detailWalletId] = val;
     await saveConfig();
     renderWallets();
+    haptic(15);
     toast(t({ar:'✓ تم حفظ الميزانية', en:'✓ Budget saved'}));
   } finally {
     _saveWalletBudgetBusy = false;
@@ -1908,11 +1957,20 @@ function onSearchInput(){
 }
 function clearSearch(){
   searchQuery = '';
-  document.getElementById('searchInput').value = '';
+  const input = document.getElementById('searchInput');
+  input.value = '';
   document.getElementById('searchBox').classList.remove('has-text');
   _txVisibleCount = 50;
   if(currentTab === 'transactions') renderRecentTx();
   renderTxList();
+  // Tapping the × button (a separate element) moves keyboard focus there by
+  // default browser behavior, dismissing the mobile keyboard and forcing the
+  // user to tap the field again before typing a new search — restore focus
+  // to the input so they can keep typing immediately. Only when the search
+  // box is actually the one visible right now (Reports tab) — clearSearch()
+  // is also called from clearAllTxFilters() on the Transactions tab, where
+  // the input lives off-screen on a different tab entirely.
+  if(currentTab === 'reports'){ try{ input.focus({preventScroll:true}); }catch(_){} }
 }
 
 let _filteredTxCache = null;

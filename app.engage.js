@@ -37,8 +37,11 @@ function checkFirstRun(){
       // a 'welcomeSeen' key) — but if loadState() already recovered real transaction
       // history from IndexedDB, this is a RETURNING user, not a new one. Showing the
       // "welcome to the app" onboarding to someone with months of data is confusing;
-      // mark it seen and skip straight past it instead.
-      if(state.transactions.length > 0){
+      // mark it seen and skip straight past it instead. Also check subscriptions/
+      // budgets — a returning user who'd previously wiped their transaction ledger
+      // (or only ever used manual balance adjustments) but still has configured
+      // subscriptions/budgets recovered from IndexedDB is just as clearly not new.
+      if(state.transactions.length > 0 || subscriptions.length > 0 || Object.keys(budgets).length > 0){
         try{ localStorage.setItem(LS_PREFIX + 'welcomeSeen', '1'); }catch(e){}
         return false;
       }
