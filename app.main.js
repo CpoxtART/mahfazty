@@ -498,6 +498,10 @@ loadState().then(()=>{
   } else {
     setTimeout(checkDailyReview, 400);
     setTimeout(checkBalanceDrift, 900);
+    // Trails the daily-review/balance-drift checks and the Drive banner's own
+    // launch-time delays — maybeShowIosInstallHint() skips this launch outright
+    // (no retry loop) if any of those are already showing by the time it runs.
+    setTimeout(maybeShowIosInstallHint, 1900);
   }
 });
 

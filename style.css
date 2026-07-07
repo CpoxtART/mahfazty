@@ -1918,6 +1918,20 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 .drive-banner-yes{ background:var(--gold-btn); color:var(--on-gold); border:none; }
 .drive-banner-yes:active{ opacity:.85; transform:scale(.95); }
 
+/* ─── iOS "Add to Home Screen" hint (same bottom-sheet shape as #driveBanner
+   above — reuses its .drive-banner-* inner classes, just a single-button
+   variant since there's no in-app action to take, only a dismiss) ─── */
+#iosInstallBanner{
+  position:fixed;
+  bottom:calc(58px + env(safe-area-inset-bottom) + 12px);
+  left:12px; right:12px; z-index:1200;
+  pointer-events:none;
+  transform:translateY(calc(100% + 80px));
+  transition:transform .32s var(--ease), opacity .32s var(--ease);
+  opacity:0;
+}
+#iosInstallBanner.show{ transform:translateY(0); opacity:1; pointer-events:auto; }
+
 /* ─── UI section wrappers (reorderable; no own box so margins stay intact) ─── */
 .ui-sec{ display:contents; }
 

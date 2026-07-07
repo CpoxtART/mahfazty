@@ -372,3 +372,56 @@ function setupPWA(){
     });
   }catch(e){}
 }
+
+/* ─── iOS "Add to Home Screen" hint ───
+   iOS Safari never fires beforeinstallprompt and has no install UI of its
+   own — the only real path to a home-screen/standalone install is the
+   Share sheet, which no web API can trigger programmatically. Without this,
+   an iPhone user saw the same generic "install it as an app" onboarding
+   line every other platform gets, with no indication of HOW on this one. */
+function _isRealIosSafari(){
+  const ua = navigator.userAgent || '';
+  // iPadOS 13+ reports as "Macintosh" with touch support — the classic
+  // iPhone/iPad substring check alone misses those devices entirely.
+  const isIOS = /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if(!isIOS) return false;
+  // Every other iOS browser (Chrome/Firefox/Edge/etc.) is a WebKit wrapper
+  // required by Apple policy, but only actual Safari gets the "Add to Home
+  // Screen" Share-sheet entry these instructions describe.
+  if(/CriOS|FxiOS|EdgiOS|OPiOS|mercury/i.test(ua)) return false;
+  return /Safari/.test(ua);
+}
+function _alreadyInstalledStandalone(){
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+    window.navigator.standalone === true;
+}
+function maybeShowIosInstallHint(){
+  try{
+    if(!_isRealIosSafari() || _alreadyInstalledStandalone()) return;
+    let seen = false;
+    try{ seen = localStorage.getItem(LS_PREFIX + 'iosInstallHintSeen') === '1'; }catch(_){}
+    if(seen) return;
+    // Don't compete with a banner/modal already up — simply skip this
+    // launch (no retry loop, unlike showDriveBanner) and try again next
+    // time; this is a one-time convenience hint, not a required action.
+    const driveBannerEl = document.getElementById('driveBanner');
+    const updateBannerEl = document.getElementById('updateBanner');
+    if((driveBannerEl && driveBannerEl.classList.contains('show')) ||
+       (updateBannerEl && updateBannerEl.classList.contains('show')) ||
+       _anyOverlayOpen()) return;
+    showIosInstallBanner();
+  }catch(e){}
+}
+function showIosInstallBanner(){
+  const b = document.getElementById('iosInstallBanner');
+  if(!b || b.classList.contains('show')) return;
+  const ok = document.getElementById('btnIosInstallOk');
+  if(ok) ok.onclick = dismissIosInstallBanner;
+  requestAnimationFrame(() => b.classList.add('show'));
+}
+function dismissIosInstallBanner(){
+  const b = document.getElementById('iosInstallBanner');
+  if(b) b.classList.remove('show');
+  try{ localStorage.setItem(LS_PREFIX + 'iosInstallHintSeen', '1'); }catch(e){}
+}

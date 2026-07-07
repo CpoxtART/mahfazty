@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.12',
+    date: '2026-07-07',
+    title: { ar: 'إرشاد "أضِف إلى الشاشة الرئيسية" لمستخدمي آيفون (سفاري)', en: 'iOS Safari "Add to Home Screen" hint' },
+    items: [
+      { ar: 'ميزة جديدة: متصفح سفاري بآيفون لا يعرض أي بانر تثبيت تلقائي إطلاقًا (على عكس أندرويد)، والمسار الوحيد لتثبيت التطبيق كأيقونة على الشاشة الرئيسية هو زر المشاركة اليدوي — وكان التطبيق لا يذكر ذلك بأي مكان، رغم وعده بجولة الترحيب بأن التطبيق "يعمل بدون إنترنت ويُثبَّت كتطبيق". الآن، عند إغلاق جولة الترحيب (أو عند فتح التطبيق لاحقًا) على سفاري آيفون تحديدًا وبدون أن يكون مثبَّتًا مسبقًا، يظهر تنبيه سفلي بسيط يوضح: "اضغط زر المشاركة ⬆️ ثم اختر إضافة إلى الشاشة الرئيسية" — يظهر مرة واحدة فقط ولا يتكرر بعد تأكيد "فهمت".', en: 'New feature: iOS Safari never shows any automatic install banner at all (unlike Android), and the only path to installing the app as a home-screen icon is the manual Share button — the app never mentioned this anywhere, despite the welcome tour promising it "works offline and installs as an app." Now, on closing the welcome tour (or on a later launch) specifically on iOS Safari and only if not already installed, a small bottom hint appears explaining: "tap the Share button ⬆️, then choose Add to Home Screen" — shown once, and not repeated after tapping "Got it".' },
+    ],
+  },
+  {
     version: 'v48.11',
     date: '2026-07-07',
     title: { ar: 'تذكير الاشتراكات يعوّض الأيام الفائتة أثناء غيابك عن التطبيق', en: 'Subscription reminder now catches up on days you were away' },

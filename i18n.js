@@ -362,6 +362,9 @@ var I18N_STRINGS = {
   'banner.driveYes':      { ar: 'نعم، اتصل', en: 'Yes, connect' },
   'banner.updateAvailable':{ ar: 'تحديث جديد متاح', en: 'New update available' },
   'banner.updateNow':     { ar: 'تحديث الآن', en: 'Update now' },
+  'banner.iosInstallAria':{ ar: 'أضِف إلى الشاشة الرئيسية', en: 'Add to Home Screen' },
+  'banner.iosInstallMsg': { ar: '📲 لتثبيت التطبيق: اضغط زر المشاركة ⬆️ بالأسفل، ثم اختر "إضافة إلى الشاشة الرئيسية"', en: '📲 To install the app: tap the Share button ⬆️ below, then choose "Add to Home Screen"' },
+  'banner.gotIt':         { ar: 'فهمت', en: 'Got it' },
 
   // ── settings modal: header, stats, tabs ──
   'set.title':        { ar: '⚙️ الإعدادات', en: '⚙️ Settings' },
