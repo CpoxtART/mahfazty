@@ -141,6 +141,11 @@ function loadApp() {
       invalidateOnTxCommit, invalidateOnRender,
       runTxCommitInvalidators: _runTxCommitInvalidators,
       runRenderInvalidators: _runRenderInvalidators,
+      // daily review content (app.engage.js) — subscriptions is reassigned
+      // (not mutated in place) by several code paths, same accessor pattern.
+      buildDailyReviewContent,
+      getSubscriptions: () => subscriptions,
+      setSubscriptions: (v) => { subscriptions = v; },
     };`;
 
   // The app's top-level loadState() may reject against the stubs — that's

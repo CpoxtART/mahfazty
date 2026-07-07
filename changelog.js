@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.11',
+    date: '2026-07-07',
+    title: { ar: 'تذكير الاشتراكات يعوّض الأيام الفائتة أثناء غيابك عن التطبيق', en: 'Subscription reminder now catches up on days you were away' },
+    items: [
+      { ar: 'إصلاح خفيف: تذكير "اشتراكات تُحسم اليوم" كان يطابق تاريخ اليوم بالضبط فقط — إن لم تفتح التطبيق بالضبط يوم استحقاق الاشتراك، لا يظهر أي تنبيه له لاحقًا إطلاقًا لتلك الدورة. الآن، عند فتح التطبيق بعد غياب، يُفحَص كل يوم غِبته عن آخر مرة فُتح فيها التطبيق (حتى 31 يومًا كحد أقصى)، وتظهر رسالة منفصلة "اشتراكات استُحقت خلال غيابك" لأي اشتراك فاتك تنبيهه.', en: 'Low fix: the "subscriptions due today" reminder only ever matched an exact same-day equality — if the app wasn\'t opened on the exact billing day, no notice for that cycle ever appeared. Now, on reopening after an absence, every day since the app was last opened (capped at 31 days) is checked, and a separate "subscriptions that came due while you were away" message surfaces any subscription that was missed.' },
+    ],
+  },
+  {
     version: 'v48.10',
     date: '2026-07-07',
     title: { ar: 'جولة تدقيق تاسعة عشرة: حماية دمج بيانات Drive من التسابق + سقف أقصى مفقود لأرصدة المحافظ + إصلاحات لمسية على آيفون', en: 'Nineteenth audit round: Drive conflict-merge race guard, missing wallet-balance ceiling, iOS tap-target fixes' },

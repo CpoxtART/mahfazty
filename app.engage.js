@@ -120,14 +120,18 @@ function checkDailyReview(){
     // only show if there's at least some history (avoid showing on very first run, welcome covers that)
     if(state.transactions.length === 0) return;
 
-    const content = buildDailyReviewContent();
+    const content = buildDailyReviewContent(lastSeen);
     if(!content) return;
     document.getElementById('dailyReviewContent').innerHTML = content;
     openModal('dailyReviewModal');
   }catch(e){}
 }
 
-function buildDailyReviewContent(){
+// lastSeen: the PREVIOUS lastReviewDate value (before today's write above), or
+// null on the very first review ever — lets the subscriptions section below
+// catch up on a billing day that fell in a gap the user was away, instead of
+// only ever matching an exact "today" (see the subscriptions block further down).
+function buildDailyReviewContent(lastSeen){
   const now = new Date();
   const yesterday = new Date(now); yesterday.setDate(now.getDate()-1);
   const yStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()).getTime();
@@ -202,6 +206,39 @@ function buildDailyReviewContent(){
       ar: `📆 اشتراكات تُحسم اليوم: <b style="color:var(--text)">${dueNames}</b> · إجمالي: <b style="color:var(--red)">${fmt(dueTotal)}</b>`,
       en: `📆 Subscriptions due today: <b style="color:var(--text)">${dueNames}</b> · total: <b style="color:var(--red)">${fmt(dueTotal)}</b>`,
     }));
+  }
+
+  // Catch-up: a billing day that fell on a day strictly between the last time
+  // this review ran and today (e.g. opened on the 10th, sub due the 15th, not
+  // reopened until the 20th) was previously never surfaced — the check above
+  // only ever matches an exact "today". Bounded to the last 31 days so a
+  // long-absent user doesn't get a backlog of stale notices; empty for the
+  // normal daily-use case (lastSeen === yesterday leaves no day in the gap).
+  if(lastSeen){
+    const lastSeenDate = new Date(lastSeen + 'T00:00:00');
+    if(!isNaN(lastSeenDate.getTime())){
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const gapStart = new Date(lastSeenDate); gapStart.setDate(gapStart.getDate() + 1);
+      const cappedStart = new Date(todayStart); cappedStart.setDate(cappedStart.getDate() - 31);
+      if(gapStart < cappedStart) gapStart.setTime(cappedStart.getTime());
+      const missedIds = new Set();
+      for(let d = new Date(gapStart); d < todayStart; d.setDate(d.getDate() + 1)){
+        const dLastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        subscriptions.forEach(s => {
+          if(s.active === false || missedIds.has(s.id)) return;
+          if(Math.min(s.billingDay, dLastDay) === d.getDate()) missedIds.add(s.id);
+        });
+      }
+      const missedSubs = subscriptions.filter(s => missedIds.has(s.id));
+      if(missedSubs.length > 0){
+        const missedTotal = round2(missedSubs.reduce((s,x) => s + (Number(x.amount) || 0), 0));
+        const missedNames = missedSubs.map(s => escHtml(s.name)).join(t({ar:'، ', en:', '}));
+        lines.push(t({
+          ar: `📆 اشتراكات استُحقت خلال غيابك: <b style="color:var(--text)">${missedNames}</b> · إجمالي: <b style="color:var(--red)">${fmt(missedTotal)}</b>`,
+          en: `📆 Subscriptions that came due while you were away: <b style="color:var(--text)">${missedNames}</b> · total: <b style="color:var(--red)">${fmt(missedTotal)}</b>`,
+        }));
+      }
+    }
   }
 
   // pending recurring suggestions
