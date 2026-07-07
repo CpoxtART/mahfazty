@@ -750,8 +750,20 @@ async function _mergeCloudIntoLocal(cloud, cloudNewer){
   // replaced mid-flow. _opInFlight also covers windows the DOM checks miss,
   // e.g. addTx's auto-distribution step which keeps _opInFlight raised after
   // the add-drawer has already closed.
-  // Capped so a forgotten open modal can't stall sync forever.
-  for(let waited=0; waited<10000 && (document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0); waited+=250){
+  // Capped so a forgotten open modal can't stall sync forever — EXCEPT
+  // driveConflictModal specifically, which gets a much longer cap (30 min):
+  // proceeding underneath it while the user is still deciding would silently
+  // mutate state.transactions/wallets behind its already-captured
+  // _pendingDriveCloud snapshot, so the counts/timestamps it's showing (and
+  // whichever side "Use Drive"/"Keep local" would act on) quietly go stale
+  // with no indication — a "forgotten modal" this is not, it's an active
+  // pending decision the user is reading right now.
+  const _conflictModalEl = document.getElementById('driveConflictModal');
+  for(let waited=0; ; waited+=250){
+    const _conflictOpen = !!(_conflictModalEl && _conflictModalEl.classList.contains('open'));
+    const _blocked = _conflictOpen || document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0;
+    if(!_blocked) break;
+    if(waited >= (_conflictOpen ? 1800000 : 10000)) break;
     await new Promise(r => setTimeout(r, 250));
   }
   _opInFlight++;
@@ -1014,11 +1026,22 @@ async function driveSyncFromCloud(isInitial, interactive){
     // both sides have data — compare by DATA-edit time (transactions/balances/subs),
     // not lastEdit, so a pref-only tweak (crisis/layout) never overwrites fresher
     // cloud transactions. Fall back to exportedAt/lastEdit for older snapshots.
-    const cloudTime = (typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0)
+    // Clamped to [MIN_TX_TS, now] — same bound transaction timestamps already
+    // get (app.data.js/app.logic.js) — a dataEdit/lastEdit stamp reflects
+    // WHICHEVER device's clock wrote it, with no cross-device validation. A
+    // device whose clock was badly wrong when it wrote this stamp (dead CMOS
+    // battery, a manual clock change — both real occurrences) leaves a stale,
+    // implausible value in localStorage that persists even after the clock is
+    // corrected; without this clamp, the conflict modal below could
+    // confidently label the ACTUALLY-OLDER copy "(newer)" based on that
+    // impossible stamp, and a user who trusts the label picks the wrong side.
+    const _now = Date.now();
+    const _clampEditTime = ms => (typeof ms === 'number' && isFinite(ms) && ms > 0) ? Math.max(MIN_TX_TS, Math.min(ms, _now)) : 0;
+    const cloudTime = _clampEditTime((typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0)
       ? cloud.dataEditedAt
-      : (cloud.exportedAt ? (Date.parse(cloud.exportedAt) || 0) : 0); // || 0 so a malformed ISO string (Date.parse → NaN) doesn't poison the comparison
-    const localTime = (parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0)
-      || (parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0);
+      : (cloud.exportedAt ? (Date.parse(cloud.exportedAt) || 0) : 0)); // || 0 so a malformed ISO string (Date.parse → NaN) doesn't poison the comparison
+    const localTime = _clampEditTime((parseInt(localStorage.getItem(LS_PREFIX + 'dataEdit') || '0', 10) || 0)
+      || (parseInt(localStorage.getItem(LS_PREFIX + 'lastEdit') || '0', 10) || 0));
 
     if(!interactive){
       // automatic reconnect — never interrupt. Instead of clobbering one side, do a
@@ -1046,7 +1069,13 @@ async function driveSyncFromCloud(isInitial, interactive){
       const d = new Date(ms);
       return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     };
-    const cloudCount = (cloud.transactions || []).length;
+    // Filtered through isValidTx — the same check adoptCloudSnapshot() itself
+    // applies when actually adopting this snapshot (app.drive.js, further
+    // below) — a raw, unfiltered length overstated what the user would
+    // actually get after tapping "Use Drive" whenever the file contained any
+    // malformed/corrupt entries (a hand-edited file, a partial upload, a
+    // schema mismatch from a much older export).
+    const cloudCount = Array.isArray(cloud.transactions) ? cloud.transactions.filter(isValidTx).length : 0;
     const localCount = state.transactions.length;
     // A user who simply signs out and back in on the SAME device (driveSignOut
     // only clears the token — local data and driveFileId are untouched) with

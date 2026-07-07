@@ -329,3 +329,54 @@ test('_normalizeSub — leaves an ordinary amount untouched', () => {
   const sub = app._normalizeSub({ id: 'sub_y', name: 'Netflix', amount: 49.99, billingDay: 20 });
   assert.strictEqual(sub.amount, 49.99);
 });
+
+// ── tombstone lifecycle (round 22) ──────────────────────────────────────────
+
+test('_unionTombstoneMap — clamps an implausibly old (backdated-clock) incoming stamp to now', () => {
+  // A device with a badly wrong clock (dead CMOS battery, manual clock change)
+  // can stamp a FRESH delete with an implausible value (e.g. year 2000). Without
+  // clamping, that stamp looks "already expired" to pruneTombstones() the
+  // moment ANY other device first receives it via union, resurrecting the
+  // deleted item on the very next merge instead of honoring the delete.
+  const local = {};
+  const before = Date.now();
+  app._unionTombstoneMap(local, { tx_old: new Date('2000-01-01').getTime() });
+  const after = Date.now();
+  assert.ok(local.tx_old >= before && local.tx_old <= after, 'implausibly old stamp clamped to "now", not trusted as-is');
+});
+
+test('_unionTombstoneMap — clamps an implausibly future (fast-forwarded-clock) incoming stamp to now', () => {
+  const local = {};
+  const before = Date.now();
+  app._unionTombstoneMap(local, { tx_future: Date.now() + 1000 * 60 * 60 * 24 * 365 * 5 }); // 5 years out
+  const after = Date.now();
+  assert.ok(local.tx_future >= before && local.tx_future <= after, 'implausibly future stamp clamped to "now"');
+});
+
+test('_unionTombstoneMap — a plausible, recent stamp passes through unclamped', () => {
+  const local = {};
+  const stamp = Date.now() - 1000 * 60 * 60; // 1 hour ago
+  app._unionTombstoneMap(local, { tx_recent: stamp });
+  assert.strictEqual(local.tx_recent, stamp);
+});
+
+test('_unionTombstoneMap — newest stamp still wins between two plausible values', () => {
+  const now = Date.now();
+  const local = { tx_a: now - 2000 };
+  app._unionTombstoneMap(local, { tx_a: now - 1000 });
+  assert.strictEqual(local.tx_a, now - 1000, 'newer incoming stamp overwrites an older local one');
+  app._unionTombstoneMap(local, { tx_a: now - 3000 });
+  assert.strictEqual(local.tx_a, now - 1000, 'older incoming stamp does not overwrite a newer local one');
+});
+
+test('pruneTombstones — a deletion within the (400-day) TTL survives, one past it is pruned', () => {
+  const now = Date.now();
+  app.setDeletedTxIds({
+    tx_recent: now - 1000 * 60 * 60 * 24 * 30, // 30 days ago — well within TTL
+    tx_stale: now - app.TOMBSTONE_TTL_MS - 1000, // just past the TTL
+  });
+  app.pruneTombstones();
+  const ids = app.getDeletedTxIds();
+  assert.ok('tx_recent' in ids, 'recent tombstone survives pruning');
+  assert.ok(!('tx_stale' in ids), 'expired tombstone is pruned');
+});

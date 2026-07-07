@@ -432,7 +432,16 @@ async function saveWalletDefModal(){
   const nameInput = document.getElementById('walletDefName');
   const name = truncateCodePoints(stripBidiControls(nameInput.value).trim(), 40);
   if(!name){ toast(t({ar:'⚠ أدخل اسم المحفظة', en:'⚠ Enter a wallet name'}), true); nameInput.focus(); return; }
-  if(WALLET_DEFS.some(w => w.id !== editingWalletDefId && w.name.toLowerCase() === name.toLowerCase())){
+  // Collapse every Unicode whitespace variant (JS's \s already covers NBSP,
+  // en/em spaces, ideographic space, etc. — not just the ASCII space a normal
+  // space bar produces) before comparing — .toLowerCase() alone doesn't
+  // normalize whitespace, so a name typed/pasted with e.g. a non-breaking
+  // space in place of a regular one looked visually IDENTICAL to an existing
+  // wallet's name but compared as a different string, letting two
+  // indistinguishable wallets coexist with no way to tell them apart in any
+  // picker (which only shows name + balance, never an id).
+  const _normName = s => s.toLowerCase().replace(/\s+/g, ' ');
+  if(WALLET_DEFS.some(w => w.id !== editingWalletDefId && _normName(w.name) === _normName(name))){
     toast(t({ar:'⚠ يوجد محفظة بهذا الاسم بالفعل', en:'⚠ A wallet with this name already exists'}), true); nameInput.focus(); return;
   }
 
@@ -1046,7 +1055,10 @@ async function saveSubModal(){
   const billingDay = parseInt(normalizeDigits(dayInput.value), 10); // normalize Arabic-Indic digits (numeric keyboards often default to them)
   const active = document.getElementById('subActive')?.checked !== false;
   if(!name){ toast(t({ar:'⚠ أدخل اسم الاشتراك', en:'⚠ Enter a subscription name'}), true); nameInput.focus(); return; }
-  if(subscriptions.some(s => s.id !== editingSubId && s.name.toLowerCase() === name.toLowerCase())){
+  // Same Unicode-whitespace normalization as saveWalletDefModal's identical
+  // uniqueness check — see its comment.
+  const _normSubName = s => s.toLowerCase().replace(/\s+/g, ' ');
+  if(subscriptions.some(s => s.id !== editingSubId && _normSubName(s.name) === _normSubName(name))){
     toast(t({ar:'⚠ يوجد اشتراك بهذا الاسم بالفعل', en:'⚠ A subscription with this name already exists'}), true); nameInput.focus(); return;
   }
   if(!isFinite(amount)||amount<=0){ toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true); amountInput.focus(); return; }
@@ -1557,8 +1569,19 @@ async function saveDistribution(){
   try{
     // always normalize before saving (even when total rounds to 100%, raw float can differ)
     normalizeDistribution();
-    // commit the validated+normalized draft to the live DISTRIBUTION array
-    _distDraft.forEach((d, i) => { if(i < DISTRIBUTION.length) DISTRIBUTION[i].pct = d.pct; });
+    // commit the validated+normalized draft to the live DISTRIBUTION array,
+    // matched by id — NOT by array index. A background Drive merge can
+    // wholesale-replace/reorder/append-to DISTRIBUTION while this editor sits
+    // open (mergeCloudData doesn't reset an open draft, and the modal-close
+    // wait it's gated behind is capped at 10s for an ordinary modal like
+    // Settings — see _mergeCloudIntoLocal), so DISTRIBUTION[i] may no longer
+    // be the same wallet _distDraft[i] was built from by the time this saves.
+    // An index-based commit would silently write one wallet's edited
+    // percentage onto a DIFFERENT wallet's entry with no error at all.
+    _distDraft.forEach(d => {
+      const target = DISTRIBUTION.find(x => x.id === d.id);
+      if(target) target.pct = d.pct;
+    });
     _distDraft = null; // draft committed — a new open will build a fresh snapshot
     renderDistributionEditor(); // reflect the normalized values back into the inputs
     await saveConfig();

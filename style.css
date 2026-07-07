@@ -1215,7 +1215,13 @@
   }
   .rtx-wallet{
     color:var(--muted2);
-    overflow:hidden; text-overflow:ellipsis; max-width:120px;
+    overflow:hidden; text-overflow:ellipsis;
+    /* ch (not a fixed px) scales with the current font-size — a fixed px cap
+       held the same absolute width regardless of OS/browser text-size scaling,
+       so at 150-200% scaling the same box fit far fewer characters, truncating
+       wallet names much more aggressively than at 100% (same class of bug
+       already fixed for the hero balance/.wallet .name — see their comments). */
+    max-width:16ch;
     unicode-bidi:plaintext; /* same reasoning as .rtx-desc above — an English wallet name shouldn't be forced RTL by the enclosing container */
   }
   .rtx-dot{ color:var(--line); }

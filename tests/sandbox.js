@@ -147,6 +147,7 @@ function loadApp() {
       getSubscriptions: () => subscriptions,
       setSubscriptions: (v) => { subscriptions = v; },
       _normalizeSub,
+      _unionTombstoneMap, pruneTombstones, TOMBSTONE_TTL_MS, MIN_TX_TS,
     };`;
 
   // The app's top-level loadState() may reject against the stubs — that's

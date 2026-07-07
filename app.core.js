@@ -29,7 +29,7 @@ const WALLET_DEFS = [
 
 // Tombstones for delete propagation in multi-device merge sync: {txId: deletedAtMs}.
 // Without these, a union merge would resurrect a transaction deleted on another
-// device. Tx/sub tombstones are pruned to the last 90 days so the sets stay bounded.
+// device. Tx/sub tombstones are pruned to bound the sets — see TOMBSTONE_TTL_MS.
 // Declared here (not with the rest of the mutable state below) because
 // applyWalletDefs() consults deletedWalletDefIds and already runs at parse time
 // via the _loadCustomWalletDefsSync IIFE just after it — a later `let` would TDZ-throw.
@@ -39,7 +39,17 @@ let deletedTxIds = {};
 // reappears from device B's copy on the very next sync, forever ping-ponging.
 let deletedSubIds = {};
 let deletedWalletDefIds = {};
-const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+// 400 days (~13 months), not 90 — a device that stays disconnected from Drive
+// sync for longer than the TTL (dead token, offline, Drive never set up on
+// this device) while still being used locally could otherwise have its OWN
+// still-relevant tombstone pruned away before it ever propagates; the next
+// time that device DOES sync with a copy that never saw the deletion, the
+// "deleted" item silently resurrects with no error and no way to detect it
+// happened. Tombstone entries are tiny ({id: timestamp}), so bounding them to
+// over a year instead of 90 days doesn't meaningfully change the quota-growth
+// concern this TTL exists for, while substantially shrinking the real-world
+// window where this can occur.
+const TOMBSTONE_TTL_MS = 400 * 24 * 60 * 60 * 1000;
 function pruneTombstones(){
   const cutoff = Date.now() - TOMBSTONE_TTL_MS;
   for(const id in deletedTxIds){ if(!(deletedTxIds[id] > cutoff)) delete deletedTxIds[id]; }
@@ -48,15 +58,29 @@ function pruneTombstones(){
   // (tiny), custom wallet ids are never reused (generated w_<ts>_<rand>), and the
   // default-wallet ids ('reserve'/'crisis_fund') rely on a PERMANENT tombstone to
   // record "the user deleted this default" — applyWalletDefs() would otherwise
-  // resurrect them the moment a 90-day expiry dropped the record.
+  // resurrect them the moment TOMBSTONE_TTL_MS dropped the record.
 }
 // Union a {id: deletedAtMs} tombstone map from an external snapshot (cloud/IDB/
 // import) into a local one — newest stamp wins, non-numeric entries dropped.
 function _unionTombstoneMap(local, incoming){
   if(!incoming || typeof incoming !== 'object') return local;
+  const _now = Date.now();
   for(const id in incoming){
-    const t = incoming[id];
-    if(typeof t === 'number' && (!local[id] || t > local[id])) local[id] = t;
+    let t = incoming[id];
+    if(typeof t !== 'number' || !isFinite(t)) continue;
+    // A tombstone stamp reflects WHICHEVER device deleted it, using its own
+    // clock, with no cross-device validation. A device whose clock was badly
+    // wrong at the moment of deletion (dead CMOS battery, a manual clock
+    // change — both real occurrences) stamps an implausible value; if it's
+    // far enough in the past, pruneTombstones() on the FIRST device that ever
+    // receives it treats it as "already expired" and deletes the tombstone
+    // immediately, resurrecting the deletion on the very next merge instead of
+    // honoring it. Clamping to [MIN_TX_TS, now] — the same bound transaction
+    // timestamps already get — gives an implausible stamp the same fresh TTL
+    // window a normal one gets, on the receiving device's own (presumably
+    // correct) clock.
+    if(t < MIN_TX_TS || t > _now) t = _now;
+    if(!local[id] || t > local[id]) local[id] = t;
   }
   return local;
 }
