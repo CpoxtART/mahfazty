@@ -737,6 +737,23 @@ async function driveFindFile(){
   return driveFileId;
 }
 
+// Poll checkFn() every 250ms until it reports not-blocked, or the elapsed
+// wait meets/exceeds whatever cap it currently reports (re-evaluated fresh
+// every iteration, so a per-iteration-varying cap — e.g. a much longer cap
+// only while one specific condition holds — takes effect the moment that
+// condition changes, not just at the start of the wait). Shared by every
+// "don't yank state out from under an in-flight mutation/open modal" site
+// below — each passes its own blocked/cap logic, since the exact set of
+// guards (and how long to tolerate each) differs per call site.
+async function _waitForClear(checkFn){
+  for(let waited=0; ; waited+=250){
+    const { blocked, cap } = checkFn();
+    if(!blocked) break;
+    if(waited >= cap) break;
+    await new Promise(r => setTimeout(r, 250));
+  }
+}
+
 // Merge a cloud snapshot into local state in place (union merge — see
 // mergeCloudData), persist it, and re-render. Shared by the post-reconnect
 // background merge and driveSyncToCloud's pre-push reconciliation below —
@@ -759,13 +776,13 @@ async function _mergeCloudIntoLocal(cloud, cloudNewer){
   // with no indication — a "forgotten modal" this is not, it's an active
   // pending decision the user is reading right now.
   const _conflictModalEl = document.getElementById('driveConflictModal');
-  for(let waited=0; ; waited+=250){
+  await _waitForClear(() => {
     const _conflictOpen = !!(_conflictModalEl && _conflictModalEl.classList.contains('open'));
-    const _blocked = _conflictOpen || document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0;
-    if(!_blocked) break;
-    if(waited >= (_conflictOpen ? 1800000 : 10000)) break;
-    await new Promise(r => setTimeout(r, 250));
-  }
+    return {
+      blocked: _conflictOpen || !!document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0,
+      cap: _conflictOpen ? 1800000 : 10000
+    };
+  });
   _opInFlight++;
   try{
     const { added, removed } = mergeCloudData(cloud, cloudNewer);
@@ -895,9 +912,10 @@ async function adoptCloudSnapshot(cloud){
   // distribution steps) could replace state.transactions out from under it,
   // corrupting balances with no error and no undo. Capped so a stuck modal
   // can't stall adoption forever.
-  for(let waited=0; waited<10000 && (document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0); waited+=250){
-    await new Promise(r => setTimeout(r, 250));
-  }
+  await _waitForClear(() => ({
+    blocked: !!document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0,
+    cap: 10000
+  }));
   _opInFlight++; // wholesale state replacement across awaits — block cross-tab reload race
   try{
   // wallet defs first — wholesale snapshot replace, same as applyImport(), so the
@@ -1147,9 +1165,7 @@ async function resolveConflict(useCloud){
     // directly across several awaits — wait for any other in-flight mutation
     // to clear first so e.g. a concurrent deleteTx isn't racing the same
     // tombstone maps this is about to write into. Capped, same as elsewhere.
-    for(let waited=0; waited<10000 && _opInFlight > 0; waited+=250){
-      await new Promise(r => setTimeout(r, 250));
-    }
+    await _waitForClear(() => ({ blocked: _opInFlight > 0, cap: 10000 }));
     _opInFlight++;
     try{
     // The user explicitly rejected the cloud copy — mark it as "already seen"

@@ -341,15 +341,17 @@ let selectedTrackWallet = null;
 let editingTxId = null;
 let editType = 'expense';
 let editWallet = WALLET_DEFS[0].id;
-let _editingTransferLeg = false; // when true, type/category are locked (transfer)
-let _editingDistSource = false; // when true, amount is locked (already-distributed income source)
-// when true, type/category are locked (track-wallet balance adjustment) — see
-// openEdit's comment for why recategorizing this away from 'adjustment' while
-// the wallet stays a track wallet is dangerous (isSystemCategory-gated
+// null | 'transfer' | 'distSource' | 'distLeg' | 'trackAdjustment' — see
+// openEdit's comment for what each means. 'transfer' and 'distLeg' lock
+// type/category; 'distSource' and 'distLeg' lock amount; 'trackAdjustment'
+// locks type/category (recategorizing away from 'adjustment' while the
+// wallet stays a track wallet is dangerous — isSystemCategory-gated
 // analytics/budget totals would silently start counting a track-only entry,
 // with no self-heal path since reconcileBalances/repairBalancesFromLedger
 // both skip track wallets).
-let _editingTrackAdjustment = false;
+let _editLockReason = null;
+function _editCategoryLocked(){ return _editLockReason === 'transfer' || _editLockReason === 'distLeg' || _editLockReason === 'trackAdjustment'; }
+function _editAmountLocked(){ return _editLockReason === 'distSource' || _editLockReason === 'distLeg'; }
 let searchQuery = '';
 let prevSpendable = null;
 let selectedCategory = 'other';

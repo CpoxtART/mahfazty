@@ -487,6 +487,13 @@ async function saveWalletDefModal(){
 // was actually removed (so the modal caller knows whether to close).
 async function deleteWalletDef(id){
   if(_saveWalletDefBusy) return false;
+  // cross-op write guard (see commitQuickNotes) — this writes balances/defs
+  // across awaits, same as its sibling saveWalletDefModal just above; unlike
+  // every other guarded mutator in the app, this one was missing it entirely
+  // (the local _saveWalletDefBusy flag alone only blocks a second wallet-def
+  // operation, not a concurrent addTx/Drive-sync/etc. interleaving with these
+  // multi-await balance/wallet-def writes).
+  if(_opBusy()) return false;
   const w = WALLET_DEFS.find(x => x.id === id);
   if(!w) return false;
   if(id === 'core'){ toast(t({ar:'⚠ لا يمكن حذف المحفظة الرئيسية', en:'⚠ Cannot delete the main wallet'}), true); return false; }
@@ -1222,11 +1229,11 @@ function renderEditCategoryGrid(){
   const grid = document.getElementById('editCategoryGrid');
   grid.innerHTML = '';
   // 'transfer' is a sentinel: combined with tx.link it's how the app detects a
-  // 2-leg transfer elsewhere (openEdit's _editingTransferLeg, analytics filters).
+  // 2-leg transfer elsewhere (openEdit's _editLockReason, analytics filters).
   // A distributed-income source also carries a link (to its withdrawal/deposit
   // legs) — picking 'transfer' here would misclassify it as a transfer leg from
   // then on, hiding its type/category controls and dropping it from income totals.
-  CATEGORIES.filter(c => c.types.includes(editType) && !(c.id === 'transfer' && _editingDistSource)).forEach(c => {
+  CATEGORIES.filter(c => c.types.includes(editType) && !(c.id === 'transfer' && _editAmountLocked())).forEach(c => {
     grid.appendChild(_makeCatChip(c, editCategory===c.id, () => { editCategory = c.id; renderEditCategoryGrid(); }));
   });
 }

@@ -95,7 +95,15 @@ function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel, _isReplay
   // next, instead of it silently vanishing the instant this toast appears.
   // One level deep only (bounded scope: a rapid streak of 3+ only preserves
   // the immediately-previous one, not a full history).
-  if(!critical && !_isReplay && _pendingAction && _pendingAction.expiresAt > Date.now()){
+  // Skip the stash when this call's fn is the SAME reference as the pending
+  // one's (e.g. deleteTx always passes the shared undoDelete function) —
+  // those aren't a different action being replaced, they're the same
+  // continuously-accumulating action (undoDelete reads the shared
+  // _lastDeleted array fresh) firing again with an updated count. Stashing
+  // it anyway used to surface a stale duplicate "Undo" offer afterward,
+  // describing an earlier (smaller) count that's already fully covered by
+  // the action that just ran.
+  if(!critical && !_isReplay && _pendingAction && _pendingAction.expiresAt > Date.now() && _pendingAction.fn !== fn){
     _supersededAction = _pendingAction;
   }
   const el = document.getElementById('saveStatus');
