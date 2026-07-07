@@ -307,6 +307,32 @@ if(sessionStorage.getItem('_swJustUpdated')){
     _updateChangelogDot();
   }, 900);
 }
+// Blocks a multi-line clipboard paste (e.g. an accidentally-copied
+// spreadsheet column: "500\n1000\n2000") from silently fusing into one bogus
+// amount. Browsers collapse a pasted newline to a space in a type="text"
+// input BEFORE any 'input'-event handler (including liveFormatThousands)
+// ever sees the value, so by the time parseAmount() runs at save time the
+// newlines are already gone ("500 1000 2000") and every existing digit/
+// separator regex silently glues them into one huge number that's still
+// under MAX_AMOUNT's ceiling, so nothing rejects it — defeating that
+// ceiling's own stated purpose of capping a pathological paste. Must
+// intercept the 'paste' event itself, the only point the ORIGINAL newlines
+// are still readable via clipboardData, before the browser's own paste
+// normalization runs.
+function _guardMultilinePaste(e){
+  try{
+    const text = e.clipboardData.getData('text');
+    // More than one non-blank line, with at least two containing a digit — a
+    // single legitimate amount never looks like this; a stray leading/
+    // trailing blank line from a clumsy copy is still let through untouched.
+    const digitLines = text.split(/\r\n|\r|\n/).map(l => l.trim()).filter(l => /\d/.test(l));
+    if(digitLines.length > 1){
+      e.preventDefault();
+      toast(t({ar:'⚠ يبدو أنك لصقت أكثر من رقم — الصق رقمًا واحدًا فقط بحقل المبلغ', en:'⚠ It looks like you pasted more than one number — paste just a single amount here'}), true);
+    }
+  }catch(_){}
+}
+
 /* ============================================================
    EVENT BINDING — all UI event listeners wired here so index.html
    contains zero inline handlers and script-src CSP can use hashes.
@@ -325,7 +351,10 @@ function _bindEvents(){
   // firing order, since every reader goes through parseAmount(), which
   // already tolerates grouped input.
   ['amountInput','editAmount','transferAmount','subAmount','detailBudgetInput','detailNewBalance']
-    .forEach(id => on($(id), 'input', () => liveFormatThousands($(id))));
+    .forEach(id => {
+      on($(id), 'input', () => liveFormatThousands($(id)));
+      on($(id), 'paste', _guardMultilinePaste);
+    });
 
   // Header
   on($('themeToggle'),'click',toggleTheme);

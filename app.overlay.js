@@ -212,17 +212,28 @@ function openModal(id){
   // modal (and the on-screen keyboard) is open on mobile
   lockBodyScroll();
   if(id==='settingsModal'){
-    if(typeof _distDraft !== 'undefined') _distDraft = null; // fresh draft each time settings opens
-    updateSettingsStats();
-    document.getElementById('driveClientId').value = driveClientId;
-    refreshDriveSettingsUI();
-    renderDistributionEditor();
-    renderLayoutEditor();
-    renderAccentSwatches();
-    _updateLangUI(_currentLang());
-    renderWalletDefsEditor();
-    const _ja = document.getElementById('jsonArea'); if(_ja) _ja.value = ''; // fresh scratch area each open (import/export now lives in the data tab)
-    switchSettingsTab(_settingsTab); // sync panels/strip to the requested tab
+    // Only re-run the full (re-)init — including the two DESTRUCTIVE resets,
+    // the distribution draft and the import scratch textarea — on a genuine
+    // fresh open. openSettingsTab() (app.layout.js) re-enters openModal() on
+    // an ALREADY-open settingsModal purely to switch tabs (e.g. the
+    // balance-drift "Fix" toast action, which can fire via visibilitychange/
+    // midnight-refresh while the user is mid-edit in the distribution
+    // editor) — without this guard, that silently wiped the in-progress
+    // draft and any pasted import JSON with zero warning, even though the
+    // modal never actually closed.
+    if(wasClosed){
+      if(typeof _distDraft !== 'undefined') _distDraft = null; // fresh draft each time settings opens
+      updateSettingsStats();
+      document.getElementById('driveClientId').value = driveClientId;
+      refreshDriveSettingsUI();
+      renderDistributionEditor();
+      renderLayoutEditor();
+      renderAccentSwatches();
+      _updateLangUI(_currentLang());
+      renderWalletDefsEditor();
+      const _ja = document.getElementById('jsonArea'); if(_ja) _ja.value = ''; // fresh scratch area each open (import/export now lives in the data tab)
+    }
+    switchSettingsTab(_settingsTab); // sync panels/strip to the requested tab — always, even when Settings was already open
   }
   // move focus into the modal so keyboard/screen-reader users land in context.
   // target a button (not a text input) so the mobile keyboard doesn't pop open.

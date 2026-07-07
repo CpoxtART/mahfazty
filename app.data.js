@@ -323,9 +323,30 @@ async function applyImport(text){
   // it, with normal budget wallets hidden and crisis_fund shown in their
   // place, even though the restored backup has no opinion on the mode at all.
   state.crisisMode = (typeof data.crisisMode === 'boolean') ? data.crisisMode : false;
-  if(data.budgets && typeof data.budgets === 'object') budgets = sanitizeBudgets(data.budgets);
-  if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
-  if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
+  // Same "explicit default when absent" reasoning as crisisMode just above —
+  // an old backup (predating one of these fields) or a hand-trimmed JSON left
+  // whatever this device already had untouched, contradicting the confirm()
+  // dialog's own "replaces all current data" promise. Concretely: importing a
+  // minimal old-format file with only {wallets, transactions} used to silently
+  // splice today's budgets/auto-distribute setting/distribution ratios/
+  // dismissed-recurring list/subscriptions onto a years-old snapshot — for
+  // subscriptions specifically, this also meant NONE of them got tombstoned by
+  // the pre-import-cleanup step further below (it diffs against whatever
+  // `subscriptions` holds AFTER this block), so every pre-import subscription
+  // silently persisted forever and kept re-syncing to Drive.
+  budgets = (data.budgets && typeof data.budgets === 'object') ? sanitizeBudgets(data.budgets) : {};
+  autoDistribute = (typeof data.autoDistribute === 'boolean') ? data.autoDistribute : false;
+  DISTRIBUTION = (data.distribution && Array.isArray(data.distribution))
+    ? sanitizeDistribution(data.distribution)
+    // same fallback wipeAll() already uses: factory shares for whichever
+    // wallets the just-imported WALLET_DEFS actually has.
+    : DEFAULT_DISTRIBUTION.filter(d => WALLET_DEFS.find(w => w.id === d.id && !w.track)).map(d => ({...d}));
+  dismissedRecurring = Array.isArray(data.dismissedRecurring)
+    ? new Set(data.dismissedRecurring.filter(k => typeof k === 'string' && k))
+    : new Set();
+  subscriptions = Array.isArray(data.subscriptions)
+    ? data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub)
+    : [];
   _ensureReserveShare();
   // crisisMode was just set above but _ingestWalletDefs() (earlier in this
   // function) already rebuilt SELECTABLE_WALLETS from whatever crisisMode this
@@ -334,7 +355,6 @@ async function applyImport(text){
   // crisis state even after a backup that changed it, contradicting what the
   // dashboard shows right after import.
   recomputeSelectableWallets();
-  if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring.filter(k => typeof k === 'string' && k));
   if(data.deletedTxIds && typeof data.deletedTxIds === 'object' && !Array.isArray(data.deletedTxIds)){
     deletedTxIds = {};
     for(const id in data.deletedTxIds){
@@ -348,9 +368,6 @@ async function applyImport(text){
     if(Object.keys(deletedTxIds).length){
       state.transactions = state.transactions.filter(t => !deletedTxIds[t.id]);
     }
-  }
-  if(Array.isArray(data.subscriptions)){
-    subscriptions = data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
   }
   // roundtrip the sub/wallet-def tombstone maps carried by newer backups
   _unionTombstoneMap(deletedSubIds, data.deletedSubIds);

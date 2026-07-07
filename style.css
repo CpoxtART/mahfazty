@@ -770,7 +770,7 @@
     display:flex; align-items:center; gap:10px;
     padding:10px 0; border-bottom:1px solid var(--line-soft);
   }
-  .dist-edit-row .name{flex:1; font-size:var(--fs-base);}
+  .dist-edit-row .name{flex:1; font-size:var(--fs-base); unicode-bidi:plaintext;}
   .dist-edit-row input{
     width:70px; flex:0 0 auto; margin-bottom:0; text-align:center;
     background:var(--bg); border:1px solid var(--line); color:var(--text);
@@ -977,7 +977,7 @@
     touch-action:manipulation;
   }
   .wallet-pop .opt:last-child{ border-bottom:none; }
-  .wallet-pop .opt span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wallet-pop .opt span:first-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; unicode-bidi:plaintext; }
   .wallet-pop .opt .bal{ color:var(--muted); font-size:var(--fs-sm); font-variant-numeric:tabular-nums; direction:ltr; flex-shrink:0; }
   .wallet-pop .opt:hover{ background:var(--card2); }
   /* don't blanket-suppress the focus ring like :hover does — a keyboard user
@@ -1013,7 +1013,7 @@
   .pie-legend .row.active{background:var(--gold-soft);}
   .pie-legend .row.active .name{color:var(--gold); font-weight:700;}
   .pie-legend .sw{width:10px; height:10px; border-radius:3px; flex-shrink:0;}
-  .pie-legend .name{flex:1; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .pie-legend .name{flex:1; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; unicode-bidi:plaintext;}
   .pie-legend .pct{color:var(--muted); font-variant-numeric: tabular-nums; direction:ltr;}
   .cat-cmp{font-size:var(--fs-2xs); font-weight:700; padding:1px 5px; border-radius:var(--radius-xs); flex-shrink:0; unicode-bidi:plaintext;}
   .cat-cmp.up{color:var(--red); background:rgba(var(--red-rgb),.12);}
@@ -1282,6 +1282,10 @@
   .tx .info .meta{font-size:var(--fs-xs); color:var(--muted); margin-top:3px; display:flex; align-items:center; gap:6px;}
   .tx .info .meta .wtag{
     background:var(--bg-elev); border-radius:var(--radius-xs); padding:1px 6px; font-size:var(--fs-2xs); color:var(--muted);
+    /* same reasoning as .rtx-wallet/.wallet .name — a mixed-language wallet
+       name (e.g. "Amazon مشتريات") shouldn't have its Latin portion forced to
+       the wrong visual side by the enclosing RTL container. */
+    unicode-bidi:plaintext;
   }
   .tx .right{display:flex; align-items:center; gap:4px;}
   .tx .amount{font-size:var(--money-xs); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr;}
@@ -1841,6 +1845,7 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 .sub-card .sub-name{
   font-size:var(--fs-base); font-weight:600;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  unicode-bidi:plaintext;
 }
 .sub-card .sub-meta{ font-size:var(--fs-xs); color:var(--muted); margin-top:3px; }
 .sub-card .sub-amt{
