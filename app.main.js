@@ -82,7 +82,12 @@ function toastWithUndo(msg, undoFn){
 // _isReplay is internal-only (set when re-showing a superseded action) — skips
 // re-stashing it as its own superseded entry.
 function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel, _isReplay){
-  if(!critical && Date.now() < _criticalToastUntil){ _queuedToast = {fn: toastWithAction, args:[msg, actionLabel, fn, critical, btnAriaLabel]}; return; }
+  // Include _isReplay — dropping it here silently coerced a replayed
+  // supersede-chain toast back to "fresh" if IT ALSO happened to queue behind
+  // a critical toast, letting it re-stash whatever _pendingAction was live at
+  // that moment as a NEW superseded entry instead of skipping that step like
+  // a genuine replay should.
+  if(!critical && Date.now() < _criticalToastUntil){ _queuedToast = {fn: toastWithAction, args:[msg, actionLabel, fn, critical, btnAriaLabel, _isReplay]}; return; }
   // A DIFFERENT, still-unresolved action-toast is about to be replaced by this
   // one (e.g. editing transaction A, then editing/deleting transaction B
   // before A's undo was tapped or timed out) — stash it so tapping (or

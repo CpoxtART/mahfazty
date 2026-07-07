@@ -103,7 +103,14 @@ function _computePieData(){
 }
 function renderPieChart(){
   const wrap = document.getElementById('pieContent');
-  const sig = _txMutationStamp + '|' + currentFilter + '|' + walletFilter;
+  // _lang included — setLang() (i18n.js) calls renderPieChart() specifically
+  // to refresh it on a language switch, but without this the legend's DOM
+  // rebuild (gated below by wrap.dataset.pieSig !== _pieChartSig, both fed by
+  // this same sig) never actually fires on a pure language switch: category
+  // names, "Filter by X" aria-labels, and the month-over-month "New"/percentage
+  // badge text all stayed in the OLD language until an unrelated data
+  // mutation happened to bump _txMutationStamp.
+  const sig = _txMutationStamp + '|' + currentFilter + '|' + walletFilter + '|' + _lang;
   let data = (sig === _pieChartSig && _pieChartCache) ? _pieChartCache : null;
 
   if(!data){

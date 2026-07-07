@@ -55,6 +55,20 @@ test('parseAmount — robust money parsing rejects junk', () => {
   assert.ok(Number.isNaN(app.parseAmount('1e15')));     // beyond the trillion ceiling
 });
 
+test('parseAmount — rejects Arabic currency/unit text consistently regardless of position', () => {
+  // Before this fix, a currency word AFTER the number "succeeded" only by
+  // accident of parseFloat stopping at the first non-digit character, while
+  // the identical intent with the word BEFORE the number failed outright —
+  // an inconsistent outcome depending on token order. Both must now reject.
+  assert.ok(Number.isNaN(app.parseAmount('٥٠٠ ر.س')));   // "500 SAR" (suffix)
+  assert.ok(Number.isNaN(app.parseAmount('ر.س ٥٠٠')));   // "SAR 500" (prefix)
+  assert.ok(Number.isNaN(app.parseAmount('500 ريال')));
+  // Mixed Arabic/Western digits and a genuine Arabic decimal separator must
+  // still parse correctly — this guard must not catch legitimate numerals.
+  assert.equal(app.parseAmount('١٢3'), 123);
+  assert.equal(app.parseAmount('12٫50'), 12.5);
+});
+
 test('groupThousandsDisplay — live-typing display matches what parseAmount() would save', () => {
   // Normal cases: display grouping must round-trip through parseAmount() unchanged.
   assert.equal(app.groupThousandsDisplay('1000'), '1,000');

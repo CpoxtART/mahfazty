@@ -767,7 +767,18 @@ async function deleteTx(id){
     _lastDeleted = _lastDeleted ? _lastDeleted.concat(removed) : removed;
     const totalPending = _lastDeleted.length;
     clearTimeout(_undoTimer);
-    _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
+    // If a critical toast (e.g. "couldn't save locally") is currently
+    // blocking, toastWithUndo() below QUEUES instead of showing the undo
+    // button immediately (see toastWithAction's critical-window check,
+    // app.main.js) — it only actually appears once the critical toast's own
+    // window ends. Without this, _undoTimer (ticking from THIS moment
+    // regardless of when/whether the button is visible yet) could expire
+    // before or shortly after the button ever appears, so a user could see a
+    // fully-rendered, apparently-fresh "Undo" button that silently no-ops
+    // the instant it's tapped. Extend the window to start counting from
+    // whenever the critical toast actually clears, not from now.
+    const _undoMs = Math.max(5000, (typeof _criticalToastUntil !== 'undefined' ? _criticalToastUntil - Date.now() + 5000 : 5000));
+    _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, _undoMs);
     haptic([12, 40, 12]); // double-tap pulse signals a destructive commit
     toastWithUndo(totalPending > 1 ? t({ar:`🗑 تم حذف ${totalPending} حركات مرتبطة`, en:`🗑 Deleted ${totalPending} linked entries`}) : t({ar:'🗑 تم الحذف', en:'🗑 Deleted'}), undoDelete);
   } finally {

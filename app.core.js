@@ -632,6 +632,19 @@ const MAX_AMOUNT = 1e12; // one trillion — well above any realistic single ent
 function parseAmount(str){
   const norm = normalizeDigits(str);
   if(/[a-zA-Z]/.test(norm)) return NaN; // block 1e9 / 0x10 / Infinity / NaN-style strings
+  // Arabic letters (currency words like "ريال"/"ر.س", unit text, etc.) — by this
+  // point normalizeDigits() has already converted every Arabic-Indic/Persian
+  // digit and Arabic decimal/thousands separator to ASCII, so anything left
+  // in this Unicode range is genuine leftover text, not a legitimate number.
+  // Without this, a copy-pasted "٥٠٠ ر.س" (500 SAR) "succeeded" only by
+  // accident of parseFloat stopping at the first non-digit character — but
+  // the SAME text with the currency word placed BEFORE the number ("ر.س 500")
+  // failed outright, an inconsistent outcome for the same intent depending on
+  // token order. Worse, a string with currency text placed mid-value (e.g.
+  // "500 ريال و50 هللة") silently parsed to just 500, dropping the trailing
+  // ".50" with no warning at all. Rejecting consistently — same as the ASCII
+  // guard above — is safer than accepting one direction by accident.
+  if(/[؀-ۿݐ-ݿ]/.test(norm)) return NaN;
   if((norm.match(/\./g) || []).length > 1) return NaN; // reject "1.2.3"
   const v = parseFloat(norm);
   if(!isFinite(v) || Math.abs(v) > MAX_AMOUNT) return NaN;

@@ -192,6 +192,24 @@ async function forceClearAndUpdate(){
     toast(t({ar:'⚠ لا يوجد اتصال بالإنترنت — التحديث القسري يحتاج الشبكة لإعادة تحميل الملفات', en:'⚠ No internet connection — force refresh needs the network to re-download files'}));
     return;
   }
+  // Same unsaved-input guards applyUpdate() already has, just above — this
+  // button triggers an identical hard reload (reachable from Settings while
+  // the add-drawer/an edit modal is still open underneath it, per
+  // app.overlay.js's own note that other overlays can stack over an open
+  // drawer), but had none at all: a half-typed transaction amount/description,
+  // or an in-progress edit, was silently discarded with zero warning.
+  if(addDrawerOpen){
+    const amt = document.getElementById('amountInput');
+    const desc = document.getElementById('descInput');
+    if((amt && amt.value) || (desc && desc.value)){
+      if(!confirm(t({ar:'لديك معاملة غير محفوظة في نموذج الإضافة — التحديث القسري سيتجاهلها. متابعة؟', en:'You have an unsaved transaction in the add form — force updating now will discard it. Continue?'}))) return;
+    }
+  }
+  if(editingTxId != null){
+    if(!confirm(t({ar:'لديك تعديل معاملة لم يُحفظ — التحديث القسري سيتجاهله. متابعة؟', en:'You have an unsaved transaction edit — force updating now will discard it. Continue?'}))) return;
+  } else if(document.querySelector('.modal-overlay.open')){
+    if(!confirm(t({ar:'هناك نافذة مفتوحة قد تحتوي بيانات غير محفوظة — التحديث القسري سيُغلقها. متابعة؟', en:'There is an open dialog that may contain unsaved data — force updating now will close it. Continue?'}))) return;
+  }
   const btn = document.querySelector('.btn-cache-refresh');
   if(btn){ btn.disabled = true; btn.textContent = `⏳ ${t({ar:'جاري...', en:'Working...'})}`; }
   flushIdbBackup(); // don't let the hard reload race the debounced save

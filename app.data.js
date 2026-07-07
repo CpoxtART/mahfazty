@@ -676,7 +676,15 @@ function checkBalanceDrift(){
   let totalDrift = 0;
   Object.keys(computed).forEach(id => {
     const before = parseFloat(state.wallets[id]) || 0;
-    if(Math.abs(computed[id] - before) >= 0.01) totalDrift = round2(totalDrift + Math.abs(computed[id] - before));
+    // 0.005 (not 0.01) — matches reconcileBalances' own threshold exactly.
+    // Both sides here are round2()'d, but round2() output isn't exactly
+    // representable in IEEE-754 double, so a genuine 1-cent difference often
+    // subtracts to e.g. 0.009999999999999998, just under a strict >= 0.01 —
+    // this silently missed roughly 4 out of 5 real 1-cent drifts (verified by
+    // sweeping consecutive cent values), exactly the "crash committed a
+    // balance write but not the matching transaction write" case this
+    // function's own comment says it exists to catch.
+    if(Math.abs(computed[id] - before) >= 0.005) totalDrift = round2(totalDrift + Math.abs(computed[id] - before));
   });
   if(totalDrift === 0) return;
   const sig = String(totalDrift);
