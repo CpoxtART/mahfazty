@@ -171,7 +171,17 @@ let _voiceTimer = null;
 // a mic button that does nothing useful until tapped. Hide it up front instead
 // of failing only on click, so the UI never advertises a feature that can't work.
 (function hideVoiceBtnIfUnsupported(){
-  if(window.SpeechRecognition || window.webkitSpeechRecognition) return;
+  // SpeechRecognition requires a secure context (HTTPS or localhost) to ever
+  // actually grant microphone access — Chromium still exposes the
+  // constructor on a plain-HTTP non-localhost origin, so this check alone
+  // wasn't enough: the button rendered and was tappable, but the mic could
+  // never be granted, and the resulting 'not-allowed' error looked
+  // IDENTICAL to a real user denial (see startVoiceInput's onerror below) —
+  // guidance to "allow microphone access" is unfixable/misleading when the
+  // real cause is "this site isn't served over HTTPS." Hide the button
+  // entirely in that case instead, matching how an unsupported browser is
+  // already handled.
+  if((window.SpeechRecognition || window.webkitSpeechRecognition) && window.isSecureContext) return;
   const hide = () => {
     const btn = document.getElementById('voiceBtn');
     if(btn) btn.style.display = 'none';
@@ -182,10 +192,30 @@ let _voiceTimer = null;
     hide();
   }
 })();
+// Set once a real mic-permission denial is observed this session — lets a
+// repeat tap show the actionable message immediately instead of silently
+// re-attempting .start(), which some browsers no-op after a denial (no
+// onstart/onerror/onend at all) until the page reloads. Without this, a
+// repeat tap after a block could look like nothing happened for the full
+// 12s watchdog window, with zero explanation.
+let _voiceMicDenied = false;
 function startVoiceInput(){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SpeechRecognition){
     toast(t({ar:'⚠ متصفحك لا يدعم الإدخال الصوتي', en:'⚠ Your browser does not support voice input'}), true);
+    return;
+  }
+  if(!window.isSecureContext){
+    // Distinct from a real permission denial — "allow microphone access"
+    // guidance is unfixable here since there's no browser-settings toggle
+    // for it; the site itself needs HTTPS. hideVoiceBtnIfUnsupported already
+    // hides this button on a fresh load for this exact reason, but this is a
+    // defensive fallback in case it's somehow still reachable.
+    toast(t({ar:'⚠ الإدخال الصوتي يحتاج اتصالًا آمنًا (HTTPS)', en:'⚠ Voice input requires a secure (HTTPS) connection'}), true);
+    return;
+  }
+  if(_voiceMicDenied){
+    toast(t({ar:'⚠ يجب السماح بالوصول للميكروفون من إعدادات المتصفح', en:'⚠ Microphone access must be allowed from your browser settings'}), true);
     return;
   }
   const btn = document.getElementById('voiceBtn');
@@ -235,6 +265,8 @@ function startVoiceInput(){
       // access" guidance applies either way, so it shouldn't fall into the
       // generic "couldn't recognize speech" message below (which reads like
       // the user just mumbled, not that access is blocked).
+      // Cache the denial for this session — see _voiceMicDenied's declaration.
+      _voiceMicDenied = true;
       toast(t({ar:'⚠ يجب السماح بالوصول للميكروفون', en:'⚠ Microphone access must be allowed'}), true);
     } else if(e.error !== 'aborted'){
       toast(t({ar:'⚠ تعذر التعرف على الصوت، حاول مرة أخرى', en:'⚠ Could not recognize speech, try again'}), true);

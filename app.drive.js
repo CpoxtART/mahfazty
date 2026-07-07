@@ -31,6 +31,24 @@ let driveClientId = '';
 // may show the conflict modal). Every other mode resolves silently via the union
 // merge, so an automatic/banner reconnect never nags the user to pick a copy.
 let _driveSilentMode = null;
+// Force-clears _driveSilentMode if the GIS callback/error_callback never
+// fires at all (an iframe stall, third-party-storage-partitioning weirdness,
+// or the same mobile gsi/transfer hang already worked around for interactive
+// flows) — without this, EVERY reconnect entry point (driveSignIn,
+// driveReconnectInteractive) treats a truthy _driveSilentMode as "busy" and
+// silently no-ops forever with zero feedback, recoverable only by a full
+// page reload. Generous timeout since a real popup-based flow can
+// legitimately take a while (user picking an account, etc.).
+let _driveSilentModeTimer = null;
+function _setDriveSilentMode(mode){
+  _driveSilentMode = mode;
+  clearTimeout(_driveSilentModeTimer);
+  if(mode) _driveSilentModeTimer = setTimeout(() => { _driveSilentMode = null; }, 20000);
+}
+function _clearDriveSilentMode(){
+  _driveSilentMode = null;
+  clearTimeout(_driveSilentModeTimer);
+}
 let _driveBannerEscalate = false; // next banner tap should force the account picker
 let _driveTokenRefreshTimer = null; // proactive refresh 5 min before token expires
 // The dataEditedAt value we last confirmed is reflected on Drive (either we just
@@ -414,7 +432,7 @@ function initGisClient(){
       client_id: driveClientId,
       scope: DRIVE_SCOPE,
       callback: async (resp) => {
-        const mode = _driveSilentMode; _driveSilentMode = null;
+        const mode = _driveSilentMode; _clearDriveSilentMode();
         if(resp.error){
           // a silent (prompt:'') grant wasn't possible — handle gracefully per context
           // instead of showing a hard error the user didn't trigger.
@@ -457,14 +475,14 @@ function driveSignIn(){
   if(_driveSilentMode) return;
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast(t({ar:'⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', en:'⚠ Could not initialize Google, try refreshing the page'}), true); return; }
-  _driveSilentMode = 'signin'; // explicit user-initiated sign-in from Settings — the ONLY path allowed to show the conflict-resolution modal
+  _setDriveSilentMode('signin'); // explicit user-initiated sign-in from Settings — the ONLY path allowed to show the conflict-resolution modal
   try{
     gisTokenClient.requestAccessToken({
       prompt: 'select_account',
       // surface popup-level failures (blocked / closed / can't return) instead of
       // leaving the user staring at a blank google sign-in page with no feedback
       error_callback: (err) => {
-        _driveSilentMode = null;
+        _clearDriveSilentMode();
         setDriveIndicator('error');
         const t = (err && err.type) || '';
         if(t === 'popup_failed_to_open'){
@@ -489,11 +507,11 @@ function driveReconnectInteractive(){
   if(_driveSilentMode) return;
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast(t({ar:'⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', en:'⚠ Could not initialize Google, try refreshing the page'}), true); return; }
-  _driveSilentMode = 'reconnect'; // automatic banner reconnect — resolve via the silent union merge, never the conflict modal
+  _setDriveSilentMode('reconnect'); // automatic banner reconnect — resolve via the silent union merge, never the conflict modal
   try{
     gisTokenClient.requestAccessToken({
       error_callback: (err) => {
-        _driveSilentMode = null;
+        _clearDriveSilentMode();
         setDriveIndicator('error');
         const t = (err && err.type) || '';
         if(t === 'popup_failed_to_open'){
@@ -513,21 +531,29 @@ function driveReconnectInteractive(){
 // returning auto-sign-in user reconnects with zero friction. `mode` tells the
 // shared callback how to recover if a silent grant turns out to need interaction.
 function driveRequestSilent(mode){
+  // Unlike driveSignIn/driveReconnectInteractive, this had no busy-guard at
+  // all — reachable from a user gesture via driveReconnectFromBanner's
+  // silent branch, so a fast double-tap on the banner's "Yes" (before its
+  // CSS-class removal visually registers) could fire this twice, issuing two
+  // concurrent requestAccessToken calls against the one shared gisTokenClient
+  // callback and producing a duplicate "✓ Signed in" toast + redundant
+  // back-to-back sync when both eventually resolved.
+  if(_driveSilentMode) return false;
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient) return false;
-  _driveSilentMode = mode;
+  _setDriveSilentMode(mode);
   try{
     gisTokenClient.requestAccessToken({
       prompt: '',
       error_callback: () => {
-        const m = _driveSilentMode; _driveSilentMode = null;
+        const m = _driveSilentMode; _clearDriveSilentMode();
         if(m === 'launch'){ showDriveBanner(); }
         else if(m === 'banner'){ _driveBannerEscalate = true; showDriveBanner(); }
         else if(m === 'refresh'){ clearDriveToken(); refreshDriveSettingsUI(); setDriveIndicator('idle'); }
       }
     });
     return true;
-  }catch(e){ _driveSilentMode = null; return false; }
+  }catch(e){ _clearDriveSilentMode(); return false; }
 }
 
 // Desktop auto-sign-in users: reconnect silently on app open — no banner, no tap,
@@ -552,7 +578,20 @@ function driveReconnectFromBanner(){
 
 function driveSignOut(){
   if(driveAccessToken && typeof google !== 'undefined' && google.accounts){
-    try{ google.accounts.oauth2.revoke(driveAccessToken, ()=>{}); }catch(e){}
+    try{
+      google.accounts.oauth2.revoke(driveAccessToken, (resp) => {
+        // GIS's revoke callback reports the actual outcome (an empty callback
+        // silently ignored it before) — the local token/UI below always clear
+        // regardless (that part can't fail), but if Google's SIDE didn't
+        // actually invalidate the grant (offline, transient Google-side
+        // error), silently assuming full revocation would be misleading: the
+        // user could believe they've fully disconnected while the OAuth
+        // grant remains live on their Google Account permissions page.
+        if(!resp || resp.successful === false){
+          toast(t({ar:'⚠ تعذّر إبطال إذن جوجل بالكامل من حسابك — راجع صفحة أذونات حسابك في جوجل إذا لزم الأمر', en:"⚠ Could not fully revoke the Google permission — check your Google Account's permissions page if needed"}), true);
+        }
+      });
+    }catch(e){}
   }
   clearDriveToken();
   refreshDriveSettingsUI();

@@ -643,7 +643,15 @@ window.addEventListener('storage', (e) => {
   // their money data at all.
   const _isLayoutPrefKey = e.key === LS_PREFIX+'tabOrder' || e.key === LS_PREFIX+'recentTxLimit' ||
     (e.key && e.key.indexOf(LS_PREFIX+'secOrder_') === 0);
-  if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit' && !_isLayoutPrefKey){
+  // Same reasoning as _isLayoutPrefKey — these are pure once-per-day/once-
+  // per-drift-signature bookkeeping keys, never touched alongside an actual
+  // ledger change. Without this exclusion, checkDailyReview()/
+  // checkBalanceDrift() writing them in ONE tab triggered a full
+  // loadState()+reconcileBalances()+render() (a visible flash) in every OTHER
+  // open tab, purely from routine review/drift bookkeeping unrelated to any
+  // real transaction/balance change.
+  const _isReviewBookkeepingKey = e.key === LS_PREFIX+'lastReviewDate' || e.key === LS_PREFIX+'driftNotified';
+  if(e.key && e.key.startsWith(LS_PREFIX) && e.key !== LS_PREFIX+'lastEdit' && !_isLayoutPrefKey && !_isReviewBookkeepingKey){
     if(!document.querySelector('.modal-overlay.open') && !addDrawerOpen){
       clearTimeout(_storageSyncTimer);
       // If a mutation is in flight, wait and re-check rather than reloading on

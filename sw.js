@@ -1,4 +1,4 @@
-const CACHE = 'mhfzty-v48.8';
+const CACHE = 'mhfzty-v48.9';
 // The ?v= suffix on every script/stylesheet URL below MUST match this CACHE
 // version AND index.html's script tags (enforced by tests/version.test.js).
 // Why: cache keys include the query string, so each release gets FRESH keys for

@@ -71,10 +71,18 @@ function _renderWelcomeStep(){
   if(dots) Array.from(dots.children).forEach((d,i)=> d.classList.toggle('active', i === _welcomeStep));
   const isLast = _welcomeStep === _WELCOME_STEPS - 1;
   const back = document.getElementById('onbBack');
+  const next = document.getElementById('onbNext');
   const nav = document.querySelector('#welcomeModal .onb-nav');
   const start = document.getElementById('onbStart');
   if(back) back.style.visibility = _welcomeStep === 0 ? 'hidden' : 'visible';
-  if(nav) nav.style.display = isLast ? 'none' : 'flex';
+  // Previously hid the WHOLE nav row (Back included) on the last slide,
+  // leaving Back reachable only via the progress dots — which are
+  // aria-hidden and have no keydown handler, so a keyboard/screen-reader
+  // user had no way at all to return to an earlier slide once on the last
+  // one. Only the Next button (meaningless there, replaced by the Start
+  // buttons below) needs to disappear; Back stays valid and reachable.
+  if(nav) nav.style.display = 'flex';
+  if(next) next.style.display = isLast ? 'none' : '';
   if(start) start.style.display = isLast ? 'flex' : 'none';
 }
 function welcomeNav(dir){
