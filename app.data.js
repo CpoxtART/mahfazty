@@ -205,7 +205,7 @@ async function applyImport(text){
   // to permanently discard whatever was on the device with nothing to undo.
   // Download a backup of the CURRENT data (plus what's about to replace it)
   // before proceeding, mirroring _downloadDataBackup's other call site.
-  _downloadDataBackup(_buildSyncPayload(), data, 'wallet-pre-import-backup');
+  const _backedUp = _downloadDataBackup(_buildSyncPayload(), data, 'wallet-pre-import-backup');
   _importBusy = true;
   _txMutationStamp++; // wholesale data replacement — invalidate derived caches
   _opInFlight++; // block the cross-tab storage reload mid-import, same as other wholesale replacements
@@ -327,6 +327,13 @@ async function applyImport(text){
   if(typeof data.autoDistribute === 'boolean') autoDistribute = data.autoDistribute;
   if(data.distribution && Array.isArray(data.distribution)) DISTRIBUTION = sanitizeDistribution(data.distribution);
   _ensureReserveShare();
+  // crisisMode was just set above but _ingestWalletDefs() (earlier in this
+  // function) already rebuilt SELECTABLE_WALLETS from whatever crisisMode this
+  // device was in BEFORE the import — without this, the add-transaction/
+  // transfer/Quick-Notes wallet pickers would still reflect the pre-import
+  // crisis state even after a backup that changed it, contradicting what the
+  // dashboard shows right after import.
+  recomputeSelectableWallets();
   if(Array.isArray(data.dismissedRecurring)) dismissedRecurring = new Set(data.dismissedRecurring.filter(k => typeof k === 'string' && k));
   if(data.deletedTxIds && typeof data.deletedTxIds === 'object' && !Array.isArray(data.deletedTxIds)){
     deletedTxIds = {};
@@ -411,6 +418,13 @@ async function applyImport(text){
     toast(t({ar:`✓ تم الاستيراد — لكن تم تجاهل ${arPlural(_droppedTx, 'معاملة غير صالحة', 'معاملتين غير صالحتين', 'معاملات غير صالحة', 'معاملة واحدة غير صالحة')} (محفظة مجهولة أو بيانات تالفة)`, en:`✓ Import complete — but ${_droppedTx} invalid ${_droppedTx===1?'transaction was':'transactions were'} skipped (unknown wallet or corrupt data)`}), true);
   } else {
     toast(t({ar:'✓ تم الاستيراد بنجاح', en:'✓ Import successful'}));
+  }
+  // Unlike the Drive-conflict flow's identical use of this helper, this call site
+  // (and wipeAll's) used to discard the return value — so the one safety net
+  // protecting a user from an accidental/wrong import could silently fail to
+  // download with zero indication, right before their old data was replaced.
+  if(!_backedUp){
+    toast(t({ar:'⚠ تعذّر تنزيل نسخة احتياطية قبل الاستيراد', en:"⚠ Couldn't download a backup before importing"}), true);
   }
   } catch(err){
     // Restore every mutated variable to its pre-import snapshot — nothing was
@@ -689,7 +703,7 @@ async function wipeAll(){
   // this is still the single most destructive action in the app — download a
   // backup of everything before it's gone, same safety net as the Drive-conflict
   // and import-overwrite flows.
-  _downloadDataBackup(_buildSyncPayload(), null, 'wallet-pre-wipe-backup');
+  const _backedUp = _downloadDataBackup(_buildSyncPayload(), null, 'wallet-pre-wipe-backup');
   _txMutationStamp++; // wholesale wipe — invalidate derived caches
   _opInFlight++; // block the cross-tab storage reload mid-wipe across the multi-await sequence below
   try{
@@ -752,5 +766,11 @@ async function wipeAll(){
   // save vibrated; wiping every wallet/transaction didn't).
   haptic([12, 40, 12]);
   toast(t({ar:'🗑 تم حذف كل البيانات', en:'🗑 All data deleted'}));
+  // Same gap applyImport's identical call site had — the safety backup
+  // downloaded right before this irreversible wipe could silently fail
+  // with zero indication.
+  if(!_backedUp){
+    toast(t({ar:'⚠ تعذّر تنزيل نسخة احتياطية قبل الحذف', en:"⚠ Couldn't download a backup before wiping"}), true);
+  }
   } finally { _opInFlight--; }
 }

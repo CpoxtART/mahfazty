@@ -249,6 +249,16 @@ function toggleCategoryFilter(catId){
   } else {
     chip.classList.remove('show');
   }
+  // Direct DOM update, not a renderPieChart() rebuild — that call below is
+  // cached on a signature (_pieChartSig, app.charts.js) that deliberately
+  // doesn't key on categoryFilter (it doesn't affect slice data, only this
+  // row's highlight), so it wouldn't regenerate the legend HTML at all and
+  // this active state would never actually become visible on its own tab.
+  document.querySelectorAll('.pie-legend .row').forEach(row => {
+    const isActive = row.dataset.cat === categoryFilter;
+    row.classList.toggle('active', isActive);
+    row.setAttribute('aria-pressed', String(isActive));
+  });
   renderTxList();
   renderChart();
   renderPieChart();
@@ -744,8 +754,10 @@ function updateHeroStats(){
 }
 
 // Shared between renderRecentTx's empty-state message and its "filtered"
-// chip — one human-readable reason per active search/wallet/category
-// filter (NOT the time-range filter, which has its own separate UI).
+// chip — one human-readable reason per active search/wallet/category filter.
+// The time-range filter is deliberately excluded: renderRecentTx() always
+// calls getFilteredTx(true) to ignore it entirely, since this tab has no
+// day/week/month/year control of its own (see getFilteredTx's own comment).
 function _activeTxFilterReasons(){
   const reasons = [];
   if(searchQuery) reasons.push(t({ar:'مطابقة لبحثك', en:'matching your search'}));
@@ -790,9 +802,11 @@ function renderRecentTx(){
   // Full chronological log of transactions (newest first), grouped by day.
   // getFilteredTx() applies walletFilter, categoryFilter and searchQuery so
   // tapping a wallet card or searching updates the transactions tab list too.
-  // Note: getFilteredTx() also applies currentFilter (time range) — when it's
-  // 'all' (the default) every transaction passes, which is correct here.
-  const all = getFilteredTx();
+  // ignoreTimeRange=true: this tab has no day/week/month/year control of its
+  // own (that UI lives only in #tabReports) — without this, an active Reports
+  // period filter silently narrowed this tab's log too, with the txFilterChip
+  // unable to even show or clear it (see getFilteredTx's own comment).
+  const all = getFilteredTx(true);
 
   const countEl = document.getElementById('txLogCount');
   if(countEl) countEl.textContent = all.length ? all.length : '';
@@ -1569,12 +1583,19 @@ function openWalletDetail(walletId){
   }
 
   const txs = state.transactions.filter(t=>t.wallet===walletId).sort((a,b)=>b.ts-a.ts);
-  let inc=0, exp=0;
+  let inc=0, exp=0, countedTx=0;
   txs.forEach(t => {
     if(isSystemCategory(t)) return;
+    // count only the transactions that actually feed the income/expense totals
+    // right beside it — these three stat tiles read as one summary trio, so a
+    // transfer/adjustment silently counted here but excluded from both totals
+    // made "3 transactions, 1000 income, 200 expense" look internally inconsistent.
+    // The full transaction list further below is unaffected — it's a separate
+    // activity log that correctly still shows transfers too.
+    countedTx++;
     t.type==='income' ? inc+=t.amount : exp+=t.amount;
   });
-  document.getElementById('detailCount').textContent = String(txs.length);
+  document.getElementById('detailCount').textContent = String(countedTx);
   document.getElementById('detailIncome').textContent = fmt(round2(inc));
   document.getElementById('detailExpense').textContent = fmt(round2(exp));
 
@@ -1975,21 +1996,31 @@ function clearSearch(){
 
 let _filteredTxCache = null;
 let _filteredTxSig = '';
-function getFilteredTx(){
+// ignoreTimeRange: the Transactions tab (renderRecentTx) has NO day/week/month/
+// year control of its own — that UI lives exclusively in #tabReports. Before
+// this parameter existed, picking a period there silently narrowed the
+// Transactions tab's chronological log too, with no indicator (the txFilterChip
+// deliberately excludes the time range — see _activeTxFilterReasons — on the
+// assumption this tab always gets 'all', which switchTab() never enforced),
+// and clearAllTxFilters() couldn't clear it since it isn't one of the filters
+// that chip represents. Passing true here makes this tab always show every
+// period, matching what its filter chip actually promises to fully clear.
+function getFilteredTx(ignoreTimeRange){
   // include today's date for every time-bounded filter (day/week/month/year all
   // shift at a day boundary) so the cache invalidates across a midnight/month/
   // year rollover instead of showing the previous period's transactions
-  const dateKey = currentFilter === 'all' ? '' : todayISO();
+  const effFilter = ignoreTimeRange ? 'all' : currentFilter;
+  const dateKey = effFilter === 'all' ? '' : todayISO();
   // _txMutationStamp catches in-place edits (amount/desc/date/wallet/category on
   // an EXISTING tx) that don't change state.transactions.length — without it,
   // render() had to blanket-reset this cache on every single call regardless
   // of whether anything relevant actually changed (see render(), app.main.js).
-  const sig = state.transactions.length + '|' + currentFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery + '|' + dateKey + '|' + _txMutationStamp;
+  const sig = state.transactions.length + '|' + effFilter + '|' + walletFilter + '|' + categoryFilter + '|' + searchQuery + '|' + dateKey + '|' + _txMutationStamp;
   if(sig === _filteredTxSig && _filteredTxCache) return _filteredTxCache;
   _filteredTxSig = sig;
   const _now = new Date(); // compute once for the whole filter pass (not per-tx)
   _filteredTxCache = state.transactions
-    .filter(tx => inRange(tx.ts, _now))
+    .filter(tx => ignoreTimeRange || inRange(tx.ts, _now))
     .filter(tx => !walletFilter || tx.wallet === walletFilter)
     // normalizeCategory — categoryFilter is set from the pie chart's NORMALIZED
     // wedge id (app.charts.js toggleCategoryFilter call), so a transaction

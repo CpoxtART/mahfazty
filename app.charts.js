@@ -151,7 +151,12 @@ function renderPieChart(){
           cmpHtml = `<span class="cat-cmp up">${escHtml(t({ar:'جديد', en:'New'}))}</span>`;
         }
       }
-      html += `<div class="row cat-row" data-cat="${escHtml(catId)}" role="button" tabindex="0" aria-label="${escHtml(t({ar:`تصفية حسب ${cat.name}`, en:`Filter by ${cat.name}`}))}"><span class="sw" style="background:${escHtml(cat.color)}"></span><span class="name">${escHtml(cat.icon)} ${escHtml(cat.name)}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
+      // Unlike wallet cards (which get .active-filter when walletFilter matches,
+      // app.ui.js), these rows previously gave zero visual feedback on their OWN
+      // tab when tapped — the only signals lived on the Reports/Transactions
+      // filter chips, so tapping a slice here looked like it did nothing.
+      const isActive = categoryFilter === catId;
+      html += `<div class="row cat-row${isActive ? ' active' : ''}" data-cat="${escHtml(catId)}" role="button" tabindex="0" aria-pressed="${isActive}" aria-label="${escHtml(t({ar:`تصفية حسب ${cat.name}`, en:`Filter by ${cat.name}`}))}"><span class="sw" style="background:${escHtml(cat.color)}"></span><span class="name">${escHtml(cat.icon)} ${escHtml(cat.name)}</span>${cmpHtml}<span class="pct">${fmt(amt)} (${pct}%)</span></div>`;
     });
     html += '</div>';
     wrap.innerHTML = html;
@@ -260,6 +265,14 @@ function renderChart(){
   // the whole chart render instead of drawing it.
   let min = points[0], max = points[0];
   for(let i=1;i<points.length;i++){ const p = points[i]; if(p<min) min=p; if(p>max) max=p; }
+  // Same -0/near-zero collapse fmt() applies (app.core.js) — a running balance
+  // that's mathematically exactly zero can land on a float epsilon like
+  // -1e-14 through repeated add/subtract. Without this, the "draw a separate
+  // dashed 0 line" check below (min < 0 && max > 0) still fired for such an
+  // epsilon, drawing a second "0" label on top of the already-epsilon-collapsed
+  // min label a few lines down — a doubled/bolded-looking "0" at the bottom.
+  if(Object.is(min,-0) || (min<0 && min>-0.005)) min = 0;
+  if(Object.is(max,-0) || (max<0 && max>-0.005)) max = 0;
   // Downsample for drawing ONLY — min/max/labels above already reflect the FULL
   // series. Past a couple thousand points, one canvas pixel covers many points
   // anyway (cssW is typically a few hundred px), so this is visually lossless

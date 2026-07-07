@@ -298,7 +298,15 @@ let selectedTrackWallet = null;
       _unionTombstoneMap(deletedWalletDefIds, cfg.deletedWalletDefIds);
     }
   }catch(e){}
-  const raw = localStorage.getItem(LS_PREFIX + 'walletDefs');
+  // Some locked-down browsers (e.g. old Safari private mode) throw on EVERY
+  // localStorage call, not just setItem — loadState() already wraps its own
+  // reads for exactly that reason (see its comment), but this bare read was
+  // missed. Uncaught here, it aborts this IIFE and every function declared
+  // after it in this file (nearly the whole file) — every later script then
+  // throws ReferenceErrors calling them, a total app crash on script load
+  // with no data actually at risk (never even reached).
+  let raw;
+  try{ raw = localStorage.getItem(LS_PREFIX + 'walletDefs'); }catch(e){ return; }
   if(!raw) return;
   try{
     const clean = sanitizeWalletDefs(JSON.parse(raw));
@@ -1477,6 +1485,13 @@ function mergeCloudData(cloud, cloudNewer){
   if(Array.isArray(cloud.dismissedRecurring)) cloud.dismissedRecurring.forEach(k => dismissedRecurring.add(k));
 
   _ensureReserveShare();
+  // crisisMode may have just changed above (step 5) — SELECTABLE_WALLETS was
+  // built from whatever crisisMode was true BEFORE this merge, so the
+  // add-transaction/transfer/Quick-Notes wallet pickers would otherwise still
+  // offer individual wallets after a sync merges in crisis mode ON (or the
+  // reverse: still hide them after a sync merges it OFF) until a manual
+  // crisis toggle or full reload happened to rebuild it.
+  recomputeSelectableWallets();
 
   // 6) rebuild balances from the merged ledger so they're provably consistent
   reconcileBalances();

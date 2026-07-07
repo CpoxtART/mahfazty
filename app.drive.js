@@ -894,6 +894,12 @@ async function adoptCloudSnapshot(cloud){
   }
   if(cloud.uiPrefs) applyUiPrefs(cloud.uiPrefs);
   _ensureReserveShare();
+  // crisisMode was just set above but _ingestWalletDefs() (earlier in this
+  // function) already rebuilt SELECTABLE_WALLETS from the PRE-adoption mode —
+  // without this, the add-transaction/transfer/Quick-Notes wallet pickers
+  // would still reflect the old crisis state after adopting a cloud snapshot
+  // that changed it, contradicting what the dashboard now shows.
+  recomputeSelectableWallets();
   _txMutationStamp++; // adopted a new cloud data set — invalidate derived caches
   prevSpendable = null; // force fresh hero animation after loading a new data set
   await saveBalances(); await saveTx(); await saveConfig(); await saveSubs(); await saveWalletDefs();
