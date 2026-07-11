@@ -1,4 +1,12 @@
 /* ============================================================
+   APP LOGIC — transaction CRUD (addTx, openEdit/saveEdit, deleteTx/undoDelete)
+   Split out of the original app.logic.js (which also used to own boot/
+   lifecycle/event-binding/toast — that half is now app.main.js). Loaded near
+   the end, after every renderer it calls (app.ui.js) and every overlay helper
+   (app.overlay.js) already exist. app.main.js loads last and wires this
+   file's functions to DOM events.
+============================================================ */
+/* ============================================================
    ADD / EDIT / DELETE TRANSACTIONS
 ============================================================ */
 // Money writes are refused until loadState() has resolved — the app is
@@ -32,7 +40,7 @@ async function addTx(type){
     // saveWalletDefModal), but this field only ever got them stripped at
     // RENDER time (escHtml calls stripBidiControls internally) — the raw
     // control chars stayed in the stored/exported data indefinitely.
-    const desc = truncateCodePoints(stripBidiControls(document.getElementById('descInput').value.trim()), 120); // cap length (voice/paste bypass maxlength)
+    const desc = truncateCodePoints(stripBidiControls(document.getElementById('descInput').value.trim()), MAX_DESC_LEN); // cap length (voice/paste bypass maxlength)
     // round to cents at entry so the stored amount matches what fmt() displays —
     // otherwise sub-cent input (10.999) shows "11.00" but sums as 10.999 and drifts
     const amountVal = round2(parseAmount(document.getElementById('amountInput').value));
@@ -582,7 +590,7 @@ async function saveEdit(){
     }
   }
 
-  tx.desc = truncateCodePoints(stripBidiControls(document.getElementById('editDesc').value.trim()), 120); // cap length (voice/paste bypass maxlength)
+  tx.desc = truncateCodePoints(stripBidiControls(document.getElementById('editDesc').value.trim()), MAX_DESC_LEN); // cap length (voice/paste bypass maxlength)
   tx.amount = newAmount;
   tx.wallet = editWallet;
   tx.editedAt = Date.now(); // lets mergeCloudData() resolve same-id conflicts by picking the newer edit instead of always favoring local
@@ -785,7 +793,7 @@ async function deleteTx(id){
     // fully-rendered, apparently-fresh "Undo" button that silently no-ops
     // the instant it's tapped. Extend the window to start counting from
     // whenever the critical toast actually clears, not from now.
-    const _undoMs = Math.max(5000, (typeof _criticalToastUntil !== 'undefined' ? _criticalToastUntil - Date.now() + 5000 : 5000));
+    const _undoMs = Math.max(UNDO_WINDOW_MS, (typeof _criticalToastUntil !== 'undefined' ? _criticalToastUntil - Date.now() + UNDO_WINDOW_MS : UNDO_WINDOW_MS));
     _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, _undoMs);
     haptic([12, 40, 12]); // double-tap pulse signals a destructive commit
     toastWithUndo(totalPending > 1 ? t({ar:`🗑 تم حذف ${totalPending} حركات مرتبطة`, en:`🗑 Deleted ${totalPending} linked entries`}) : t({ar:'🗑 تم الحذف', en:'🗑 Deleted'}), undoDelete);

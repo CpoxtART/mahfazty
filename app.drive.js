@@ -5,6 +5,10 @@
    bottom-of-file init runs. This file is declaration-only — it
    has no top-level executable statements.
 ============================================================ */
+
+/* ============================================================
+   TOKEN / CONFIG STORAGE
+============================================================ */
 const DRIVE_FILE_NAME = 'mahfazty-data.json';
 // Older versions stored the file under an Arabic name with a repeated-letter typo.
 // driveFindFile() looks for both and silently renames the legacy file on first
@@ -213,7 +217,10 @@ function dismissDriveAutoSignInPrompt(){
   try{ sessionStorage.setItem(LS_PREFIX + 'autoSignInAsked', '1'); }catch(_){}
 }
 
-/* ─── Launch Drive-connect banner ───
+/* ============================================================
+   CONNECT BANNER + SETTINGS UI
+============================================================ */
+/* Launch Drive-connect banner.
    Shown on app open when a Drive Client ID is configured but the session is
    disconnected (token expired). Brings the reconnect action to the user as a
    one-tap banner instead of making them hunt for the ☁️ button, and remembers
@@ -259,7 +266,7 @@ function showDriveBanner(retriesLeft){
   // give-up race instead of both landing together.
   const MAX_RETRIES = 40; // ~16s
   if(blocked && (retriesLeft === undefined || retriesLeft > 0)){
-    setTimeout(() => showDriveBanner(retriesLeft === undefined ? MAX_RETRIES : retriesLeft - 1), 400);
+    setTimeout(() => showDriveBanner(retriesLeft === undefined ? MAX_RETRIES : retriesLeft - 1), BANNER_POLL_INTERVAL_MS);
     return;
   }
   const chk = document.getElementById('driveBannerAuto');
@@ -454,6 +461,9 @@ function changeDriveClientId(){
   refreshDriveSettingsUI();
 }
 
+/* ============================================================
+   GOOGLE IDENTITY SERVICES (GIS) AUTH FLOWS
+============================================================ */
 function initGisClient(){
   if(!driveClientId || typeof google === 'undefined' || !google.accounts){
     return;
@@ -641,6 +651,9 @@ function driveSignOut(){
   toast(t({ar:'تم تسجيل الخروج من Drive', en:'Signed out of Drive'}));
 }
 
+/* ============================================================
+   SHARED FETCH / ERROR HANDLING
+============================================================ */
 // Plain fetch() has no built-in timeout — a stalled (not failed) connection on a
 // flaky mobile network leaves the request neither resolved nor rejected forever,
 // which would permanently wedge _driveSyncBusy and leave the indicator stuck on
@@ -709,6 +722,9 @@ function _handleDriveSyncError(e){
   }
 }
 
+/* ============================================================
+   SYNC HELPERS (file lookup, shared wait-loop, cloud→local merge)
+============================================================ */
 // Find (or remember) the app data file on Drive. Matches the current filename OR
 // the legacy Arabic one, so users who synced before the rename keep their data.
 async function driveFindFile(){
@@ -792,6 +808,9 @@ async function _mergeCloudIntoLocal(cloud, cloudNewer){
   } finally { _opInFlight--; }
 }
 
+/* ============================================================
+   PUSH TO CLOUD
+============================================================ */
 // Push current local state to Drive (create file if needed)
 let _driveSyncBusy = false;
 let _driveResyncPending = false; // a change arrived mid-sync — re-sync afterwards
@@ -897,6 +916,9 @@ async function driveSyncToCloud(isTrailingPushFromPull){
   }
 }
 
+/* ============================================================
+   PULL FROM CLOUD + CONFLICT RESOLUTION
+============================================================ */
 // Pull from Drive on sign-in / startup. If cloud has data and local is empty
 // (or cloud is newer), merge by replacing local with cloud.
 // Replace all local state with a cloud snapshot (single source of truth so the
@@ -939,7 +961,7 @@ async function adoptCloudSnapshot(cloud){
         // same [MIN_TX_TS, now] clamp as applyImport — a cloud copy written by a
         // fast-clock device could otherwise carry future timestamps
         ts: Math.max(MIN_TX_TS, Math.min(tx.ts, Date.now())),
-        desc: typeof tx.desc === 'string' && tx.desc.length > 120 ? truncateCodePoints(tx.desc, 120) : tx.desc,
+        desc: typeof tx.desc === 'string' && tx.desc.length > MAX_DESC_LEN ? truncateCodePoints(tx.desc, MAX_DESC_LEN) : tx.desc,
         amount: round2(tx.amount)
       }));
     stripOrphanLinks(state.transactions);
@@ -1221,6 +1243,9 @@ async function resolveConflict(useCloud){
   }
 }
 
+/* ============================================================
+   MANUAL SYNC + INIT
+============================================================ */
 let _driveManualSyncBusy = false;
 function driveManualSync(){
   // busy-guard + in-place button feedback: the header sync badge is hidden

@@ -1,5 +1,14 @@
 
 /* ============================================================
+   APP CORE — config, state, persistence, formatting/parsing utilities
+   Loaded first (right after i18n.js/changelog.js), before every other app.*.js
+   file — it owns WALLET_DEFS/CATEGORIES/state, localStorage+IndexedDB
+   persistence (loadState/saveTx/saveBalances/idbBackup/...), amount/date
+   parsing and formatting, theme, and crisis mode. Every other file's
+   top-level statements run after this one, so they can freely reference
+   anything declared here.
+============================================================ */
+/* ============================================================
    CONFIG
 ============================================================ */
 const LS_PREFIX = 'walletTracker_';
@@ -196,6 +205,17 @@ let _walletDefsLoadFailed = false;
 function crisisWalletIds(){
   return WALLET_DEFS.filter(w => !w.track && w.id !== 'core' && !w.crisisOnly).map(w => w.id);
 }
+// A crisisOnly wallet (crisis_fund) is a MERGED view while crisis mode is on — its
+// displayed/usable balance is its own stored value plus every hidden budget
+// wallet's balance folded in (see crisisWalletIds' own comment). Outside crisis
+// mode, or for any non-crisisOnly wallet, it's just the plain stored balance.
+// Shared by every place that needs "how much can actually be spent/shown from
+// this wallet right now" — wallet cards, the wallet picker, transfer validation.
+function effectiveWalletBalance(w){
+  return (w.crisisOnly && state.crisisMode)
+    ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
+    : (state.wallets[w.id] ?? 0);
+}
 
 // `name` stays the canonical Arabic string (also used as the stable fallback
 // when 'en' isn't applicable); `nameEn` is resolved through t() at lookup
@@ -234,6 +254,27 @@ function recomputeSelectableWallets(){
   if(SELECTABLE_WALLETS.length && !SELECTABLE_WALLETS.find(w => w.id === selectedWallet)){
     selectedWallet = SELECTABLE_WALLETS[0].id;
   }
+}
+function toggleCrisis(){
+  state.crisisMode = !state.crisisMode;
+  if(walletFilter){
+    const _wf = WALLET_DEFS.find(x => x.id === walletFilter);
+    const _hidden = state.crisisMode
+      ? crisisWalletIds().includes(walletFilter)
+      : (_wf && _wf.crisisOnly);
+    if(_hidden) walletFilter = null;
+  }
+  const _ct = document.getElementById('crisisToggle');
+  if(_ct) _ct.setAttribute('aria-checked', state.crisisMode ? 'true' : 'false'); // may be hidden via layout editor
+  // Rebuild the wallet dropdown so it only shows wallets visible in the current mode
+  recomputeSelectableWallets();
+  // crisis flips the spendable total by the reserve amount — that's not a real
+  // money movement, so snap to the new value instead of count-up animating across it
+  prevSpendable = null;
+  saveConfig();
+  render();
+  haptic(15);
+  toast(state.crisisMode ? t({ar:'🔄 تم تفعيل الوضع البديل', en:'🔄 Crisis mode enabled'}) : t({ar:'✓ تم إيقاف الوضع البديل', en:'✓ Crisis mode disabled'}));
 }
 function isTrackWallet(id){ const w = WALLET_DEFS.find(x => x.id === id); return !!(w && w.track); }
 // The tracking wallets (for the secondary "track" control). Order matches WALLET_DEFS.
@@ -487,18 +528,18 @@ function _restoreWalletBalances(source){
   });
 }
 
-/* v9.3 */
+/* Navigation + subscriptions state */
 let currentTab = 'home';
 let addDrawerOpen = false;
 let drawerTab = 0;
 let subscriptions = []; // [{id, name, amount, billingDay, active}]
 let editingSubId = null;
 
-/* v9.9 — user-editable wallet definitions (add/rename/reorder) */
+/* User-editable wallet definitions (add/rename/reorder) */
 let editingWalletDefId = null; // null = "add new" mode in #walletDefModal
 let _walletDefModalTrack = false; // pending track/regular choice while the modal is open
 
-/* v9.4 — customizable layout (tab + section order) */
+/* Customizable layout (tab + section order) */
 let _layoutEditorTab = 'tab'; // which sub-tab is active in the layout editor
 const TAB_DEFS = {
   home:         {icon:'🏠', label:'الرئيسي',   panel:'tabHome'},
@@ -625,6 +666,24 @@ function normalizeDigits(str){
 // hex notation ("1e9", "0x10") and values beyond a sane money ceiling. Returns
 // NaN on any rejection so every caller's existing isFinite/isNaN guard catches it.
 const MAX_AMOUNT = 1e12; // one trillion — well above any realistic single entry
+// Shared cap for truncateCodePoints(desc, ...) at every entry point that writes a
+// transaction description (addTx, saveEdit, applyImport, adoptCloudSnapshot,
+// mergeCloudData, Quick Notes) — these must all agree or a description could grow
+// past the intended limit through one path while staying capped on another.
+const MAX_DESC_LEN = 120;
+// Base "how long does the user have to tap Undo/see the toast" durations (app.main.js's
+// toastWithAction, deleteTx's undo timer in app.logic.js). Each site layers its own
+// extra logic on top of this base (e.g. deleteTx extends past a live critical toast) —
+// only the base number is shared here, not that surrounding logic.
+const UNDO_WINDOW_MS = 5000;
+const CRITICAL_TOAST_MS = 7000;
+// Shared poll cadence for the two independent "wait for a blocker to clear, give up
+// after N tries" banner-reveal loops (app.pwa.js's _revealUpdateBanner, app.drive.js's
+// showDriveBanner). Their attempt counts are deliberately different (15 vs 40, giving
+// each banner its own distinct give-up cap so they don't collide) — only this interval
+// itself is the same value on purpose. See each call site's own comment for why the
+// caps must stay different.
+const BANNER_POLL_INTERVAL_MS = 400;
 /**
  * Parse a user-entered money string, rejecting junk (scientific/hex notation,
  * out-of-range values) by returning NaN.
@@ -874,6 +933,16 @@ function animateNumber(el, from, to, duration){
   }
   _animFrames[key] = requestAnimationFrame(frame);
 }
+
+// Smooth-scroll the tx list into view AFTER the current render settles (deferring
+// to the next frame stops the scroll animation from competing with layout/canvas
+// work, which caused visible stutter on filter/search changes)
+function scrollToTxList(){
+  switchTab('reports');
+  const el = document.getElementById('txList');
+  if(el) requestAnimationFrame(()=> el.scrollIntoView({behavior:'smooth', block:'start'}));
+}
+
 /* ============================================================
    THEME (dark / light)
 ============================================================ */
@@ -888,15 +957,6 @@ function themeColor(name, fallback){
     _themeColorCache[name] = v;
   }
   return v;
-}
-
-// Smooth-scroll the tx list into view AFTER the current render settles (deferring
-// to the next frame stops the scroll animation from competing with layout/canvas
-// work, which caused visible stutter on filter/search changes)
-function scrollToTxList(){
-  switchTab('reports');
-  const el = document.getElementById('txList');
-  if(el) requestAnimationFrame(()=> el.scrollIntoView({behavior:'smooth', block:'start'}));
 }
 
 function applyTheme(theme){
@@ -1086,6 +1146,14 @@ function initAccent(){
 function todayISO(){
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// monthIndex is 0-based (Date's own convention) — day 0 of the FOLLOWING month
+// rolls back to the last day of the requested month, which is the standard JS
+// idiom this replaces at every call site (billing-day clamping, subscription/
+// recurring "days left" math).
+function _daysInMonth(year, monthIndex){
+  return new Date(year, monthIndex + 1, 0).getDate();
 }
 
 // Timestamp for a transaction on the chosen date at the current time, INCLUDING
@@ -1416,7 +1484,7 @@ function mergeCloudData(cloud, cloudNewer){
     // every other wholesale-adoption entry point — isValidTx checks well-formedness,
     // not length, so without this an incremental sync (unlike those two) let a
     // tampered/oversized desc field ride into state.transactions unclamped.
-    if(typeof t.desc === 'string' && t.desc.length > 120) t = {...t, desc: truncateCodePoints(t.desc, 120)};
+    if(typeof t.desc === 'string' && t.desc.length > MAX_DESC_LEN) t = {...t, desc: truncateCodePoints(t.desc, MAX_DESC_LEN)};
     const local = byId.get(t.id);
     if(!local){ byId.set(t.id, t); added++; addedTxs.push(t); return; }
     if(typeof t.editedAt === 'number' && typeof local.editedAt === 'number' && t.editedAt > local.editedAt){
@@ -2007,12 +2075,16 @@ async function idbBackup(savedAt){
 // write — flushed immediately on tab-hide/page-unload (see visibilitychange
 // and beforeunload below) so a backgrounded/closed tab never loses the pending
 // write entirely.
+// app.main.js's cross-tab storage-sync wait derives its own delay from this value
+// (plus an explicit margin) — see the comment at that call site for why they must
+// stay linked.
+const IDB_BACKUP_DEBOUNCE_MS = 400;
 let _idbBackupTimer = null;
 let _idbBackupPendingTs = 0;
 function scheduleIdbBackup(ts){
   _idbBackupPendingTs = (typeof ts === 'number' && isFinite(ts)) ? ts : Date.now();
   clearTimeout(_idbBackupTimer);
-  _idbBackupTimer = setTimeout(()=>{ _idbBackupTimer = null; idbBackup(_idbBackupPendingTs); }, 400);
+  _idbBackupTimer = setTimeout(()=>{ _idbBackupTimer = null; idbBackup(_idbBackupPendingTs); }, IDB_BACKUP_DEBOUNCE_MS);
 }
 function flushIdbBackup(){
   if(_idbBackupTimer){ clearTimeout(_idbBackupTimer); _idbBackupTimer = null; idbBackup(_idbBackupPendingTs); }
@@ -2045,28 +2117,5 @@ async function idbRestore(){
     if(e !== 'no idb') _idbOpenFailed = true;
     return null;
   }
-}
-
-
-function toggleCrisis(){
-  state.crisisMode = !state.crisisMode;
-  if(walletFilter){
-    const _wf = WALLET_DEFS.find(x => x.id === walletFilter);
-    const _hidden = state.crisisMode
-      ? crisisWalletIds().includes(walletFilter)
-      : (_wf && _wf.crisisOnly);
-    if(_hidden) walletFilter = null;
-  }
-  const _ct = document.getElementById('crisisToggle');
-  if(_ct) _ct.setAttribute('aria-checked', state.crisisMode ? 'true' : 'false'); // may be hidden via layout editor
-  // Rebuild the wallet dropdown so it only shows wallets visible in the current mode
-  recomputeSelectableWallets();
-  // crisis flips the spendable total by the reserve amount — that's not a real
-  // money movement, so snap to the new value instead of count-up animating across it
-  prevSpendable = null;
-  saveConfig();
-  render();
-  haptic(15);
-  toast(state.crisisMode ? t({ar:'🔄 تم تفعيل الوضع البديل', en:'🔄 Crisis mode enabled'}) : t({ar:'✓ تم إيقاف الوضع البديل', en:'✓ Crisis mode disabled'}));
 }
 

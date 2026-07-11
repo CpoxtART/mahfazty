@@ -200,8 +200,6 @@ var I18N_STRINGS = {
   'add.tabTypeCat':   { ar: 'النوع والفئة', en: 'Type & Category' },
   'add.wallet':       { ar: 'المحفظة', en: 'Wallet' },
   'add.chooseWallet': { ar: 'اختر محفظة', en: 'Choose a wallet' },
-  'add.trackLinkToggle':{ ar: 'احتساب هذه المعاملة على محفظة تتبع أيضاً؟', en: 'Also count this transaction toward a tracking wallet?' },
-  'add.trackLinkWhich':{ ar: 'أي محفظة؟', en: 'Which wallet?' },
   'add.trackLinkLbl':  { ar: '🏦 محفظة التتبّع', en: '🏦 Tracking wallet' },
   'add.desc':         { ar: 'الوصف', en: 'Description' },
   'add.descPh':       { ar: 'مثال: عشاء، راتب، مواصلات...', en: 'e.g. Dinner, Salary, Transport…' },

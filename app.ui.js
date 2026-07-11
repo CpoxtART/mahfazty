@@ -1,4 +1,13 @@
 /* ============================================================
+   APP UI — rendering (wallets, transactions, subscriptions, add-drawer,
+   category pickers, edit modal). Loaded right after app.core.js, so it can
+   freely reference state/config/formatting from that file. Pure DOM
+   rendering + the UI-facing mutators tightly coupled to it (e.g.
+   resetDistribution, toggleWalletMenu) — transaction CRUD itself
+   (addTx/openEdit/saveEdit/deleteTx) lives in app.logic.js, loaded near the
+   end after every renderer it calls into already exists.
+============================================================ */
+/* ============================================================
    RENDER: WALLETS
 ============================================================ */
 function getWalletPctLabel(w){
@@ -83,16 +92,12 @@ function renderWallets(){
 
   let barMax = 1;
   defs.forEach(w => {
-    const _bv = (w.crisisOnly && state.crisisMode)
-      ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
-      : (state.wallets[w.id] ?? 0);
+    const _bv = effectiveWalletBalance(w);
     if(!w.track && _bv > barMax) barMax = _bv;
   });
 
   defs.forEach(w => {
-    const val = (w.crisisOnly && state.crisisMode)
-      ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
-      : (state.wallets[w.id] ?? 0);
+    const val = effectiveWalletBalance(w);
     if(!w.track) spendable += val;
     const div = document.createElement('div');
     div.className = 'wallet' + (w.track ? ' track' : '') + (val < 0 ? ' neg-val' : '') + (walletFilter===w.id ? ' active-filter' : '');
@@ -560,9 +565,7 @@ function renderWalletSelect(){
 function toggleWalletMenu(){
   const btn = document.getElementById('walletSelectBtn');
   const items = SELECTABLE_WALLETS.map(w => {
-    const val = (w.crisisOnly && state.crisisMode)
-      ? crisisWalletIds().reduce((s, id) => s + (state.wallets[id] ?? 0), 0) + (state.wallets[w.id] ?? 0)
-      : (state.wallets[w.id] ?? 0);
+    const val = effectiveWalletBalance(w);
     return { id: w.id, name: w.name, bal: fmt(val) };
   });
   openWalletPop(btn, items, selectedWallet, (id) => selectWallet(id));
@@ -636,7 +639,7 @@ function _updateTrackModeToggleUI(walletId){
 }
 
 /* ============================================================
-   V9.3: ADD DRAWER
+   ADD DRAWER
 ============================================================ */
 // The drawer's sticky submit footer already stays reachable above the OS
 // keyboard via `max-height:92dvh` (style.css), but that only resizes the
@@ -735,7 +738,7 @@ function switchDrawerTab(idx){
 }
 
 /* ============================================================
-   V9.3: RECENT TRANSACTIONS (home tab — last 10, no filters)
+   RECENT TRANSACTIONS (home tab — last 10, no filters)
 ============================================================ */
 // Newest-first copy of ALL transactions, cached so paginating a 10k+ history
 // (and repeated renders) doesn't re-sort the whole array every time. Invalidated
@@ -989,7 +992,7 @@ function renderRecentTx(){
 }
 
 /* ============================================================
-   V9.3: SUBSCRIPTIONS
+   SUBSCRIPTIONS
 ============================================================ */
 function renderSubscriptions(){
   const list = document.getElementById('subsList');
@@ -1013,7 +1016,7 @@ function renderSubscriptions(){
   // month) actually fires on this value instead (see the matching cap in
   // buildDailyReviewContent's due-today check), so the card hints at that instead
   // of showing a day that won't exist this month and looking like it never fires.
-  const _subsLastDayThisMonth = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
+  const _subsLastDayThisMonth = _daysInMonth(new Date().getFullYear(), new Date().getMonth());
   subscriptions.forEach(s => {
     const card = document.createElement('div');
     card.className = 'sub-card'+(s.active===false?' inactive':'');
@@ -1339,9 +1342,7 @@ async function doTransfer(){
     const toWallet = WALLET_DEFS.find(w=>w.id===transferTo);
     if(!fromWallet || !toWallet){ toast(t({ar:'⚠ محفظة غير صحيحة', en:'⚠ Invalid wallet'}), true); return; }
     // For crisis_fund in crisis mode, available = combined balance of all merged wallets
-    const fromBalance = (fromWallet.crisisOnly && state.crisisMode)
-      ? crisisWalletIds().reduce((s, cid) => s + (state.wallets[cid] ?? 0), 0) + (state.wallets[transferFrom] ?? 0)
-      : (state.wallets[transferFrom] ?? 0);
+    const fromBalance = effectiveWalletBalance(fromWallet);
     if(!fromWallet.track && round2(fromBalance - amt) < 0){
       toast(t({ar:`⚠ الرصيد غير كافٍ — المتاح: ⁦${fmt(Math.max(0, fromBalance))}⁩`, en:`⚠ Insufficient balance — available: ${fmt(Math.max(0, fromBalance))}`}), true);
       return;
@@ -1602,9 +1603,9 @@ async function saveDistribution(){
 
 function resetDistribution(){
   if(!confirm(t({ar:'استعادة النسب الافتراضية (50/10/10/10/10/5/5)؟', en:'Restore default ratios (50/10/10/10/10/5/5)?'}))) return;
-  // filter against live WALLET_DEFS — a factory wallet the user deleted (e.g.
-  // 'reserve') must not come back as an orphaned share pointing at nothing
-  DISTRIBUTION = DEFAULT_DISTRIBUTION.filter(d => WALLET_DEFS.find(w => w.id === d.id && !w.track)).map(d=>({...d}));
+  // _defaultDistributionForCurrentWallets is defined in app.data.js (loaded after
+  // this file) but only called here at runtime, well after every file has parsed.
+  DISTRIBUTION = _defaultDistributionForCurrentWallets();
   // keep custom regular wallets in the editor (DEFAULT only covers factory ones)
   const extra = WALLET_DEFS.filter(w => !w.track && !DISTRIBUTION.find(d => d.id === w.id)).map(w => ({id: w.id, pct: 0}));
   if(extra.length) DISTRIBUTION = DISTRIBUTION.concat(extra);
@@ -1771,13 +1772,13 @@ function renderAnalytics(){
 
   const now = new Date();
   const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const daysInMonth = _daysInMonth(now.getFullYear(), now.getMonth());
   let cmpHtml = '';
   if(prevTotal > 0 && (dayOfMonth > 1 || curTotal > 0)){
     // Compare against the previous month PRORATED to the same day — a raw
     // full-month comparison shows "▼ ~95%" on the 2nd of every month and only
     // becomes meaningful at month end. day 0 of this month = last day of prev.
-    const daysInPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+    const daysInPrevMonth = _daysInMonth(now.getFullYear(), now.getMonth() - 1);
     const prevSameDay = prevTotal * Math.min(1, dayOfMonth / daysInPrevMonth);
     const diff = curTotal - prevSameDay;
     const pct = Math.abs(diff/prevSameDay*100).toFixed(0);

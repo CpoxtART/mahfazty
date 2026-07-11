@@ -198,7 +198,7 @@ function buildDailyReviewContent(lastSeen){
   // beyond the current month's length (e.g. 31 in Feb/Apr), treat the last day of
   // the month as the due day so a "31st" sub still fires on the 28th/30th.
   const todayDay = now.getDate();
-  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const lastDayOfMonth = _daysInMonth(now.getFullYear(), now.getMonth());
   const dueSubs = subscriptions.filter(s => {
     if(s.active === false) return false;
     const effectiveDay = Math.min(s.billingDay, lastDayOfMonth);
@@ -228,7 +228,7 @@ function buildDailyReviewContent(lastSeen){
       if(gapStart < cappedStart) gapStart.setTime(cappedStart.getTime());
       const missedIds = new Set();
       for(let d = new Date(gapStart); d < todayStart; d.setDate(d.getDate() + 1)){
-        const dLastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        const dLastDay = _daysInMonth(d.getFullYear(), d.getMonth());
         subscriptions.forEach(s => {
           if(s.active === false || missedIds.has(s.id)) return;
           if(Math.min(s.billingDay, dLastDay) === d.getDate()) missedIds.add(s.id);

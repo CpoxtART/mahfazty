@@ -613,7 +613,7 @@ async function commitQuickNotes(){
       const tx = {
         id: 'tx_' + baseTs + '_qn' + k + '_' + Math.random().toString(36).slice(2,7),
         wallet: rowWallet,
-        desc: truncateCodePoints(r.desc, 120),
+        desc: truncateCodePoints(r.desc, MAX_DESC_LEN),
         amount: round2(r.amount),
         type: r.type,
         category: category,

@@ -280,11 +280,11 @@ async function applyImport(text){
       // and corrupts the "this month" filters and totals.
       ts: Math.max(MIN_TX_TS, Math.min(tx.ts, Date.now())),
       category: normalizeCategory(tx.category),
-      // addTx() caps manual entry to 120 chars (see app.logic.js) — a crafted or
-      // corrupt backup file isn't bound by that input-side limit, and an unbounded
-      // desc string would slip past escHtml() (it sanitizes, doesn't shorten) and
-      // bloat every list render that includes this transaction.
-      desc: typeof tx.desc === 'string' ? truncateCodePoints(tx.desc, 120) : tx.desc,
+      // addTx() caps manual entry to MAX_DESC_LEN chars (see app.logic.js) — a
+      // crafted or corrupt backup file isn't bound by that input-side limit, and an
+      // unbounded desc string would slip past escHtml() (it sanitizes, doesn't
+      // shorten) and bloat every list render that includes this transaction.
+      desc: typeof tx.desc === 'string' ? truncateCodePoints(tx.desc, MAX_DESC_LEN) : tx.desc,
       // every other entry point (addTx, transfers) rounds to cents before storing —
       // a hand-edited or legacy backup file isn't bound by that, so an unrounded
       // amount would otherwise persist forever and re-export on every future backup
@@ -340,7 +340,7 @@ async function applyImport(text){
     ? sanitizeDistribution(data.distribution)
     // same fallback wipeAll() already uses: factory shares for whichever
     // wallets the just-imported WALLET_DEFS actually has.
-    : DEFAULT_DISTRIBUTION.filter(d => WALLET_DEFS.find(w => w.id === d.id && !w.track)).map(d => ({...d}));
+    : _defaultDistributionForCurrentWallets();
   dismissedRecurring = Array.isArray(data.dismissedRecurring)
     ? new Set(data.dismissedRecurring.filter(k => typeof k === 'string' && k))
     : new Set();
@@ -765,9 +765,7 @@ async function wipeAll(){
   searchQuery = '';
   _txVisibleCount = 50;
   currentFilter = 'all';
-  // filter against live WALLET_DEFS — a factory wallet the user deleted (e.g.
-  // 'reserve') must not come back as an orphaned share pointing at nothing
-  DISTRIBUTION = DEFAULT_DISTRIBUTION.filter(d => WALLET_DEFS.find(w => w.id === d.id && !w.track)).map(d=>({...d}));
+  DISTRIBUTION = _defaultDistributionForCurrentWallets();
   // DEFAULT_DISTRIBUTION only lists the factory wallets — keep any custom regular
   // wallets (which survive a wipe) represented, else they'd silently drop out of
   // the distribution editor and never receive an auto-distribute share.

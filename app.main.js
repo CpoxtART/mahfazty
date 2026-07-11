@@ -52,7 +52,7 @@ function toast(msg, isError){
   if(_lastDeleted || (_pendingAction && _pendingAction.expiresAt > Date.now())){
     if(_lastDeleted){
       clearTimeout(_undoTimer);
-      _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, 5000);
+      _undoTimer = setTimeout(()=>{ _lastDeleted = null; }, UNDO_WINDOW_MS);
     }
     _queuedToast = {fn: toast, args:[msg, isError]};
     return;
@@ -150,7 +150,7 @@ function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel, _isReplay
   el.style.color = 'var(--text)';
   el.classList.add('show');
   clearTimeout(window._saveTimeout);
-  const dur = critical ? 7000 : 5000;
+  const dur = critical ? CRITICAL_TOAST_MS : UNDO_WINDOW_MS;
   if(critical) _criticalToastUntil = Date.now() + dur;
   const thisAction = critical ? null : { label: msg, actionLabel, fn, ariaLabel: btnAriaLabel, expiresAt: Date.now() + dur };
   if(!critical) _pendingAction = thisAction;
@@ -706,15 +706,17 @@ window.addEventListener('storage', (e) => {
         // Wait out an in-flight mutation, an uncommitted IDB write, AND a pending
         // (not-yet-started) debounced IDB backup — without that last check, this
         // tab's own just-added transaction could still be sitting unflushed in
-        // scheduleIdbBackup()'s 400ms debounce window with both flags at 0; reloading
-        // here would silently wipe it from memory, and the debounce callback would
-        // then persist that now-amputated state right over the other tab's data.
+        // scheduleIdbBackup()'s IDB_BACKUP_DEBOUNCE_MS window with both flags at 0;
+        // reloading here would silently wipe it from memory, and the debounce
+        // callback would then persist that now-amputated state right over the
+        // other tab's data.
         if(_opInFlight > 0 || _idbWriteInFlight > 0 || _idbBackupTimer){ _storageSyncTimer = setTimeout(_trySync, 250); return; }
         // NOTE: the in-flight flags above are per-tab — this tab can't see that the
-        // OTHER tab still has a 400ms scheduleIdbBackup() debounce pending (its
-        // localStorage 'lastEdit' write already fired this event synchronously).
-        // The 600ms initial delay below covers that 400ms window + margin so we
-        // don't read a stale IDB snapshot that predates the other tab's flush.
+        // OTHER tab still has an IDB_BACKUP_DEBOUNCE_MS scheduleIdbBackup() debounce
+        // pending (its localStorage 'lastEdit' write already fired this event
+        // synchronously). The initial delay below covers that debounce window plus
+        // an explicit margin so we don't read a stale IDB snapshot that predates
+        // the other tab's flush.
         loadState().then(() => {
           // loadState() replaces state.transactions wholesale from the freshly-
           // merged IDB snapshot (see idbBackup's cross-tab union), but balances
@@ -726,7 +728,7 @@ window.addEventListener('storage', (e) => {
           if(Object.keys(diff).length){ saveBalances(); render(); }
         });
       };
-      _storageSyncTimer = setTimeout(_trySync, 600);
+      _storageSyncTimer = setTimeout(_trySync, IDB_BACKUP_DEBOUNCE_MS + 200);
     }
   }
 });

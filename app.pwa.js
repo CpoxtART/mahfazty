@@ -108,7 +108,7 @@ function _revealUpdateBanner(el, attemptsLeft){
   // over a long-lived blocker like the daily-review modal (no auto-dismiss) —
   // this one "wins" the race and the drive banner waits it out instead.
   if(blocked && attemptsLeft > 0){
-    setTimeout(() => _revealUpdateBanner(el, attemptsLeft - 1), 400);
+    setTimeout(() => _revealUpdateBanner(el, attemptsLeft - 1), BANNER_POLL_INTERVAL_MS);
     return;
   }
   requestAnimationFrame(()=> requestAnimationFrame(()=> el.classList.add('show')));
