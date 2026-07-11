@@ -105,6 +105,11 @@ function setLang(lang){
   // toggle function (app.ui.js), not part of render()'s normal cycle — refresh
   // it here so it doesn't stay stuck in whichever language it was toggled on in.
   try{ if(typeof refreshFilterChipLabels === 'function') refreshFilterChipLabels(); }catch(e){}
+  // Same class of gap as the filter chips above: the add-transaction drawer's
+  // track-wallet picker label ("No tracking" / the linked-wallet behavior hint)
+  // is only built inside renderTrackLinkPicker (app.ui.js), not part of
+  // render()'s normal cycle — no-ops safely if the drawer isn't currently open.
+  try{ if(typeof renderTrackLinkPicker === 'function') renderTrackLinkPicker(); }catch(e){}
   // installed-PWA manifest bakes in name/dir/lang at build time — refresh it so
   // the home-screen name and text direction follow the newly chosen language.
   try{ if(typeof applyManifest === 'function') applyManifest(document.body.classList.contains('light')); }catch(e){}

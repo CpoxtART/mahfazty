@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.22',
+    date: '2026-07-11',
+    title: { ar: 'جولة مراجعة هيكلية ثالثة: تسمية محفظة التتبع تتجمد بعد تغيير اللغة', en: 'Third structural review round: the tracking-wallet label freezes after a language switch' },
+    items: [
+      { ar: 'إصلاح متوسط: تسمية محفظة التتبع بدرج إضافة معاملة ("بدون تتبّع" أو تلميح سلوك الربط) كانت تبقى بنفس اللغة القديمة بعد تبديل اللغة، حتى يتفاعل المستخدم معها مجددًا — رغم أن نفس هذا النوع من الأخطاء أُصلح سابقًا لشارات فلاتر المحافظ/الفئات النشطة. الآن تتحدث فورًا مع كل تبديل لغة، تمامًا كبقية عناصر الواجهة.', en: 'Medium fix: the add-transaction drawer\'s tracking-wallet label ("No tracking", or the linked-wallet behavior hint) stayed in the old language after a language switch until the user interacted with it again — the same class of bug already fixed previously for active wallet/category filter chips. It now refreshes immediately on every language switch, matching the rest of the UI.' },
+    ],
+  },
+  {
     version: 'v48.21',
     date: '2026-07-11',
     title: { ar: 'جولة مراجعة هيكلية ثانية: أرصدة بلا سقف أقصى، وتراجع بلا قفل تداخل', en: 'Second structural review round: uncapped balance restores, an unguarded undo' },
