@@ -73,21 +73,12 @@ function exportData(){
     : t({ar:'/* البيانات كبيرة جدًا للمعاينة — نُزّلت كملف مباشرةً */', en:'/* Data too large to preview — downloaded directly as a file */'});
 
   const blob = new Blob([json], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
   // date AND time in the name: two exports on the same day used to produce
   // byte-identical filenames — desktop browsers auto-suffix "(1)", but mobile
   // save flows (e.g. iOS "Save to Files") may silently overwrite, and even
   // suffixed copies give no way to tell which backup is newer without opening
   // each one.
-  const _now = new Date();
-  const _hm = String(_now.getHours()).padStart(2,'0') + '-' + String(_now.getMinutes()).padStart(2,'0');
-  a.download = 'wallet-backup-' + todayISO() + '_' + _hm + '.json';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  _downloadBlob(blob, 'wallet-backup-' + todayISO() + '_' + _hmSuffix() + '.json');
   toast(t({ar:'✓ تم تجهيز ملف التصدير', en:'✓ Export file ready'}));
 }
 

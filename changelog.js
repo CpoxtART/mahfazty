@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.20',
+    date: '2026-07-11',
+    title: { ar: 'تنظيم إضافي: توحيد أكواد تنزيل الملفات المتكررة', en: 'Further organization: unifying repeated file-download code' },
+    items: [
+      { ar: 'تنظيم (بدون تغيير سلوك ظاهري): كانت آلية "إنشاء رابط تنزيل مؤقت والنقر عليه ثم تنظيفه" (لتنزيل نسخة احتياطية، تصدير البيانات، أو تقرير نصي) مكررة حرفيًا بثلاثة مواقع مختلفة عبر ثلاثة ملفات. استُخرجت دالة مساعدة واحدة (_downloadBlob) تُنفّذ هذا الجزء المشترك فقط، بينما يبقى كل موقع مسؤولاً عن نوع الملف واسمه ورسالة التأكيد الخاصة به كما كانت تمامًا. كذلك استُخرجت دالة صغيرة (_hmSuffix) لحساب لاحقة "الساعة-الدقيقة" المستخدمة بأسماء ملفات النسخ الاحتياطية، بعد أن كانت مكررة حرفيًا بموقعين.', en: "Organization (no user-visible behavior change): the \"create a temporary download link, click it, then clean up\" mechanics (used for downloading a backup, exporting data, or a text report) were byte-identical across three separate sites in three files. Extracted a single shared helper (_downloadBlob) that does only that common part, while each site keeps full control over its own file type, filename, and confirmation message exactly as before. Also extracted a small helper (_hmSuffix) for the \"hour-minute\" suffix used in backup filenames, which was duplicated verbatim at two sites." },
+    ],
+  },
+  {
     version: 'v48.19',
     date: '2026-07-07',
     title: { ar: 'جولة تنظيم: توحيد ثوابت وأكواد متكررة، ترتيب الملفات، إزالة نصوص غير مستخدمة', en: 'Organization round: shared constants and helpers, file tidying, removing unused strings' },

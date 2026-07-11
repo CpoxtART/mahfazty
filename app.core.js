@@ -1716,6 +1716,28 @@ function _buildSyncPayload(){
   };
 }
 
+// "HH-MM" suffix for backup/export filenames — two downloads on the same day
+// would otherwise get identical names (desktop browsers auto-suffix "(1)", but
+// mobile save flows, e.g. iOS "Save to Files", may silently overwrite instead).
+function _hmSuffix(){
+  const _now = new Date();
+  return String(_now.getHours()).padStart(2,'0') + '-' + String(_now.getMinutes()).padStart(2,'0');
+}
+// Trigger a browser download for an already-assembled Blob — the shared
+// create-a-hidden-link/click/cleanup mechanics used by every "download a file"
+// flow (data export, pre-destructive-action safety backups, text reports).
+// Callers own their own mime type, filename, and error handling/toast — this
+// only does the DOM/URL-lifecycle part, which is identical everywhere.
+function _downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 // Shared safety-net for any flow that's about to WHOLESALE REPLACE the user's
 // current data (Drive conflict resolution, backup import) with no other undo
 // path — downloads a JSON file containing both the about-to-be-replaced
@@ -1726,16 +1748,7 @@ function _downloadDataBackup(current, incoming, filenamePrefix){
   try{
     const json = JSON.stringify({ savedAt: new Date().toISOString(), current, incoming }, null, 2);
     const blob = new Blob([json], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const _now = new Date();
-    const _hm = String(_now.getHours()).padStart(2,'0') + '-' + String(_now.getMinutes()).padStart(2,'0');
-    a.download = filenamePrefix + '-' + todayISO() + '_' + _hm + '.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    _downloadBlob(blob, filenamePrefix + '-' + todayISO() + '_' + _hmSuffix() + '.json');
     return true;
   }catch(_){ return false; }
 }

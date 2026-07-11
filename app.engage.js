@@ -386,13 +386,6 @@ function _downloadReport(report){
   // UTF-8 BOM so Arabic text renders correctly when opened directly in Windows
   // Notepad/Excel instead of mojibake (neither auto-detects UTF-8 without it).
   const blob = new Blob(['﻿', report], {type:'text/plain;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = t({ar:'تقرير-محفظتيييي-', en:'Mahfazty-report-'}) + todayISO() + '.txt';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  _downloadBlob(blob, t({ar:'تقرير-محفظتيييي-', en:'Mahfazty-report-'}) + todayISO() + '.txt');
   toast(t({ar:'✓ تم تنزيل التقرير', en:'✓ Report downloaded'}));
 }
