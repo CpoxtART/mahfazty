@@ -313,6 +313,33 @@ test('_ingestWalletBalances — rejects a value beyond MAX_AMOUNT from a corrupt
   assert.strictEqual(app.state.wallets.core, 0, 'out-of-range value rejected, wallet zeroed not corrupted');
 });
 
+test('_restoreWalletBalances — rejects a value beyond MAX_AMOUNT from a corrupt/tampered source', () => {
+  // Same gap _ingestWalletBalances had before v48.10: this sibling restore path
+  // (localStorage 'balances' key / IndexedDB fallback, both inside loadState())
+  // only checked isFinite, no MAX_AMOUNT ceiling, letting an unbounded value
+  // survive to later overflow to Infinity in a sum.
+  stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 42 } });
+  app._restoreWalletBalances({ core: 1e250 });
+  assert.strictEqual(app.state.wallets.core, 42, 'out-of-range value rejected, prior balance untouched');
+});
+
+test('_restoreWalletBalances — restores an ordinary in-range value', () => {
+  stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 42 } });
+  app._restoreWalletBalances({ core: 99.5 });
+  assert.strictEqual(app.state.wallets.core, 99.5);
+});
+
+test('isValidSubShape — accepts a well-formed subscription entry', () => {
+  assert.strictEqual(app.isValidSubShape({ id: 'sub_a', name: 'Netflix', amount: 49.99 }), true);
+});
+
+test('isValidSubShape — rejects entries missing id/name or with a non-positive amount', () => {
+  assert.strictEqual(app.isValidSubShape(null), false);
+  assert.strictEqual(app.isValidSubShape({ id: 'sub_a', name: '', amount: 10 }), false);
+  assert.strictEqual(app.isValidSubShape({ id: 'sub_a', name: 'X', amount: 0 }), false);
+  assert.strictEqual(app.isValidSubShape({ id: 'sub_a', name: 'X', amount: NaN }), false);
+});
+
 test('_normalizeSub — clamps a subscription amount beyond MAX_AMOUNT from a corrupt/tampered snapshot', () => {
   // Every caller (loadSubs' three branches, applyImport, adoptCloudSnapshot,
   // mergeCloudData) already filters to isFinite(x.amount) && x.amount > 0

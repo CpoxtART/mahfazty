@@ -115,7 +115,8 @@ function loadApp() {
       // multi-device conflict and how default wallets migrate; regressions here
       // corrupt balances silently, so they get direct unit coverage.
       applyWalletDefs, _ensureReserveShare, mergeCloudData, _applyTrackEffects,
-      isValidTx, _ingestWalletDefs, _ingestWalletBalances,
+      isValidTx, _ingestWalletDefs, _ingestWalletBalances, _restoreWalletBalances,
+      isValidSubShape,
       // the tombstone maps are REASSIGNED by some code paths (loadState, adopt) —
       // accessors keep the tests pointed at the live object, not a stale capture.
       getDeletedWalletDefIds: () => deletedWalletDefIds,

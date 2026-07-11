@@ -644,6 +644,11 @@ async function saveEdit(){
 // itself relies on, so it correctly reverses the balance impact even when
 // the edit moved the transaction to a different wallet.
 async function undoEdit(txId, prevTx, prevPartner){
+  // cross-op write guard (see commitQuickNotes) — every other mutator that
+  // writes balances/tx across awaits has this at entry; the undo toast's
+  // button can be tapped seconds after the edit, well into the window where
+  // another op (addTx's auto-distribution, a Drive sync) could be mid-flight.
+  if(_opBusy()) return;
   const tx = state.transactions.find(t => t.id === txId);
   if(!tx){ toast(t({ar:'⚠ تعذّر التراجع — المعاملة لم تعد موجودة', en:'⚠ Could not undo — the transaction no longer exists'}), true); return; }
   _opInFlight++;
@@ -803,6 +808,13 @@ async function deleteTx(id){
 }
 
 async function undoDelete(){
+  // cross-op write guard (see commitQuickNotes) — every other mutator that
+  // writes balances/tx across awaits has this at entry; the undo toast's
+  // button can be tapped seconds after the delete, well into the window where
+  // another op (addTx's auto-distribution, a Drive sync) could be mid-flight.
+  // Checked BEFORE consuming _lastDeleted so a busy-blocked tap leaves it
+  // intact — the user can just tap Undo again once the other op finishes.
+  if(_opBusy()) return;
   if(!_lastDeleted) return;
   const removed = _lastDeleted;
   _lastDeleted = null;

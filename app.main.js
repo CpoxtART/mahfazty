@@ -598,7 +598,9 @@ document.addEventListener('visibilitychange', () => {
 // comment promises — without it a transaction saved <400ms before a reload
 // dies with the debounce timer.
 window.addEventListener('pagehide', () => {
-  if(driveSyncTimer){ clearTimeout(driveSyncTimer); driveSyncTimer = null; if(driveAccessToken){ try{ driveSyncToCloud(); }catch(_){} } }
+  // driveSyncToCloud catches every failure internally and always resolves
+  // (never throws/rejects) — no try/catch needed around this fire-and-forget call.
+  if(driveSyncTimer){ clearTimeout(driveSyncTimer); driveSyncTimer = null; if(driveAccessToken) driveSyncToCloud(); }
   flushIdbBackup();
   if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} voiceRecognition = null; }
 });

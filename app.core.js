@@ -523,7 +523,12 @@ function _restoreWalletBalances(source){
   WALLET_DEFS.forEach(w => {
     if(source[w.id] !== undefined){
       const v = parseFloat(source[w.id]);
-      if(isFinite(v)) state.wallets[w.id] = round2(v);
+      // same MAX_AMOUNT ceiling _ingestWalletBalances enforces — without it a
+      // corrupt/tampered localStorage or IndexedDB value survives the isFinite
+      // check here, then can overflow to Infinity in later sums (which
+      // JSON.stringify serializes as null and silently drops the balance on
+      // the next load with no toast and no tombstone).
+      if(isFinite(v) && Math.abs(v) <= MAX_AMOUNT) state.wallets[w.id] = round2(v);
     }
   });
 }
@@ -1221,13 +1226,12 @@ async function loadState(){
       const c = JSON.parse(cfg);
       state.crisisMode = !!c.crisisMode;
       autoDistribute = !!c.autoDistribute;
-      if(c.budgets && typeof c.budgets === 'object'){
-        budgets = {};
-        WALLET_DEFS.forEach(w => {
-          const v = parseFloat(c.budgets[w.id]);
-          if(isFinite(v) && v > 0) budgets[w.id] = v;
-        });
-      }
+      // sanitizeBudgets also caps at MAX_AMOUNT and rounds to cents — a raw
+      // isFinite/>0 check (as this branch used to do inline) let a corrupt/
+      // tampered localStorage value bypass the same ceiling every other
+      // budgets-restore path (the IDB-fresher branch below, applyImport,
+      // mergeCloudData) already enforces.
+      budgets = sanitizeBudgets(c.budgets);
       if(c.distribution && Array.isArray(c.distribution) && c.distribution.length){
         // sanitizeDistribution also clamps/validates each pct (a raw filter would
         // let a NaN/negative/string pct from a tampered config into the money math)
@@ -1860,6 +1864,13 @@ async function saveConfig(){
   scheduleIdbBackup(ts);
   return ok;
 }
+// Minimal shape check for an incoming subscription entry (localStorage, IndexedDB
+// recovery, imported backup, Drive cloud snapshot) — the SAME predicate was
+// re-typed identically at 5 separate ingestion sites; always paired with
+// _normalizeSub right after (that one clamps/cleans fields this one doesn't check).
+function isValidSubShape(x){
+  return !!(x && x.id && x.name && isFinite(x.amount) && x.amount > 0);
+}
 // clamp a subscription's billing day into 1–31 so corrupt data can't produce
 // "يوم 99" that never matches the daily-review check
 function _normalizeSub(x){
@@ -1890,14 +1901,14 @@ function loadSubs(idbSnapshot, preferIdb){
   // stale ls 'subs' key must not win over the successfully-mirrored IDB copy.
   if(preferIdb && idbSnapshot && Array.isArray(idbSnapshot.subscriptions)){
     subscriptions = idbSnapshot.subscriptions
-      .filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0)
+      .filter(isValidSubShape)
       .map(_normalizeSub);
     return;
   }
   try{
     const s = localStorage.getItem(LS_PREFIX + 'subs');
     if(s) subscriptions = JSON.parse(s)
-      .filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0)
+      .filter(isValidSubShape)
       .map(_normalizeSub);
   }catch(e){
     // localStorage's 'subs' key is corrupted (e.g. a crash mid-write) — fall back
@@ -1905,7 +1916,7 @@ function loadSubs(idbSnapshot, preferIdb){
     // every save) instead of silently wiping the user's recurring subscriptions.
     if(idbSnapshot && Array.isArray(idbSnapshot.subscriptions) && idbSnapshot.subscriptions.length){
       subscriptions = idbSnapshot.subscriptions
-        .filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0)
+        .filter(isValidSubShape)
         .map(_normalizeSub);
       toast(t({ar:'⚠ تعذّرت قراءة الاشتراكات محليًا — تم استرجاعها من النسخة الاحتياطية', en:'⚠ Could not read subscriptions locally — recovered from the backup copy'}), true);
     } else {

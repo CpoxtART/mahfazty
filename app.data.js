@@ -336,7 +336,7 @@ async function applyImport(text){
     ? new Set(data.dismissedRecurring.filter(k => typeof k === 'string' && k))
     : new Set();
   subscriptions = Array.isArray(data.subscriptions)
-    ? data.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub)
+    ? data.subscriptions.filter(isValidSubShape).map(_normalizeSub)
     : [];
   _ensureReserveShare();
   // crisisMode was just set above but _ingestWalletDefs() (earlier in this

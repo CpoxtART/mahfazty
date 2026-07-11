@@ -985,7 +985,7 @@ async function adoptCloudSnapshot(cloud){
   deletedWalletDefIds = {};
   _unionTombstoneMap(deletedWalletDefIds, cloud.deletedWalletDefIds);
   if(Array.isArray(cloud.subscriptions)){
-    subscriptions = cloud.subscriptions.filter(x => x && x.id && x.name && isFinite(x.amount) && x.amount > 0).map(_normalizeSub);
+    subscriptions = cloud.subscriptions.filter(isValidSubShape).map(_normalizeSub);
   }
   if(cloud.uiPrefs) applyUiPrefs(cloud.uiPrefs);
   _ensureReserveShare();

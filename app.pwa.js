@@ -164,10 +164,12 @@ function applyUpdate(){
     // reload so it asks instead of silently deferring.
     if(!confirm(t({ar:'هناك نافذة مفتوحة قد تحتوي بيانات غير محفوظة — التحديث الآن سيُغلقها. متابعة؟', en:'There is an open dialog that may contain unsaved data — updating now will close it. Continue?'}))) return;
   }
-  // Flush any pending Drive sync before the reload interrupts it.
+  // Flush any pending Drive sync before the reload interrupts it. driveSyncToCloud
+  // catches every failure internally and always resolves (never throws/rejects) —
+  // no try/catch needed around this fire-and-forget call.
   if(typeof driveSyncTimer !== 'undefined' && driveSyncTimer){
     clearTimeout(driveSyncTimer); driveSyncTimer = null;
-    if(driveAccessToken){ try{ driveSyncToCloud(); }catch(_){} }
+    if(driveAccessToken) driveSyncToCloud();
   }
   // Flush the debounced IndexedDB write too — the SKIP_WAITING/controllerchange
   // reload below can land inside the 400ms window and drop the last save.
