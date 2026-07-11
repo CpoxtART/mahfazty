@@ -22,6 +22,15 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.23',
+    date: '2026-07-11',
+    title: { ar: 'تحسينات مؤجلة: إصلاح ترتيب الحفظ في الكتابات المتداخلة وتوحيد حساب النسب', en: 'Deferred improvements: torn-write save-order fix and percentage-sum deduplication' },
+    items: [
+      { ar: 'إصلاح متوسط (6 مواضع): عكس ترتيب الحفظ في addTx و runDistribution و saveEdit و undoEdit و deleteTx و undoDelete — كان saveTx يُستدعى بعد saveBalances، مما يعني أن عطلًا مفاجئًا بين الاستدعاءين يترك أرصدة localStorage محدَّثة بينما تبقى قائمة المعاملات في IDB قديمة؛ عند إعادة التحميل تُعيد reconcileBalances() حساب الأرصدة من السجل القديم فتُلغي التحديث — وللمحافظ المتبَّعة يظل هذا الإلغاء دائمًا لأن reconcileBalances() تتجاوزها عمدًا. الترتيب الآن: saveTx أولًا (ليُصبح IDB المرجع الموثوق وتعيد reconcileBalances() البناء منه)، ثم saveBalances.', en: 'Medium fix (6 sites): reversed the save order in addTx, runDistribution, saveEdit, undoEdit, deleteTx, and undoDelete — saveTx was called after saveBalances, so an abrupt crash between the two awaits left localStorage balances updated while the IDB transaction ledger was still old; on next boot reconcileBalances() recomputed from the stale ledger, silently reverting the change — and for track wallets this revert was permanent because reconcileBalances() intentionally skips them. Order is now saveTx first (making IDB the authoritative record that reconcileBalances rebuilds from), then saveBalances.' },
+      { ar: 'تحسين: استخراج دالة مساعدة _sumPct(arr) لاستبدال أربع نسخ متطابقة من arr.reduce((s,d)=>s+(d.pct||0), 0) في محرر توزيع الدخل.', en: 'Improvement: extracted _sumPct(arr) helper to replace four identical occurrences of arr.reduce((s,d)=>s+(d.pct||0), 0) in the income distribution editor.' },
+    ],
+  },
+  {
     version: 'v48.22',
     date: '2026-07-11',
     title: { ar: 'جولة مراجعة هيكلية ثالثة: تسمية محفظة التتبع تتجمد بعد تغيير اللغة', en: 'Third structural review round: the tracking-wallet label freezes after a language switch' },

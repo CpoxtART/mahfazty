@@ -1531,8 +1531,10 @@ function renderDistributionEditor(preserveEdits){
   updateDistTotal();
 }
 
+function _sumPct(arr){ return arr.reduce((s,d)=>s+(d.pct||0), 0); }
+
 function updateDistTotal(){
-  const total = (_distDraft || DISTRIBUTION).reduce((s,d)=>s+(d.pct||0), 0);
+  const total = _sumPct(_distDraft || DISTRIBUTION);
   const el = document.getElementById('distTotalRow');
   if(!el) return;
   const display = total.toFixed(1);
@@ -1547,10 +1549,10 @@ function updateDistTotal(){
 // income — the old "save anyway at 95%/120%" path misled that preview.
 function normalizeDistribution(){
   const arr = _distDraft || DISTRIBUTION;
-  const total = arr.reduce((s,d)=>s+(d.pct||0), 0);
+  const total = _sumPct(arr);
   if(!(total > 0)) return false;
   arr.forEach(d=>{ d.pct = Math.round(((d.pct||0)/total)*1000)/10; }); // one decimal
-  const acc = arr.reduce((s,d)=>s+(d.pct||0), 0);
+  const acc = _sumPct(arr);
   const residual = Math.round((100 - acc) * 10) / 10;
   if(residual !== 0){
     let maxIdx = 0;
@@ -1563,7 +1565,7 @@ function normalizeDistribution(){
 let _saveDistBusy = false;
 async function saveDistribution(){
   if(!_distDraft || _saveDistBusy) return;
-  const total = _distDraft.reduce((s,d)=>s+(d.pct||0), 0);
+  const total = _sumPct(_distDraft);
   if(parseFloat(total.toFixed(1)) !== 100){
     if(!(total > 0)){ toast(t({ar:'⚠ أدخل نِسبًا صحيحة أولاً', en:'⚠ Enter valid ratios first'}), true); return; }
     if(!confirm(t({ar:`الإجمالي ${total.toFixed(1)}% وليس 100%.\n\nسيتم تعديل النسب تلقائيًا لتصبح 100% مع الحفاظ على تناسبها. متابعة؟`, en:`Total is ${total.toFixed(1)}%, not 100%.\n\nRatios will be auto-adjusted to 100% while keeping their proportions. Continue?`}))) return;

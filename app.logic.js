@@ -92,8 +92,14 @@ async function addTx(type){
     selectedTrackWallet = null; // reset the optional tracked link so it isn't reused unintentionally
     if(typeof renderTrackLinkPicker === 'function') renderTrackLinkPicker();
 
-    await saveBalances();
+    // saveTx first — it is the authoritative record for reconcileBalances(); if the
+    // process dies before saveBalances, the IDB snapshot (which reads state.wallets
+    // directly) already carries the post-applyTxToBalance balance, so reconcileBalances
+    // self-heals on next load. saveBalances-first risks a phantom balance revert for
+    // regular wallets, and a permanent phantom for track wallets (reconcileBalances
+    // intentionally skips them so the stale localStorage value would persist forever).
     await saveTx();
+    await saveBalances();
     // Income recorded INTO a track wallet (Uber/Cards/Cash) is a standalone amount
     // for that counter — it must NOT be split across the budget wallets, so the
     // whole distribution flow (auto + the prompt) is skipped for it.
@@ -311,7 +317,7 @@ async function runDistribution(sourceTx, amount){
   const intendedTotal = round2(Math.min(amount, amount * totalPct / 100));
 
   // nothing to distribute — leave the income where it landed, don't withdraw
-  if(intendedTotal <= 0){ await saveBalances(); await saveTx(); return false; }
+  if(intendedTotal <= 0){ await saveTx(); await saveBalances(); return false; } // saveTx first — see addTx comment
 
   // Link the originating income AFTER the early-return guard — no point stamping
   // a link that would immediately be stripped by stripOrphanLinks() on zero distribution.
@@ -384,8 +390,8 @@ async function runDistribution(sourceTx, amount){
     }
   }
 
+  await saveTx(); // saveTx first — see addTx comment
   await saveBalances();
-  await saveTx();
   return true;
 }
 
@@ -626,8 +632,8 @@ async function saveEdit(){
 
   applyTxToBalance(tx, +1);
 
+  await saveTx(); // saveTx first — see addTx comment
   await saveBalances();
-  await saveTx();
   closeModal('editModal');
   render(true); // force: desc/date-only edits don't change the render signature
   haptic(15);
@@ -664,8 +670,8 @@ async function undoEdit(txId, prevTx, prevPartner){
     if(partner) Object.assign(partner, prevPartner);
     applyTxToBalance(tx, +1);
     if(partner) applyTxToBalance(partner, +1);
+    await saveTx(); // saveTx first — see addTx comment
     await saveBalances();
-    await saveTx();
     render(true);
     toast(t({ar:'↩️ تم التراجع عن التعديل', en:'↩️ Edit undone'}));
   } finally {
@@ -773,9 +779,9 @@ async function deleteTx(id){
     const now = Date.now();
     removed.forEach(tx => { deletedTxIds[tx.id] = now; });
 
-    await saveBalances();
-    await saveTx();
+    await saveTx(); // saveTx first — see addTx comment
     await saveConfig(); // persist the new tombstones (they live in config)
+    await saveBalances();
     render();
 
     // Accumulate rather than overwrite: deleting a SECOND (unrelated) transaction
@@ -828,14 +834,14 @@ async function undoDelete(){
       applyTxToBalance(tx, +1);
       delete deletedTxIds[tx.id]; // un-tombstone: the delete was undone
     });
-    await saveBalances();
-    // saveConfig FIRST to persist tombstone removal — if we crash after saveConfig
-    // but before saveTx, the tx is absent from IDB but the tombstone is gone, so
-    // on reload the user sees an empty undo (recoverable). If we persisted saveTx
-    // first and crashed before saveConfig, the tx would be in IDB but still
-    // tombstoned, causing it to be silently filtered out on reload (data loss).
+    // saveConfig before saveTx: if we crash after saveConfig but before saveTx, the
+    // tx is absent from IDB but the tombstone is gone → empty undo on reload (recoverable).
+    // If saveTx fired first and we crashed before saveConfig, the tx would be in IDB
+    // but still tombstoned → silently filtered out on reload (data loss).
+    // saveTx before saveBalances: see addTx comment for the torn-write reasoning.
     await saveConfig();
     await saveTx();
+    await saveBalances();
     render();
     toast(removed.length > 1 ? t({ar:'↩️ تم استرجاع الحركات', en:'↩️ Entries restored'}) : t({ar:'↩️ تم استرجاع المعاملة', en:'↩️ Transaction restored'}));
   } finally {
