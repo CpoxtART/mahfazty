@@ -883,7 +883,10 @@ function renderRecentTx(){
     } else {
       const reasons = _activeTxFilterReasons();
       if(!reasons.length) reasons.push(t({ar:'في هذه الفترة', en:'in this period'}));
-      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات ', en:'No transactions '})}${reasons.join(t({ar:' و', en:' and '}))}</div>`;
+      // escHtml here (not inside _activeTxFilterReasons — that shared array
+      // also feeds _updateTxFilterChip's textContent assignment, which must
+      // NOT be pre-escaped) — a reason can embed a user-controlled wallet name.
+      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات ', en:'No transactions '})}${escHtml(reasons.join(t({ar:' و', en:' and '})))}</div>`;
     }
     return;
   }
@@ -1678,6 +1681,13 @@ function openWalletDetail(walletId){
       const div = document.createElement('div');
       div.className = 'tx';
       div.style.cursor = 'pointer';
+      // same keyboard/screen-reader affordances as renderRecentTx's row (role/tabindex/
+      // onkeydown/aria-label) — this row renderer had been missed when that pattern
+      // was established, leaving it mouse-only and silent to assistive tech.
+      div.setAttribute('role','button');
+      div.setAttribute('tabindex','0');
+      div.setAttribute('aria-label',
+        `${t(tx.type==='expense'?{ar:'مصروف',en:'Expense'}:{ar:'دخل',en:'Income'})} ${fmt(tx.amount)}${t({ar:'،',en:','})} ${stripBidiControls(tx.desc) || cat.name}${t({ar:'،',en:','})} ${date.toLocaleDateString(_dateLocale(),{day:'numeric',month:'short',numberingSystem:'latn',calendar:'gregory'})}`);
       div.innerHTML = `
         <div class="info">
           <div class="desc" dir="auto"><span class="ctag" style="background:${escHtml(cat.color)}22;">${cat.icon}</span> ${escHtml(tx.desc || cat.name)}</div>
@@ -1686,6 +1696,7 @@ function openWalletDetail(walletId){
         <div class="amount ${cls}">${sign}${fmt(tx.amount)}</div>
       `;
       div.onclick = () => openEdit(tx.id);
+      div.onkeydown = (e) => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openEdit(tx.id); } };
       list.appendChild(div);
     });
     if(txs.length > 50){
@@ -2171,7 +2182,8 @@ function renderTxList(){
         reasons.push(t({ar:`في فئة ${cat.name}`, en:`in ${cat.name}`}));
       }
       if(!reasons.length) reasons.push(t({ar:'في هذه الفترة', en:'in this period'}));
-      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات ', en:'No transactions '})}${reasons.join(t({ar:' و', en:' and '}))}</div>`;
+      // escHtml: a reason can embed a user-controlled wallet name (see renderRecentTx's matching comment)
+      list.innerHTML = `<div class="empty"><span class="ic">🗂</span>${t({ar:'لا توجد معاملات ', en:'No transactions '})}${escHtml(reasons.join(t({ar:' و', en:' and '})))}</div>`;
     }
     return;
   }

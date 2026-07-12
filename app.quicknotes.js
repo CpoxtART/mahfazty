@@ -442,7 +442,16 @@ function parseQuickNotesPreview(){
 
 function cancelQuickNotesPreview(){
   _qnPreview = [];
-  const pw = document.getElementById('qnPreviewWrap'); if(pw) pw.style.display = 'none';
+  const pw = document.getElementById('qnPreviewWrap');
+  // Refocus qnNotes BEFORE hiding pw — the Cancel button lives inside pw, so
+  // hiding it while it holds focus drops focus to <body> (browser default),
+  // silent to a screen reader until the next Tab press recovers it.
+  const hadFocus = !!(pw && document.activeElement && pw.contains(document.activeElement));
+  if(pw) pw.style.display = 'none';
+  if(hadFocus){
+    const ta = document.getElementById('qnNotes');
+    if(ta) try{ ta.focus(); }catch(_){}
+  }
 }
 
 function renderQuickNotesPreview(){

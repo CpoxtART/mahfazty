@@ -22,6 +22,16 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.25',
+    date: '2026-07-12',
+    title: { ar: 'جولة هيكلية خامسة: ثغرة XSS في اسم المحفظة وإصلاحات وصول', en: 'Fifth structural round: wallet-name XSS hole and accessibility fixes' },
+    items: [
+      { ar: 'إصلاح عالي (أمان): اسم المحفظة كان يُدرج بدون تهريب HTML في رسالة "لا توجد معاملات" الفارغة (تبويبي المعاملات والتقارير) عندما يُصفّى السجل حسب محفظة بلا نتائج — بما أن اسم المحفظة نص حر يحدده المستخدم (ويُزامن عبر Drive بين الأجهزة)، فإن تسمية محفظة بوسم HTML/سكربت كانت تُنفَّذ عند ظهور تلك الرسالة. تم تطبيق escHtml على النص المُجمَّع قبل إدراجه.', en: 'High fix (security): the wallet name was inserted without HTML-escaping into the "no transactions" empty-state message (Transactions and Reports tabs) when the list is filtered to a wallet with zero matches — since a wallet name is free user text (and syncs across devices via Drive), naming a wallet with an HTML/script tag would execute once that message appeared. escHtml is now applied to the assembled string before insertion.' },
+      { ar: 'إصلاح عالي (وصول): صفوف المعاملات في نافذة "تفاصيل المحفظة" كانت بلا أي دعم للوحة المفاتيح أو قارئ الشاشة (بدون role أو tabindex أو تسمية aria) — على عكس نفس الصفوف في تبويبي المعاملات والتقارير. أُضيف نفس النمط المستخدم هناك.', en: "High fix (accessibility): transaction rows inside the Wallet Detail view had no keyboard or screen-reader support at all (no role, tabindex, or aria-label) — unlike the same rows in the Transactions and Reports tabs. Added the same pattern used there." },
+      { ar: 'إصلاح متوسط (وصول): إلغاء معاينة الملاحظات السريعة (زر «إلغاء») كان يُخفي الحاوية بينما التركيز لا يزال بداخلها، فيسقط التركيز على body بصمت. الآن يُعاد التركيز لصندوق الملاحظات فورًا.', en: "Medium fix (accessibility): cancelling the Quick Notes preview (the Cancel button) hid its container while focus was still inside it, silently dropping focus to <body>. Focus is now restored to the notes textbox immediately." },
+    ],
+  },
+  {
     version: 'v48.24',
     date: '2026-07-12',
     title: { ar: 'جولة هيكلية رابعة: إصلاح خطأ شاشة Drive وتكرار الرسم', en: 'Fourth structural round: Drive error toast crash and duplicate render fix' },
