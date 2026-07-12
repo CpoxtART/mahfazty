@@ -655,8 +655,8 @@ async function commitQuickNotes(){
       if(_reassigned) parts.push(t({ar:`${_reassigned} حُوّل للمحفظة الافتراضية`, en:`${_reassigned} moved to the default wallet`}));
       toast('⚠ ' + parts.join(' · '), true);
     }
+    await saveTx(); // saveTx first — see app.logic.js's addTx comment
     await saveBalances();
-    await saveTx();
     // Auto-distribute income legs only when the user already enabled it — bulk
     // entry shouldn't pop a distribution modal per income line.
     if(autoDistribute && incomeTxs.length){

@@ -804,7 +804,8 @@ async function _mergeCloudIntoLocal(cloud, cloudNewer){
   _opInFlight++;
   try{
     const { added, removed } = mergeCloudData(cloud, cloudNewer);
-    await saveBalances(); await saveTx(); await saveConfig(); await saveSubs(); await saveWalletDefs();
+    // saveTx first — see app.logic.js's addTx comment for the torn-write reasoning
+    await saveTx(); await saveBalances(); await saveConfig(); await saveSubs(); await saveWalletDefs();
     render(true);
     return { added, removed };
   } finally { _opInFlight--; }
@@ -999,7 +1000,8 @@ async function adoptCloudSnapshot(cloud){
   recomputeSelectableWallets();
   _txMutationStamp++; // adopted a new cloud data set — invalidate derived caches
   prevSpendable = null; // force fresh hero animation after loading a new data set
-  await saveBalances(); await saveTx(); await saveConfig(); await saveSubs(); await saveWalletDefs();
+  // saveTx first — see app.logic.js's addTx comment for the torn-write reasoning
+  await saveTx(); await saveBalances(); await saveConfig(); await saveSubs(); await saveWalletDefs();
   render(true); // force: wallet object is mutated in-place so reference-equality sig check would miss balance changes
   // local now matches this cloud snapshot exactly — record it so the next push's
   // pre-push reconciliation check doesn't immediately re-fetch and re-merge it.

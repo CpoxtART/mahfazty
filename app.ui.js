@@ -1431,8 +1431,8 @@ async function updateTrackedBalance(){
     state.transactions.push(tx);
     applyTxToBalance(tx, +1);
 
+    await saveTx(); // saveTx first — see app.logic.js's addTx comment
     await saveBalances();
-    await saveTx();
     render();
     // Only snap the modal back to this wallet if the user is still on it —
     // they may have navigated to a different wallet's detail view meanwhile.

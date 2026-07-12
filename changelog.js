@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.26',
+    date: '2026-07-12',
+    title: { ar: 'استكمال إصلاح ترتيب الحفظ إلى 10 مواضع إضافية', en: 'Torn-write save-order fix extended to 10 more sites' },
+    items: [
+      { ar: 'إصلاح عالي (10 مواضع في 4 ملفات): إصلاح ترتيب الحفظ (الجولة السابقة v48.23) كان طُبِّق فقط على 6 دوال في app.logic.js — بقيت 10 مواضع أخرى تحمل نفس الترتيب غير الآمن (حفظ الأرصدة قبل حفظ المعاملات) في: استيراد نسخة احتياطية، تصفير محافظ التتبع/العادية، تصفير الرصيد والمعاملات بالكامل، إصلاح الأرصدة من السجل، مسح كل البيانات، مزامنة رصيد محفظة متتبَّعة يدويًا، حفظ ملاحظات سريعة متعددة دفعة واحدة، ودمج/تبني بيانات من Drive (موضعان). جميعها الآن تحفظ المعاملات أولاً قبل الأرصدة — يمنع تلف الرصيد الصامت إذا انقطع التطبيق فجأة أثناء الحفظ.', en: 'High fix (10 sites across 4 files): the save-order fix from the previous round (v48.23) had only been applied to 6 functions in app.logic.js — 10 more sites still carried the same unsafe order (balances saved before transactions) in: backup import, zeroing tracking/regular wallets, resetting balance and transactions entirely, repairing balances from the ledger, wiping all data, manually syncing a tracked wallet balance, committing a multi-row Quick Notes batch, and merging/adopting Drive cloud data (two sites). All now save transactions first, then balances — preventing silent balance corruption if the app is abruptly interrupted mid-save.' },
+    ],
+  },
+  {
     version: 'v48.25',
     date: '2026-07-12',
     title: { ar: 'جولة هيكلية خامسة: ثغرة XSS في اسم المحفظة وإصلاحات وصول', en: 'Fifth structural round: wallet-name XSS hole and accessibility fixes' },

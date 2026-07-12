@@ -415,8 +415,9 @@ async function applyImport(text){
   try{ localStorage.setItem(LS_PREFIX + 'dataEdit', String(Date.now())); }catch(_){ }
   prevSpendable = null; // reset animation baseline after full data replacement
 
-  await saveBalances();
+  // saveTx first — see app.logic.js's addTx comment for the torn-write reasoning
   await saveTx();
+  await saveBalances();
   await saveConfig();
   await saveSubs();
   await saveWalletDefs();
@@ -502,8 +503,8 @@ async function zeroTrackedWallets(){
   try{
     _zeroWalletsByLedgerAdjustment(w => w.track);
     prevSpendable = null;
+    await saveTx(); // saveTx first — see app.logic.js's addTx comment
     await saveBalances();
-    await saveTx();
     render(true);
     toast(t({ar:'✓ تم تصفير محافظ التتبع', en:'✓ Tracking wallets reset'}));
   } finally { _opInFlight--; }
@@ -521,8 +522,8 @@ async function zeroRegularWallets(){
   try{
     _zeroWalletsByLedgerAdjustment(w => !w.track);
     prevSpendable = null;
+    await saveTx(); // saveTx first — see app.logic.js's addTx comment
     await saveBalances();
-    await saveTx();
     render(true);
     toast(t({ar:'✓ تم تصفير المحافظ العادية', en:'✓ Regular wallets reset'}));
   } finally { _opInFlight--; }
@@ -603,8 +604,8 @@ async function clearBalancesAndTx(){
     editingTxId = null;
     pendingIncomeTx = null;
     detailWalletId = null;
+    await saveTx(); // saveTx first — see app.logic.js's addTx comment
     await saveBalances();
-    await saveTx();
     await saveConfig(); // persist tombstones (they live in config)
     closeModal('settingsModal');
     render(true);
@@ -627,8 +628,8 @@ async function repairBalancesFromLedger(){
     const _orphans = stripOrphanedDistributionLegs(state.transactions);
     if(_orphans.length){
       _orphans.forEach(t => { applyTxToBalance(t, -1); deletedTxIds[t.id] = _now; });
+      await saveTx(); // saveTx first — see app.logic.js's addTx comment
       await saveBalances();
-      await saveTx();
     }
   }
   // dry run on a snapshot to preview the diff without committing
@@ -768,8 +769,8 @@ async function wipeAll(){
   const si = document.getElementById('searchInput');
   if(si){ si.value = ''; document.getElementById('searchBox').classList.remove('has-text'); }
   subscriptions = [];
+  await saveTx(); // saveTx first — see app.logic.js's addTx comment
   await saveBalances();
-  await saveTx();
   await saveConfig();
   await saveSubs();
   // trackLinkMode was reset in memory above but lives in layout prefs — without
