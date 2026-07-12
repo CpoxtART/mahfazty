@@ -506,6 +506,7 @@ async function zeroTrackedWallets(){
     await saveTx(); // saveTx first — see app.logic.js's addTx comment
     await saveBalances();
     render(true);
+    haptic([12, 40, 12]); // same destructive-commit pulse as deleteTx/wipeAll
     toast(t({ar:'✓ تم تصفير محافظ التتبع', en:'✓ Tracking wallets reset'}));
   } finally { _opInFlight--; }
 }
@@ -525,6 +526,7 @@ async function zeroRegularWallets(){
     await saveTx(); // saveTx first — see app.logic.js's addTx comment
     await saveBalances();
     render(true);
+    haptic([12, 40, 12]); // same destructive-commit pulse as deleteTx/wipeAll
     toast(t({ar:'✓ تم تصفير المحافظ العادية', en:'✓ Regular wallets reset'}));
   } finally { _opInFlight--; }
 }
@@ -569,6 +571,7 @@ async function clearAllSubscriptions(){
     await saveSubs();
     await saveConfig(); // tombstones live in config
     render(true);
+    haptic([12, 40, 12]); // same destructive-commit pulse as deleteTx/wipeAll
     toast(t({ar:'✓ تم حذف كل الاشتراكات', en:'✓ All subscriptions deleted'}));
   } finally { _opInFlight--; }
 }
@@ -609,6 +612,7 @@ async function clearBalancesAndTx(){
     await saveConfig(); // persist tombstones (they live in config)
     closeModal('settingsModal');
     render(true);
+    haptic([12, 40, 12]); // same destructive-commit pulse as deleteTx/wipeAll
     toast(t({ar:'✓ تم تصفير الرصيد والمعاملات', en:'✓ Balance and transactions reset'}));
   } finally { _opInFlight--; }
 }

@@ -608,6 +608,13 @@ function round2(n){
   // — the old additive nudge only ever pushed the scaled value in the
   // positive direction, so -1.005 rounded to -1 while +1.005 correctly rounded
   // to 1.01; money rounding should not depend on sign.
+  // Known boundary: the *n scaling above keeps this correct through the realistic
+  // wallet-balance range (verified correct up to ~1 billion), but at magnitudes in
+  // the hundreds of billions (still under MAX_AMOUNT's 1e12 ceiling) the n*100
+  // multiplication itself can already lose the precision needed to tell a true
+  // .xx5 boundary from just-below-it, before this nudge ever runs — a fully
+  // correct fix at that scale would mean storing money as integer cents/BigInt
+  // instead of plain JS numbers, which is out of scope here.
   const sign = n < 0 ? -1 : 1;
   return sign * Math.round(Math.abs(n) * 100 * (1 + Number.EPSILON)) / 100;
 }

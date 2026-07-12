@@ -10,6 +10,13 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-5v7V2NFHNz0SV3peipWE0WqqhyOSUCFGwY+qUK/sWxU=' 'sha256-PjxQRumiyoPPF1LPPc8BP0DvKY9gYPeTCyAnOJ9KMBo=' 'sha256-2r/Vpwj8jQ0sL9xbqRDN6ZkzO+4IBrFadOrwoYgj+qQ=' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com https://www.googleapis.com; img-src 'self' data: blob:; worker-src 'self'; manifest-src 'self'; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'none';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#15171c">
+<!-- iOS Safari doesn't fully honor the manifest's display:standalone on every
+     version/config for "Add to Home Screen" — without apple-mobile-web-app-capable,
+     an installed icon can still open inside Safari's own UI chrome instead of
+     standalone. black-translucent extends content under the status bar (matching
+     viewport-fit=cover + the safe-area-inset padding already applied to body). -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" id="manifestLink">
 <!-- iOS Safari ignores manifest.json icons for "Add to Home Screen" — it only reads
      apple-touch-icon, and only honors raster (PNG), not SVG. Without this, iOS
@@ -27,7 +34,7 @@
      the old SW bucket has never cached, so every file fetches fresh together —
      no mixed old/new set (the v47.74 "Identifier already declared" class);
      offline keeps serving the old index.html whose old ?v= URLs are all cached. -->
-<link rel="stylesheet" href="style.css?v=48.26">
+<link rel="stylesheet" href="style.css?v=48.27">
 </head>
 <body>
 <script>
@@ -1073,19 +1080,19 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <!-- ?v= on every script MUST match sw.js's CACHE version — see the style.css
      comment above for why (atomic per-release cache keys); enforced by
      tests/version.test.js. -->
-<script src="i18n.js?v=48.26"></script>
-<script src="changelog.js?v=48.26"></script>
-<script src="app.core.js?v=48.26"></script>
-<script src="app.ui.js?v=48.26"></script>
-<script src="app.voice.js?v=48.26"></script>
-<script src="app.layout.js?v=48.26"></script>
-<script src="app.charts.js?v=48.26"></script>
-<script src="app.drive.js?v=48.26"></script>
-<script src="app.quicknotes.js?v=48.26"></script>
-<script src="app.data.js?v=48.26"></script>
-<script src="app.engage.js?v=48.26"></script>
-<script src="app.pwa.js?v=48.26"></script>
-<script src="app.overlay.js?v=48.26"></script>
-<script src="app.logic.js?v=48.26"></script>
-<script src="app.main.js?v=48.26"></script>
+<script src="i18n.js?v=48.27"></script>
+<script src="changelog.js?v=48.27"></script>
+<script src="app.core.js?v=48.27"></script>
+<script src="app.ui.js?v=48.27"></script>
+<script src="app.voice.js?v=48.27"></script>
+<script src="app.layout.js?v=48.27"></script>
+<script src="app.charts.js?v=48.27"></script>
+<script src="app.drive.js?v=48.27"></script>
+<script src="app.quicknotes.js?v=48.27"></script>
+<script src="app.data.js?v=48.27"></script>
+<script src="app.engage.js?v=48.27"></script>
+<script src="app.pwa.js?v=48.27"></script>
+<script src="app.overlay.js?v=48.27"></script>
+<script src="app.logic.js?v=48.27"></script>
+<script src="app.main.js?v=48.27"></script>
 </body></html>

@@ -244,7 +244,7 @@
       radial-gradient(800px 500px at 10% 0%, rgba(var(--blue-rgb),.05), transparent 50%),
       var(--bg);
     color:var(--text);
-    padding:16px 14px calc(74px + env(safe-area-inset-bottom));
+    padding:calc(16px + env(safe-area-inset-top)) 14px calc(74px + env(safe-area-inset-bottom));
     max-width:540px;
     margin:0 auto;
     line-height:1.5;

@@ -22,6 +22,17 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.27',
+    date: '2026-07-12',
+    title: { ar: 'جولة هيكلية سادسة: فتحة الشاشة (notch) وردود فعل لمسية مفقودة', en: 'Sixth structural round: notch safe-area gap and missing haptic feedback' },
+    items: [
+      { ar: 'إصلاح عالي: حشوة أعلى الصفحة كانت ثابتة (16px) بلا مراعاة لـ env(safe-area-inset-top) رغم أن viewport-fit=cover مُفعّل — على آيفون بشاشة مقصوصة (notch/Dynamic Island) كان الهيدر (بما فيه أزرار الإعدادات وحالة Drive) يظهر تحت المنطقة المقصوصة مباشرة. تمت إضافة safe-area-inset-top، وأُضيفت أيضًا وسوم apple-mobile-web-app-capable/status-bar-style المفقودة لتحسين سلوك التثبيت على الشاشة الرئيسية بنظام iOS.', en: 'High fix: the page-top padding was a flat 16px with no env(safe-area-inset-top) despite viewport-fit=cover being enabled — on a notched iPhone (notch/Dynamic Island), the header (including Settings buttons and the Drive status indicator) rendered directly under the cutout area. Added safe-area-inset-top, and added the missing apple-mobile-web-app-capable/status-bar-style meta tags to improve iOS home-screen install behavior.' },
+      { ar: 'إصلاح متوسط: أربعة إجراءات إتلافية في إعدادات البيانات (تصفير محافظ التتبع/العادية، حذف كل الاشتراكات، تصفير الرصيد والمعاملات بالكامل) كانت لا تُصدر نبضة اهتزاز تأكيدية، بخلاف حذف معاملة واحدة أو مسح كل البيانات اللذين يستخدمان نفس النبضة المميزة. تمت إضافتها للتناسق.', en: 'Medium fix: four destructive actions in Settings → Data (resetting tracking/regular wallets, deleting all subscriptions, resetting balance and transactions entirely) never fired a confirming haptic pulse, unlike single-transaction delete or a full data wipe which both use the same distinctive pulse. Added for consistency.' },
+      { ar: 'تنظيف: إزالة مسح مصفوفة مكرر في saveEdit (نفس عملية التصفية كانت تُنفَّذ مرتين متتاليتين لنفس النتيجة).', en: 'Cleanup: removed a redundant duplicate array scan in saveEdit (the same filter ran twice in a row for the identical result).' },
+      { ar: 'توثيق: حدّ معروف في round2() عند مبالغ بمليارات الوحدات (خارج نطاق الاستخدام الواقعي لمحفظة شخصية) — تم توثيقه بتعليق بدل تعديل مخاطر لمنطق مُختبر جيدًا.', en: 'Documentation: a known round2() precision boundary at hundreds-of-billions-scale amounts (outside realistic personal-wallet use) — documented with a comment rather than risking a change to well-tested logic.' },
+    ],
+  },
+  {
     version: 'v48.26',
     date: '2026-07-12',
     title: { ar: 'استكمال إصلاح ترتيب الحفظ إلى 10 مواضع إضافية', en: 'Torn-write save-order fix extended to 10 more sites' },

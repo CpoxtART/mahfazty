@@ -570,30 +570,29 @@ async function saveEdit(){
   applyTxToBalance(tx, -1);
 
   // for a simple 2-leg transfer (link shared by exactly one other transfer leg),
-  // keep both amounts in sync so balances stay consistent after editing one side
+  // keep both amounts in sync so balances stay consistent after editing one side.
+  // Reuses _partnerForUndo (identical filter, nothing mutated state.transactions
+  // in between) instead of re-scanning the full ledger a second time.
   let _transferPartner = null;
-  if(tx.link && tx.category === 'transfer'){
-    const transferPartners = state.transactions.filter(t => t.link === tx.link && t.id !== tx.id && t.category === 'transfer');
-    if(transferPartners.length === 1){
-      const partner = transferPartners[0];
-      _transferPartner = partner;
-      applyTxToBalance(partner, -1);
-      partner.amount = newAmount;
-      partner.editedAt = Date.now();
-      // keep partner description in sync with the edited leg's wallet
-      const newWalletDef = WALLET_DEFS.find(w => w.id === editWallet);
-      const partnerWalletDef = WALLET_DEFS.find(w => w.id === partner.wallet);
-      if(newWalletDef && partnerWalletDef){
-        if(tx.type === 'expense'){
-          tx.desc = tx.desc || (t({ar:'تحويل إلى ', en:'Transfer to '}) + partnerWalletDef.name);
-          partner.desc = t({ar:'تحويل من ', en:'Transfer from '}) + newWalletDef.name;
-        } else {
-          tx.desc = tx.desc || (t({ar:'تحويل من ', en:'Transfer from '}) + partnerWalletDef.name);
-          partner.desc = t({ar:'تحويل إلى ', en:'Transfer to '}) + newWalletDef.name;
-        }
+  if(_partnerForUndo){
+    const partner = _partnerForUndo;
+    _transferPartner = partner;
+    applyTxToBalance(partner, -1);
+    partner.amount = newAmount;
+    partner.editedAt = Date.now();
+    // keep partner description in sync with the edited leg's wallet
+    const newWalletDef = WALLET_DEFS.find(w => w.id === editWallet);
+    const partnerWalletDef = WALLET_DEFS.find(w => w.id === partner.wallet);
+    if(newWalletDef && partnerWalletDef){
+      if(tx.type === 'expense'){
+        tx.desc = tx.desc || (t({ar:'تحويل إلى ', en:'Transfer to '}) + partnerWalletDef.name);
+        partner.desc = t({ar:'تحويل من ', en:'Transfer from '}) + newWalletDef.name;
+      } else {
+        tx.desc = tx.desc || (t({ar:'تحويل من ', en:'Transfer from '}) + partnerWalletDef.name);
+        partner.desc = t({ar:'تحويل إلى ', en:'Transfer to '}) + newWalletDef.name;
       }
-      applyTxToBalance(partner, +1);
     }
+    applyTxToBalance(partner, +1);
   }
 
   tx.desc = truncateCodePoints(stripBidiControls(document.getElementById('editDesc').value.trim()), MAX_DESC_LEN); // cap length (voice/paste bypass maxlength)
