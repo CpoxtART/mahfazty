@@ -76,7 +76,7 @@ const INCOME_KEYWORDS = ['استلمت','استقبلت','دخل','راتب','م
 // every consumer. type is only used to gate the salary group (see comment
 // above); pass null/omit if the caller doesn't track a type yet.
 function guessCategoryShared(text, type){
-  const d = (typeof normalizeSearch === 'function') ? normalizeSearch(text) : String(text||'').toLowerCase();
+  const d = normalizeSearch(text);
   if(!d) return null;
   for(const grp of CATEGORY_KEYWORDS){
     if(grp.cat === 'salary' && type !== 'income') continue;
@@ -85,7 +85,7 @@ function guessCategoryShared(text, type){
   return null;
 }
 function isIncomeTextShared(text){
-  const d = (typeof normalizeSearch === 'function') ? normalizeSearch(text) : String(text||'').toLowerCase();
+  const d = normalizeSearch(text);
   return !!d && INCOME_KEYWORDS.some(w => d.includes(normalizeSearch(w)));
 }
 

@@ -22,6 +22,17 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.24',
+    date: '2026-07-12',
+    title: { ar: 'جولة هيكلية رابعة: إصلاح خطأ شاشة Drive وتكرار الرسم', en: 'Fourth structural round: Drive error toast crash and duplicate render fix' },
+    items: [
+      { ar: 'إصلاح عالي (2 موضع): كان اسم متغير const t داخل error_callback لوظيفتي driveSignIn و driveReconnectInteractive يُغطي دالة الترجمة العالمية t() — كل استدعاء toast() لاحق كان يرمي TypeError مما يُصمت كل رسائل خطأ نافذة Drive المنبثقة (popup_failed_to_open، popup_closed، الخطأ العام) بدون أي إشعار للمستخدم. تم إعادة تسمية المتغير إلى errType.', en: 'High fix (2 sites): a local variable named const t inside the error_callback of driveSignIn and driveReconnectInteractive shadowed the global t() translation helper — every subsequent toast() call threw TypeError, silently swallowing all Drive popup error messages (popup_failed_to_open, popup_closed, generic failure) with no feedback to the user. Renamed to errType.' },
+      { ar: 'إصلاح متوسط (3 مواضع): setWalletFilter و setFilter و toggleCategoryFilter كانت تستدعي renderTxList() و renderChart() مرتين — مرة صريحة قبل scrollToTxList() ومرة عبر switchTab("reports") بداخله. تمت إزالة الاستدعاء الأول الزائد في كل حالة.', en: 'Medium fix (3 sites): setWalletFilter, setFilter, and toggleCategoryFilter each called renderTxList() and renderChart() twice — once explicitly before scrollToTxList() and once inside it via switchTab("reports"). Removed the redundant first call in each case.' },
+      { ar: 'تنظيف متوسط: إزالة حراسة typeof stripOrphanedDistributionLegs === "function" في loadState() و mergeCloudData() — كانت دائماً صحيحة لأن app.data.js يُحمّل قبل أي من هذه الوظائف.', en: 'Medium cleanup: removed typeof stripOrphanedDistributionLegs === "function" guard in loadState() and mergeCloudData() — always true since app.data.js loads before either caller.' },
+      { ar: 'تنظيف: استبدال حراسات typeof normalizeSearch وتراجعاتها الميتة في app.quicknotes.js و app.voice.js باستدعاءات مباشرة — الدالة دائماً محددة وقت التشغيل.', en: 'Cleanup: replaced dead typeof normalizeSearch ternary fallbacks in app.quicknotes.js and app.voice.js with direct calls — the function is always defined at call time.' },
+    ],
+  },
+  {
     version: 'v48.23',
     date: '2026-07-11',
     title: { ar: 'تحسينات مؤجلة: إصلاح ترتيب الحفظ في الكتابات المتداخلة وتوحيد حساب النسب', en: 'Deferred improvements: torn-write save-order fix and percentage-sum deduplication' },

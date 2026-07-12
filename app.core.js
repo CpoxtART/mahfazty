@@ -1357,10 +1357,8 @@ async function loadState(){
   // transfer/distribution dropped by the validity filter). Clear the dangling
   // link so a later delete doesn't try to cascade to a partner that isn't there.
   stripOrphanLinks(state.transactions);
-  if(typeof stripOrphanedDistributionLegs === 'function'){
-    const _now = Date.now();
-    stripOrphanedDistributionLegs(state.transactions).forEach(t => { deletedTxIds[t.id] = _now; });
-  }
+  const _now = Date.now();
+  stripOrphanedDistributionLegs(state.transactions).forEach(t => { deletedTxIds[t.id] = _now; });
   _runTxCommitInvalidators(); // freshly replaced array — drop caches keyed off it
 
   // If the DB couldn't be opened (blocked by another tab / corrupt) and we ended up
@@ -1517,10 +1515,8 @@ function mergeCloudData(cloud, cloudNewer){
   addedTxs.forEach(t => _applyTrackEffects(t, +1));
   replacedTxs.forEach(r => { _applyTrackEffects(r.before, -1); _applyTrackEffects(r.after, +1); });
   stripOrphanLinks(state.transactions);
-  if(typeof stripOrphanedDistributionLegs === 'function'){
-    const _now = Date.now();
-    stripOrphanedDistributionLegs(state.transactions).forEach(t => { deletedTxIds[t.id] = _now; });
-  }
+  const _now = Date.now();
+  stripOrphanedDistributionLegs(state.transactions).forEach(t => { deletedTxIds[t.id] = _now; });
   _runTxCommitInvalidators();
 
   // 3b) apply wallet-def tombstones to LOCAL defs, now that the merged ledger is

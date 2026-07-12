@@ -18,7 +18,7 @@ let _qnCommitBusy = false;
 // v47.78 so voice input and Quick Notes share one list instead of two
 // independently-maintained copies (app.voice.js loads before this file).
 
-function _qnNorm(s){ return (typeof normalizeSearch === 'function') ? normalizeSearch(s) : String(s||'').toLowerCase().trim(); }
+function _qnNorm(s){ return normalizeSearch(s); }
 function _qnGuessCategory(desc, type){
   // Quick Notes wants a concrete fallback (voice's guessCategoryShared alone
   // returns null on no match) — 'salary' for an income row, else 'other'.

@@ -227,9 +227,8 @@ function setWalletFilter(id){
   }
   renderWallets();
   if(currentTab === 'transactions') renderRecentTx();
-  renderTxList();
-  renderChart();
   renderPieChart();
+  // renderTxList() + renderChart() are called by switchTab('reports') inside scrollToTxList() — no need to do them here first
   scrollToTxList();
 }
 function clearWalletFilter(){
@@ -267,9 +266,8 @@ function toggleCategoryFilter(catId){
     row.classList.toggle('active', isActive);
     row.setAttribute('aria-pressed', String(isActive));
   });
-  renderTxList();
-  renderChart();
-  renderPieChart();
+  // renderTxList() + renderChart() are called by switchTab('reports') inside scrollToTxList()
+  renderPieChart(); // canvas redraw for the analytics tab
   scrollToTxList();
 }
 
@@ -1127,8 +1125,8 @@ async function deleteSubModal(){
    WALLET SELECT (edit modal)
 ============================================================ */
 // only prepend the currently-edited wallet if it isn't already selectable
-// (e.g. a crisisOnly/hidden wallet) — track wallets now live in
-// SELECTABLE_WALLETS, so prepending unconditionally would list them twice.
+// (e.g. a crisisOnly/hidden wallet or a track wallet — track wallets are
+// excluded from SELECTABLE_WALLETS) — prepending unconditionally would list them twice.
 function _editWalletList(){
   const currentDef = WALLET_DEFS.find(w => w.id === editWallet);
   if(currentDef && !SELECTABLE_WALLETS.find(w => w.id === currentDef.id)) return [currentDef, ...SELECTABLE_WALLETS];
@@ -1322,7 +1320,7 @@ function toggleTransferMenu(dir){
 let _doTransferBusy = false;
 async function doTransfer(){
   if(_doTransferBusy) return;
-  if(typeof _stateNotReady === 'function' && _stateNotReady()) return;
+  if(_stateNotReady()) return;
   const amountInput = document.getElementById('transferAmount');
   const amt = round2(parseAmount(amountInput.value)); // cent precision — match display, avoid sub-cent drift
   if(!isFinite(amt) || amt <= 0){ toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true); amountInput.focus(); return; }
@@ -1968,9 +1966,8 @@ function setFilter(f){
   document.querySelectorAll('.filters button').forEach(b=>{
     b.classList.toggle('active', b.dataset.f === f);
   });
-  renderTxList();
-  renderChart();
   renderPieChart(); // pie depends on the active time range (inRange)
+  // renderTxList() + renderChart() are called by switchTab('reports') inside scrollToTxList()
   scrollToTxList();
 }
 

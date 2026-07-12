@@ -530,10 +530,12 @@ function driveSignIn(){
         if(_driveSilentModeGen !== _gen) return;
         _clearDriveSilentMode(_gen);
         setDriveIndicator('error');
-        const t = (err && err.type) || '';
-        if(t === 'popup_failed_to_open'){
+        // errType: renamed from 't' which shadowed the global t() translation helper,
+        // causing TypeError on every popup-error toast in this callback.
+        const errType = (err && err.type) || '';
+        if(errType === 'popup_failed_to_open'){
           toast(t({ar:'⚠ تعذّر فتح نافذة جوجل — افتح التطبيق في متصفح Chrome/Safari', en:'⚠ Could not open the Google window — open the app in Chrome/Safari'}), true);
-        } else if(t === 'popup_closed'){
+        } else if(errType === 'popup_closed'){
           toast(t({ar:'أُغلقت نافذة تسجيل الدخول قبل اكتمالها', en:'The sign-in window was closed before completing'}), true);
         } else {
           toast(t({ar:'⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', en:'⚠ Google sign-in failed, try again'}), true);
@@ -561,10 +563,10 @@ function driveReconnectInteractive(){
         if(_driveSilentModeGen !== _gen) return;
         _clearDriveSilentMode(_gen);
         setDriveIndicator('error');
-        const t = (err && err.type) || '';
-        if(t === 'popup_failed_to_open'){
+        const errType = (err && err.type) || ''; // 'const t' would shadow the global t() translation helper
+        if(errType === 'popup_failed_to_open'){
           toast(t({ar:'⚠ تعذّر فتح نافذة جوجل — افتح التطبيق في متصفح Chrome/Safari', en:'⚠ Could not open the Google window — open the app in Chrome/Safari'}), true);
-        } else if(t === 'popup_closed'){
+        } else if(errType === 'popup_closed'){
           toast(t({ar:'أُغلقت نافذة تسجيل الدخول قبل اكتمالها', en:'The sign-in window was closed before completing'}), true);
         } else {
           toast(t({ar:'⚠ تعذّر تسجيل الدخول بجوجل، حاول مجددًا', en:'⚠ Google sign-in failed, try again'}), true);
