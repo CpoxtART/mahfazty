@@ -514,6 +514,17 @@ function driveSignIn(){
   // request (cleared only once the callback fires) — reused here as a busy
   // guard so a rapid double-tap can't open a second competing OAuth popup.
   if(_driveSilentMode) return;
+  // isEmbeddedOrStandalone() already exists to show a passive warning hint in
+  // Settings (driveEmbeddedWarn) — but the sign-in button itself never checked
+  // it before this fix, so tapping it anyway (e.g. an installed home-screen
+  // shortcut on Android) still fired the OAuth popup. In that context Google's
+  // sign-in page frequently can't close itself and hand the token back to the
+  // opener at all — not even via error_callback — leaving a permanently blank,
+  // hung white screen with no feedback whatsoever. Block the attempt instead.
+  if(isEmbeddedOrStandalone()){
+    toast(t({ar:'⚠ افتح التطبيق في متصفح Chrome أو Safari مباشرةً (وليس من الاختصار) لتسجيل الدخول بجوجل', en:'⚠ Open the app directly in Chrome or Safari (not from the home-screen shortcut) to sign in with Google'}), true);
+    return;
+  }
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast(t({ar:'⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', en:'⚠ Could not initialize Google, try refreshing the page'}), true); return; }
   const _gen = _setDriveSilentMode('signin'); // explicit user-initiated sign-in from Settings — the ONLY path allowed to show the conflict-resolution modal
@@ -553,6 +564,12 @@ function driveSignIn(){
 function driveReconnectInteractive(){
   // see driveSignIn's matching guard comment
   if(_driveSilentMode) return;
+  // see driveSignIn's matching isEmbeddedOrStandalone comment — this is the
+  // banner's "Yes" tap, reachable the same way and hangs the same way.
+  if(isEmbeddedOrStandalone()){
+    toast(t({ar:'⚠ افتح التطبيق في متصفح Chrome أو Safari مباشرةً (وليس من الاختصار) لتسجيل الدخول بجوجل', en:'⚠ Open the app directly in Chrome or Safari (not from the home-screen shortcut) to sign in with Google'}), true);
+    return;
+  }
   if(!gisTokenClient){ initGisClient(); }
   if(!gisTokenClient){ toast(t({ar:'⚠ تعذر تهيئة جوجل، جرّب تحديث الصفحة', en:'⚠ Could not initialize Google, try refreshing the page'}), true); return; }
   const _gen = _setDriveSilentMode('reconnect'); // automatic banner reconnect — resolve via the silent union merge, never the conflict modal

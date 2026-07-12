@@ -22,6 +22,14 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.28',
+    date: '2026-07-12',
+    title: { ar: 'إصلاح عاجل: شاشة بيضاء عالقة عند تسجيل الدخول بجوجل من اختصار سطح الشاشة (أندرويد)', en: 'Urgent fix: stuck white screen signing in with Google from an Android home-screen shortcut' },
+    items: [
+      { ar: 'إصلاح عالي (بلاغ مستخدم): فتح التطبيق من اختصار سطح الشاشة على أندرويد ثم الضغط على "تسجيل الدخول بجوجل" واختيار الحساب كان يُعلّق الشاشة على بياض بلا أي رسالة خطأ — التطبيق كان يملك بالفعل كاشفًا لهذه الحالة بالضبط (isEmbeddedOrStandalone) يظهر تلميحًا في الإعدادات، لكن زر تسجيل الدخول نفسه لم يكن يتحقق منه قبل فتح نافذة جوجل، فكانت المحاولة تمضي وتتعلق بأي حال. الآن يُمنع فتح النافذة في هذه الحالة، وتظهر رسالة واضحة تطلب فتح التطبيق مباشرة من متصفح Chrome أو Safari (وليس من الاختصار) لتسجيل الدخول. نفس الإصلاح طُبِّق على مسار "إعادة الاتصال" التلقائي من شريط التنبيه. تسجيل الدخول من المتصفح مباشرة كان ولا يزال يعمل بشكل طبيعي تمامًا.', en: 'High fix (user report): opening the app from an Android home-screen shortcut, then tapping "Sign in with Google" and picking an account, hung the screen on a permanent white blank page with no error message. The app already had a detector for exactly this context (isEmbeddedOrStandalone) that showed a passive hint in Settings, but the sign-in button itself never checked it before opening the Google popup, so the attempt proceeded and hung regardless. The popup is now blocked in this context, with a clear message asking the user to open the app directly in Chrome or Safari (not the shortcut) to sign in. The same fix was applied to the banner\'s automatic "reconnect" path. Signing in from the browser directly was, and still is, completely unaffected.' },
+    ],
+  },
+  {
     version: 'v48.27',
     date: '2026-07-12',
     title: { ar: 'جولة هيكلية سادسة: فتحة الشاشة (notch) وردود فعل لمسية مفقودة', en: 'Sixth structural round: notch safe-area gap and missing haptic feedback' },
