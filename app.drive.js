@@ -666,6 +666,13 @@ function driveSignOut(){
     }catch(e){}
   }
   clearDriveToken();
+  // The cached file id belongs to THIS session's account — a later sign-in
+  // could pick a different Google account whose appDataFolder doesn't contain
+  // it at all (driveFindFile() unconditionally trusts an already-cached id, so
+  // without this every sync after switching accounts 404'd against the old
+  // account's file id; the pull path now also recovers from that on its own,
+  // but clearing it here is the actual root cause fix, not just a fallback).
+  driveFileId = null;
   refreshDriveSettingsUI();
   toast(t({ar:'تم تسجيل الخروج من Drive', en:'Signed out of Drive'}));
 }
@@ -718,6 +725,13 @@ function _handleDriveSyncError(e){
     // distinct from a generic 403: the user's actual Drive storage is full,
     // not an app-permission problem — re-auth would not fix this
     toast(t({ar:'⚠ مساحة Google Drive ممتلئة — حرر مساحة لإتمام المزامنة', en:'⚠ Google Drive storage is full — free up space to complete sync'}), true);
+  } else if(e.message && e.message.includes('403') && /RateLimitExceeded|LimitExceeded/i.test(e.message)){
+    // distinct from a genuine permission/scope 403 below — Drive returns rate
+    // limiting as a 403 reason as often as a plain 429, and telling the user
+    // to go recheck their OAuth Client ID's scope would send them chasing a
+    // config problem that doesn't exist here (same class the 429 branch above
+    // already handles correctly for the plain-429 case).
+    toast(t({ar:'⚠ تم تجاوز حد الطلبات إلى Drive مؤقتًا — سيُعاد المحاولة تلقائيًا', en:'⚠ Drive request limit temporarily exceeded — will retry automatically'}), true);
   } else if(e.message && e.message.includes('403')){
     toast(t({ar:'⚠ تم رفض الإذن من Drive — تأكد من صلاحيات appdata بالـ Client ID', en:'⚠ Drive permission denied — check the appdata scope on the Client ID'}), true);
   } else if(e.message && e.message.includes('429')){
@@ -727,6 +741,12 @@ function _handleDriveSyncError(e){
     toast(t({ar:'⚠ تم تجاوز حد الطلبات إلى Drive مؤقتًا — سيُعاد المحاولة تلقائيًا', en:'⚠ Drive request limit temporarily exceeded — will retry automatically'}), true);
   } else if(e.message && (e.message.includes(' 500') || e.message.includes('503'))){
     toast(t({ar:'⚠ خطأ مؤقت في خوادم Drive — سيُعاد المحاولة تلقائيًا', en:'⚠ Temporary error on Drive servers — will retry automatically'}), true);
+  } else if(e.message && e.message.includes('drive download failed: 404')){
+    // Reached only if driveSyncFromCloud's own find-and-retry-once already
+    // failed to recover a stale file id — distinct from the generic "could not
+    // connect" below, which would be actively wrong here (the connection
+    // succeeded; the referenced file just isn't there).
+    toast(t({ar:'⚠ تعذّر العثور على ملف بياناتك في Drive — سيُعاد المحاولة تلقائيًا', en:'⚠ Could not find your data file on Drive — will retry automatically'}), true);
   } else if(!navigator.onLine){
     toast(t({ar:'⚠ لا يوجد اتصال بالإنترنت — سيتم الحفظ محليًا فقط', en:'⚠ No internet connection — saving locally only'}), true);
   } else if(e instanceof SyntaxError){
@@ -1060,9 +1080,25 @@ async function driveSyncFromCloud(isInitial, interactive){
       await driveSyncToCloud(true);
       return;
     }
-    const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {
+    let res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {
       headers: { 'Authorization': 'Bearer ' + driveAccessToken }
     });
+    if(res.status === 404){
+      // The cached file id is stale — deleted on Drive, or (driveFindFile()
+      // unconditionally trusts an already-cached id) a DIFFERENT Google account
+      // was just signed into, whose appDataFolder was never actually searched.
+      // Unlike driveSyncToCloud's matching 404 handling (see there), this path
+      // had none at all before: driveFileId stayed stuck on the dead id, so
+      // every later sync 404'd again on the same id with a misleading "could
+      // not connect, will retry later" toast that no retry could ever fix.
+      // Forget the id and re-search THIS account's folder for the real file.
+      driveFileId = null;
+      await driveFindFile();
+      if(!driveFileId){ await driveSyncToCloud(true); return; }
+      res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`, {
+        headers: { 'Authorization': 'Bearer ' + driveAccessToken }
+      });
+    }
     if(!res.ok) throw await _driveErrFromRes(res, 'drive download failed');
     const cloud = await res.json();
 
@@ -1188,81 +1224,93 @@ async function resolveConflict(useCloud){
   closeModal('driveConflictModal');
   if(!cloud) return;
   const backedUp = _downloadDataBackup(_buildSyncPayload(), cloud, 'wallet-conflict-backup');
-  if(useCloud){
-    await adoptCloudSnapshot(cloud);
-    // driveSyncFromCloud set the indicator to 'syncing' right before opening
-    // this modal (see its call site) — neither this path nor adoptCloudSnapshot
-    // itself ever cleared it, so the header icon was left spinning forever
-    // (only 'idle'/'error' states are even tappable again per setDriveIndicator).
-    setDriveIndicator('ok');
-    // Same distinctive double-pulse deleteTx uses to signal a destructive
-    // commit — the code's own comment above calls this action as destructive
-    // as "delete tx, wipe data," yet it had no haptic feedback at all before.
-    haptic([12, 40, 12]);
-    toast(backedUp
-      ? t({ar:'☁️ تم استخدام نسخة Drive (نُزّلت نسخة احتياطية من الحالتين احتياطًا)', en:"☁️ Used the Drive version (a backup of both copies was downloaded, just in case)"})
-      : t({ar:'☁️ تم استخدام نسخة Drive', en:'☁️ Used the Drive version'}));
-  } else {
-    // Unlike the useCloud branch (guarded inside adoptCloudSnapshot itself),
-    // this branch mutates deletedTxIds/deletedSubIds/deletedWalletDefIds
-    // directly across several awaits — wait for any other in-flight mutation
-    // to clear first so e.g. a concurrent deleteTx isn't racing the same
-    // tombstone maps this is about to write into. Capped, same as elsewhere.
-    await _waitForClear(() => ({ blocked: _opInFlight > 0, cap: 10000 }));
-    _opInFlight++;
-    try{
-    // The user explicitly rejected the cloud copy — mark it as "already seen"
-    // BEFORE pushing, or driveSyncToCloud()'s pre-push reconciliation
-    // (remoteEdited !== _driveLastSyncedEditedAt) union-merges the rejected
-    // cloud transactions back into local and uploads a hybrid instead of the
-    // "local version" the modal promised.
-    _driveLastSyncedEditedAt = (typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0) ? cloud.dataEditedAt : 0;
-    // Besides protecting THIS device's own next push (the stamp above), the
-    // rejection must be durable against a THIRD device that already
-    // union-merged these same cloud rows into its own local state earlier —
-    // its next routine, silent auto-sync would otherwise pull this device's
-    // freshly-pushed "local wins" copy, non-interactively union-merge its own
-    // cached copy of the rejected rows right back in (mergeCloudData has no
-    // way to know they were just explicitly rejected here), and re-upload
-    // them — silently resurrecting exactly what the user just chose to
-    // discard. Tombstone everything present in the rejected cloud snapshot
-    // but absent from local — same reasoning applyImport's own
-    // tombstone-everything-not-in-the-backup step already uses — so a later
-    // device's union merge sees the tombstones and excludes them too.
-    const _now = Date.now();
-    if(Array.isArray(cloud.transactions)){
-      const localTxIds = new Set(state.transactions.map(tx => tx.id));
-      cloud.transactions.forEach(tx => { if(tx && tx.id && !localTxIds.has(tx.id)) deletedTxIds[tx.id] = _now; });
-    }
-    if(Array.isArray(cloud.subscriptions)){
-      const localSubIds = new Set(subscriptions.map(s => s.id));
-      cloud.subscriptions.forEach(s => { if(s && s.id && !localSubIds.has(s.id)) deletedSubIds[s.id] = _now; });
-    }
-    if(Array.isArray(cloud.walletDefs)){
-      const localWalletIds = new Set(WALLET_DEFS.map(w => w.id));
-      cloud.walletDefs.forEach(w => { if(w && w.id && !localWalletIds.has(w.id)) deletedWalletDefIds[w.id] = _now; });
-    }
-    pruneTombstones();
-    await saveConfig(); // persist the new tombstones locally before pushing (they live in config)
-    } finally { _opInFlight--; }
-    // Released before the network push below — driveSyncToCloud() can itself
-    // trigger _mergeCloudIntoLocal (which waits on _opInFlight===0), and the
-    // local tombstone mutation above is already complete and persisted by here.
-    const pushed = await driveSyncToCloud();
-    setDriveIndicator(pushed ? 'ok' : 'error');
-    // Same reasoning as the useCloud branch above — rejecting the cloud copy
-    // is just as destructive to whatever was on Drive.
-    haptic([12, 40, 12]);
-    // driveSyncToCloud() already shows its own failure toast (_handleDriveSyncError)
-    // on a rejected push — showing this unconditional "uploaded" success right
-    // after it would directly contradict what the user just read.
-    if(pushed){
+  // Wrapped in try/catch: driveSyncFromCloud() already flipped the indicator to
+  // 'syncing' before this modal opened, and neither branch below cleared it on a
+  // normal path until its own final setDriveIndicator call — if anything in
+  // between throws (e.g. a full-storage QuotaExceededError, a real, reachable
+  // failure, not hypothetical), the exception used to escape uncaught, leaving
+  // the header's ☁️ icon permanently stuck on 'syncing' (only 'idle'/'error' are
+  // even tappable again per setDriveIndicator) with no drive-specific feedback.
+  try{
+    if(useCloud){
+      await adoptCloudSnapshot(cloud);
+      // driveSyncFromCloud set the indicator to 'syncing' right before opening
+      // this modal (see its call site) — neither this path nor adoptCloudSnapshot
+      // itself ever cleared it, so the header icon was left spinning forever
+      // (only 'idle'/'error' states are even tappable again per setDriveIndicator).
+      setDriveIndicator('ok');
+      // Same distinctive double-pulse deleteTx uses to signal a destructive
+      // commit — the code's own comment above calls this action as destructive
+      // as "delete tx, wipe data," yet it had no haptic feedback at all before.
+      haptic([12, 40, 12]);
       toast(backedUp
-        ? t({ar:'☁️ تم رفع نسختك المحلية إلى Drive (نُزّلت نسخة احتياطية من الحالتين احتياطًا)', en:'☁️ Uploaded your local version to Drive (a backup of both copies was downloaded, just in case)'})
-        : t({ar:'☁️ تم رفع نسختك المحلية إلى Drive', en:'☁️ Uploaded your local version to Drive'}));
+        ? t({ar:'☁️ تم استخدام نسخة Drive (نُزّلت نسخة احتياطية من الحالتين احتياطًا)', en:"☁️ Used the Drive version (a backup of both copies was downloaded, just in case)"})
+        : t({ar:'☁️ تم استخدام نسخة Drive', en:'☁️ Used the Drive version'}));
+    } else {
+      // Unlike the useCloud branch (guarded inside adoptCloudSnapshot itself),
+      // this branch mutates deletedTxIds/deletedSubIds/deletedWalletDefIds
+      // directly across several awaits — wait for any other in-flight mutation
+      // to clear first so e.g. a concurrent deleteTx isn't racing the same
+      // tombstone maps this is about to write into. Capped, same as elsewhere.
+      await _waitForClear(() => ({ blocked: _opInFlight > 0, cap: 10000 }));
+      _opInFlight++;
+      try{
+        // The user explicitly rejected the cloud copy — mark it as "already seen"
+        // BEFORE pushing, or driveSyncToCloud()'s pre-push reconciliation
+        // (remoteEdited !== _driveLastSyncedEditedAt) union-merges the rejected
+        // cloud transactions back into local and uploads a hybrid instead of the
+        // "local version" the modal promised.
+        _driveLastSyncedEditedAt = (typeof cloud.dataEditedAt === 'number' && cloud.dataEditedAt > 0) ? cloud.dataEditedAt : 0;
+        // Besides protecting THIS device's own next push (the stamp above), the
+        // rejection must be durable against a THIRD device that already
+        // union-merged these same cloud rows into its own local state earlier —
+        // its next routine, silent auto-sync would otherwise pull this device's
+        // freshly-pushed "local wins" copy, non-interactively union-merge its own
+        // cached copy of the rejected rows right back in (mergeCloudData has no
+        // way to know they were just explicitly rejected here), and re-upload
+        // them — silently resurrecting exactly what the user just chose to
+        // discard. Tombstone everything present in the rejected cloud snapshot
+        // but absent from local — same reasoning applyImport's own
+        // tombstone-everything-not-in-the-backup step already uses — so a later
+        // device's union merge sees the tombstones and excludes them too.
+        const _now = Date.now();
+        if(Array.isArray(cloud.transactions)){
+          const localTxIds = new Set(state.transactions.map(tx => tx.id));
+          cloud.transactions.forEach(tx => { if(tx && tx.id && !localTxIds.has(tx.id)) deletedTxIds[tx.id] = _now; });
+        }
+        if(Array.isArray(cloud.subscriptions)){
+          const localSubIds = new Set(subscriptions.map(s => s.id));
+          cloud.subscriptions.forEach(s => { if(s && s.id && !localSubIds.has(s.id)) deletedSubIds[s.id] = _now; });
+        }
+        if(Array.isArray(cloud.walletDefs)){
+          const localWalletIds = new Set(WALLET_DEFS.map(w => w.id));
+          cloud.walletDefs.forEach(w => { if(w && w.id && !localWalletIds.has(w.id)) deletedWalletDefIds[w.id] = _now; });
+        }
+        pruneTombstones();
+        await saveConfig(); // persist the new tombstones locally before pushing (they live in config)
+      } finally { _opInFlight--; }
+      // Released before the network push below — driveSyncToCloud() can itself
+      // trigger _mergeCloudIntoLocal (which waits on _opInFlight===0), and the
+      // local tombstone mutation above is already complete and persisted by here.
+      const pushed = await driveSyncToCloud();
+      setDriveIndicator(pushed ? 'ok' : 'error');
+      // Same reasoning as the useCloud branch above — rejecting the cloud copy
+      // is just as destructive to whatever was on Drive.
+      haptic([12, 40, 12]);
+      // driveSyncToCloud() already shows its own failure toast (_handleDriveSyncError)
+      // on a rejected push — showing this unconditional "uploaded" success right
+      // after it would directly contradict what the user just read.
+      if(pushed){
+        toast(backedUp
+          ? t({ar:'☁️ تم رفع نسختك المحلية إلى Drive (نُزّلت نسخة احتياطية من الحالتين احتياطًا)', en:'☁️ Uploaded your local version to Drive (a backup of both copies was downloaded, just in case)'})
+          : t({ar:'☁️ تم رفع نسختك المحلية إلى Drive', en:'☁️ Uploaded your local version to Drive'}));
+      }
     }
+  }catch(e){
+    setDriveIndicator('error');
+    toast(t({ar:'⚠ حدث خطأ أثناء حل تعارض المزامنة — حاول المزامنة يدويًا من الإعدادات', en:'⚠ An error occurred while resolving the sync conflict — try syncing manually from Settings'}), true);
   }
-}
+} // end resolveConflict
 
 /* ============================================================
    MANUAL SYNC + INIT

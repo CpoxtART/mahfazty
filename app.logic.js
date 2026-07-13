@@ -683,7 +683,14 @@ async function deleteFromEdit(){
   // removed from underneath the open modal (e.g. a cross-tab sync/merge while
   // the user had it open) — rare, but silently no-op'ing left the user unsure
   // whether their tap on Delete even registered, with the modal still open.
-  if(!editingTxId){ closeModal('editModal'); toast(t({ar:'⚠ المعاملة لم تعد موجودة', en:'⚠ The transaction no longer exists'}), true); return; }
+  // Must check the tx's actual EXISTENCE, not just editingTxId's nullity —
+  // editingTxId stays non-null for the entire time the modal is open, so a
+  // bare-nullity check could never catch the very race it claims to guard.
+  if(!editingTxId || !state.transactions.find(tx => tx.id === editingTxId)){
+    closeModal('editModal');
+    toast(t({ar:'⚠ المعاملة لم تعد موجودة', en:'⚠ The transaction no longer exists'}), true);
+    return;
+  }
   try{
     await deleteTx(editingTxId);
   } finally {

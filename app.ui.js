@@ -498,7 +498,11 @@ async function deleteWalletDef(id){
   // multi-await balance/wallet-def writes).
   if(_opBusy()) return false;
   const w = WALLET_DEFS.find(x => x.id === id);
-  if(!w) return false;
+  // Unlike every guard below it, this one used to return silently with no
+  // toast — reachable if the wallet was removed from underneath an open edit
+  // modal by a cross-tab/Drive sync merge, leaving the user's Delete tap
+  // looking like it did nothing at all.
+  if(!w){ toast(t({ar:'⚠ المحفظة لم تعد موجودة', en:'⚠ The wallet no longer exists'}), true); return false; }
   if(id === 'core'){ toast(t({ar:'⚠ لا يمكن حذف المحفظة الرئيسية', en:'⚠ Cannot delete the main wallet'}), true); return false; }
   if(!w.track && WALLET_DEFS.filter(x => !x.track).length <= 1){
     toast(t({ar:'⚠ لا يمكن حذف آخر محفظة عادية', en:'⚠ Cannot delete the last regular wallet'}), true); return false;
@@ -1061,7 +1065,10 @@ async function saveSubModal(){
   const nameInput = document.getElementById('subName');
   const amountInput = document.getElementById('subAmount');
   const dayInput = document.getElementById('subBillingDay');
-  const name = truncateCodePoints(nameInput.value.trim(), 60);
+  // stripBidiControls: same fix saveWalletDefModal's equivalent name field
+  // already has — a pasted subscription name could otherwise carry raw
+  // bidi-override characters that persist unstripped in storage/exports.
+  const name = truncateCodePoints(stripBidiControls(nameInput.value).trim(), 60);
   const amount = round2(parseAmount(amountInput.value));
   const billingDay = parseInt(normalizeDigits(dayInput.value), 10); // normalize Arabic-Indic digits (numeric keyboards often default to them)
   const active = document.getElementById('subActive')?.checked !== false;
@@ -1098,7 +1105,14 @@ async function deleteSubModal(){
   if(_saveSubBusy) return; // double-tap guard — no feedback needed, matches every other busy-flag guard in the app
   // Same rare cross-tab-race gap as deleteFromEdit (app.logic.js) — a stale id
   // here silently left the user unsure whether their Delete tap registered.
-  if(!editingSubId){ closeModal('subModal'); toast(t({ar:'⚠ الاشتراك لم يعد موجودًا', en:'⚠ The subscription no longer exists'}), true); return; }
+  // Must check actual EXISTENCE, not just editingSubId's nullity — same fix
+  // applied to deleteFromEdit, see its comment for why a bare-nullity check
+  // could never catch the race it claims to guard.
+  if(!editingSubId || !subscriptions.find(s => s.id === editingSubId)){
+    closeModal('subModal');
+    toast(t({ar:'⚠ الاشتراك لم يعد موجودًا', en:'⚠ The subscription no longer exists'}), true);
+    return;
+  }
   // cross-op write guard (see commitQuickNotes)
   if(_opBusy()) return;
   if(!confirm(t({ar:'حذف هذا الاشتراك نهائياً؟', en:'Permanently delete this subscription?'}))) return;

@@ -22,6 +22,19 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.29',
+    date: '2026-07-12',
+    title: { ar: 'جولة هيكلية سابعة: مؤشر مزامنة عالق، حذف صامت، وملف Drive قديم بعد تبديل الحساب', en: 'Seventh structural round: stuck sync indicator, silent delete no-ops, and stale Drive file after switching accounts' },
+    items: [
+      { ar: 'إصلاح عالي: عند حل تعارض مزامنة Drive، أي خطأ أثناء الحفظ (مثل امتلاء التخزين) كان يترك أيقونة ☁️ عالقة على "جارِ المزامنة" للأبد بلا أي رسالة — الآن يُعرض خطأ واضح والأيقونة تعود قابلة للنقر.', en: 'High fix: during Drive sync-conflict resolution, any error while saving (e.g. full storage) used to leave the ☁️ icon permanently stuck on "syncing" with no feedback — now shows a clear error and the icon becomes tappable again.' },
+      { ar: 'إصلاح عالي: تسجيل الخروج من Drive ثم الدخول بحساب جوجل مختلف كان يُبقي معرّف الملف القديم مخزَّنًا، فتفشل كل مزامنة لاحقة برسالة خاطئة ("تعذر الاتصال") رغم أن الاتصال سليم — لا يُصلحها أي انتظار، فقط إعادة تحميل الصفحة. الآن يُمسح المعرّف عند الخروج، وتوجد محاولة تعافٍ تلقائية إضافية إذا حدث الموقف بأي طريقة أخرى.', en: 'High fix: signing out of Drive then signing into a different Google account left the old file id cached, so every later sync failed with a misleading "could not connect" message despite the connection being fine — no amount of waiting fixed it, only a page reload. The id is now cleared on sign-out, plus an automatic recovery retry covers the case if it happens any other way.' },
+      { ar: 'إصلاح متوسط (موضعان): حذف معاملة أو اشتراك من نافذة التعديل كان يفشل بصمت (بلا أي رسالة) إذا حُذف العنصر من جهاز آخر أثناء فتح النافذة — لأن الفحص كان يتأكد فقط من وجود مُعرّف محفوظ، لا من وجود العنصر فعليًا في البيانات. تم تصحيح الفحص في الحالتين.', en: 'Medium fix (2 sites): deleting a transaction or subscription from its edit modal used to fail silently (no message at all) if the item had been deleted from another device while the modal was open — because the check only confirmed a saved id existed, not that the item itself still did. Fixed the check in both cases.' },
+      { ar: 'إصلاح متوسط: حذف محفظة كانت أُزيلت من جهاز آخر أثناء فتح نافذة تعديلها كان لا يُظهر أي رسالة إطلاقًا (بخلاف كل الفحوصات الأخرى بجانبه في نفس الدالة).', en: 'Medium fix: deleting a wallet that had already been removed from another device while its edit modal was open showed no message at all (unlike every other guard right beside it in the same function).' },
+      { ar: 'إصلاح متوسط: رسالة "رفض الإذن — تحقق من صلاحيات appdata" كانت تظهر أيضًا عند تجاوز حد طلبات Drive المؤقت، وهي مشكلة مختلفة تمامًا لا علاقة لها بإعدادات الحساب.', en: 'Medium fix: the "permission denied — check appdata scope" message also fired for Drive\'s temporary request-rate limit, a completely different, unrelated-to-account-settings problem.' },
+      { ar: 'إصلاح بسيط: اسم الاشتراك لم يكن يُزيل رموز التحكم الاتجاهية الخفية (bidi) عند الحفظ من النموذج، بخلاف اسم المحفظة الذي يفعل ذلك بالفعل.', en: 'Minor fix: subscription names skipped stripping hidden bidi-control characters when saved from the form, unlike wallet names which already do.' },
+    ],
+  },
+  {
     version: 'v48.28',
     date: '2026-07-12',
     title: { ar: 'إصلاح عاجل: شاشة بيضاء عالقة عند تسجيل الدخول بجوجل من اختصار سطح الشاشة (أندرويد)', en: 'Urgent fix: stuck white screen signing in with Google from an Android home-screen shortcut' },
