@@ -249,8 +249,11 @@ document.addEventListener('keydown', e => {
     if(e.isComposing || e.keyCode === 229) return;
     const tag = document.activeElement && document.activeElement.tagName;
     const id  = document.activeElement && document.activeElement.id;
-    // Add-form inputs → submit with current addFormType
-    if(id === 'descInput' || id === 'amountInput'){
+    // Add-form inputs → submit with current addFormType (date field included,
+    // matching its two structural siblings editDate/transferDate below — this
+    // one was missing, the one form field of the three whose date input didn't
+    // submit on Enter while every other field in the form did)
+    if(id === 'descInput' || id === 'amountInput' || id === 'dateInput'){
       e.preventDefault();
       addTx(addFormType);
     }

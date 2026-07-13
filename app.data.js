@@ -661,6 +661,12 @@ async function repairBalancesFromLedger(){
   }
   reconcileBalances(); // apply for real
   await saveBalances();
+  // The drift this repair just corrected is now fully resolved — clear the
+  // dedup signature checkBalanceDrift() stamps, so a FUTURE drift (even one
+  // that coincidentally sums/matches to the exact same signature, e.g. the
+  // same wallet drifting by the same round amount again) is freshly flagged
+  // instead of silently suppressed as "already seen."
+  try{ localStorage.removeItem(LS_PREFIX + 'driftNotified'); }catch(_){}
   closeModal('settingsModal');
   render(true);
   haptic(15); // matches every other confirmed, successful balance-changing action
@@ -687,7 +693,14 @@ function checkBalanceDrift(){
     // tool then "fixes" to no visible effect, re-nagging the user.
     computed[tx.wallet] = round2(computed[tx.wallet] + (tx.type === 'expense' ? -amt : amt));
   });
-  let totalDrift = 0;
+  // Per-wallet id:amount pairs (sorted for a deterministic signature), NOT
+  // just their summed total — a bare aggregate ("totalDrift") can't tell a
+  // genuinely NEW drift on a different wallet from an old, already-seen one:
+  // round currency amounts (a subscription price, a fixed transfer) recur
+  // constantly, so two unrelated crashes drifting two DIFFERENT wallets by
+  // the identical amount produced the identical signature, silently
+  // suppressing the second, real, unrelated warning.
+  const driftedIds = [];
   Object.keys(computed).forEach(id => {
     const before = parseFloat(state.wallets[id]) || 0;
     // 0.005 (not 0.01) — matches reconcileBalances' own threshold exactly.
@@ -698,10 +711,11 @@ function checkBalanceDrift(){
     // sweeping consecutive cent values), exactly the "crash committed a
     // balance write but not the matching transaction write" case this
     // function's own comment says it exists to catch.
-    if(Math.abs(computed[id] - before) >= 0.005) totalDrift = round2(totalDrift + Math.abs(computed[id] - before));
+    const diff = round2(Math.abs(computed[id] - before));
+    if(diff >= 0.005) driftedIds.push(id + ':' + diff);
   });
-  if(totalDrift === 0) return;
-  const sig = String(totalDrift);
+  if(!driftedIds.length) return;
+  const sig = driftedIds.sort().join('|');
   try{ if(localStorage.getItem(LS_PREFIX + 'driftNotified') === sig) return; }catch(e){} // already offered for this exact drift
   try{ localStorage.setItem(LS_PREFIX + 'driftNotified', sig); }catch(e){}
   toastWithAction(t({ar:'⚠ رصيد إحدى محافظك لا يطابق سجل معاملاتها', en:"⚠ One of your wallets' balance doesn't match its transaction ledger"}), t({ar:'إصلاح', en:'Fix'}), () => { openSettingsTab('data'); repairBalancesFromLedger(); });

@@ -78,6 +78,14 @@ async function addTx(type){
       if(tw && tw.id !== walletId){
         tx.trackWallet = tw.id;
         tx.trackSign = (trackLinkMode[tw.id] === 'credit') ? 1 : -1;
+      } else if(!tw){
+        // The picked track wallet no longer exists (e.g. deleted from another
+        // tab/Drive sync while this drawer sat open longer than the merge's
+        // 10s deferral cap — see _mergeCloudIntoLocal, app.drive.js) — the
+        // primary transaction still saves correctly below, but until now this
+        // silently dropped the track link with zero indication, unlike every
+        // other stale-reference case in the app, which always toasts.
+        toast(t({ar:'⚠ المحفظة المتتبَّعة المختارة لم تعد موجودة — سُجِّلت المعاملة بدون ربطها', en:'⚠ The selected tracked wallet no longer exists — the transaction was recorded without that link'}), true);
       }
     }
 

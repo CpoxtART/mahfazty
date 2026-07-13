@@ -292,11 +292,20 @@ function renderWalletDefsEditor(){
   const group = track => {
     const list = WALLET_DEFS.filter(w => w.track === track);
     return list.map((w,i) => {
-      // 'core' is structural and a group must keep at least one wallet — those two
-      // cases can never be deleted, so disable the button rather than toast-on-tap.
-      // Balance/transaction guards stay dynamic (the user can clear them), so those
-      // wallets keep an enabled button that explains via toast why it's blocked.
-      const blockDelete = (w.id === 'core') || (!track && list.length <= 1);
+      // 'core' and 'crisis_fund' are structural (crisis_fund underpins the whole
+      // crisis-mode feature — deleting it left crisis mode silently broken:
+      // recomputeSelectableWallets()/renderWallets() both expect it to be the
+      // ONE row that displays every crisisWalletIds() wallet's merged total
+      // while crisis mode is on, so with it gone those wallets' money just
+      // disappeared from every dashboard total for as long as crisis mode
+      // stayed on, with no warning at delete time). A group must also keep at
+      // least one wallet. All three cases can never be deleted, so disable the
+      // button rather than toast-on-tap. Balance/transaction guards stay
+      // dynamic (the user can clear them), so those wallets keep an enabled
+      // button that explains via toast why it's blocked. 'reserve' is
+      // deliberately NOT included here — its deletion is intentionally
+      // supported and not self-healing (see tests/merge.test.js).
+      const blockDelete = (w.id === 'core') || (w.id === 'crisis_fund') || (!track && list.length <= 1);
       // Every row gets a gold "view" button that jumps straight to the wallet's
       // detail screen — ⚖️ for track wallets (the actual-balance sync) and ⓘ for
       // regular wallets (details + monthly budget). Both otherwise only surface
@@ -523,6 +532,11 @@ async function deleteWalletDef(id){
   // looking like it did nothing at all.
   if(!w){ toast(t({ar:'⚠ المحفظة لم تعد موجودة', en:'⚠ The wallet no longer exists'}), true); return false; }
   if(id === 'core'){ toast(t({ar:'⚠ لا يمكن حذف المحفظة الرئيسية', en:'⚠ Cannot delete the main wallet'}), true); return false; }
+  // crisis_fund underpins crisis mode itself (see renderWalletDefsEditor's
+  // matching blockDelete comment) — deleting it silently broke crisis mode
+  // rather than erroring, with money appearing to vanish from every dashboard
+  // total while crisis mode stayed on.
+  if(id === 'crisis_fund'){ toast(t({ar:'⚠ لا يمكن حذف محفظة الطوارئ — أساسية لوضع الطوارئ', en:'⚠ Cannot delete the crisis-fund wallet — required for crisis mode'}), true); return false; }
   if(!w.track && WALLET_DEFS.filter(x => !x.track).length <= 1){
     toast(t({ar:'⚠ لا يمكن حذف آخر محفظة عادية', en:'⚠ Cannot delete the last regular wallet'}), true); return false;
   }
@@ -1677,7 +1691,13 @@ function openWalletDetail(walletId){
   const w = WALLET_DEFS.find(x=>x.id===walletId);
   if(!w){ toast(t({ar:'⚠ المحفظة غير موجودة', en:'⚠ Wallet not found'}), true); return; }
   detailWalletId = walletId;
-  const currentVal = state.wallets[walletId] ?? 0;
+  // effectiveWalletBalance (not a bare state.wallets read) — the dashboard
+  // card for a crisisOnly wallet (crisis_fund) shows the CRISIS-MERGED total
+  // while crisis mode is on (see renderWallets), but this detail view — reached
+  // by tapping that same card's ⓘ button — used to read the raw, un-merged
+  // balance, showing a smaller, different number than the card the user just
+  // tapped from. A no-op for every other wallet and whenever crisis mode is off.
+  const currentVal = effectiveWalletBalance(w);
   document.getElementById('detailTitle').textContent = (w.track?'🏦 ':'👛 ') + w.name;
   const _detailBalEl = document.getElementById('detailBalance');
   _detailBalEl.textContent = fmt(currentVal);

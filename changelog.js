@@ -22,6 +22,18 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.38',
+    date: '2026-07-13',
+    title: { ar: 'جولة هيكلية خامسة عشرة: حذف محفظة الطوارئ كان يُعطّل وضع الطوارئ بصمت', en: 'Fifteenth structural round: deleting the crisis-fund wallet silently broke crisis mode' },
+    items: [
+      { ar: 'إصلاح عالي: محفظة "صندوق الطوارئ" (crisis_fund) كانت قابلة للحذف من شاشة إدارة المحافظ كأي محفظة عادية — رغم أنها أساسية لعمل وضع الطوارئ نفسه. حذفها كان يجعل كل أموال المحافظ المدمجة تختفي بصمت من كل إجمالي بالشاشة الرئيسية طالما وضع الطوارئ مفعّل (الأموال ما تضيع فعليًا، لكنها تبدو مفقودة). أُضيفت نفس الحماية التي تمنع حذف المحفظة الرئيسية.', en: 'High fix: the "crisis fund" wallet (crisis_fund) was deletable from the wallet-management screen like any regular wallet — despite being essential to crisis mode\'s own operation. Deleting it silently made every merged wallet\'s money disappear from every dashboard total for as long as crisis mode stayed on (the money wasn\'t actually lost, just appeared to be). Added the same protection that already blocks deleting the main wallet.' },
+      { ar: 'إصلاح متوسط: كشف انحراف الأرصدة (بعد عطل مفاجئ) كان يعتمد على مجموع رقمي واحد فقط لتذكّر "هل أُخبر المستخدم بهذا الانحراف من قبل" — فلو حدث انحراف جديد بمحفظة مختلفة تمامًا لكن بنفس المبلغ الإجمالي (شائع مع مبالغ متكررة كأسعار الاشتراكات)، لا يُنبَّه المستخدم إطلاقًا. كذلك لم تكن العلامة تُمسح بعد إصلاح ناجح، فيبقى انحراف مستقبلي بنفس القيمة مكتومًا للأبد. أُصلح كلاهما.', en: "Medium fix: balance-drift detection (after an abrupt crash) relied on a single summed number to remember \"has the user already been told about this\" — so a genuinely new drift on a completely different wallet, but coincidentally the same total amount (common with recurring amounts like subscription prices), never notified the user at all. The flag also wasn't cleared after a successful repair, so a future drift of the same value stayed silenced forever. Both fixed." },
+      { ar: 'إصلاح متوسط: اختيار ربط محفظة متتبَّعة (كأوبر) بمعاملة، ثم حذف تلك المحفظة من جهاز آخر قبل الحفظ — كانت المعاملة تُسجَّل بلا الربط بصمت تام، بلا أي رسالة تفسّر لماذا اختفى الربط.', en: "Medium fix: picking a tracked-wallet link (e.g. Uber) for a transaction, then having that wallet deleted from another device before saving — the transaction saved without the link in complete silence, with no message explaining why it disappeared." },
+      { ar: 'إصلاح متوسط: حقل التاريخ بنموذج إضافة معاملة كان الحقل الوحيد بين حقول النموذج الثلاثة الذي لا يُسجِّل المعاملة عند الضغط على Enter، بخلاف حقلي الوصف والمبلغ — ونفس الحقل بالضبط يعمل بشكل صحيح في نافذتي التعديل والتحويل.', en: "Medium fix: the date field in the add-transaction form was the one field, among the form's three, that didn't submit on Enter — unlike the description and amount fields — while the exact same field works correctly in the edit and transfer modals." },
+      { ar: 'إصلاح متوسط: شاشة تفاصيل المحفظة لصندوق الطوارئ كانت تعرض الرصيد الخام غير المدمج، بخلاف بطاقة نفس المحفظة بالشاشة الرئيسية التي تعرض الرصيد المدمج الصحيح أثناء وضع الطوارئ — رقمان مختلفان لنفس المحفظة.', en: "Medium fix: the crisis-fund wallet's detail screen showed the raw, un-merged balance, unlike the same wallet's dashboard card, which correctly shows the merged total during crisis mode — two different numbers for the same wallet." },
+    ],
+  },
+  {
     version: 'v48.37',
     date: '2026-07-13',
     title: { ar: 'جولة هيكلية رابعة عشرة: اهتزاز لمسي مفقود، ورصيد سالب بلا تمييز بصري', en: 'Fourteenth structural round: missing haptic feedback, and negative balance with no visual distinction' },
