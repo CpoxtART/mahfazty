@@ -556,9 +556,13 @@ loadState().then(()=>{
     setTimeout(checkDailyReview, 400);
     setTimeout(checkBalanceDrift, 900);
     // Trails the daily-review/balance-drift checks and the Drive banner's own
-    // launch-time delays — maybeShowIosInstallHint() skips this launch outright
-    // (no retry loop) if any of those are already showing by the time it runs.
+    // launch-time delays — maybeShowIosInstallHint()/maybeShowInstallBanner()
+    // skip this launch outright (no retry loop) if any of those are already
+    // showing by the time they run. Platform-exclusive in practice (iOS never
+    // fires beforeinstallprompt, Chrome/Edge don't match _isRealIosSafari),
+    // so calling both here never means competing for the same banner slot.
     setTimeout(maybeShowIosInstallHint, 1900);
+    setTimeout(maybeShowInstallBanner, 1900);
   }
 });
 

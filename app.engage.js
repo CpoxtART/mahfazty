@@ -107,9 +107,11 @@ function closeWelcome(){
   try{ localStorage.setItem(LS_PREFIX + 'welcomeSeen', '1'); }catch(e){}
   // The tour's own "Works offline — install it as an app" bullet promises this
   // but gives no OS-specific how-to — right after the user reads it is the
-  // most relevant moment to show iOS Safari users the actual Share-sheet path.
+  // most relevant moment to offer the actual install action (or, on iOS
+  // Safari, the Share-sheet instructions since no install API exists there).
   // Delayed so it doesn't fight closeModal's own focus-restore/animation.
   setTimeout(maybeShowIosInstallHint, 500);
+  setTimeout(maybeShowInstallBanner, 500);
 }
 
 /* ============================================================

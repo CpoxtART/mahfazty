@@ -368,6 +368,12 @@ function renderChart(){
   if(!flat){
     ctx.fillText(_fmtCompact(max, true), labelX, padY);
     ctx.fillText(_fmtCompact(min, true), labelX, padY + h);
+  } else {
+    // A flat (max===min) line draws at yOf's own midpoint (padY + h/2, see
+    // above) — labeling nothing here (the old behavior) left the chart's
+    // only numeric value entirely unannotated on the canvas itself, with
+    // the level only shown in the separate #chartNet badge below it.
+    ctx.fillText(_fmtCompact(max, true), labelX, padY + h/2);
   }
   if(min < 0 && max > 0){
     ctx.fillStyle = isLightTheme ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.25)';

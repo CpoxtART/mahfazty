@@ -437,11 +437,13 @@ function updateSettingsStats(){
   }catch(e){
     document.getElementById('statLastEdit').textContent = '—';
   }
-  // Show active cache version
+  // Show the app version — CHANGELOG[0].version is the single source of truth
+  // already used for the "what's new" unseen-badge check (app.pwa.js), unlike
+  // the cache bucket name this used to show: that's an implementation detail
+  // (normally matches, but degrades to "No cache"/"—" wherever the Cache API
+  // is blocked, e.g. private browsing, and is briefly the NEW bucket name for
+  // a tab still running the OLD code in the gap between a service worker's
+  // activate — which deletes the old bucket — and this tab's own reload).
   const cacheEl = document.getElementById('statCacheVer');
-  if(cacheEl){
-    caches.keys().then(keys => {
-      cacheEl.textContent = keys.length ? keys.join(', ') : t({ar:'لا يوجد كاش', en:'No cache'});
-    }).catch(()=>{ cacheEl.textContent = '—'; });
-  }
+  if(cacheEl) cacheEl.textContent = (typeof CHANGELOG !== 'undefined' && CHANGELOG[0]) ? CHANGELOG[0].version : '—';
 }

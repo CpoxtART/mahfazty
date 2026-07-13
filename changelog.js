@@ -22,6 +22,17 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.36',
+    date: '2026-07-13',
+    title: { ar: 'زر تثبيت حقيقي لأندرويد/الحاسوب، وإصلاح المؤجَّلات', en: 'Real install button for Android/desktop, plus deferred fixes' },
+    items: [
+      { ar: 'ميزة جديدة: بانر تثبيت حقيقي لمستخدمي أندرويد/الحاسوب (Chrome وما شابه) — كان التطبيق يعتمد كليًا على أيقونة/قائمة المتصفح الافتراضية، بلا أي دعوة داخلية للتثبيت (بخلاف مستخدمي iOS الذين لديهم تلميح مخصص أصلاً). يظهر بانر بزر "✓ تثبيت" فعلي عند توفر الإمكانية، ولا يُعاد عرضه بعد التثبيت الفعلي (من أي طريقة) أو لفترة كافية بعد تأجيله.', en: 'New feature: a real install banner for Android/desktop Chrome (and similar) users — the app previously relied entirely on the browser\'s own default icon/menu, with zero in-app install invitation (unlike iOS users, who already had a dedicated hint). A banner with an actual "✓ Install" button now appears when installability is available, and stops re-appearing once actually installed (via any method) or for a reasonable cooldown after being postponed.' },
+      { ar: 'إصلاح متوسط: تغيير اللغة كان يفشل بصمت لو تعذّر الحفظ محليًا (مساحة تخزين ممتلئة) — يتغيّر العرض فورًا لكن يعود للغة القديمة بصمت عند إعادة الفتح، بخلاف كل الإعدادات الأخرى التي تُنبّه المستخدم بفشل الحفظ.', en: "Medium fix: switching language silently failed if it couldn't save locally (storage full) — the display changed immediately but silently reverted to the old language on reopening, unlike every other setting, which warns the user when a save fails." },
+      { ar: 'إصلاح بسيط: سطر "الإصدار" بالإعدادات كان يعرض اسم حزمة الكاش الداخلية بدل رقم الإصدار الفعلي — قد يظهر فارغًا أو غير دقيق في بعض الحالات. الآن يعرض رقم الإصدار مباشرة.', en: 'Minor fix: the "Version" row in Settings showed the internal cache-bucket name instead of the actual app version — could appear blank or inaccurate in some cases. Now shows the version number directly.' },
+      { ar: 'إصلاح بسيط: خط الرصيد التراكمي في الرسم البياني عندما يكون مستويًا تمامًا (لا تغيّر) كان يُرسَم بلا أي تسمية رقمية على المحور، بخلاف كل خط آخر.', en: "Minor fix: the running-balance chart line, when perfectly flat (no change), was drawn with no numeric label on the axis at all, unlike every other line shape." },
+    ],
+  },
+  {
     version: 'v48.35',
     date: '2026-07-13',
     title: { ar: 'جولة هيكلية ثالثة عشرة: لا طريقة لإيقاف التوزيع التلقائي بعد تفعيله', en: 'Thirteenth structural round: no way to turn off auto-distribute once enabled' },

@@ -332,6 +332,28 @@ async function _checkSWDriftAtBoot(){
 function setupPWA(){
   applyManifest(document.body.classList.contains('light'), document.body.classList.contains('theme-black'));
 
+  // Capture Android/desktop Chrome's native install prompt as early as
+  // possible (before the SW-support early-return below, in case that check
+  // is ever wrong for a real installable browser) — preventDefault() stops
+  // the browser's own default mini-infobar so the app can show its own
+  // banner at a deliberate moment instead, and the event object is stashed
+  // for a later .prompt() call (it can only be used once, per spec).
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    _deferredInstallPrompt = e;
+    maybeShowInstallBanner();
+  });
+  // Once actually installed (via this prompt OR the browser's own omnibox/
+  // menu install affordance), stop offering it — persisted so a future
+  // launch (a fresh deferred-prompt event, which Chrome can refire) doesn't
+  // re-nag a user who already installed through a path other than this banner.
+  window.addEventListener('appinstalled', () => {
+    _deferredInstallPrompt = null;
+    try{ localStorage.setItem(LS_PREFIX + 'appInstalled', '1'); }catch(_){}
+    const b = document.getElementById('installBanner');
+    if(b) b.classList.remove('show');
+  });
+
   if(!('serviceWorker' in navigator)) return;
 
   // Capture whether a SW was already controlling this page at load time.
@@ -452,4 +474,71 @@ function dismissIosInstallBanner(){
   const b = document.getElementById('iosInstallBanner');
   if(b) b.classList.remove('show');
   try{ localStorage.setItem(LS_PREFIX + 'iosInstallHintSeen', String(Date.now())); }catch(e){}
+}
+
+/* ─── Android/desktop install banner ───
+   The iOS hint above is a manual-instructions fallback for a platform with
+   no install API at all — Chrome/Edge/etc. (Android and desktop) instead
+   fire a real beforeinstallprompt event this app can capture and trigger
+   programmatically, so this path shows an actual "Install" button instead
+   of a dismiss-only text hint. */
+let _deferredInstallPrompt = null; // set by the beforeinstallprompt listener in setupPWA()
+// Same re-ask cooldown reasoning as IOS_INSTALL_HINT_REASK_MS — a single
+// "Later" dismissal shouldn't silence the ONLY in-app install offer forever.
+const INSTALL_BANNER_REASK_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
+function maybeShowInstallBanner(){
+  try{
+    if(!_deferredInstallPrompt || _alreadyInstalledStandalone()) return;
+    let installed = false;
+    try{ installed = localStorage.getItem(LS_PREFIX + 'appInstalled') === '1'; }catch(_){}
+    if(installed) return;
+    let seenAt = 0;
+    try{ seenAt = parseInt(localStorage.getItem(LS_PREFIX + 'installBannerSeen'), 10) || 0; }catch(_){}
+    if(seenAt && Date.now() - seenAt < INSTALL_BANNER_REASK_MS) return;
+    // Same collision-avoidance as maybeShowIosInstallHint — don't compete
+    // with a banner/modal already up; this trigger gets called again from
+    // the same spots the iOS hint is (app.main.js boot delay, closeWelcome),
+    // so a skipped attempt here still gets retried on a later launch.
+    const driveBannerEl = document.getElementById('driveBanner');
+    const updateBannerEl = document.getElementById('updateBanner');
+    const iosBannerEl = document.getElementById('iosInstallBanner');
+    if((driveBannerEl && driveBannerEl.classList.contains('show')) ||
+       (updateBannerEl && updateBannerEl.classList.contains('show')) ||
+       (iosBannerEl && iosBannerEl.classList.contains('show')) ||
+       _anyOverlayOpen()) return;
+    showInstallBanner();
+  }catch(e){}
+}
+function showInstallBanner(){
+  const b = document.getElementById('installBanner');
+  if(!b || b.classList.contains('show')) return;
+  const yes = document.getElementById('btnInstallYes');
+  const later = document.getElementById('btnInstallLater');
+  if(yes) yes.onclick = async () => {
+    const promptEvent = _deferredInstallPrompt;
+    b.classList.remove('show');
+    if(!promptEvent) return;
+    // A beforeinstallprompt event can only be used ONCE — clear the stored
+    // reference before calling prompt() so a stale/already-used event can
+    // never be re-invoked (e.g. if the banner somehow shows again before a
+    // fresh beforeinstallprompt refires).
+    _deferredInstallPrompt = null;
+    try{
+      await promptEvent.prompt();
+      await promptEvent.userChoice;
+      // No explicit re-ask suppression here on either outcome: an "accepted"
+      // choice is already covered by the 'appinstalled' listener (setupPWA)
+      // setting the permanent installed flag; a "dismissed" choice (closed
+      // the native picker without installing) intentionally leaves the
+      // re-ask cooldown untouched — same as a fresh, never-shown state —
+      // since the user didn't interact with THIS app's own banner at all.
+    }catch(e){}
+  };
+  if(later) later.onclick = dismissInstallBanner;
+  requestAnimationFrame(() => b.classList.add('show'));
+}
+function dismissInstallBanner(){
+  const b = document.getElementById('installBanner');
+  if(b) b.classList.remove('show');
+  try{ localStorage.setItem(LS_PREFIX + 'installBannerSeen', String(Date.now())); }catch(e){}
 }

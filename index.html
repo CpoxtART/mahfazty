@@ -34,7 +34,7 @@
      the old SW bucket has never cached, so every file fetches fresh together —
      no mixed old/new set (the v47.74 "Identifier already declared" class);
      offline keeps serving the old index.html whose old ?v= URLs are all cached. -->
-<link rel="stylesheet" href="style.css?v=48.35">
+<link rel="stylesheet" href="style.css?v=48.36">
 </head>
 <body>
 <script>
@@ -1016,6 +1016,22 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
   </div>
 </div>
 
+<!-- Android/desktop Chrome's real, programmatic install prompt (captured via
+     beforeinstallprompt) — the iOS banner above is a manual-instructions
+     fallback for a platform that has no such API at all. -->
+<div id="installBanner" role="dialog" aria-label="تثبيت التطبيق" data-i18n-aria="banner.installAria">
+  <div class="drive-banner-inner">
+    <div class="drive-banner-head">
+      <span class="drive-banner-ic">📲</span>
+      <span class="drive-banner-msg" data-i18n="banner.installAsk">ثبّت التطبيق على جهازك للوصول السريع وحتى بدون إنترنت؟</span>
+    </div>
+    <div class="drive-banner-actions">
+      <button class="drive-banner-later" id="btnInstallLater" type="button" data-i18n="banner.later">لاحقاً</button>
+      <button class="drive-banner-yes" id="btnInstallYes" type="button" data-i18n="banner.installYes">✓ تثبيت</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== UPDATE BANNER ===== -->
 <div id="updateBanner" role="alert" aria-live="assertive">
   <div class="update-banner-inner">
@@ -1093,19 +1109,19 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <!-- ?v= on every script MUST match sw.js's CACHE version — see the style.css
      comment above for why (atomic per-release cache keys); enforced by
      tests/version.test.js. -->
-<script src="i18n.js?v=48.35"></script>
-<script src="changelog.js?v=48.35"></script>
-<script src="app.core.js?v=48.35"></script>
-<script src="app.ui.js?v=48.35"></script>
-<script src="app.voice.js?v=48.35"></script>
-<script src="app.layout.js?v=48.35"></script>
-<script src="app.charts.js?v=48.35"></script>
-<script src="app.drive.js?v=48.35"></script>
-<script src="app.quicknotes.js?v=48.35"></script>
-<script src="app.data.js?v=48.35"></script>
-<script src="app.engage.js?v=48.35"></script>
-<script src="app.pwa.js?v=48.35"></script>
-<script src="app.overlay.js?v=48.35"></script>
-<script src="app.logic.js?v=48.35"></script>
-<script src="app.main.js?v=48.35"></script>
+<script src="i18n.js?v=48.36"></script>
+<script src="changelog.js?v=48.36"></script>
+<script src="app.core.js?v=48.36"></script>
+<script src="app.ui.js?v=48.36"></script>
+<script src="app.voice.js?v=48.36"></script>
+<script src="app.layout.js?v=48.36"></script>
+<script src="app.charts.js?v=48.36"></script>
+<script src="app.drive.js?v=48.36"></script>
+<script src="app.quicknotes.js?v=48.36"></script>
+<script src="app.data.js?v=48.36"></script>
+<script src="app.engage.js?v=48.36"></script>
+<script src="app.pwa.js?v=48.36"></script>
+<script src="app.overlay.js?v=48.36"></script>
+<script src="app.logic.js?v=48.36"></script>
+<script src="app.main.js?v=48.36"></script>
 </body></html>

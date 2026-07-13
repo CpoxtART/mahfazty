@@ -1954,6 +1954,20 @@ body.light .add-drawer .drawer-body input[type=date]{ color-scheme:light; }
 }
 #iosInstallBanner.show{ transform:translateY(0); opacity:1; pointer-events:auto; }
 
+/* ─── Android/desktop install banner (same bottom-sheet shape/positioning as
+   #iosInstallBanner above, just with a real Install action instead of a
+   dismiss-only hint) ─── */
+#installBanner{
+  position:fixed;
+  bottom:calc(58px + env(safe-area-inset-bottom) + 12px);
+  left:12px; right:12px; z-index:1200;
+  pointer-events:none;
+  transform:translateY(calc(100% + 80px));
+  transition:transform .32s var(--ease), opacity .32s var(--ease);
+  opacity:0;
+}
+#installBanner.show{ transform:translateY(0); opacity:1; pointer-events:auto; }
+
 /* ─── UI section wrappers (reorderable; no own box so margins stay intact) ─── */
 .ui-sec{ display:contents; }
 

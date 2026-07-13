@@ -79,10 +79,20 @@ function _updateLangUI(lang){
 
 function setLang(lang){
   lang = (lang === 'en') ? 'en' : 'ar';
+  // Language deliberately has no IDB/Drive backup (see _buildSyncPayload) —
+  // this bare localStorage write is its ONLY persistence path, unlike every
+  // other setting (saveConfig has a staleness flag + toast on the identical
+  // failure). Without this, a write failure here (quota exceeded / private-
+  // mode storage limits) still switched the UI language immediately
+  // (applyLang runs unconditionally below), but silently failed to persist —
+  // initLang() would read the OLD value back on the next real reload and
+  // revert the language with zero explanation.
   try{
     if(lang === 'ar') localStorage.removeItem(_LANG_LS);
     else localStorage.setItem(_LANG_LS, lang);
-  }catch(e){}
+  }catch(e){
+    try{ if(typeof toast === 'function') toast(t({ar:'⚠ فشل حفظ اللغة — قد ترجع للغة السابقة بعد إعادة الفتح', en:'⚠ Failed to save language — it may revert after reopening'}), true); }catch(_){}
+  }
   applyLang(lang);
   _updateLangUI(lang);
   // Rebuild dynamic, t()-driven UI so it picks up the new language + date locale.
@@ -368,6 +378,9 @@ var I18N_STRINGS = {
   'banner.iosInstallAria':{ ar: 'أضِف إلى الشاشة الرئيسية', en: 'Add to Home Screen' },
   'banner.iosInstallMsg': { ar: '📲 لتثبيت التطبيق: اضغط زر المشاركة ⬆️ بالأسفل، ثم اختر "إضافة إلى الشاشة الرئيسية"', en: '📲 To install the app: tap the Share button ⬆️ below, then choose "Add to Home Screen"' },
   'banner.gotIt':         { ar: 'فهمت', en: 'Got it' },
+  'banner.installAria':   { ar: 'تثبيت التطبيق', en: 'Install app' },
+  'banner.installAsk':    { ar: 'ثبّت التطبيق على جهازك للوصول السريع وحتى بدون إنترنت؟', en: 'Install the app on your device for quick, even offline, access?' },
+  'banner.installYes':    { ar: '✓ تثبيت', en: '✓ Install' },
 
   // ── settings modal: header, stats, tabs ──
   'set.title':        { ar: '⚙️ الإعدادات', en: '⚙️ Settings' },
