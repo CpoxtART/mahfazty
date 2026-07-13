@@ -453,3 +453,113 @@ test('pruneTombstones — a deletion within the (400-day) TTL survives, one past
   assert.ok('tx_recent' in ids, 'recent tombstone survives pruning');
   assert.ok(!('tx_stale' in ids), 'expired tombstone is pruned');
 });
+
+// app.logic.js's core money-mutation primitives — previously untested even
+// indirectly (mergeCloudData exercises _applyTrackEffects, a DIFFERENT code
+// path from these two, which back every real tx add/edit/distribute in the app).
+
+test('applyTxToBalance — expense debits, income credits, sign=-1 reverses either', () => {
+  stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 100 } });
+  const exp = { wallet: 'core', amount: 30, type: 'expense' };
+  app.applyTxToBalance(exp, +1);
+  assert.strictEqual(app.state.wallets.core, 70, 'expense debits the wallet');
+  app.applyTxToBalance(exp, -1);
+  assert.strictEqual(app.state.wallets.core, 100, 'sign=-1 exactly reverses the same tx');
+
+  const inc = { wallet: 'core', amount: 20, type: 'income' };
+  app.applyTxToBalance(inc, +1);
+  assert.strictEqual(app.state.wallets.core, 120, 'income credits the wallet');
+});
+
+test('applyTxToBalance — rejects a non-positive/non-finite amount and an orphaned wallet id', () => {
+  stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 100 } });
+  app.applyTxToBalance({ wallet: 'core', amount: 0, type: 'expense' }, +1);
+  app.applyTxToBalance({ wallet: 'core', amount: -5, type: 'expense' }, +1);
+  app.applyTxToBalance({ wallet: 'core', amount: NaN, type: 'expense' }, +1);
+  assert.strictEqual(app.state.wallets.core, 100, 'zero/negative/NaN amounts are silently no-ops');
+  app.applyTxToBalance({ wallet: 'no_such_wallet', amount: 10, type: 'expense' }, +1);
+  assert.strictEqual(app.state.wallets.no_such_wallet, undefined, 'an orphaned wallet id is rejected, not auto-created');
+});
+
+test('applyTxToBalance — trackWallet/trackSign secondary effect moves the linked counter symmetrically', () => {
+  stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 100, uber: 0 } });
+  // trackSign:-1 (debit-style counter, e.g. Uber's running balance): an EXPENSE
+  // paid from core should also LOWER the uber counter.
+  const debitTx = { wallet: 'core', amount: 15, type: 'expense', trackWallet: 'uber', trackSign: -1 };
+  app.applyTxToBalance(debitTx, +1);
+  assert.strictEqual(app.state.wallets.core, 85);
+  assert.strictEqual(app.state.wallets.uber, -15, 'expense with trackSign:-1 lowers the linked counter');
+  app.applyTxToBalance(debitTx, -1);
+  assert.strictEqual(app.state.wallets.core, 100);
+  assert.strictEqual(app.state.wallets.uber, 0, 'reversing (sign:-1) exactly undoes the secondary effect too');
+
+  // trackSign:+1 (credit-style counter): an EXPENSE should RAISE the linked counter instead.
+  const creditTx = { wallet: 'core', amount: 15, type: 'expense', trackWallet: 'uber', trackSign: 1 };
+  app.applyTxToBalance(creditTx, +1);
+  assert.strictEqual(app.state.wallets.uber, 15, 'expense with trackSign:+1 raises the linked counter');
+
+  // income flips the effective direction so add/reverse stay symmetric across types.
+  stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 100, uber: 0 } });
+  const incomeTx = { wallet: 'core', amount: 15, type: 'income', trackWallet: 'uber', trackSign: -1 };
+  app.applyTxToBalance(incomeTx, +1);
+  assert.strictEqual(app.state.wallets.uber, 15, 'income with trackSign:-1 raises the counter (flipped vs. expense)');
+});
+
+test('runDistribution — splits income by percentage, source wallet excluded, track wallets excluded', () => {
+  stage({ defs: FACTORY_DEFS, dist: [{ id: 'wishlist', pct: 60 }, { id: 'giving', pct: 40 }], wallets: { core: 0, wishlist: 0, giving: 0, uber: 0 } });
+  const src = { id: 'tx_src', wallet: 'core', amount: 100, type: 'income', category: 'income', ts: Date.now() };
+  app.state.transactions.push(src);
+  app.applyTxToBalance(src, +1);
+  await_(app.runDistribution(src, 100));
+  assert.strictEqual(app.state.wallets.core, 0, 'the full 100% distributed amount left the source wallet');
+  assert.strictEqual(app.state.wallets.wishlist, 60);
+  assert.strictEqual(app.state.wallets.giving, 40);
+  assert.strictEqual(app.state.wallets.uber, 0, 'track wallets never receive a distribution share');
+});
+
+test('runDistribution — a >100% misconfiguration caps at the income amount, never creates money', () => {
+  stage({ defs: FACTORY_DEFS, dist: [{ id: 'wishlist', pct: 70 }, { id: 'giving', pct: 60 }], wallets: { core: 0, wishlist: 0, giving: 0 } });
+  const src = { id: 'tx_src', wallet: 'core', amount: 100, type: 'income', category: 'income', ts: Date.now() };
+  app.state.transactions.push(src);
+  app.applyTxToBalance(src, +1);
+  await_(app.runDistribution(src, 100));
+  const total = app.round2(app.state.wallets.core + app.state.wallets.wishlist + app.state.wallets.giving);
+  assert.strictEqual(total, 100, '130%-of-income misconfig still conserves money — total across all wallets equals the income');
+  assert.ok(app.state.wallets.core >= 0, 'source wallet never goes negative from over-distribution');
+});
+
+test('runDistribution — a 3-way uneven split still conserves money exactly (no cent created or lost)', () => {
+  // The last active leg absorbs whatever's left of intendedTotal (see runDistribution's
+  // own comment), which by construction keeps allocated===intendedTotal in the normal
+  // case — this pins that invariant across an unevenly-dividing 3-way split, so a future
+  // change to the per-leg proportional math (the non-last-leg branch) can't silently
+  // start leaking or fabricating cents without failing here.
+  stage({ defs: FACTORY_DEFS, dist: [{ id: 'wishlist', pct: 33 }, { id: 'giving', pct: 33 }, { id: 'core', pct: 34 }], wallets: { core: 0, wishlist: 0, giving: 0 } });
+  // source must differ from every distribution target, or that leg is excluded (see runDistribution's own filter)
+  app.applyWalletDefs([...FACTORY_DEFS, { id: 'extra', name: 'Extra', initial: 0, track: false, pct: '0%' }]);
+  app.state.wallets.extra = 0;
+  const src = { id: 'tx_src', wallet: 'extra', amount: 10, type: 'income', category: 'income', ts: Date.now() };
+  app.state.transactions.push(src);
+  app.applyTxToBalance(src, +1);
+  await_(app.runDistribution(src, 10));
+  const total = app.round2(app.state.wallets.extra + app.state.wallets.core + app.state.wallets.wishlist + app.state.wallets.giving);
+  assert.strictEqual(total, 10, 'total across source + all distribution targets still equals the original income');
+});
+
+test('runDistribution — an all-zero-percent DISTRIBUTION leaves the income in place (no-op, not an error)', async () => {
+  stage({ defs: FACTORY_DEFS, dist: [{ id: 'wishlist', pct: 0 }, { id: 'giving', pct: 0 }], wallets: { core: 0, wishlist: 0, giving: 0 } });
+  const src = { id: 'tx_src', wallet: 'core', amount: 100, type: 'income', category: 'income', ts: Date.now() };
+  app.state.transactions.push(src);
+  app.applyTxToBalance(src, +1);
+  const distributed = await app.runDistribution(src, 100);
+  assert.strictEqual(distributed, false, 'reports nothing was distributed');
+  assert.strictEqual(app.state.wallets.core, 100, 'the income stays fully in the source wallet');
+  assert.strictEqual(src.link, undefined, 'no link is stamped on a zero-distribution no-op');
+});
+
+// runDistribution is async but every test above only needs its SYNCHRONOUS
+// state mutations, which all complete before the first `await` inside it
+// (saveTx/saveBalances) — awaiting the promise here keeps node's test runner
+// from flagging an unhandled rejection if a stub ever throws, without forcing
+// every call site above into an async test function.
+function await_(promise){ promise.catch(() => {}); }

@@ -22,6 +22,15 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.31',
+    date: '2026-07-13',
+    title: { ar: 'جولة هيكلية ثامنة: زر حذف المعاملة بالسحب مقلوب باللغة الإنجليزية', en: 'Eighth structural round: transaction swipe-to-delete reversed in English mode' },
+    items: [
+      { ar: 'إصلاح عالي: عند تفعيل اللغة الإنجليزية، سحب معاملة للحذف كان يُخفي تسمية "🗑 Delete" طوال مدى السحب الطبيعي تقريبًا (تظهر فقط في اللحظة الأخيرة) — لأن تنسيق الخلفية كان يفترض أن اتجاه السحب الفعلي (لليسار دائمًا) يتغير مع تبديل اللغة، بينما لا يتغير. تم إصلاحه بنفس النمط المستخدم لعناصر أخرى بالتطبيق عند التبديل لـ LTR.', en: 'High fix: with English mode active, swiping a transaction to delete it hid the "🗑 Delete" label for nearly the entire normal swipe range (only appearing at the very last moment) — because the background styling assumed the actual swipe direction (always physically left) flips with the language, when it doesn\'t. Fixed using the same LTR-mirroring pattern already used for other elements in the app.' },
+      { ar: 'تحسين اختبارات: إضافة تغطية مباشرة لدوال حساب الأموال الأساسية (applyTxToBalance و runDistribution) التي لم تكن مُختبرة إطلاقًا من قبل رغم أنها الأساس لكل إضافة/تعديل/توزيع معاملة في التطبيق — 7 اختبارات جديدة تغطي: الخصم/الإضافة الأساسية، رفض القيم غير الصالحة، تأثير المحفظة المتتبَّعة المرتبطة، توزيع الدخل بنسب مختلفة، تجاوز 100% في التوزيع، وحفظ الأموال عند القسمة غير المتساوية.', en: "Test improvement: added direct coverage for the core money-calculation functions (applyTxToBalance and runDistribution), which had no test coverage at all despite backing every transaction add/edit/distribution in the app — 7 new tests covering: basic debit/credit, rejecting invalid values, the linked tracked-wallet effect, splitting income by percentage, a >100% distribution misconfiguration, and money conservation on an unevenly-dividing split." },
+    ],
+  },
+  {
     version: 'v48.30',
     date: '2026-07-13',
     title: { ar: 'إصلاح مؤجَّل مهم: محفظتان بنفس الاسم، وعطل محتمل بقائمة اختيار المحفظة', en: 'Important deferred fix: two identically-named wallets, and a potential wallet-picker outage' },

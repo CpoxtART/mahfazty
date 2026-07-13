@@ -2050,6 +2050,20 @@ html[dir="ltr"] .wallet.track .bar i{
 html[dir="ltr"] .section-title::after{
   background:linear-gradient(to right, var(--line-soft), transparent);
 }
+/* .tx-swipe-bg's inline-start alignment (see its own comment) assumes the
+   row's PHYSICAL slide direction flips with dir — it doesn't: the swipe
+   handler (bindSwipeDelegation, app.ui.js) always clamps to physical-LEFT
+   regardless of language, since inline-start only means physical-right under
+   RTL. In English (dir="ltr") mode, inline-start/flex-start resolve to
+   physical-LEFT instead — the exact side that stays covered as the row
+   slides left — reproducing the same "label invisible for the whole normal
+   swipe range" bug the original comment describes fixing, just for the
+   other language. Mirror back to the physical-right edge here.       */
+html[dir="ltr"] .tx-swipe-bg{
+  justify-content:flex-end;
+  padding-inline-start:0;
+  padding-inline-end:18px;
+}
 
 /* ============================================================
    v47.65 — Inline-style extraction

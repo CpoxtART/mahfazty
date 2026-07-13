@@ -117,6 +117,13 @@ function loadApp() {
       applyWalletDefs, _ensureReserveShare, mergeCloudData, _applyTrackEffects,
       isValidTx, _ingestWalletDefs, _ingestWalletBalances, _restoreWalletBalances,
       isValidSubShape,
+      // app.logic.js's core money-mutation primitives — previously untested even
+      // indirectly (mergeCloudData exercises _applyTrackEffects, a DIFFERENT code
+      // path, not these). Both are pure enough to call directly against a staged
+      // state/WALLET_DEFS/DISTRIBUTION: applyTxToBalance never touches the DOM,
+      // and runDistribution's only side effects beyond state are saveBalances()/
+      // saveTx(), which resolve harmlessly against the sandbox's no-op stubs.
+      applyTxToBalance, runDistribution,
       // the tombstone maps are REASSIGNED by some code paths (loadState, adopt) —
       // accessors keep the tests pointed at the live object, not a stale capture.
       getDeletedWalletDefIds: () => deletedWalletDefIds,
