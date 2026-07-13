@@ -418,6 +418,14 @@ function onQuickNotesInput(){
   _quickNotesDraft = ta.value;
   saveQuickNotesDraft();
   updateQuickNotesBadge();
+  // The raw textarea stays visible and editable alongside an already-generated
+  // preview (nothing hides/disables it) — without this, editing the text after
+  // previewing (fixing a typo'd amount, deleting a line) left Confirm still
+  // committing the OLD, now-mismatched _qnPreview rows: wrong amounts posted,
+  // or a line the user just deleted from the text still recorded as a real
+  // transaction. Invalidate the stale preview the moment the text changes,
+  // forcing a re-parse before Confirm is reachable again.
+  if(_qnPreview.length) cancelQuickNotesPreview();
 }
 
 function parseQuickNotesPreview(){
@@ -658,12 +666,22 @@ async function commitQuickNotes(){
     await saveTx(); // saveTx first — see app.logic.js's addTx comment
     await saveBalances();
     // Auto-distribute income legs only when the user already enabled it — bulk
-    // entry shouldn't pop a distribution modal per income line.
+    // entry shouldn't pop a distribution modal per income line. The commit
+    // above already succeeded and is durably saved regardless of what happens
+    // here — wrapped in try/catch so a failure partway through distributing
+    // (e.g. a stale wallet config) can't skip the cleanup/close/success-toast
+    // below. Without this, a thrown error left the modal open with the SAME
+    // stale preview and an enabled Confirm button, with no indication the
+    // transactions had already been recorded — tempting the user to tap
+    // Confirm again and post every line a second time.
+    let _distFailed = false;
     if(autoDistribute && incomeTxs.length){
-      for(const inc of incomeTxs){
-        const live = state.transactions.find(t => t.id === inc.id);
-        if(live) await runDistribution(live, live.amount);
-      }
+      try{
+        for(const inc of incomeTxs){
+          const live = state.transactions.find(t => t.id === inc.id);
+          if(live) await runDistribution(live, live.amount);
+        }
+      }catch(e){ _distFailed = true; }
     }
     // Notes consumed — clear the draft so they're not re-imported next time.
     _quickNotesDraft = ''; saveQuickNotesDraft();
@@ -673,7 +691,9 @@ async function commitQuickNotes(){
     render();
     closeModal('quickNotesModal');
     haptic(15);
-    toast(t({ar:`✓ تم تسجيل ${n} معاملة`, en:`✓ Recorded ${n} transaction${n===1?'':'s'}`}));
+    toast(_distFailed
+      ? t({ar:`✓ تم تسجيل ${n} معاملة (تعذّر توزيع بعض الدخل تلقائيًا — راجعه يدويًا)`, en:`✓ Recorded ${n} transaction${n===1?'':'s'} (some income couldn't auto-distribute — check it manually)`}, true)
+      : t({ar:`✓ تم تسجيل ${n} معاملة`, en:`✓ Recorded ${n} transaction${n===1?'':'s'}`}));
   } finally {
     _qnCommitBusy = false;
     _opInFlight--;

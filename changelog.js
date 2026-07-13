@@ -22,6 +22,17 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.34',
+    date: '2026-07-13',
+    title: { ar: 'جولة هيكلية ثانية عشرة: معاينة ملاحظات سريعة قديمة، وتنبيه غير متصل مزعج', en: 'Twelfth structural round: stale Quick Notes preview, and a disruptive offline toast' },
+    items: [
+      { ar: 'إصلاح عالي: بعد توليد معاينة الملاحظات السريعة، كان بإمكان المستخدم تعديل النص الخام مجددًا بلا إعادة توليد المعاينة — وزر "تأكيد" يبقى يحفظ المعاينة القديمة غير المطابقة للنص الجديد، فيسجّل مبالغ خاطئة أو سطرًا كان المستخدم قد حذفه فعليًا. الآن يُلغى عرض المعاينة تلقائيًا عند أي تعديل إضافي للنص، ليعيد المستخدم التوليد أولًا.', en: "High fix: after generating a Quick Notes preview, the user could edit the raw text again without re-generating the preview — Confirm still saved the OLD, now-mismatched preview, recording wrong amounts or a line the user had actually deleted. The preview is now automatically invalidated on any further text edit, forcing a re-parse first." },
+      { ar: 'إصلاح عالي: عند تسجيل عدة معاملات دفعة واحدة من الملاحظات السريعة مع التوزيع التلقائي مفعّل، أي خطأ أثناء توزيع دخل واحد كان يمنع إغلاق النافذة ومسح المسودة رغم أن كل المعاملات كانت قد حُفظت فعليًا — يترك المستخدم معتقدًا أن الحفظ فشل وقد يضغط "تأكيد" مجددًا فتُسجَّل كل المعاملات مرة ثانية.', en: 'High fix: when committing multiple transactions at once from Quick Notes with auto-distribute enabled, any error while distributing one income entry blocked the modal from closing and the draft from clearing — even though every transaction had already been saved — leaving the user thinking the save failed and possibly tapping Confirm again, re-posting every line a second time.' },
+      { ar: 'إصلاح متوسط: نافذة إعدادات محرر التوزيع كانت الوحيدة من بين النوافذ المشابهة (تعديل محفظة، اشتراك) التي تُفقد تعديلاتها غير المحفوظة بلمسة خلفية عرضية أو سحبة إغلاق — بلا أي تأكيد.', en: "Medium fix: the settings modal hosting the distribution editor was the one modal, among its otherwise-identical siblings (edit wallet, subscription), that silently discarded unsaved percentage edits on an accidental backdrop tap or swipe-dismiss — with zero confirmation." },
+      { ar: 'إصلاح متوسط: إضافة معاملة أثناء عدم الاتصال بالإنترنت (مع تفعيل مزامنة Drive) كانت تُظهر "✓ تم التسجيل" ثم بعد ثانية ونصف تُستبدل برسالة حمراء "لا يوجد اتصال" من محاولة مزامنة تلقائية فاشلة — رغم أن المعاملة محفوظة فعليًا بأمان محليًا. الآن تُتخطى محاولة المزامنة التلقائية الحتمية الفشل أثناء عدم الاتصال، وتحدث المزامنة فورًا عند عودة الاتصال كالمعتاد.', en: "Medium fix: adding a transaction while offline (with Drive sync enabled) showed \"✓ Recorded\" then, 1.5 seconds later, had it replaced by a red \"no internet connection\" message from a failed automatic sync attempt — even though the transaction was already safely saved locally. The doomed automatic sync attempt is now skipped while offline; sync still happens immediately once connectivity returns, as before." },
+    ],
+  },
+  {
     version: 'v48.33',
     date: '2026-07-13',
     title: { ar: 'جولة هيكلية حادية عشرة: تصفية عبر التبويبات، وتجاهل دائم لاقتراح متكرر', en: 'Eleventh structural round: cross-tab data reload timing, and a permanently-stuck recurring suggestion' },

@@ -1334,7 +1334,19 @@ function driveManualSync(){
 function scheduleDriveSync(){
   if(!driveAccessToken) return;
   clearTimeout(driveSyncTimer);
-  driveSyncTimer = setTimeout(()=> { if(driveAccessToken) driveSyncToCloud(); }, 1500);
+  driveSyncTimer = setTimeout(()=> {
+    // Known-offline: attempting anyway is doomed, and its failure toast ("No
+    // internet — saving locally only") clobbers whatever's currently showing
+    // on the SAME toast element — most jarringly the "✓ Expense recorded"
+    // success message from the local save that just triggered this, making a
+    // perfectly normal offline save look like it failed. Skip the futile
+    // attempt entirely; the 'online' handler (app.main.js) already forces a
+    // fresh sync the moment connectivity returns, so nothing pending is lost.
+    // A user-initiated "Sync Now" tap (driveManualSync) is unaffected — it
+    // still attempts and reports an accurate failure if tapped while offline,
+    // which is expected, relevant feedback for that explicit action.
+    if(driveAccessToken && navigator.onLine) driveSyncToCloud();
+  }, 1500);
 }
 
 function initDrive(){

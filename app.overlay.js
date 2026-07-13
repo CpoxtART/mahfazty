@@ -308,6 +308,13 @@ const _protectedModals = new Set(['editModal','transferModal','distributeModal',
   // subscription name silently discarded it with no confirmation, unlike
   // every sibling modal with the same risk profile.
   'walletDefModal', 'subModal',
+  // settingsModal hosts the distribution editor's unsaved _distDraft percentage
+  // edits (and the import-JSON textarea) — same risk profile as walletDefModal/
+  // subModal above, but missing from this set: closeModal('settingsModal')
+  // unconditionally nulls _distDraft (see its own comment there) with zero
+  // confirmation, so an accidental backdrop tap or swipe-down mid-edit silently
+  // discarded every unsaved percentage change.
+  'settingsModal',
   // driveConflictModal has no cancel path — the user MUST pick a side via
   // resolveConflict(); a backdrop tap dismissing it silently would leave the
   // conflict unresolved with no indication the sync never completed.
