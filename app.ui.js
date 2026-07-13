@@ -1897,7 +1897,11 @@ function detectRecurring(){
   // Tracked subscriptions the user already accepted shouldn't be re-suggested —
   // compare normalized name + amount within 15% (same tolerance as the variance
   // check below) so the matching transaction group is skipped entirely.
-  const trackedSubs = subscriptions.map(s => ({ name: normalizeSearch(s.name), amount: s.amount })).filter(s => s.name.length > 0 && s.amount > 0);
+  // active!==false: same convention every other subscription consumer in this
+  // app uses (renderSubscriptions' total, buildDailyReviewContent's due-today
+  // and catch-up scans) — a paused subscription shouldn't keep suppressing an
+  // otherwise-legitimate recurring-transaction suggestion for its name/amount.
+  const trackedSubs = subscriptions.filter(s => s.active !== false).map(s => ({ name: normalizeSearch(s.name), amount: s.amount })).filter(s => s.name.length > 0 && s.amount > 0);
   function matchesTrackedSub(desc, avg){
     const normDesc = normalizeSearch(desc);
     if(!normDesc) return false;

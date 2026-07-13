@@ -736,7 +736,15 @@ window.addEventListener('storage', (e) => {
         // reloading here would silently wipe it from memory, and the debounce
         // callback would then persist that now-amputated state right over the
         // other tab's data.
-        if(_opInFlight > 0 || _idbWriteInFlight > 0 || _idbBackupTimer){ _storageSyncTimer = setTimeout(_trySync, 250); return; }
+        // Re-check modal/add-drawer state on EVERY retry, not just once before
+        // scheduling (the check above only ran a single time, before this timer
+        // was even set) — a modal/drawer opened DURING one of the waits below
+        // (e.g. the user starts editing a transaction while this tab is still
+        // waiting out another tab's in-flight write) was otherwise still wiped
+        // out from under it the instant the wait cleared, same class of bug the
+        // matching guard in _mergeCloudIntoLocal (app.drive.js) exists to avoid
+        // via _waitForClear's re-evaluated `blocked` callback.
+        if(document.querySelector('.modal-overlay.open') || addDrawerOpen || _opInFlight > 0 || _idbWriteInFlight > 0 || _idbBackupTimer){ _storageSyncTimer = setTimeout(_trySync, 250); return; }
         // NOTE: the in-flight flags above are per-tab — this tab can't see that the
         // OTHER tab still has an IDB_BACKUP_DEBOUNCE_MS scheduleIdbBackup() debounce
         // pending (its localStorage 'lastEdit' write already fired this event

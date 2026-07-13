@@ -1850,7 +1850,16 @@ async function saveTx(){
   scheduleIdbBackup(ts);
 }
 function _pruneRecurringDismissals(){
-  if(dismissedRecurring.size < 40) return;
+  // Was gated at 40 — the live-transaction cleanup below is the ONLY way a
+  // mistaken dismissal (a false-positive "recurring" pattern, or two
+  // coincidentally similar one-off expenses) ever gets a chance to be
+  // reconsidered: delete the transactions that triggered it and the stale key
+  // is pruned, letting a genuinely new recurring pattern with that same
+  // desc+wallet surface again later. A typical user dismisses at most a
+  // handful of DISTINCT patterns over the app's whole lifetime, so 40 was
+  // effectively unreachable — the cleanup this function exists to do never
+  // ran for almost anyone, making dismissal indistinguishable from permanent.
+  if(dismissedRecurring.size < 5) return;
   // dismissal keys are "desc\x00walletId" (see detectRecurring, which keys on
   // normalizeSearch(desc)) — build the live set with the SAME shape, otherwise
   // NONE of the keys ever match and we wipe every dismissal at once, making

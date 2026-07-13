@@ -22,6 +22,16 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.33',
+    date: '2026-07-13',
+    title: { ar: 'جولة هيكلية حادية عشرة: تصفية عبر التبويبات، وتجاهل دائم لاقتراح متكرر', en: 'Eleventh structural round: cross-tab data reload timing, and a permanently-stuck recurring suggestion' },
+    items: [
+      { ar: 'إصلاح متوسط: عند فتح التطبيق بتبويبين، لو بدأ تبويب بتحديث بياناته من تبويب آخر بينما لا توجد نافذة مفتوحة، ثم فتح المستخدم نافذة تعديل معاملة أثناء فترة الانتظار القصيرة — كانت البيانات تُعاد تحميلها فوق التعديل الجاري بلا تحذير. الآن يُعاد التحقق من حالة النوافذ في كل محاولة، لا مرة واحدة فقط.', en: "Medium fix: with two tabs open, if one tab started reloading its data from another tab's change while no modal was open, and the user then opened an edit-transaction modal during the brief wait — the data reload proceeded anyway, silently overwriting the in-progress edit. Modal/drawer state is now re-checked on every retry, not just once." },
+      { ar: 'إصلاح متوسط: تجاهل اقتراح "معاملة متكررة" (سواء بالرفض الصريح أو بالخطأ) كان دائمًا نهائيًا — لا توجد طريقة لإعادة النظر فيه إلا بمسح كل بيانات التطبيق. الآلية الوحيدة القادرة على تصحيح هذا (حذف المعاملات المسبِّبة يُعيد فتح الاقتراح لاحقًا) كانت مُفعَّلة فقط بعد تراكم 40 تجاهلًا مختلفًا — رقم لا يصل إليه معظم المستخدمين أبدًا عمليًا. تم خفضه لرقم واقعي.', en: 'Medium fix: dismissing a "recurring transaction" suggestion (whether intentional or accidental) was effectively permanent — the only way to reconsider it was wiping all app data. The one mechanism that could fix this (deleting the underlying transactions re-opens the suggestion later) only activated after accumulating 40 distinct dismissals — a number most users never realistically reach. Lowered to a reachable threshold.' },
+      { ar: 'إصلاح بسيط: اقتراح المعاملة المتكررة كان يظل مخفيًا بسبب اشتراك متوقف مؤقتًا (غير نشط) يطابق نفس الاسم/المبلغ — بخلاف كل استخدام آخر للاشتراكات بالتطبيق الذي يستثني الاشتراكات المتوقفة بالفعل.', en: 'Minor fix: a recurring-transaction suggestion stayed suppressed by a paused (inactive) subscription matching the same name/amount — unlike every other subscription consumer in the app, which already correctly excludes paused ones.' },
+    ],
+  },
+  {
     version: 'v48.32',
     date: '2026-07-13',
     title: { ar: 'جولة هيكلية عاشرة: تراجع مفقود بصمت، محفظة صوتية مشوَّهة، تحويل مالي بعد تبديل الوضع', en: 'Tenth structural round: silently lost undo, garbled voice description, transfer after mode switch' },
