@@ -22,6 +22,16 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.35',
+    date: '2026-07-13',
+    title: { ar: 'جولة هيكلية ثالثة عشرة: لا طريقة لإيقاف التوزيع التلقائي بعد تفعيله', en: 'Thirteenth structural round: no way to turn off auto-distribute once enabled' },
+    items: [
+      { ar: 'إصلاح عالي: خيار "وزّع كل دخل قادم تلقائيًا بدون سؤال" (يُفعَّل من نافذة التوزيع) ما كان له أي طريقة لإيقافه لاحقًا — تلك النافذة نفسها لا تفتح مجددًا بمجرد تفعيل الخيار، فتصبح غير قابلة للوصول أبدًا. أُضيف مفتاح لنفس الخيار في الإعدادات ← نسب التوزيع التلقائي، يبقى متاحًا للتشغيل والإيقاف في أي وقت.', en: 'High fix: the "auto-distribute all future income without asking" option (enabled from the distribution modal) had no way to be turned back off — that same modal stops opening the instant the option is enabled, making it permanently unreachable. Added a toggle for the same setting in Settings → Distribution ratios, always reachable to turn on or off.' },
+      { ar: 'إصلاح متوسط: تلميح "أضف للشاشة الرئيسية" على iOS Safari له زر واحد فقط ("فهمت") — أي إغلاق له (حتى بالخطأ) كان يُسكته نهائيًا مدى العمر، رغم أنه التعليمات الوحيدة داخل التطبيق لطريقة التثبيت على iOS. الآن يُعاد عرضه بعد فترة كافية إذا لم يُثبَّت التطبيق بعد، بدل الإسكات الدائم.', en: 'Medium fix: the "Add to Home Screen" hint on iOS Safari has only one button ("Got it") — dismissing it, even accidentally, silenced it permanently for the lifetime of that browser\'s storage, despite being the only in-app instruction for how to install on iOS. It now re-appears after a reasonable cooldown if the app still hasn\'t been installed, instead of being suppressed forever.' },
+      { ar: 'إصلاح متوسط (إتاحة): إعادة ترتيب محفظة بأزرار ▲/▼ عبر لوحة المفاتيح في "إدارة المحافظ" كانت تفقد التركيز بعد كل ضغطة واحدة، فيضطر المستخدم لإعادة التنقل بـTab من أعلى الصفحة بين كل خطوة — نفس الخلل الذي أُصلح مسبقًا لبطاقات المحافظ الرئيسية لكنه لم يُطبَّق على شاشة الإعدادات هذي.', en: "Medium fix (accessibility): keyboard-reordering a wallet with the ▲/▼ buttons in \"Manage Wallets\" lost focus after every single press, forcing the user to re-Tab from the top of the page between each step — the same issue already fixed for the main wallet cards, but never applied to this settings screen." },
+    ],
+  },
+  {
     version: 'v48.34',
     date: '2026-07-13',
     title: { ar: 'جولة هيكلية ثانية عشرة: معاينة ملاحظات سريعة قديمة، وتنبيه غير متصل مزعج', en: 'Twelfth structural round: stale Quick Notes preview, and a disruptive offline toast' },

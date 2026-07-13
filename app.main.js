@@ -465,6 +465,7 @@ function _bindEvents(){
   on($('btnDriveAutoAlways'),'click',enableDriveAutoSignIn);
   on($('btnDriveAutoNotNow'),'click',dismissDriveAutoSignInPrompt);
   on($('driveAutoSignInChk'),'change',e=>setDriveAutoSignIn(e.target.checked));
+  on($('autoDistributeSettingsChk'),'change',e=>setAutoDistributeFromSettings(e.target.checked));
   on($('btnChangeDriveClientId'),'click',changeDriveClientId);
   on($('btnRepairBalances'),'click',repairBalancesFromLedger);
   on($('btnZeroTracked'),'click',zeroTrackedWallets);

@@ -299,6 +299,16 @@ function saveAutoDistributePref(){
     saveConfig();
   }
 }
+// Settings-panel twin of the checkbox above — distributeModal only opens
+// before autoDistribute is ever true (see addTx), so once a user checks it
+// there, that checkbox becomes permanently unreachable and this Settings
+// toggle is the only remaining way to turn the preference back off.
+function setAutoDistributeFromSettings(checked){
+  if(checked !== autoDistribute){
+    autoDistribute = checked;
+    saveConfig();
+  }
+}
 
 // Moves the income amount out of the wallet it was deposited into,
 // and distributes it across DISTRIBUTION wallets according to their %.

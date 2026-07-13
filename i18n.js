@@ -420,6 +420,8 @@ var I18N_STRINGS = {
   'set.driveAutoNotNow':{ ar: 'ليس الآن', en: 'Not now' },
   'set.driveAutoRowTitle':{ ar: 'الاتصال التلقائي عند الفتح', en: 'Auto-connect on open' },
   'set.driveAutoRowSub':{ ar: 'يتصل تلقائياً ما دامت جلسة Google نشطة', en: 'Connects automatically as long as the Google session is active' },
+  'set.autoDistTitle':{ ar: 'توزيع كل دخل قادم تلقائيًا', en: 'Auto-distribute all future income' },
+  'set.autoDistSub':{ ar: 'بدون سؤال في كل مرة — عطّله هنا للعودة للتأكيد اليدوي', en: 'Without asking each time — turn it off here to go back to manual confirmation' },
   'set.driveChangeId':{ ar: 'تغيير Client ID', en: 'Change Client ID' },
 
   'set.maintHead':    { ar: '🔧 صيانة الأرصدة', en: '🔧 Balance Maintenance' },

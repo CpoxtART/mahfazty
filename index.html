@@ -34,7 +34,7 @@
      the old SW bucket has never cached, so every file fetches fresh together —
      no mixed old/new set (the v47.74 "Identifier already declared" class);
      offline keeps serving the old index.html whose old ?v= URLs are all cached. -->
-<link rel="stylesheet" href="style.css?v=48.34">
+<link rel="stylesheet" href="style.css?v=48.35">
 </head>
 <body>
 <script>
@@ -500,6 +500,19 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
           <div class="modal-actions modal-actions--tight">
             <button class="btn-secondary" id="btnSaveDistribution" data-i18n="set.saveRatios">حفظ النسب</button>
             <button class="btn-secondary" id="btnResetDistribution" data-i18n="set.resetDefault">استعادة الافتراضي</button>
+          </div>
+          <!-- The only OTHER place this checkbox exists is inside distributeModal —
+               reachable only when addTx() opens it, which stops happening the instant
+               autoDistribute becomes true (see addTx's own branch). Once a user
+               checked it there, this was the sole way to ever turn it back off. -->
+          <div id="autoDistributeSettingsRow">
+            <label class="drive-auto-lbl">
+              <input type="checkbox" id="autoDistributeSettingsChk">
+              <div>
+                <div class="drive-auto-row-ttl" data-i18n="set.autoDistTitle">توزيع كل دخل قادم تلقائيًا</div>
+                <div class="drive-auto-row-sub" data-i18n="set.autoDistSub">بدون سؤال في كل مرة — عطّله هنا للعودة للتأكيد اليدوي</div>
+              </div>
+            </label>
           </div>
         </div>
       </div>
@@ -1080,19 +1093,19 @@ try{ if(localStorage.getItem('walletTracker_lang')==='en') document.getElementBy
 <!-- ?v= on every script MUST match sw.js's CACHE version — see the style.css
      comment above for why (atomic per-release cache keys); enforced by
      tests/version.test.js. -->
-<script src="i18n.js?v=48.34"></script>
-<script src="changelog.js?v=48.34"></script>
-<script src="app.core.js?v=48.34"></script>
-<script src="app.ui.js?v=48.34"></script>
-<script src="app.voice.js?v=48.34"></script>
-<script src="app.layout.js?v=48.34"></script>
-<script src="app.charts.js?v=48.34"></script>
-<script src="app.drive.js?v=48.34"></script>
-<script src="app.quicknotes.js?v=48.34"></script>
-<script src="app.data.js?v=48.34"></script>
-<script src="app.engage.js?v=48.34"></script>
-<script src="app.pwa.js?v=48.34"></script>
-<script src="app.overlay.js?v=48.34"></script>
-<script src="app.logic.js?v=48.34"></script>
-<script src="app.main.js?v=48.34"></script>
+<script src="i18n.js?v=48.35"></script>
+<script src="changelog.js?v=48.35"></script>
+<script src="app.core.js?v=48.35"></script>
+<script src="app.ui.js?v=48.35"></script>
+<script src="app.voice.js?v=48.35"></script>
+<script src="app.layout.js?v=48.35"></script>
+<script src="app.charts.js?v=48.35"></script>
+<script src="app.drive.js?v=48.35"></script>
+<script src="app.quicknotes.js?v=48.35"></script>
+<script src="app.data.js?v=48.35"></script>
+<script src="app.engage.js?v=48.35"></script>
+<script src="app.pwa.js?v=48.35"></script>
+<script src="app.overlay.js?v=48.35"></script>
+<script src="app.logic.js?v=48.35"></script>
+<script src="app.main.js?v=48.35"></script>
 </body></html>

@@ -281,6 +281,14 @@ function toggleCategoryFilter(catId){
 function renderWalletDefsEditor(){
   const host = document.getElementById('walletDefsEditor');
   if(!host) return;
+  // Same focus-loss risk renderWallets() already guards against — a keyboard
+  // or screen-reader user pressing ▲/▼ repeatedly to reorder a wallet several
+  // positions had focus silently dropped to <body> after EVERY single press
+  // (this host's full innerHTML rebuild below destroys the just-clicked
+  // button), forcing a full re-tab from the top of the page between each step.
+  const _focusedBtn = host.contains(document.activeElement) ? document.activeElement : null;
+  const _focusedAct = _focusedBtn ? _focusedBtn.dataset.act : null;
+  const _focusedWid = _focusedBtn ? _focusedBtn.dataset.wid : null;
   const group = track => {
     const list = WALLET_DEFS.filter(w => w.track === track);
     return list.map((w,i) => {
@@ -333,6 +341,17 @@ function renderWalletDefsEditor(){
   host.querySelectorAll('button[data-act]').forEach(b => {
     b.onclick = () => WD_ACTS[b.dataset.act](b.dataset.wid);
   });
+  if(_focusedAct && _focusedWid){
+    // Same button (e.g. tapped ▲ again to keep moving a wallet up) if it still
+    // exists and isn't disabled (a wallet that just reached the top has its ▲
+    // disabled) — otherwise fall back to any other action button on the same
+    // row (e.g. ▼, now that ▲ is gone) so focus stays on that wallet's
+    // controls rather than being stranded, and only lands on <body> if the
+    // wallet itself no longer exists (e.g. just deleted).
+    const sameBtn = host.querySelector(`button[data-act="${_focusedAct}"][data-wid="${_focusedWid}"]:not(:disabled)`);
+    const fallbackBtn = sameBtn || host.querySelector(`button[data-wid="${_focusedWid}"]:not(:disabled)`);
+    if(fallbackBtn) try{ fallbackBtn.focus(); }catch(_){}
+  }
 }
 
 // Refresh every cache/UI surface that reads wallet id/name/order, beyond the
@@ -1530,6 +1549,13 @@ function renderDistributionEditor(preserveEdits){
     _distDraft = DISTRIBUTION.map(d=>({...d}));
     if(preserveEdits) _distDraft.forEach(d => { if(preserveEdits.has(d.id)) d.pct = preserveEdits.get(d.id); });
   }
+  // Reflects the SAME autoDistribute value distributeModal's own checkbox
+  // controls — that modal only opens once, before autoDistribute is ever
+  // true (see addTx), so this Settings toggle is the only way to turn it
+  // back off afterward. Synced here (not just set-once at boot) so it stays
+  // correct if autoDistribute changes elsewhere while Settings is open.
+  const _adChk = document.getElementById('autoDistributeSettingsChk');
+  if(_adChk) _adChk.checked = autoDistribute;
   const wrap = document.getElementById('distributionEditor');
   wrap.innerHTML = '';
   _distDraft.forEach((d,i)=>{

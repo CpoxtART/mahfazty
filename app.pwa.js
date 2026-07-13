@@ -416,12 +416,20 @@ function _alreadyInstalledStandalone(){
   return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
     window.navigator.standalone === true;
 }
+// Re-ask cooldown (not a one-time-forever flag) — a plain '1' flag (the old
+// behavior) meant ANY dismissal, even an accidental tap on the hint's single
+// "فهمت/Got it" button (there's no distinct "remind me later" vs "never ask
+// again"), permanently silenced the ONLY in-app instruction for how to
+// install on iOS, for the lifetime of that browser's storage. Same class of
+// "suppressed forever" bug fixed for recurring-transaction dismissals in an
+// earlier round — re-show after a long-enough gap that it can't feel naggy.
+const IOS_INSTALL_HINT_REASK_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
 function maybeShowIosInstallHint(){
   try{
     if(!_isRealIosSafari() || _alreadyInstalledStandalone()) return;
-    let seen = false;
-    try{ seen = localStorage.getItem(LS_PREFIX + 'iosInstallHintSeen') === '1'; }catch(_){}
-    if(seen) return;
+    let seenAt = 0;
+    try{ seenAt = parseInt(localStorage.getItem(LS_PREFIX + 'iosInstallHintSeen'), 10) || 0; }catch(_){}
+    if(seenAt && Date.now() - seenAt < IOS_INSTALL_HINT_REASK_MS) return;
     // Don't compete with a banner/modal already up — simply skip this
     // launch (no retry loop, unlike showDriveBanner) and try again next
     // time; this is a one-time convenience hint, not a required action.
@@ -443,5 +451,5 @@ function showIosInstallBanner(){
 function dismissIosInstallBanner(){
   const b = document.getElementById('iosInstallBanner');
   if(b) b.classList.remove('show');
-  try{ localStorage.setItem(LS_PREFIX + 'iosInstallHintSeen', '1'); }catch(e){}
+  try{ localStorage.setItem(LS_PREFIX + 'iosInstallHintSeen', String(Date.now())); }catch(e){}
 }

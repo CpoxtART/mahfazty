@@ -2082,6 +2082,7 @@ html[dir="ltr"] .tx-swipe-bg{
 #driveSignedInActions{ display:none; }
 #driveAutoSignInPrompt{ display:none; margin-top:10px; padding:12px; background:var(--blue-soft); border:1px solid var(--blue); border-radius:var(--radius-sm); }
 #driveAutoSignInRow  { display:none; margin-top:10px; padding:10px 12px; background:var(--card2); border-radius:var(--radius-sm); }
+#autoDistributeSettingsRow { margin-top:10px; padding:10px 12px; background:var(--card2); border-radius:var(--radius-sm); }
 #importFile          { display:none; }
 #qnPreviewWrap       { display:none; }
 #detailBudgetSetting { display:none; margin-bottom:14px; }
