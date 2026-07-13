@@ -346,10 +346,20 @@ function exportMonthlyReport(){
 }
 
 function _copyReportToClipboard(report){
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(report).then(()=>{
-      toast(t({ar:'✓ تم نسخ التقرير للحافظة', en:'✓ Report copied to clipboard'}));
-    }).catch(()=> _legacyCopyOrDownload(report));
+  // typeof check (not just truthy navigator.clipboard) — some non-evergreen
+  // environments (older embedded WebViews, some PWA-wrapper/TWA shells, a
+  // restrictive Permissions-Policy) expose a clipboard object with writeText
+  // stripped rather than rejecting. Calling it directly in that case throws a
+  // SYNCHRONOUS TypeError before .then/.catch is even attached, which used to
+  // propagate straight out of this function uncaught — silently skipping
+  // every fallback below it (legacy copy, then file download) with no toast
+  // and no recovery at all.
+  if(navigator.clipboard && typeof navigator.clipboard.writeText === 'function'){
+    try{
+      navigator.clipboard.writeText(report).then(()=>{
+        toast(t({ar:'✓ تم نسخ التقرير للحافظة', en:'✓ Report copied to clipboard'}));
+      }).catch(()=> _legacyCopyOrDownload(report));
+    }catch(e){ _legacyCopyOrDownload(report); }
   } else {
     _legacyCopyOrDownload(report);
   }

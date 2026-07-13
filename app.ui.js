@@ -1272,19 +1272,28 @@ function _makeCatChip(c, isActive, onSelect){
 function renderCategoryGrid(){
   const grid = document.getElementById('categoryGrid');
   grid.innerHTML = '';
-  CATEGORIES.filter(c => c.types.includes(addFormType)).forEach(c => {
+  // 'transfer' is a sentinel, never a real user-facing category choice: it's
+  // how the app recognizes an ALREADY-CREATED 2-leg transfer/distribution leg
+  // elsewhere (isSystemCategory, openEdit's _editLockReason, analytics/budget
+  // filters) — those legs are only ever created programmatically by doTransfer/
+  // runDistribution, never through this grid. Manually picking it here used to
+  // be fully possible for an ordinary expense/income with no guard at all: the
+  // transaction saved fine (balances still updated correctly), but isSystemCategory
+  // then silently excluded it from every total/chart/budget computation from
+  // that point on, with zero warning that the money had effectively vanished
+  // from all reporting.
+  CATEGORIES.filter(c => c.types.includes(addFormType) && c.id !== 'transfer').forEach(c => {
     grid.appendChild(_makeCatChip(c, selectedCategory===c.id, () => { selectedCategory = c.id; renderCategoryGrid(); }));
   });
 }
 function renderEditCategoryGrid(){
   const grid = document.getElementById('editCategoryGrid');
   grid.innerHTML = '';
-  // 'transfer' is a sentinel: combined with tx.link it's how the app detects a
-  // 2-leg transfer elsewhere (openEdit's _editLockReason, analytics filters).
-  // A distributed-income source also carries a link (to its withdrawal/deposit
-  // legs) — picking 'transfer' here would misclassify it as a transfer leg from
-  // then on, hiding its type/category controls and dropping it from income totals.
-  CATEGORIES.filter(c => c.types.includes(editType) && !(c.id === 'transfer' && _editAmountLocked())).forEach(c => {
+  // 'transfer' is never a real user-facing choice — see renderCategoryGrid's
+  // matching comment. Genuine transfer/distribution legs still show it (locked,
+  // non-selectable) via _editCategoryLocked() elsewhere in the edit modal; this
+  // grid is only reachable for a transaction that ISN'T already one of those.
+  CATEGORIES.filter(c => c.types.includes(editType) && c.id !== 'transfer').forEach(c => {
     grid.appendChild(_makeCatChip(c, editCategory===c.id, () => { editCategory = c.id; renderEditCategoryGrid(); }));
   });
 }
@@ -1360,7 +1369,14 @@ function toggleTransferMenu(dir){
   const key = dir==='from' ? 'From' : 'To';
   const btn = document.getElementById('transfer'+key+'Btn');
   const selected = dir==='from' ? transferFrom : transferTo;
-  const items = SELECTABLE_WALLETS.map(w => ({ id: w.id, name: w.name, bal: fmt(state.wallets[w.id] ?? 0) }));
+  // Exclude whatever the OTHER side currently has picked — without this, both
+  // pickers offered the full wallet list independently, so a user could pick
+  // the identical wallet on both sides directly through the popup UI with no
+  // indication anything was wrong; the invalid pair was only ever caught by
+  // doTransfer()'s submit-time guard, after the fact, with no cue in the
+  // picker itself pointing at which side to change.
+  const otherSelected = dir==='from' ? transferTo : transferFrom;
+  const items = SELECTABLE_WALLETS.filter(w => w.id !== otherSelected).map(w => ({ id: w.id, name: w.name, bal: fmt(state.wallets[w.id] ?? 0) }));
   openWalletPop(btn, items, selected, (id) => {
     if(dir==='from') transferFrom = id; else transferTo = id;
     renderTransferMenus();
