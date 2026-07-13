@@ -22,6 +22,15 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.30',
+    date: '2026-07-13',
+    title: { ar: 'إصلاح مؤجَّل مهم: محفظتان بنفس الاسم، وعطل محتمل بقائمة اختيار المحفظة', en: 'Important deferred fix: two identically-named wallets, and a potential wallet-picker outage' },
+    items: [
+      { ar: 'إصلاح متوسط: نموذج إضافة/تعديل محفظة يمنع تسمية محفظتين بنفس الاسم — لكن هذا المنع لا يوقف محفظتين وصلتا لنفس الاسم بشكل مستقل (مثل جهازين أنشأ كل منهما محفظة "بقالة" قبل أول مزامنة بينهما، أو نسخة احتياطية معدَّلة). كانتا تظهران متطابقتين تمامًا في كل قائمة اختيار، بدون أي طريقة للتفريق بينهما — وأي معاملة قد تُسجَّل بالخطأ في المحفظة غير المقصودة. الآن يُعاد تسمية أحدهما تلقائيًا بإضافة رقم مميز عند حدوث هذا التعارض.', en: 'Medium fix: the add/edit wallet form already blocks naming two wallets identically — but that block can\'t stop two wallets reaching the same name independently (e.g. two devices each creating a "Groceries" wallet before their first sync, or an edited backup file). They used to render completely identically in every picker with no way to tell them apart — a transaction could easily be logged against the wrong one. One is now automatically renamed with a distinguishing number when this collision occurs.' },
+      { ar: 'إصلاح عالي (وقائي): نسخة بيانات معطوبة أو خبيثة (استيراد، أو حساب Drive آخر مشترك) يمكنها نظريًا وسم كل المحافظ العادية بأنها "خاصة بوضع الطوارئ فقط" — وهذا يُفرغ قائمة اختيار المحفظة تمامًا عند إضافة معاملة أو تحويل في الوضع العادي، بلا أي سبب واضح للمستخدم. تمت إضافة ضمان: تبقى محفظة عادية واحدة على الأقل قابلة للاختيار خارج وضع الطوارئ دائمًا.', en: 'High fix (preventive): a corrupted or malicious data snapshot (import, or a shared/compromised Drive account) could theoretically tag every regular wallet as "crisis-mode only" — completely emptying the wallet picker when adding a transaction or transfer in normal mode, with no obvious cause. Added a guarantee that at least one regular wallet always stays selectable outside crisis mode.' },
+    ],
+  },
+  {
     version: 'v48.29',
     date: '2026-07-12',
     title: { ar: 'جولة هيكلية سابعة: مؤشر مزامنة عالق، حذف صامت، وملف Drive قديم بعد تبديل الحساب', en: 'Seventh structural round: stuck sync indicator, silent delete no-ops, and stale Drive file after switching accounts' },

@@ -279,6 +279,52 @@ test('_ingestWalletDefs — a snapshot with no walletDefs array is a no-op', () 
   assert.deepStrictEqual([...app.WALLET_DEFS.map(w => w.id)], before);
 });
 
+test('sanitizeWalletDefs — disambiguates two wallets that collide on name (different ids)', () => {
+  const out = app.sanitizeWalletDefs([
+    { id: 'core', name: 'Groceries', track: false, pct: '50%' },
+    { id: 'core2', name: 'groceries', track: false, pct: '50%' }, // same name, different case/id
+  ]);
+  const names = out.map(w => w.name);
+  assert.strictEqual(names[0], 'Groceries');
+  // disambiguation preserves each entry's OWN original casing — it only adds
+  // the distinguishing suffix, it doesn't force a canonical case onto later entries
+  assert.strictEqual(names[1], 'groceries (2)', 'colliding name disambiguated instead of left identical');
+});
+
+test('sanitizeWalletDefs — a name that collides with an already-disambiguated one gets its own suffix', () => {
+  const out = app.sanitizeWalletDefs([
+    { id: 'a', name: 'Cash', track: false, pct: '50%' },
+    { id: 'b', name: 'Cash', track: false, pct: '50%' },       // disambiguates to "Cash (2)"
+    { id: 'c', name: 'Cash (2)', track: false, pct: '50%' },   // now collides with THAT — gets its own suffix
+  ]);
+  // [...out.map(...)] re-realizes the array in THIS realm — out was built inside
+  // the vm sandbox, so a bare .map() result carries that realm's Array prototype
+  // and fails deepStrictEqual's identity check despite equal values (same pattern
+  // other tests in this file already work around, e.g. _ingestWalletDefs above).
+  const names = [...out.map(w => w.name)];
+  assert.strictEqual(new Set(names.map(n => n.toLowerCase())).size, 3, 'all three names end up distinct');
+  assert.deepStrictEqual(names, ['Cash', 'Cash (2)', 'Cash (2) (2)']);
+});
+
+test('sanitizeWalletDefs — clears crisisOnly when it would empty the normal-mode picker', () => {
+  const out = app.sanitizeWalletDefs([
+    { id: 'core', name: 'Core', track: false, pct: '50%', crisisOnly: true },
+    { id: 'other', name: 'Other', track: false, pct: '50%', crisisOnly: true },
+    { id: 'uber', name: 'Uber', track: true, pct: 'track' },
+  ]);
+  assert.ok(out.some(w => !w.track && !w.crisisOnly),
+    'at least one non-track wallet must stay selectable outside crisis mode');
+});
+
+test('sanitizeWalletDefs — a legitimate single crisisOnly wallet is left untouched', () => {
+  const out = app.sanitizeWalletDefs([
+    { id: 'core', name: 'Core', track: false, pct: '50%' },
+    { id: 'crisis_fund', name: 'Crisis Fund', track: false, pct: '0%', crisisOnly: true },
+  ]);
+  const crisisFund = out.find(w => w.id === 'crisis_fund');
+  assert.strictEqual(crisisFund.crisisOnly, true, 'a real, non-brick-inducing crisisOnly flag is preserved');
+});
+
 test('_ingestWalletBalances — restores balances for every known wallet, zeroing omitted ones', () => {
   stage({ defs: FACTORY_DEFS, dist: [], wallets: { core: 999, wishlist: 999 } });
   app._ingestWalletBalances({ wallets: { core: 50 } }); // wishlist omitted from the snapshot

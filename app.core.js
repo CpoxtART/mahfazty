@@ -102,9 +102,14 @@ function _unionTombstoneMap(local, incoming){
 // wherever the data it cleans is otherwise handled: sanitizeDistribution/
 // sanitizeBudgets in app.data.js (import/data-management), sanitizeOrder/
 // sanitizeTrackLinkMode in app.layout.js (layout/tab-order prefs).
+// Same whitespace-collapse + lowercase normalization saveWalletDefModal's own
+// duplicate-name check uses (app.ui.js) — kept in sync so a name the UI would
+// have rejected as a duplicate is recognized as one here too.
+function _normWalletName(s){ return s.toLowerCase().replace(/\s+/g, ' '); }
 function sanitizeWalletDefs(arr){
   if(!Array.isArray(arr) || !arr.length) return null;
   const seen = new Set();
+  const seenNames = new Set();
   const out = [];
   arr.forEach(w => {
     if(!w || typeof w !== 'object') return;
@@ -115,7 +120,7 @@ function sanitizeWalletDefs(arr){
     // corruption from a name like "Cash‮hsac").
     // [...str].slice() counts Unicode code points, not UTF-16 code units — avoids
     // stranding a lone surrogate when the 40th position falls inside an emoji pair.
-    const name = typeof w.name === 'string' ? [...stripBidiControls(w.name).trim()].slice(0,40).join('') : '';
+    let name = typeof w.name === 'string' ? [...stripBidiControls(w.name).trim()].slice(0,40).join('') : '';
     // '__proto__'/'constructor'/'prototype' match the id regex but wallet ids are
     // used as bracket-notation object keys all over (state.wallets[id], budgets[id],
     // trackLinkMode[id]) — every current write is a primitive so nothing is
@@ -123,6 +128,20 @@ function sanitizeWalletDefs(arr){
     // prototype pollution. Cheap to foreclose at the gate.
     if(!id || !/^[a-zA-Z0-9_\-]+$/.test(id) || id === '__proto__' || id === 'constructor' || id === 'prototype' || !name || seen.has(id)) return;
     seen.add(id);
+    // saveWalletDefModal blocks creating a SECOND wallet with a name that
+    // already collides — but that check can't stop two DIFFERENT wallets
+    // reaching this same name independently (e.g. two devices each named a
+    // wallet "Groceries" before ever syncing, or a crafted import/cloud
+    // snapshot). Without this, two wallets render completely indistinguishable
+    // in every picker/list (which only ever shows name + balance, never an
+    // id) — a user could log real money against the wrong one with no way to
+    // tell. Disambiguate instead of silently allowing the collision through.
+    if(seenNames.has(_normWalletName(name))){
+      let n = 2, candidate = `${name} (${n})`;
+      while(seenNames.has(_normWalletName(candidate))){ n++; candidate = `${name} (${n})`; }
+      name = [...candidate].slice(0,40).join('');
+    }
+    seenNames.add(_normWalletName(name));
     // pct is a neutral internal marker for track wallets (see WALLET_DEFS above) —
     // never displayed as-is, so no Arabic literal here either.
     out.push({id, name, initial:0, track: !!w.track, pct: typeof w.pct === 'string' ? w.pct : (w.track ? 'track' : '0%'), ...(w.crisisOnly ? {crisisOnly:true} : {})});
@@ -131,6 +150,16 @@ function sanitizeWalletDefs(arr){
   // assumes at least one non-track wallet exists — a corrupt/edited blob with only
   // track wallets would otherwise brick those screens.
   if(!out.length || !out.some(w => !w.track)) return null;
+  // Same reasoning, for crisisOnly specifically: recomputeSelectableWallets()
+  // filters OUT every crisisOnly wallet in normal (non-crisis) mode — if a
+  // corrupt/malicious import or cloud snapshot tagged every non-track wallet
+  // crisisOnly (only the real crisis_fund should ever carry this flag), the
+  // add-transaction/transfer picker would render completely empty outside
+  // crisis mode, with no obvious cause. Guarantee at least one stays selectable.
+  if(out.every(w => w.track || w.crisisOnly)){
+    const first = out.find(w => !w.track);
+    if(first) delete first.crisisOnly;
+  }
   return out;
 }
 // Mutates WALLET_DEFS IN PLACE (clear + refill) so every other module's direct
