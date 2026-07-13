@@ -136,7 +136,21 @@ function toastWithAction(msg, actionLabel, fn, critical, btnAriaLabel, _isReplay
   // higher-priority (time-sensitive) undo offer with a routine queued message.
   const _offerSuperseded = () => {
     if(!critical && _pendingAction === thisAction) _pendingAction = null;
-    if(_supersededAction && _supersededAction.expiresAt > Date.now()){
+    // Deliberately NOT re-checking _supersededAction.expiresAt here: it was
+    // stamped relative to when the ORIGINAL (superseded) toast first appeared,
+    // and this offer only ever runs once THIS (superseding) toast has already
+    // resolved — by definition at least a full UNDO_WINDOW_MS after that stamp,
+    // for every duration this later toast could have run. That comparison was
+    // therefore always false on the natural-timeout path (the overwhelming
+    // common case — a toast the user doesn't tap), silently defeating the
+    // entire "walk back one tap at a time" mechanism this block exists for:
+    // the earlier action's undo vanished the instant the later toast expired,
+    // with nothing telling the user it happened. Once stashed (bounded to one
+    // level deep, see the stash site above), always offer it — the re-display
+    // below stamps its OWN fresh expiresAt, and the undo functions themselves
+    // (undoEdit/undoDelete) already handle the underlying data having moved on
+    // in the meantime, so there's no correctness reason to gate this further.
+    if(_supersededAction){
       const prev = _supersededAction; _supersededAction = null;
       toastWithAction(prev.label, prev.actionLabel, prev.fn, false, prev.ariaLabel, true);
       return true;
@@ -587,7 +601,17 @@ document.addEventListener('visibilitychange', () => {
     // (_voiceTimer, app.voice.js) is an ordinary setTimeout that mobile OSes
     // routinely freeze while backgrounded, so it can't be relied on to catch
     // this — abort explicitly here instead of waiting for it.
+    // Nulling voiceRecognition here (not just calling abort()) means cleanup()'s
+    // own guard (app.voice.js: `if(voiceRecognition !== thisRecognition) return;`)
+    // always early-returns once abort()'s async onend/onerror eventually fires —
+    // so the timer/class cleanup it would have done must happen explicitly here
+    // too, same as closeAddDrawer()'s matching abort site (app.ui.js). Without
+    // this, backgrounding mid-recording left #voiceBtn stuck showing its
+    // infinite "listening" pulse animation until the user tapped it again.
     if(voiceRecognition){ try{ voiceRecognition.abort(); }catch(_){} voiceRecognition = null; }
+    clearTimeout(_voiceTimer); _voiceTimer = null;
+    const _vBtn = document.getElementById('voiceBtn');
+    if(_vBtn) _vBtn.classList.remove('listening');
   }
 });
 

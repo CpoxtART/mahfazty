@@ -1343,6 +1343,17 @@ async function doTransfer(){
   if(!isFinite(amt) || amt <= 0){ toast(t({ar:'⚠ أدخل مبلغ صحيح', en:'⚠ Enter a valid amount'}), true); amountInput.focus(); return; }
   if(!transferFrom || !transferTo){ toast(t({ar:'⚠ اختر المحفظتين أولاً', en:'⚠ Choose both wallets first'}), true); return; }
   if(transferFrom === transferTo){ toast(t({ar:'⚠ اختر محفظتين مختلفتين', en:'⚠ Choose two different wallets'}), true); return; }
+  // Re-validate against SELECTABLE_WALLETS (not just WALLET_DEFS) at submit time —
+  // toggleCrisis()/recomputeSelectableWallets() never touch transferFrom/transferTo,
+  // so a wallet picked before a crisis-mode toggle (while this modal stayed open —
+  // it's a protected modal that survives background events) could otherwise still
+  // execute a real transfer against a wallet every picker in the app now claims
+  // doesn't exist, bypassing crisis mode's "spend only from the merged fund" intent.
+  if(!SELECTABLE_WALLETS.find(w=>w.id===transferFrom) || !SELECTABLE_WALLETS.find(w=>w.id===transferTo)){
+    toast(t({ar:'⚠ إحدى المحفظتين لم تعد متاحة (تغيّر الوضع) — أعد فتح نافذة التحويل', en:'⚠ One of the wallets is no longer available (mode changed) — reopen the transfer window'}), true);
+    closeModal('transferModal');
+    return;
+  }
   // cross-op write guard (see commitQuickNotes) — block interleaving with another in-flight write
   if(_opBusy()) return;
   _doTransferBusy = true;

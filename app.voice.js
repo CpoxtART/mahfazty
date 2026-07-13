@@ -303,7 +303,13 @@ function _applyVoiceTranscript(text){
     .replace(/\d+(\.\d+)?/g, '')
     .replace(/[٠-٩]+/g, '')
     .trim();
-  Object.keys(VOICE_NUMBER_WORDS).forEach(w => { desc = desc.replace(new RegExp(w,'g'), ''); });
+  // Whitespace-anchored (not a bare substring match) — same reasoning as the
+  // verb/particle strip below: JS \b doesn't match around Arabic letters, and
+  // without SOME anchor a number word that's also a substring of an unrelated
+  // word gets eaten out of its middle (e.g. "خمسين" inside "دفعت خمسين لشراء
+  // كمية" is a real number word, but "كمية" also contains "مية"/100 — an
+  // unanchored strip mangled it into "ك من").
+  Object.keys(VOICE_NUMBER_WORDS).forEach(w => { desc = desc.replace(new RegExp('(^|\\s)'+w+'(?=\\s|$)','g'), ' '); });
   // English number words too — \b is safe here (ASCII-only), unlike the
   // whitespace-anchor approach the Arabic particle strip below needs.
   Object.keys(VOICE_NUMBER_WORDS_EN).forEach(w => { desc = desc.replace(new RegExp('\\b'+w+'\\b','gi'), ''); });

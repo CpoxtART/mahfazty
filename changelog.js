@@ -22,6 +22,17 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.32',
+    date: '2026-07-13',
+    title: { ar: 'جولة هيكلية عاشرة: تراجع مفقود بصمت، محفظة صوتية مشوَّهة، تحويل مالي بعد تبديل الوضع', en: 'Tenth structural round: silently lost undo, garbled voice description, transfer after mode switch' },
+    items: [
+      { ar: 'إصلاح عالي: بعد تعديل معاملة ثم تعديل أو حذف معاملة أخرى خلال 5 ثوانٍ، كانت آلية "احفظ التراجع السابق" مصممة لعرض تراجع المعاملة الأولى لاحقًا — لكن الشرط الذي يتحقق منه كان يفشل رياضيًا في كل مرة تقريبًا (عند انتهاء العد التنازلي طبيعيًا بدون ضغط زر، وهو النمط الأكثر شيوعًا)، فيختفي تراجع المعاملة الأولى بصمت تام بلا أي إشعار. تم إصلاح الشرط.', en: 'High fix: after editing a transaction, then editing or deleting a different one within 5 seconds, the "preserve the earlier undo" mechanism was designed to offer the first edit\'s undo afterward — but the condition it checked was mathematically false almost every time (whenever the countdown expired naturally without tapping the button, the most common pattern), so the first edit\'s undo silently vanished with zero indication. Fixed the condition.' },
+      { ar: 'إصلاح عالي (وقائي): تحويل مالي بين محفظتين كان اختيارهما قبل تبديل وضع الطوارئ يبقى ممكن التنفيذ الفعلي حتى لو أصبحت إحدى المحفظتين مخفية بعد التبديل (نافذة التحويل تبقى مفتوحة أثناء أحداث الخلفية) — يتجاوز هذا قصد وضع الطوارئ. الآن يُعاد التحقق من صحة المحفظتين عند التنفيذ.', en: "High fix (preventive): a transfer between two wallets picked before a crisis-mode toggle could still actually execute even if one wallet became hidden by the toggle (the transfer window stays open through background events) — bypassing crisis mode's intent. Wallets are now re-validated at execution time." },
+      { ar: 'إصلاح متوسط: تفريغ الأرقام العربية المنطوقة من وصف المعاملة الصوتية كان يحذف أي كلمة تحتوي رقمًا كجزء فرعي منها (مثل "كمية" التي تحتوي "مية"/100) بدل الكلمات الرقمية المستقلة فقط، فيُشوَّه الوصف.', en: 'Medium fix: stripping spoken Arabic number words from the voice-entry description deleted any word that merely CONTAINED a number word as a substring (e.g. "كمية"/quantity contains "مية"/100) instead of only standalone number words, garbling the description.' },
+      { ar: 'إصلاح متوسط: تصغير التطبيق أو تغيير التبويب أثناء الاستماع الصوتي كان يترك زر الميكروفون عالقًا على حالة "يستمع" (نبض أحمر مستمر) حتى الضغط عليه يدويًا مجددًا.', en: 'Medium fix: backgrounding the app or switching tabs mid-voice-recording left the microphone button stuck on its "listening" state (a continuous red pulse) until manually tapped again.' },
+    ],
+  },
+  {
     version: 'v48.31',
     date: '2026-07-13',
     title: { ar: 'جولة هيكلية ثامنة: زر حذف المعاملة بالسحب مقلوب باللغة الإنجليزية', en: 'Eighth structural round: transaction swipe-to-delete reversed in English mode' },
