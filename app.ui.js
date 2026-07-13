@@ -86,9 +86,18 @@ function renderWallets(){
   }
 
   // Normal mode hides crisisOnly wallets (they only appear in crisis/alternative mode)
+  // — EXCEPT one still holding a real balance (a direct expense/transfer can
+  // write straight to crisis_fund while crisis mode is on; unconditionally
+  // hiding it afterward regardless of balance used to leave that money with
+  // no visible card at all in normal mode while still being folded into the
+  // total below via a separate manual addition — the total and the sum of
+  // the cards actually shown disagreed by exactly that amount, with nothing
+  // on screen explaining the gap. Keeping the card visible for a nonzero
+  // balance means the normal per-wallet loop below already counts it
+  // correctly on its own, so no separate manual addition is needed anymore.
   let defs = state.crisisMode
     ? WALLET_DEFS.filter(w => !crisisWalletIds().includes(w.id))  // crisis: hide budget wallets, show crisis_fund
-    : WALLET_DEFS.filter(w => !w.crisisOnly);                      // normal: hide crisis_fund
+    : WALLET_DEFS.filter(w => !w.crisisOnly || Math.abs(state.wallets[w.id] ?? 0) > 0.004);
 
   let barMax = 1;
   defs.forEach(w => {
@@ -173,17 +182,6 @@ function renderWallets(){
     const target = card ? (_focusedWasPct ? card.querySelector('.pct') : card) : null;
     if(target) target.focus({preventScroll:true});
   }
-  // crisis_fund can hold its OWN independent balance beyond just merging the
-  // hidden budget wallets — a direct expense recorded against it (or a
-  // transfer in/out) while crisis mode is on writes straight to
-  // state.wallets.crisis_fund. In crisis mode that's already counted above
-  // (the merged crisis_fund row's own value includes it); in normal mode
-  // crisis_fund is excluded from `defs` entirely (crisisOnly), so without
-  // this its balance silently vanished from the total the instant crisis
-  // mode was switched off — the ledger stayed correct, but the displayed
-  // total quietly understated real resources by exactly that amount.
-  if(!state.crisisMode) spendable += (state.wallets.crisis_fund ?? 0);
-
   document.getElementById('walletCount').textContent = String(defs.length);
 
   const totalEl = document.getElementById('totalSpendable');
@@ -471,7 +469,12 @@ async function saveWalletDefModal(){
   // wallet's name but compared as a different string, letting two
   // indistinguishable wallets coexist with no way to tell them apart in any
   // picker (which only shows name + balance, never an id).
-  const _normName = s => s.toLowerCase().replace(/\s+/g, ' ');
+  // normalize('NFKC') folds canonically-equivalent Unicode sequences (e.g. a
+  // precomposed "é" vs. the same glyph typed as base+combining-accent) that
+  // render pixel-identical but were previously invisible to this check as two
+  // different code point sequences — keep in sync with app.core.js's
+  // _normWalletName (the merge/import-time twin of this same check).
+  const _normName = s => s.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ');
   if(WALLET_DEFS.some(w => w.id !== editingWalletDefId && _normName(w.name) === _normName(name))){
     toast(t({ar:'⚠ يوجد محفظة بهذا الاسم بالفعل', en:'⚠ A wallet with this name already exists'}), true); nameInput.focus(); return;
   }

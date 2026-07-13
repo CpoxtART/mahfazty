@@ -22,6 +22,16 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.40',
+    date: '2026-07-13',
+    title: { ar: 'جولة هيكلية سابعة عشرة: إجمالي المتاح للصرف لا يطابق مجموع البطاقات المعروضة', en: 'Seventeenth structural round: the spendable total disagreed with the sum of visible cards' },
+    items: [
+      { ar: 'إصلاح عالي: صندوق الطوارئ (crisis_fund) يقدر يحمل رصيدًا خاصًا به (من معاملة مباشرة أو تحويل أثناء تفعيل وضع الطوارئ). عند إيقاف وضع الطوارئ، كان هذا الرصيد يُضاف بصمت إلى الرقم الكبير بأعلى الشاشة، بينما لا توجد أي بطاقة تعرضه — فيظهر الإجمالي أكبر من مجموع كل البطاقات المرئية بلا أي تفسير. الآن تبقى بطاقة صندوق الطوارئ ظاهرة طالما فيها رصيد فعلي، حتى خارج وضع الطوارئ.', en: "High fix: the crisis-fund wallet (crisis_fund) can hold its own balance (from a direct transaction or transfer made while crisis mode was on). When crisis mode was switched off, that balance was silently added into the big number at the top of the screen, while no card anywhere displayed it — so the total read higher than the sum of every visible card, with nothing explaining the gap. The crisis-fund card now stays visible whenever it holds a real balance, even outside crisis mode." },
+      { ar: 'إصلاح متوسط: سطر بملاحظة سريعة يتكون من رقم فقط (بلا أي وصف) كان يُسجَّل بوصف فارغ تمامًا في سجل المعاملات بشكل دائم. الآن يُستخدم اسم الفئة المخمَّنة كوصف احتياطي.', en: "Medium fix: a Quick Notes line consisting of nothing but a number (no description at all) permanently recorded with a completely empty description in the transaction ledger. Now falls back to the guessed category's name as the description." },
+      { ar: 'إصلاح بسيط: فحص تكرار اسم المحفظة كان لا يكتشف نصوصًا متطابقة بصريًا لكنها مختلفة على مستوى Unicode (مثل حرف مُركَّب مقابل نفس الحرف مكتوبًا بحرف أساسي + علامة تشكيل منفصلة).', en: "Minor fix: the wallet duplicate-name check didn't catch text that's visually identical but different at the Unicode level (e.g. a precomposed accented character vs. the same glyph typed as a base letter plus a separate combining mark)." },
+    ],
+  },
+  {
     version: 'v48.39',
     date: '2026-07-13',
     title: { ar: 'جولة هيكلية سادسة عشرة: اختيار "تحويل" كفئة عادية يُخفي المعاملة من كل الإحصائيات', en: 'Sixteenth structural round: picking "Transfer" as an ordinary category hid the transaction from every total' },

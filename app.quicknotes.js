@@ -183,7 +183,16 @@ function parseQuickNotes(text){
       wallet = resolved.wallet;
       track = resolved.track;
     }
-    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category:_qnGuessCategory(desc, type), valid, wallet, track});
+    const category = _qnGuessCategory(desc, type);
+    // A line that's ENTIRELY a number ("50", or "ب500" once the clitic/number
+    // are cut) leaves nothing behind at all — desc ends up permanently empty
+    // once committed (not just a blank preview field the user might notice
+    // and fill in; commitQuickNotes saves it exactly as-is). Fall back to the
+    // guessed category's own name, the same fallback the transaction list
+    // already uses elsewhere for an empty tx.desc, instead of a silently
+    // blank description landing straight in the ledger.
+    if(valid && !desc) desc = getCategory(category).name;
+    rows.push({raw:line, desc, amount: valid ? amount : NaN, type, category, valid, wallet, track});
   }
   return rows;
 }
