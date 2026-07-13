@@ -1033,6 +1033,7 @@
   }
   .detail-stat .l{font-size:var(--fs-2xs); color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; font-weight:600;}
   .detail-stat .v{font-size:var(--money-sm); font-weight:700; font-variant-numeric: tabular-nums; direction:ltr; overflow-wrap:break-word;}
+  .detail-stat .v.neg{color:var(--red);}
   .detail-tx-list{display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto; overscroll-behavior:contain;}
 
   /* distribution breakdown */

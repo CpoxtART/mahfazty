@@ -1648,6 +1648,9 @@ async function saveDistribution(){
     renderDistributionEditor(); // reflect the normalized values back into the inputs
     await saveConfig();
     renderWallets();
+    // matches saveWalletDefModal/saveSubModal/saveEdit/doTransfer's identical
+    // haptic(15) on a successful save — this one had none.
+    haptic(15);
     toast(t({ar:'✓ تم حفظ النسب (المجموع 100٪)', en:'✓ Ratios saved (total 100%)'}));
   } finally {
     _saveDistBusy = false;
@@ -1676,7 +1679,12 @@ function openWalletDetail(walletId){
   detailWalletId = walletId;
   const currentVal = state.wallets[walletId] ?? 0;
   document.getElementById('detailTitle').textContent = (w.track?'🏦 ':'👛 ') + w.name;
-  document.getElementById('detailBalance').textContent = fmt(currentVal);
+  const _detailBalEl = document.getElementById('detailBalance');
+  _detailBalEl.textContent = fmt(currentVal);
+  // Same negative-balance red the dashboard card already uses (.wallet.neg-val
+  // .val) — this detail view shows the exact same balance with no visual
+  // distinction from a positive one at all, unlike its dashboard counterpart.
+  _detailBalEl.classList.toggle('neg', currentVal < 0);
 
   const updateWrap = document.getElementById('detailUpdateBalance');
   const budgetWrap = document.getElementById('detailBudgetSetting');

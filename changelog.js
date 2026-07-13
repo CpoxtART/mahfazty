@@ -22,6 +22,15 @@
 // the next whole number (v48) and restart the decimals from there.
 const CHANGELOG = [
   {
+    version: 'v48.37',
+    date: '2026-07-13',
+    title: { ar: 'جولة هيكلية رابعة عشرة: اهتزاز لمسي مفقود، ورصيد سالب بلا تمييز بصري', en: 'Fourteenth structural round: missing haptic feedback, and negative balance with no visual distinction' },
+    items: [
+      { ar: 'إصلاح متوسط (4 مواضع): حفظ نسب التوزيع، والتراجع عن تعديل/حذف معاملة، وإصلاح الأرصدة من السجل — كل هذي الإجراءات الناجحة والمؤكَّدة كانت بلا أي نبضة اهتزاز، بخلاف كل الإجراءات المشابهة لها (تسجيل معاملة، تعديل، تحويل) التي تهتز عند النجاح.', en: 'Medium fix (4 sites): saving distribution ratios, undoing an edit/delete, and repairing balances from the ledger — all confirmed, successful actions — had no haptic pulse at all, unlike every comparable action (recording a transaction, editing, transferring) which vibrates on success.' },
+      { ar: 'إصلاح متوسط: الرصيد بشاشة تفاصيل المحفظة لا يظهر بأي تمييز بصري عند كونه سالبًا، بخلاف بطاقة المحفظة بالشاشة الرئيسية التي تُلوّن نفس الرصيد بالأحمر عند السالب — سهل تفويت رصيد سالب عند فتح تفاصيل المحفظة.', en: "Medium fix: the balance shown on the wallet detail screen had no visual distinction when negative, unlike the main dashboard card, which colors the same balance red when it goes negative — easy to miss a negative balance when opening a wallet's details." },
+    ],
+  },
+  {
     version: 'v48.36',
     date: '2026-07-13',
     title: { ar: 'زر تثبيت حقيقي لأندرويد/الحاسوب، وإصلاح المؤجَّلات', en: 'Real install button for Android/desktop, plus deferred fixes' },

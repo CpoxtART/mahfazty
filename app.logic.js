@@ -682,6 +682,7 @@ async function undoEdit(txId, prevTx, prevPartner){
     await saveTx(); // saveTx first — see addTx comment
     await saveBalances();
     render(true);
+    haptic(15); // matches addTx/saveEdit/doTransfer's haptic on a successful, confirmed money change
     toast(t({ar:'↩️ تم التراجع عن التعديل', en:'↩️ Edit undone'}));
   } finally {
     _opInFlight--;
@@ -859,6 +860,7 @@ async function undoDelete(){
     await saveTx();
     await saveBalances();
     render();
+    haptic(15); // matches addTx/saveEdit/doTransfer's haptic on a successful, confirmed money change
     toast(removed.length > 1 ? t({ar:'↩️ تم استرجاع الحركات', en:'↩️ Entries restored'}) : t({ar:'↩️ تم استرجاع المعاملة', en:'↩️ Transaction restored'}));
   } finally {
     _opInFlight--;

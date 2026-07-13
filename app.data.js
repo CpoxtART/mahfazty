@@ -663,6 +663,7 @@ async function repairBalancesFromLedger(){
   await saveBalances();
   closeModal('settingsModal');
   render(true);
+  haptic(15); // matches every other confirmed, successful balance-changing action
   toast(t({ar:'🔧 تم إصلاح الأرصدة من السجل', en:'🔧 Balances fixed from the ledger'}));
   } finally { _opInFlight--; }
 }
